@@ -1,0 +1,72 @@
+Comment,Designator,Footprint,LCSC,Quantity
+100uF,C4,CP_Radial_D6.3mm_P2.50mm,C2035,1
+RGBC TCS3472,J9,JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical,,1
+24V->5V Servos,U5,DCDC_HW613,,1
+Weight Sensor,J3,JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical,,1
+TOF1,J19,JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical,,1
+CVB,J7,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,,1
+Fan,J11,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,,1
+A4988_Sorting,U2,MODULE_A4988_STEPPER_MOTOR_DRIVER_CARRIER,,1
+1m,C12,CP_Radial_D8.0mm_P5.00mm,,1
+Servo,J2,JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical,,1
+100uF,C5,CP_Radial_D6.3mm_P2.50mm,,1
+24V - GND,J15,"TerminalBlock_Phoenix_MKDS-1,5-2-5.08_1x02_P5.08mm_Horizontal",,1
+Elev Up,J20,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,,1
+1m,C1,CP_Radial_D8.0mm_P5.00mm,,1
+Q_NMOS_GDS,Q3,TO-220-3_Vertical,,1
+24V->12V,U6,DCDC_HW613,,1
+1m,C6,CP_Radial_D8.0mm_P5.00mm,,1
+Robot,J10,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,,1
+Fan,M1,FAN2507,,1
+Sep. L,J12,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,,1
+Elevator,J8,JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical,,1
+TOF2,J18,JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical,,1
+24V->5V RasPi,U7,DCDC_HW613,,1
+Sep. R,J22,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,,1
+Sorting,J13,JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical,,1
+PWM,D1,LED_0805_2012Metric_Pad1.15x1.40mm_HandSolder,,1
+Init Robot,SW1,SW_PUSH_6mm,,1
+Fuse,F1,Fuseholder_Cylinder-5x20mm_Schurter_0031_8201_Horizontal_Open,,1
+TOF3,J17,JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical,,1
+1m,C2,CP_Radial_D8.0mm_P5.00mm,,1
+A4988_Elevator,U1,MODULE_A4988_STEPPER_MOTOR_DRIVER_CARRIER,,1
+Elev Down,J21,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,,1
+GPIO,J1,PinSocket_2x20_P2.54mm_Vertical,,1
+1k8,R2,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+u1,C16,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+10u,C17,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+100k,R3,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+10k,R9,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+NAU7802,U3,SOP-16_3.9x9.9mm_P1.27mm,,1
+1k,R10,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+51R,R4,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+u1,C10,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+10k,R16,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+u1,C20,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+u1,C18,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+1k,R15,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+1k,R8,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+u1,C11,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+u1,C8,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+1k,R14,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+51R,R17,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+4k7,R20,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+10k,R11,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+n47,C19,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+4k7,R18,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+4k7,R19,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+4k7,R21,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+1k,R12,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+74AHCT125,U4,TSSOP-14_4.4x5mm_P0.65mm,,1
+1u,C15,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+u1,C9,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+u1,C14,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+51R,R6,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+10k,R7,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+u1,C3,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+PCA9548APW,U8,TSSOP-24_4.4x7.8mm_P0.65mm,,1
+u1,C7,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+u1,C13,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,,1
+k1,R1,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+51R,R5,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1
+10k,R13,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,,1

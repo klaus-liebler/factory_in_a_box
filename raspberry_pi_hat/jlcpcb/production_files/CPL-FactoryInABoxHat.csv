@@ -1,0 +1,72 @@
+Designator,Val,Package,Mid X,Mid Y,Rotation,Layer
+C1,1m,CP_Radial_D8.0mm_P5.00mm,9.497349,16.0,0.0,top
+C10,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,28.7,-2.2,0.0,bottom
+C11,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,0.1,-1.6,270.0,bottom
+C12,1m,CP_Radial_D8.0mm_P5.00mm,1.0,16.0,0.0,top
+C13,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,9.75,-3.925,270.0,bottom
+C14,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,19.75,-3.925,270.0,bottom
+C15,1u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,21.75,-3.925,270.0,bottom
+C16,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,19.8,3.0,270.0,bottom
+C17,10u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,21.8,3.0,270.0,bottom
+C18,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,16.65,-3.025,0.0,bottom
+C19,n47,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,12.85,-3.025,0.0,bottom
+C2,1m,CP_Radial_D8.0mm_P5.00mm,1.0,24.55,0.0,top
+C20,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,34.9,-7.9,180.0,bottom
+C3,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,-1.2,-5.7,0.0,bottom
+C4,100uF,CP_Radial_D6.3mm_P2.50mm,-22.85,16.2,180.0,top
+C5,100uF,CP_Radial_D6.3mm_P2.50mm,-23.76762,37.3,180.0,top
+C6,1m,CP_Radial_D8.0mm_P5.00mm,9.497349,24.55,0.0,top
+C7,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,-8.8,-5.7,0.0,bottom
+C8,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,-8.8,-7.7,0.0,bottom
+C9,u1,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,-1.2,-7.7,0.0,bottom
+D1,PWM,LED_0805_2012Metric_Pad1.15x1.40mm_HandSolder,39.775,-5.2,180.0,top
+F1,Fuse,Fuseholder_Cylinder-5x20mm_Schurter_0031_8201_Horizontal_Open,51.9,23.9,180.0,top
+J1,GPIO,PinSocket_2x20_P2.54mm_Vertical,32.5,52.5,270.0,bottom
+J10,Robot,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,49.9,-10.475,0.0,top
+J11,Fan,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,49.9,-2.475,0.0,top
+J12,Sep. L,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,3.55,-3.675,0.0,top
+J13,Sorting,JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical,-23.475,47.6,-90.0,top
+J15,24V - GND,"TerminalBlock_Phoenix_MKDS-1,5-2-5.08_1x02_P5.08mm_Horizontal",59.74,-10.0,0.0,top
+J17,TOF3,JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical,-17.0,3.1,0.0,top
+J18,TOF2,JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical,-17.0,-3.7,0.0,top
+J19,TOF1,JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical,-17.0,-10.5,0.0,top
+J2,Servo,JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical,31.7,-10.5,0.0,top
+J20,Elev Up,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,-4.85,-3.7,0.0,top
+J21,Elev Down,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,-4.85,-10.5,0.0,top
+J22,Sep. R,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,3.55,-10.5,0.0,top
+J3,Weight Sensor,JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical,16.95,-10.5,0.0,top
+J7,CVB,JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical,41.5,-10.475,0.0,top
+J8,Elevator,JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical,-23.5,26.35,-90.0,top
+J9,RGBC TCS3472,JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical,-17.0,9.9,0.0,top
+M1,Fan,FAN2507,26.4,18.15,90.0,top
+Q3,Q_NMOS_GDS,TO-220-3_Vertical,39.24,-2.6,0.0,top
+R1,k1,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,38.7,0.4,90.0,bottom
+R10,1k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,-5.0,-5.7,0.0,bottom
+R11,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,-1.9,-11.9,270.0,bottom
+R12,1k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,-5.0,-7.7,0.0,bottom
+R13,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,6.8,-11.9,270.0,bottom
+R14,1k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,2.6,-7.7,0.0,bottom
+R15,1k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,28.7,-0.2,0.0,bottom
+R16,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,24.9,-0.2,0.0,bottom
+R17,51R,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,11.75,-5.925,90.0,bottom
+R18,4k7,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,5.3,8.504906,90.0,bottom
+R19,4k7,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,3.3,8.5,90.0,bottom
+R2,1k8,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,35.9,-5.2,0.0,bottom
+R20,4k7,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,10.2,7.6,270.0,bottom
+R21,4k7,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,12.1,7.6,270.0,bottom
+R3,100k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,36.8,0.4,270.0,bottom
+R4,51R,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,17.75,-5.925,90.0,bottom
+R5,51R,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,15.75,-5.925,90.0,bottom
+R6,51R,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,13.75,-5.925,90.0,bottom
+R7,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,0.0,-11.9,270.0,bottom
+R8,1k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,2.6,-5.7,0.0,bottom
+R9,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,-8.8,-11.9,270.0,bottom
+SW1,Init Robot,SW_PUSH_6mm,28.7,-0.2,0.0,top
+U1,A4988_Elevator,MODULE_A4988_STEPPER_MOTOR_DRIVER_CARRIER,-11.5,23.9,180.0,top
+U2,A4988_Sorting,MODULE_A4988_STEPPER_MOTOR_DRIVER_CARRIER,-11.4,45.4,180.0,top
+U3,NAU7802,SOP-16_3.9x9.9mm_P1.27mm,13.45,1.775,90.0,bottom
+U4,74AHCT125,TSSOP-14_4.4x5mm_P0.65mm,29.1,-6.5,180.0,bottom
+U5,24V->5V Servos,DCDC_HW613,62.9,12.6,180.0,top
+U6,24V->12V,DCDC_HW613,59.4,30.7545,90.0,top
+U7,24V->5V RasPi,DCDC_HW613,2.2,47.6455,-90.0,top
+U8,PCA9548APW,TSSOP-24_4.4x7.8mm_P0.65mm,-4.8125,3.4,180.0,bottom

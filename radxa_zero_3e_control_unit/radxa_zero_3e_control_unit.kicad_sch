@@ -9930,6 +9930,73 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 265.43 153.67 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "0971c352-0f96-414b-a921-df7d747380ae")
+		(property "Reference" "#PWR0120"
+			(at 259.08 153.67 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 261.62 153.6699 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 265.43 153.67 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 265.43 153.67 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 265.43 153.67 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "a07ffe1e-17f8-49d9-9f3f-bc9a189b60cc")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "#PWR0120")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:+3V3")
 		(at 34.29 44.45 90)
 		(unit 1)
@@ -11856,6 +11923,88 @@
 		)
 	)
 	(symbol
+		(lib_id "Connector_Generic:Conn_01x06")
+		(at 270.51 146.05 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "79f264dc-30d8-480d-af81-9a5ee694d157")
+		(property "Reference" "J25"
+			(at 273.05 146.0499 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "IO"
+			(at 273.05 148.5899 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Connector_JST:JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical"
+			(at 270.51 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 270.51 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 270.51 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "c554b3ca-ae4a-486d-a140-5b51a0e8c2fb")
+		)
+		(pin "4"
+			(uuid "11d16ad7-d77f-43a6-94bc-780e9fd4dec0")
+		)
+		(pin "5"
+			(uuid "c79e18ae-b760-4f00-a61c-5e50eb4be844")
+		)
+		(pin "3"
+			(uuid "ef2c61cf-6031-459f-9153-eeb1eaa241ae")
+		)
+		(pin "1"
+			(uuid "05be78a5-9158-477f-b7bd-ad4f6f6fffc2")
+		)
+		(pin "6"
+			(uuid "dffb401b-bddd-44ab-a909-772d239b271d")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "J25")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 264.16 83.82 270)
 		(unit 1)
@@ -12199,6 +12348,73 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(reference "#PWR095")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 265.43 151.13 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "7f3d1b2d-d446-40c0-ad76-a6c25994b781")
+		(property "Reference" "#PWR0119"
+			(at 259.08 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 261.62 151.1299 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 265.43 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 265.43 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 265.43 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "e395da17-36c8-4388-bee3-e64932cbc3f8")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "#PWR0119")
 					(unit 1)
 				)
 			)
@@ -12899,6 +13115,140 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+3V3")
+		(at 265.43 143.51 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "9bda738c-f7eb-4531-8371-1c4068e192de")
+		(property "Reference" "#PWR0116"
+			(at 269.24 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 261.62 143.5099 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 265.43 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 265.43 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 265.43 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "c4ec6e85-ce6f-40cb-906b-9737682642cb")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "#PWR0116")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3V3")
+		(at 265.43 140.97 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "9bf3cc68-282f-4dcb-87ac-866bfa23da66")
+		(property "Reference" "#PWR053"
+			(at 269.24 140.97 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 261.62 140.9699 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 265.43 140.97 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 265.43 140.97 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 265.43 140.97 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "e2ad5f2e-7b05-49e9-bb19-ffe75ae6bc4e")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "#PWR053")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Mechanical:MountingHole")
 		(at 17.78 168.91 0)
 		(unit 1)
@@ -13476,6 +13826,73 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(reference "R28")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3V3")
+		(at 265.43 146.05 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "aa6a58ef-7fa5-4b60-8869-9e4d668c5134")
+		(property "Reference" "#PWR0117"
+			(at 269.24 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 261.62 146.0499 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 265.43 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 265.43 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 265.43 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "78e8707c-51f3-40a6-a0e3-cf2233dcb721")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "#PWR0117")
 					(unit 1)
 				)
 			)
@@ -14242,6 +14659,73 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(reference "R29")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 265.43 148.59 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "c1585d8a-4082-4b07-8c47-4e26da1bccb3")
+		(property "Reference" "#PWR0118"
+			(at 259.08 148.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 261.62 148.5899 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 265.43 148.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 265.43 148.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 265.43 148.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "e00f173c-817e-4422-8af6-1e6bebd23832")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "#PWR0118")
 					(unit 1)
 				)
 			)
@@ -15962,7 +16446,7 @@
 			)
 		)
 		(instances
-			(project "licheerv_nano_base"
+			(project "radxa_zero_3e_control_unit"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(page "2")
 				)
@@ -16004,7 +16488,7 @@
 			)
 		)
 		(instances
-			(project "licheerv_nano_base"
+			(project "radxa_zero_3e_control_unit"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(page "3")
 				)
@@ -16046,7 +16530,7 @@
 			)
 		)
 		(instances
-			(project "licheerv_nano_base"
+			(project "radxa_zero_3e_control_unit"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(page "4")
 				)

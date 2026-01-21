@@ -1,6 +1,6 @@
 {
   "board": {
-    "active_layer": 2,
+    "active_layer": 0,
     "active_layer_preset": "",
     "auto_track_width": true,
     "hidden_netclasses": [],
@@ -49,7 +49,7 @@
       "conflict_shadows",
       "shapes"
     ],
-    "visible_layers": "ffffffff_ffffffff_fffffff5_7fff55d5",
+    "visible_layers": "ffffffff_ffffffff_fffffff5_7fff5575",
     "zone_display_mode": 0
   },
   "git": {
@@ -58,7 +58,7 @@
     "ssh_key": ""
   },
   "meta": {
-    "filename": "licheerv_nano_base.kicad_prl",
+    "filename": "radxa_zero_3e_control_unit.kicad_prl",
     "version": 5
   },
   "net_inspector_panel": {

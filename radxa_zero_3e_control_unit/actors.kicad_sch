@@ -6701,7 +6701,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 35.56 38.1 270)
+		(at 35.56 121.92 270)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -6710,7 +6710,7 @@
 		(fields_autoplaced yes)
 		(uuid "2ab1df64-4635-45b1-b205-f9209c64c60f")
 		(property "Reference" "#PWR049"
-			(at 29.21 38.1 0)
+			(at 29.21 121.92 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6719,7 +6719,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 31.75 38.0999 90)
+			(at 31.75 121.9199 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6728,7 +6728,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 35.56 38.1 0)
+			(at 35.56 121.92 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6737,7 +6737,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 35.56 38.1 0)
+			(at 35.56 121.92 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6746,7 +6746,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 35.56 38.1 0)
+			(at 35.56 121.92 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7234,6 +7234,73 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
 					(reference "#PWR064")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3V3")
+		(at 35.56 38.1 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "4884e08c-234a-4b5d-a750-fe6a4d6d17aa")
+		(property "Reference" "#PWR0115"
+			(at 39.37 38.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 31.75 38.0999 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 35.56 38.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 35.56 38.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 35.56 38.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "89b1f27d-bed7-462d-92ab-3a3225318191")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
+					(reference "#PWR0115")
 					(unit 1)
 				)
 			)
@@ -8259,7 +8326,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Capacitor_THT:CP_Radial_D6.3mm_P2.50mm"
+		(property "Footprint" "Capacitor_THT:CP_Radial_D8.0mm_P2.50mm"
 			(at 140.6652 39.37 0)
 			(effects
 				(font
@@ -9690,73 +9757,6 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
 					(reference "#PWR075")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 35.56 121.92 270)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "aca88182-9cf6-4683-9327-565c17bc6c39")
-		(property "Reference" "#PWR053"
-			(at 29.21 121.92 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 31.75 121.9199 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 35.56 121.92 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 35.56 121.92 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 35.56 121.92 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "4c0add33-e6fe-4837-97bf-775a90da27a0")
-		)
-		(instances
-			(project "licheerv_nano_base"
-				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
-					(reference "#PWR053")
 					(unit 1)
 				)
 			)

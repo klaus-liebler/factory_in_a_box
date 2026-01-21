@@ -1283,6 +1283,264 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Connector_Generic:Conn_01x06"
+			(pin_names
+				(offset 1.016)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "J"
+				(at 0 7.62 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Conn_01x06"
+				(at 0 -10.16 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Generic connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "connector"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "Connector*:*_1x??_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Conn_01x06_1_1"
+				(rectangle
+					(start -1.27 6.35)
+					(end 1.27 -8.89)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+				(rectangle
+					(start -1.27 5.207)
+					(end 0 4.953)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start -1.27 2.667)
+					(end 0 2.413)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start -1.27 0.127)
+					(end 0 -0.127)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start -1.27 -2.413)
+					(end 0 -2.667)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start -1.27 -4.953)
+					(end 0 -5.207)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start -1.27 -7.493)
+					(end 0 -7.747)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(pin passive line
+					(at -5.08 5.08 0)
+					(length 3.81)
+					(name "Pin_1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -5.08 2.54 0)
+					(length 3.81)
+					(name "Pin_2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -5.08 -2.54 0)
+					(length 3.81)
+					(name "Pin_4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -5.08 -5.08 0)
+					(length 3.81)
+					(name "Pin_5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -5.08 -7.62 0)
+					(length 3.81)
+					(name "Pin_6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "Device:C"
 			(pin_numbers
 				(hide yes)
@@ -3255,6 +3513,12 @@
 		(uuid "73cb7c29-1b32-43d9-a4a9-aed6fb9833dc")
 	)
 	(junction
+		(at 76.2 78.74)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "74fe1e4d-d10d-488b-a266-915a27594408")
+	)
+	(junction
 		(at 96.52 60.96)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -3335,10 +3599,6 @@
 	(no_connect
 		(at 137.16 36.83)
 		(uuid "5740987d-fc41-4cca-9202-edf03cc492a6")
-	)
-	(no_connect
-		(at 76.2 76.2)
-		(uuid "745f8827-4abd-4949-a7da-210cef4cff5d")
 	)
 	(no_connect
 		(at 137.16 49.53)
@@ -3593,6 +3853,16 @@
 			(type default)
 		)
 		(uuid "7760ef2c-4643-406f-86b5-8811440eb9fd")
+	)
+	(wire
+		(pts
+			(xy 76.2 76.2) (xy 76.2 78.74)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8255597c-ca14-42f2-9d70-b0b4724ca3c6")
 	)
 	(wire
 		(pts
@@ -3937,6 +4207,71 @@
 	)
 	(symbol
 		(lib_id "power:GND")
+		(at 173.99 35.56 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "0b3dd0d7-6f75-496b-b98b-5075524f8250")
+		(property "Reference" "#PWR0126"
+			(at 167.64 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 168.91 35.56 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 173.99 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "b00a9a21-1938-4896-bf58-00de118b19f7")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0126")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
 		(at 52.07 77.47 90)
 		(unit 1)
 		(exclude_from_sim no)
@@ -4245,6 +4580,88 @@
 		)
 	)
 	(symbol
+		(lib_id "Connector_Generic:Conn_01x06")
+		(at 179.07 46.99 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "1edc1277-0865-494d-99e7-ef14ffb34e25")
+		(property "Reference" "J27"
+			(at 181.61 46.9899 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "IO"
+			(at 181.61 49.5299 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Connector_JST:JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical"
+			(at 179.07 46.99 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 179.07 46.99 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 179.07 46.99 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "08b63144-3ba9-4c90-b178-1ae4c613a4cd")
+		)
+		(pin "4"
+			(uuid "68260e85-f554-4c7f-9a45-459bcf43dd65")
+		)
+		(pin "5"
+			(uuid "859c8ab0-6fbf-4c25-9f06-e8aadc2298cd")
+		)
+		(pin "3"
+			(uuid "47d8b29f-ed42-4090-b95a-86aee78248ea")
+		)
+		(pin "1"
+			(uuid "2673d1fb-455d-4e36-af94-60c056dd16be")
+		)
+		(pin "6"
+			(uuid "cf1bdbb9-c0ec-400d-ad45-1d1d21015d1f")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "J27")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND1")
 		(at 72.39 60.96 270)
 		(unit 1)
@@ -4306,6 +4723,73 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
 					(reference "#PWR084")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+5V")
+		(at 173.99 54.61 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "283b41bc-6c77-4b9a-9ccd-00e3faae21d2")
+		(property "Reference" "#PWR0132"
+			(at 177.8 54.61 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+5V"
+			(at 170.18 54.6099 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 54.61 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 54.61 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+5V\""
+			(at 173.99 54.61 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "c79b3c0d-e6f8-4cd0-a71a-db97dbde3fdc")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0132")
 					(unit 1)
 				)
 			)
@@ -4401,7 +4885,7 @@
 	)
 	(symbol
 		(lib_id "power:+VSW")
-		(at 76.2 78.74 270)
+		(at 76.2 73.66 270)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -4410,7 +4894,7 @@
 		(fields_autoplaced yes)
 		(uuid "2f6c6756-e7a8-4a7e-a70d-b67e598b7a8f")
 		(property "Reference" "#PWR06"
-			(at 72.39 78.74 0)
+			(at 72.39 73.66 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4419,7 +4903,7 @@
 			)
 		)
 		(property "Value" "5-24V"
-			(at 80.01 78.7399 90)
+			(at 80.01 73.6599 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4428,7 +4912,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 76.2 78.74 0)
+			(at 76.2 73.66 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4437,7 +4921,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 76.2 78.74 0)
+			(at 76.2 73.66 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4446,7 +4930,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+VSW\""
-			(at 76.2 78.74 0)
+			(at 76.2 73.66 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4700,6 +5184,73 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+VSW")
+		(at 173.99 25.4 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "3bb8255e-84e8-4162-9d53-5acd69935da9")
+		(property "Reference" "#PWR0122"
+			(at 177.8 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "5-24V"
+			(at 170.18 25.3999 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+VSW\""
+			(at 173.99 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "f414ec2b-fb43-4e5e-9f19-047325e5f814")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0122")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
 		(at 97.79 26.67 0)
 		(unit 1)
@@ -4781,6 +5332,73 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
 					(reference "C7")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+VSW")
+		(at 173.99 22.86 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "44e9d461-27b5-490d-b364-e09ddedcaa35")
+		(property "Reference" "#PWR0121"
+			(at 177.8 22.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "5-24V"
+			(at 170.18 22.8599 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 22.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 22.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+VSW\""
+			(at 173.99 22.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "a8a7b665-133f-4810-888a-91064b0a3ee2")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0121")
 					(unit 1)
 				)
 			)
@@ -5193,6 +5811,71 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
 					(reference "L1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 173.99 49.53 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "54bf9425-74ae-417f-9dd0-5b930d724ae1")
+		(property "Reference" "#PWR0130"
+			(at 167.64 49.53 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 168.91 49.53 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 49.53 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 49.53 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 173.99 49.53 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "b3e88790-aa07-44d9-bc53-a98b1d7a725a")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0130")
 					(unit 1)
 				)
 			)
@@ -5645,6 +6328,88 @@
 		)
 	)
 	(symbol
+		(lib_id "Connector_Generic:Conn_01x06")
+		(at 179.07 27.94 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "91a390dc-a120-41b2-855c-f5ac0312d8d9")
+		(property "Reference" "J26"
+			(at 181.61 27.9399 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "IO"
+			(at 181.61 30.4799 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Connector_JST:JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical"
+			(at 179.07 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 179.07 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 179.07 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "a0db44f3-858c-4ce7-b561-889bc205272f")
+		)
+		(pin "4"
+			(uuid "e355d44d-4dd6-4ca8-8e5b-fb3d9945c6c8")
+		)
+		(pin "5"
+			(uuid "e30c718d-7918-42cc-9a28-8a2db4bf440f")
+		)
+		(pin "3"
+			(uuid "a307c4ae-f4d9-4ce1-ab7f-c20dc1a56214")
+		)
+		(pin "1"
+			(uuid "69390339-9cbd-405c-a6ad-83bde4e363c8")
+		)
+		(pin "6"
+			(uuid "78b8a978-7d1c-4d4c-a5e3-001c184ef1a7")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "J26")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:PWR_FLAG")
 		(at 88.9 22.86 0)
 		(unit 1)
@@ -5950,6 +6715,73 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+9V")
+		(at 173.99 44.45 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "a0ec259f-86fc-4d38-a088-db6afa7140bf")
+		(property "Reference" "#PWR0128"
+			(at 177.8 44.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+9V"
+			(at 170.18 44.4499 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 44.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 44.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+9V\""
+			(at 173.99 44.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "3abc3e0b-f267-40bb-ace1-a4c2a5d82efd")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0128")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
 		(at 17.78 30.48 180)
 		(unit 1)
@@ -6234,6 +7066,71 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 173.99 46.99 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "d20258fc-67f4-44ee-96b5-954003b0378f")
+		(property "Reference" "#PWR0129"
+			(at 167.64 46.99 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 168.91 46.99 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 46.99 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 46.99 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 173.99 46.99 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "a8cbb3c2-1ddd-4f7e-8008-b14cdb1c82a7")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0129")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
 		(at 22.86 30.48 180)
 		(unit 1)
@@ -6320,15 +7217,15 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 76.2 73.66 90)
+		(at 173.99 30.48 270)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "db588f24-a51f-400b-8cf2-b8a15926b1c6")
-		(property "Reference" "#PWR05"
-			(at 82.55 73.66 0)
+		(uuid "d7c26c82-0f26-43f4-a72c-3234122b9243")
+		(property "Reference" "#PWR0124"
+			(at 167.64 30.48 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6337,7 +7234,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 81.28 73.66 90)
+			(at 168.91 30.48 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6345,7 +7242,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 76.2 73.66 0)
+			(at 173.99 30.48 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6354,7 +7251,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 76.2 73.66 0)
+			(at 173.99 30.48 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6363,7 +7260,204 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 76.2 73.66 0)
+			(at 173.99 30.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "0ceb8c79-b426-4339-aa33-23d4cac39790")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0124")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 173.99 33.02 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "d8e660f6-4582-4917-93b5-8350c21ba38d")
+		(property "Reference" "#PWR0125"
+			(at 167.64 33.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 168.91 33.02 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 33.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 33.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 173.99 33.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "aa64aeb6-3e92-4472-bd33-0e6c1ac2c30c")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0125")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+VSW")
+		(at 173.99 27.94 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "da799f3e-57c4-42d8-a354-2a2421cd783f")
+		(property "Reference" "#PWR0123"
+			(at 177.8 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "5-24V"
+			(at 170.18 27.9399 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+VSW\""
+			(at 173.99 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "1f2c7d73-7b6e-4b10-8bc1-5ee7bb1f25ae")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0123")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 76.2 78.74 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "db588f24-a51f-400b-8cf2-b8a15926b1c6")
+		(property "Reference" "#PWR05"
+			(at 82.55 78.74 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 81.28 78.74 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 76.2 78.74 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 76.2 78.74 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 76.2 78.74 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6705,6 +7799,140 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
 					(reference "J1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+5V")
+		(at 173.99 52.07 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "f1a8e8e4-66c3-4681-95ac-37d9f5cf1cf5")
+		(property "Reference" "#PWR0131"
+			(at 177.8 52.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+5V"
+			(at 170.18 52.0699 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 52.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 52.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+5V\""
+			(at 173.99 52.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "0cf56783-0713-4220-b524-9ed5b8e707a9")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0131")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+9V")
+		(at 173.99 41.91 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "f5eff797-3700-4b0d-8005-de786e09e0e6")
+		(property "Reference" "#PWR0127"
+			(at 177.8 41.91 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+9V"
+			(at 170.18 41.9099 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 41.91 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 41.91 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+9V\""
+			(at 173.99 41.91 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "7a59586f-80ea-4f14-aa06-f0768d7003d7")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/1a1d11b7-dfc7-490d-879e-d989fa1d9557"
+					(reference "#PWR0127")
 					(unit 1)
 				)
 			)

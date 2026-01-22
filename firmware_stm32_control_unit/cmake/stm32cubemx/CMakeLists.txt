@@ -6,6 +6,7 @@ set(MX_Defines_Syms
 	USE_FULL_LL_DRIVER 
 	USE_HAL_DRIVER 
 	STM32G431xx
+    STM32G4xx
     STM32G4
     $<$<CONFIG:Debug>:DEBUG>
 )

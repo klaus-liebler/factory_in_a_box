@@ -52,7 +52,7 @@ single_led::BlinkPattern blink_pattern(200, 800);
 extern "C" void app_setup(void) {
     // Begrüßung senden
     log_info("=== STM32 C++ Application Started ===");
-    log_info(u8"Wi‑Fi 📶  Batterie 🔋  Rakete 🚀");
+    log_info(u8"Wi-Fi 📶  Batterie 🔋  Rakete 🚀");
     gpio::Gpio::ConfigureGPIOOutput(gpio::Pin::PB12, false);
     
     // TMC2209 Funktionstest

@@ -66,8 +66,12 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined symbols
+    STM32G4xx    
+    STM32G4
 )
+
+# Propagate extra symbols to CubeMX interface (affects HAL sources, too)
+target_compile_definitions(stm32cubemx INTERFACE STM32G4)
 
 # Remove wrong libob.a library dependency when using cpp files
 list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)

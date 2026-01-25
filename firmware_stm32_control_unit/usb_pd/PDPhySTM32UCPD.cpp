@@ -8,9 +8,9 @@
 
 #if defined(STM32G0xx) || defined(STM32G4xx)
 
-#include <Arduino.h>
 #include "stm32yyxx_ll_bus.h"
 #include "stm32yyxx_ll_dma.h"
+#include "stm32yyxx_ll_gpio.h"
 #include "stm32yyxx_ll_pwr.h"
 #include "stm32yyxx_ll_ucpd.h"
 #include "stm32yyxx_ll_system.h"
@@ -21,10 +21,8 @@
     // STM32G4 family: CC1 -> PB6, CC2 -> PB4
     #define GPIO_CC1 GPIOB
     #define PIN_CC1 LL_GPIO_PIN_6
-    #define ARDUINO_PIN_CC1 PB6
     #define GPIO_CC2 GPIOB
     #define PIN_CC2 LL_GPIO_PIN_4
-    #define ARDUINO_PIN_CC2 PB4
     #define DMA_RX DMA1
     #define DMA_CHANNEL_RX LL_DMA_CHANNEL_1
     #define DMA_TX DMA1
@@ -35,10 +33,8 @@
     // STM32G0 family: CC1 -> PA8, CC2 -> PB15
     #define GPIO_CC1 GPIOA
     #define PIN_CC1 LL_GPIO_PIN_8
-    #define ARDUINO_PIN_CC1 PA8
     #define GPIO_CC2 GPIOB
     #define PIN_CC2 LL_GPIO_PIN_15
-    #define ARDUINO_PIN_CC2 PB15
     #define DMA_RX DMA1
     #define DMA_CHANNEL_RX LL_DMA_CHANNEL_1
     #define DMA_TX DMA1
@@ -70,10 +66,12 @@ void PDPhySTM32UCPD::init(bool isMonitor) {
         LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
     #endif
 
-    // Use Arduino function for basic pin configuration so the Arduino library is aware
-    // if the most important settings (such as GPIO clock initialization).
-    pinMode(ARDUINO_PIN_CC1, INPUT_ANALOG);
-    pinMode(ARDUINO_PIN_CC2, INPUT_ANALOG);
+    #if defined(STM32G4xx)
+        LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOB);
+    #elif defined(STM32G0xx)
+        LL_IOP_GRP1_EnableClock(LL_IOP_GRP1_PERIPH_GPIOA);
+        LL_IOP_GRP1_EnableClock(LL_IOP_GRP1_PERIPH_GPIOB);
+    #endif
 
     // initialize UCPD1
     LL_UCPD_InitTypeDef ucpdInit = {};
@@ -165,8 +163,19 @@ void PDPhySTM32UCPD::init(bool isMonitor) {
     if (!isMonitor)
         LL_UCPD_TxDMAEnable(UCPD1);
 
-    // same interrupt priority as timer 7 so they don't interrupt each other (code is not re-entrant)
-    NVIC_SetPriority(UCPD_IRQ, NVIC_GetPriority(TIM7_IRQn));
+    // same interrupt priority as scheduler timer so they don't interrupt each other (code is not re-entrant)
+    #if defined(STM32G4xx)
+        constexpr IRQn_Type schedulerIrq = TIM7_DAC_IRQn;
+    #elif defined(STM32L4xx)
+        constexpr IRQn_Type schedulerIrq = TIM7_IRQn;
+    #elif defined(STM32G0xx)
+        constexpr IRQn_Type schedulerIrq = TIM7_LPTIM2_IRQn;
+    #elif defined(STM32F103xB) || defined(STM32F4xx)
+        constexpr IRQn_Type schedulerIrq = TIM3_IRQn;
+    #else
+        constexpr IRQn_Type schedulerIrq = UCPD_IRQ;
+    #endif
+    NVIC_SetPriority(UCPD_IRQ, NVIC_GetPriority(schedulerIrq));
     // enable interrupt handler
     NVIC_EnableIRQ(UCPD_IRQ);
 }

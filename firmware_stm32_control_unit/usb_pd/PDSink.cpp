@@ -10,7 +10,7 @@
 
 #include "PDSink.h"
 #include "TaskScheduler.h"
-#include <Arduino.h>
+#include "main.h"
 
 PDSink PowerSink;
 
@@ -74,7 +74,7 @@ bool PDSink::requestPower(int voltage, int maxCurrent) {
 
         if (err == controllerBusy) {
             // retry after delay
-            delay(1);
+            HAL_Delay(1);
             continue;
         }
 
@@ -87,7 +87,7 @@ bool PDSink::requestPower(int voltage, int maxCurrent) {
         bool successful = requestPowerCore(voltage, maxCurrent);
         if (successful)
             break;
-        delay(1);
+        HAL_Delay(1);
     }
 }
 

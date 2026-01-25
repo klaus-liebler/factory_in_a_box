@@ -78,10 +78,12 @@ void Error_Handler(void);
 #define TOF2_IRQ_GPIO_Port GPIOA
 #define TOF1_IRQ_Pin GPIO_PIN_1
 #define TOF1_IRQ_GPIO_Port GPIOA
-#define STM32BOOT_TXD_Pin GPIO_PIN_2
-#define STM32BOOT_TXD_GPIO_Port GPIOA
-#define STM32BOOT_RXD_Pin GPIO_PIN_3
-#define STM32BOOT_RXD_GPIO_Port GPIOA
+#define STM32BOOT_TX_Pin GPIO_PIN_2
+#define STM32BOOT_TX_GPIO_Port GPIOA
+#define STM32BOOT_RX_Pin GPIO_PIN_3
+#define STM32BOOT_RX_GPIO_Port GPIOA
+#define I1C_Pin GPIO_PIN_4
+#define I1C_GPIO_Port GPIOC
 #define STEPPER1_DIR_Pin GPIO_PIN_5
 #define STEPPER1_DIR_GPIO_Port GPIOC
 #define STEPPER1_STEP_Pin GPIO_PIN_0
@@ -90,22 +92,32 @@ void Error_Handler(void);
 #define STEPPER2_STEP_GPIO_Port GPIOB
 #define STEPPER2_DIR_Pin GPIO_PIN_2
 #define STEPPER2_DIR_GPIO_Port GPIOB
-#define LED_INFO_Pin GPIO_PIN_12
-#define LED_INFO_GPIO_Port GPIOB
-#define I1C_Pin GPIO_PIN_8
-#define I1C_GPIO_Port GPIOC
-#define I1DC9_Pin GPIO_PIN_9
-#define I1DC9_GPIO_Port GPIOC
+#define STEPPER_TX_Pin GPIO_PIN_10
+#define STEPPER_TX_GPIO_Port GPIOB
+#define STEPPER_RX_Pin GPIO_PIN_11
+#define STEPPER_RX_GPIO_Port GPIOB
+#define I2C_Pin GPIO_PIN_8
+#define I2C_GPIO_Port GPIOC
+#define I2D_Pin GPIO_PIN_9
+#define I2D_GPIO_Port GPIOC
 #define STEPPER_EN_Pin GPIO_PIN_8
 #define STEPPER_EN_GPIO_Port GPIOA
 #define I3C_Pin GPIO_PIN_15
 #define I3C_GPIO_Port GPIOA
-#define HX711_DATA_Pin GPIO_PIN_10
+#define IO4_Pin GPIO_PIN_10
+#define IO4_GPIO_Port GPIOC
+#define HX711_DATA_Pin GPIO_PIN_11
 #define HX711_DATA_GPIO_Port GPIOC
-#define HX711_CLK_Pin GPIO_PIN_11
+#define HX711_CLK_Pin GPIO_PIN_12
 #define HX711_CLK_GPIO_Port GPIOC
+#define IO3_Pin GPIO_PIN_2
+#define IO3_GPIO_Port GPIOD
+#define IO2_Pin GPIO_PIN_5
+#define IO2_GPIO_Port GPIOB
 #define I3D_Pin GPIO_PIN_7
 #define I3D_GPIO_Port GPIOB
+#define IO1_Pin GPIO_PIN_9
+#define IO1_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

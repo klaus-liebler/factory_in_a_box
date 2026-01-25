@@ -38,7 +38,7 @@ enum class PDLogEntryType {
 struct PDLogEntry {
     /// Log entry type
     PDLogEntryType type;
-    /// Time the event occured (in µs, same as 'micros()')
+    /// Time the event occured (in µs, same as `pdMicros()`)
     unsigned long time;
     /// PD message if 'type == PDLogEntryType::messageReceived'
     const PDMessage* message;

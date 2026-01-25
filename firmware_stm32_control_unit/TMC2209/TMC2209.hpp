@@ -14,8 +14,8 @@ public:
     // Optional EN pin: pass Pin::NO_PIN to disable GPIO control
     TMC2209(UART_HandleTypeDef* huart, uint8_t address, gpio::Pin enPin = gpio::Pin::NO_PIN);
 
-    bool writeRegister(Reg reg, uint32_t value, uint32_t timeoutMs = 10);
-    bool readRegister(Reg reg, uint32_t& value, uint32_t timeoutMs = 10);
+    bool writeRegister(Reg reg, uint32_t value, uint32_t timeoutMs = 200);
+    bool readRegister(Reg reg, uint32_t& value, uint32_t timeoutMs = 200);
 
     // Convenience APIs
     void enable();
@@ -29,9 +29,7 @@ private:
     uint8_t addr_; // 0..15
     gpio::Pin en_;
 
-    static void crc8(uint8_t* data, size_t len);
-    bool tx(const uint8_t* data, size_t len, uint32_t timeoutMs);
-    bool rx(uint8_t* data, size_t len, uint32_t timeoutMs);
+    static uint8_t crc8(uint8_t* datagram, size_t datagram_size_with_crc);
 };
 
 } // namespace tmc2209

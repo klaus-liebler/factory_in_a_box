@@ -13,41 +13,38 @@
 namespace tmc2209 {
 
 // Register Addresses
-enum class Reg : uint8_t {
+enum class RegIdx : uint8_t {
+  //General Configuration Registers 
     GCONF        = 0x00,  // General configuration
     GSTAT        = 0x01,  // General status flags
     IFCNT        = 0x02,  // Interface transmission counter
-    SLAVECONF    = 0x03,  // UART slave configuration
-    IOIN         = 0x06,  // Inputs/outputs
+    NODECONF    = 0x03,  // Send delay after read request
+    OTP_PROG    = 0x04,  // OTP programming
+    OTP_READ    = 0x05,  // OTP readback
+    IOIN         = 0x06,  // Inputs/outputs  (Reads the state of all input pins available) 
     FACTORY_CONF = 0x07,  // Factory configuration
+  //Velocity Dependent Control Registers
     IHOLD_IRUN   = 0x10,  // Driver current control
-    TPOWERDOWN   = 0x11,  // Standstill timeout
-    TSTEP        = 0x12,  // Time between steps
+    TPOWERDOWN   = 0x11,  // Standstill timeout  Time range is about 0 to 5.6 seconds.
+    TSTEP        = 0x12,  // Actual measured time between two 1/256 microsteps
     TPWMTHRS     = 0x13,  // PWM mode threshold
-    TCOOLTHRS    = 0x14,  // Coolstep threshold
-    THIGH        = 0x15,  // High speed threshold
-    RAMPMODE     = 0x20,  // Ramp mode
-    XACTUAL      = 0x21,  // Actual position
     VACTUAL      = 0x22,  // Actual velocity
-    VSTART       = 0x23,  // Start velocity
-    A1           = 0x24,  // First acceleration
-    V1           = 0x25,  // First velocity limit
-    AMAX         = 0x26,  // Max acceleration
-    VMAX         = 0x27,  // Max velocity
-    DMAX         = 0x28,  // Max deceleration
-    D1           = 0x2A,  // First deceleration
-    VSTOP        = 0x2B,  // Stop velocity
-    TZEROCROSS   = 0x2C,  // Zero crossing time
-    XTARGET      = 0x2D,  // Target position
-    VDCMIN       = 0x33,  // Minimum DC link voltage
-    CHOPCONF     = 0x6C,  // Chopper and driver configuration
+  //StallGuard Control 
+    TCOOLTHRS    = 0x14,  // Coolstep threshold
+    SGTHRS       = 0x40,  // StallGuard threshold
+    SG_RESULT    = 0x41,  // StallGuard result
+    COOLCONF     = 0x42,  // CoolStep configuration
+  //Sequencer Registers
+    MSCNT        = 0x6A,  // Microstep position
+    MSCURACT     = 0x6B,  // Microstep current
+  //Chopper Control
+    CHOPCONF     = 0x6C,  // Chopper configuration
     DRV_STATUS   = 0x6F,  // Driver status
+  //StealthChop Control
     PWMCONF      = 0x70,  // PWM configuration
     PWM_SCALE    = 0x71,  // PWM scale
     PWM_AUTO     = 0x72,  // PWM auto-scaling
-    ENC_CONST    = 0x87,  // Encoder constant
-    ENC_STATUS   = 0x88,  // Encoder status
-    ENC_LATCH    = 0x89,  // Encoder latch configuration
+
 };
 
 /**
@@ -67,14 +64,17 @@ union GCONF {
         internal_rsense : 1; // Current sense resistors. 0: Exteral; 1: internal
     uint32_t
         enable_spread_cycle : 1; // Speed mode. 0: StealthChop; 1: SpreadCycle
-    uint32_t shaft : 1;          // Shaft direction
+    uint32_t shaft : 1;          // Shaft direction, 1: inverted
     uint32_t index_otpw : 1;     // INDEX out. 0: Microstep; 1: Overtemp
     uint32_t index_step : 1;     // INDEX out. 0: index_otpw; 1: Steps
-    uint32_t pdn_disable : 1;    // Uart. 1: Uart enable
+    uint32_t pdn_disable : 1;    // Function of the (combined) PDN_UART pin.
+                                 //0: PDN_UART controls standstill current reduction 
+                                 // 1: PDN_UART input function disabled. Set this bit, when using the UART interface! 
     uint32_t
         mstep_reg_select : 1;    // Microstepping. 0: MS1, MS2 pins; 1: register
     uint32_t multistep_filt : 1; // Step pulse filter. 0: disable; 1: enable
-    uint32_t reserved : 23;      // DO NOT USE!
+    uint32_t test_mode : 1;        // 0: normal operation, 1: Enable analog test output on pin ENN
+    uint32_t reserved : 22;      // DO NOT USE!
   } REG;
   uint32_t UINT32;
 };
@@ -94,17 +94,40 @@ union GSTAT {
   uint8_t UINT8;
 };
 
+
+
 /**
- * @brief SENDDELAY for read access (time until reply is sent): WRITE
+ * @brief NODECONF = Senddelay for read access (time until reply is sent): WRITE
  */
-union SLAVECONF {
+union NODECONF {
   struct {
-    uint16_t reserved1 : 8; // DO NOT USE!
-    uint16_t drv_err : 4; // Indicates, that the driver has been shut down since
+    uint8_t reserved1 : 8; // DO NOT USE!
+    uint16_t senddelay : 4; // SENDDELAY for read access (time until reply is sent) in multiples of 8bit times
                           // the last read access
-    uint16_t reserved2 : 4; // DO NOT USE!
+    uint32_t reserved2 : 20; // DO NOT USE!
   } REG;
-  uint16_t UINT16;
+  uint32_t UINT32;
+};
+
+/**
+ * @brief Driver pin status for test/debug communication: READ
+ */
+union IOIN {
+  struct {
+    uint32_t enn : 1;        // ENN pin state
+    uint32_t reserved1 : 1;  // DO NOT USE!
+    uint32_t ms1 : 1;        // MS1 pin state
+    uint32_t ms2 : 1;        // MS2 pin state
+    uint32_t diag : 1;       // DIAG pin state
+    uint32_t reserved2 : 1;  // DO NOT USE!
+    uint32_t pdn_uart : 1; // PDN pin state
+    uint32_t step : 1;       // STEP pin state
+    uint32_t spread_en : 1;  // SPREAD pin state
+    uint32_t dir : 1;        // DIR pin state
+    uint32_t reserved3 : 14; // DO NOT USE!
+    uint32_t version : 8;    // Chip version: 0x21
+  } REG;
+  uint32_t UINT32;
 };
 
 /**
@@ -122,26 +145,7 @@ union IHOLD_IRUN {
   uint32_t UINT32;
 };
 
-/**
- * @brief Driver pin status for test/debug communication: READ
- */
-union IOIN {
-  struct {
-    uint32_t enn : 1;        // ENN pin state
-    uint32_t reserved1 : 1;  // DO NOT USE!
-    uint32_t ms1 : 1;        // MS1 pin state
-    uint32_t ms2 : 1;        // MS2 pin state
-    uint32_t diag : 1;       // DIAG pin state
-    uint32_t reserved2 : 1;  // DO NOT USE!
-    uint32_t pdn_serial : 1; // PDN pin state
-    uint32_t step : 1;       // STEP pin state
-    uint32_t spread_en : 1;  // SPREAD pin state
-    uint32_t dir : 1;        // DIR pin state
-    uint32_t reserved3 : 14; // DO NOT USE!
-    uint32_t version : 8;    // Chip version: 0x21
-  } REG;
-  uint32_t UINT32;
-};
+
 
 /**
  * @brief Driver status flags and current level read back: READ
@@ -273,95 +277,4 @@ union PWM_AUTO {
 };
 }
 
-/**
- * @namespace TMC2209_REG_ADDRESS
- * @brief Namespace containing adresses of registers
- * @attention Read the TMC2209 datasheet first before making any changes
- */
-namespace REG_ADDRESS {
-// Registers adresses with WRITE acces (added 0x80)
-constexpr uint8_t GCONF = 0x00 + 0x80;      // Write access
-constexpr uint8_t SLAVECONF = 0x03 + 0x80;  // Write access
-constexpr uint8_t IHOLD_IRUN = 0x10 + 0x80; // Write access
-constexpr uint8_t TPOWERDOWN = 0x11 + 0x80; // Write access
-constexpr uint8_t TPWMTHRS = 0x13 + 0x80;   // Write access
-constexpr uint8_t TCOOLTHRS = 0x14 + 0x80;  // Write access
-constexpr uint8_t SGTHRS = 0x40 + 0x80;     // Write access
-constexpr uint8_t COOLCONF = 0x42 + 0x80;   // Write access
-constexpr uint8_t CHOPCONF = 0x6C + 0x80;   // Write access
-constexpr uint8_t PWMCONF = 0x70 + 0x80;    // Write access
-// Registers adresses with READ acces
-constexpr uint8_t GSTAT = 0x01;      // Read access
-constexpr uint8_t IFCNT = 0x02;      // Read access
-constexpr uint8_t IOIN = 0x06;       // Read access
-constexpr uint8_t SG_RESULT = 0x41;  // Read access
-constexpr uint8_t DRV_STATUS = 0X6F; // Read access
-} 
-
-/**
- * @namespace TMC2209_REG_DEFAULT
- * @brief Namespace containing default compile time values for initializing
- * writable registers of TMC2209.
- * @attention Read the TMC2209 datasheet first before making any changes
- */
-namespace REG_DEFAULT {
-constexpr REG_FIELD::GCONF GCONF_DEFAULT = {
-    .REG = {
-        .i_scale_analog = 0,      // Enable VREF current scaling
-        .internal_rsense = 0,     // External current sense resistors
-        .enable_spread_cycle = 0, // StealthChop default
-        .shaft = 0,               // Not inverted
-        .index_otpw = 1,          // INDEX overtemp out
-        .index_step = 0,          // INDEX overtemp out
-        .pdn_disable = 1,         // Enable UART communication
-        .mstep_reg_select = 1,    // Microstepping source = internal register
-        .multistep_filt = 0       // No filtration (TO ENABLE DEDGE)
-    }};
-
-constexpr REG_FIELD::IHOLD_IRUN IHOLD_IRUN_DEFAULT = {
-    .REG = {
-        .ihold = 4,     // 1/4 of max current
-        .irun = 4,      // 1/4 of max current
-        .iholddelay = 7 // Optimal value
-    }};
-
-constexpr REG_FIELD::PWMCONF PWMCONF_DEFAULT = {
-    .REG = {
-        .pwm_offset = 0,    // ?
-        .pwm_grad = 0,      // ?
-        .pwm_freq = 0b01,   // Default PWM frequency
-        .pwm_autoscale = 1, // Enabled
-        .pwm_autograd = 0,  // Disabled
-        .freewheel = 0b10,  // Passive bracking
-        .pwm_reg = 4,       // ?
-        .pwm_lim = 12       // ?
-    }};
-
-constexpr REG_FIELD::CHOPCONF CHOPCONF_DEFAULT = {
-    .REG = {
-        .toff = 3,          // Power off time
-        .hstrt = 5,         // Todo
-        .hend = 0,          // Todo
-        .tbl = 0b10,        // Optimal value (see datasheet)
-        .vsense = 1,        // High resistor sensetivity (low current operation)
-        .mres = 1,          // 128 microsteps control
-        .interpolation = 1, // Enabled interpolation
-        .double_edge = 1,   // Step trigger on both rising and falling edge
-        .diss2g = 0,        // ShortToGnd protection enabled
-        .diss2vs = 0        // ShortToVss protection enabled
-    }};
-
-constexpr REG_FIELD::COOLCONF COOLCONF_DEFAULT = {
-    .REG = {.semin = 0, .seup = 0, .semax = 0, .sedn = 0, .seimin = 0}};
-
-constexpr REG_FIELD::THRS TPWMTHRS_DEFAULT = {
-    .REG = {
-        .threshold = 0x40 // ~220RPM (fClk/64)
-    }};
-
-constexpr REG_FIELD::THRS TCOOLTHRS_DEFAULT = {
-    .REG = {
-        .threshold = 0x3000 // ~1RPM (fClk/12288)
-    }};
-} // namespace TMC2209_REG_DEFAULT
 } // namespace tmc2209

@@ -6,23 +6,78 @@
 // https://opensource.org/licenses/MIT
 //
 
-#include <Arduino.h>
-#include <HardwareTimer.h>
 #include "TaskScheduler.h"
+#include "main.h"
 
-// As the Arudino and the underlying HAL library incur a considerable overhead,
-// direct access to the timer would be preferred. However, the Arduino library
-// must be used for the interrupt handler. Otherwise, the linker will encounter
-// duplicate symbols.
+#include <cstring>
 
-#if defined(STM32L4xx) || defined(STM32G0xx) || defined(STM32G4xx)
-#define TIMER TIM7
+#if defined(STM32G4xx)
+#define SCHEDULER_TIMER TIM7
+#define SCHEDULER_TIMER_IRQn TIM7_DAC_IRQn
+#define SCHEDULER_TIMER_IRQ_HANDLER TIM7_DAC_IRQHandler
+#elif defined(STM32L4xx)
+#define SCHEDULER_TIMER TIM7
+#define SCHEDULER_TIMER_IRQn TIM7_IRQn
+#define SCHEDULER_TIMER_IRQ_HANDLER TIM7_IRQHandler
+#elif defined(STM32G0xx)
+#define SCHEDULER_TIMER TIM7
+#define SCHEDULER_TIMER_IRQn TIM7_LPTIM2_IRQn
+#define SCHEDULER_TIMER_IRQ_HANDLER TIM7_LPTIM2_IRQHandler
 #elif defined(STM32F103xB) || defined(STM32F4xx)
-#define TIMER TIM3
+#define SCHEDULER_TIMER TIM3
+#define SCHEDULER_TIMER_IRQn TIM3_IRQn
+#define SCHEDULER_TIMER_IRQ_HANDLER TIM3_IRQHandler
 #endif
+
+#define TIMER SCHEDULER_TIMER
 
 
 #define _countof(a) (sizeof(a) / sizeof(*(a)))
+
+static TIM_HandleTypeDef schedulerTimerHandle{};
+static uint32_t coreClockHz = 0;
+static uint32_t lastCycleCount = 0;
+static uint64_t accumulatedMicros = 0;
+
+static void enableTimerClock() {
+#if defined(STM32L4xx) || defined(STM32G0xx) || defined(STM32G4xx)
+    __HAL_RCC_TIM7_CLK_ENABLE();
+#elif defined(STM32F103xB) || defined(STM32F4xx)
+    __HAL_RCC_TIM3_CLK_ENABLE();
+#endif
+}
+
+static uint32_t getTimerClockHz() {
+    uint32_t pclk1 = HAL_RCC_GetPCLK1Freq();
+#ifdef RCC_CFGR_PPRE1
+    if ((RCC->CFGR & RCC_CFGR_PPRE1) != RCC_CFGR_PPRE1_DIV1)
+        pclk1 *= 2;
+#endif
+    return pclk1;
+}
+
+static void ensureCycleCounterStarted() {
+    if (coreClockHz == 0)
+        coreClockHz = SystemCoreClock;
+
+    if ((DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) == 0) {
+        CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+        DWT->CYCCNT = 0;
+        DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+        lastCycleCount = 0;
+        accumulatedMicros = 0;
+    }
+}
+
+uint32_t pdMicros() {
+    ensureCycleCounterStarted();
+    uint32_t cycleCount = DWT->CYCCNT;
+    uint32_t deltaCycles = cycleCount - lastCycleCount;
+    lastCycleCount = cycleCount;
+
+    accumulatedMicros += (static_cast<uint64_t>(deltaCycles) * 1000000ULL) / coreClockHz;
+    return static_cast<uint32_t>(accumulatedMicros);
+}
 
 inline static uint32_t timeDifference(uint32_t time, uint32_t now) {
     return time - now;
@@ -32,8 +87,6 @@ inline static bool hasExpired(uint32_t time, uint32_t now) {
     return (time - now) > 0xfff0000;
 }
 
-HardwareTimer timer(TIMER);
-
 TaskScheduler Scheduler{};
 
 TaskScheduler::TaskScheduler() : numScheduledTasks(-1) { }
@@ -41,17 +94,33 @@ TaskScheduler::TaskScheduler() : numScheduledTasks(-1) { }
 void TaskScheduler::start() {
     numScheduledTasks = 0;
 
-    // configure timer (advances every microsecond)
-    timer.setPrescaleFactor((timer.getTimerClkFreq() + 500000) / 1000000);
-    timer.attachInterrupt(onInterrupt);
+    ensureCycleCounterStarted();
+
+    enableTimerClock();
+
+    uint32_t prescaler = (getTimerClockHz() + 500000) / 1000000;
+    schedulerTimerHandle.Instance = TIMER;
+    schedulerTimerHandle.Init.Prescaler = prescaler - 1;
+    schedulerTimerHandle.Init.CounterMode = TIM_COUNTERMODE_UP;
+    schedulerTimerHandle.Init.Period = 0xffff;
+    schedulerTimerHandle.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    schedulerTimerHandle.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    HAL_TIM_Base_Init(&schedulerTimerHandle);
+
     // one-pulse mode
     TIMER->CR1 |= TIM_CR1_OPM;
     // disable ARR buffering
     TIMER->CR1 &= ~TIM_CR1_ARPE_Msk;
+
+    __HAL_TIM_CLEAR_IT(&schedulerTimerHandle, TIM_IT_UPDATE);
+    __HAL_TIM_ENABLE_IT(&schedulerTimerHandle, TIM_IT_UPDATE);
+
+    HAL_NVIC_SetPriority(SCHEDULER_TIMER_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(SCHEDULER_TIMER_IRQn);
 }
 
 void TaskScheduler::scheduleTaskAfter(TaskFunction task, uint32_t delay) {
-    scheduleTaskAt(task, micros() + delay);
+    scheduleTaskAt(task, pdMicros() + delay);
 }
 
 void TaskScheduler::scheduleTaskAt(TaskFunction task, uint32_t time) {
@@ -63,7 +132,7 @@ void TaskScheduler::scheduleTaskAt(TaskFunction task, uint32_t time) {
 
     // pause timer
     TIMER->CR1 &= ~TIM_CR1_CEN_Msk;
-    uint32_t now = micros();
+    uint32_t now = pdMicros();
 
     // find insertion index
     // (tasks are sorted by time but time wraps around)
@@ -138,7 +207,7 @@ void TaskScheduler::checkPendingTasks() {
         if (numScheduledTasks == 0)
             return; // no pending tasks
 
-        now = micros();
+        now = pdMicros();
         if (!hasExpired(scheduledTimes[0], now))
             break; // next task has not yet expired
 
@@ -157,7 +226,7 @@ void TaskScheduler::checkPendingTasks() {
         task();
     }
 
-    uint32_t delayToFirstTask = timeDifference(scheduledTimes[0], micros());
+    uint32_t delayToFirstTask = timeDifference(scheduledTimes[0], pdMicros());
     if (delayToFirstTask > 0xffff)
         delayToFirstTask = 0xffff;
 
@@ -170,3 +239,14 @@ void TaskScheduler::checkPendingTasks() {
 void TaskScheduler::onInterrupt() {
     Scheduler.checkPendingTasks();
 }
+
+#ifdef SCHEDULER_TIMER_IRQ_HANDLER
+extern "C" void SCHEDULER_TIMER_IRQ_HANDLER(void) {
+    if (__HAL_TIM_GET_FLAG(&schedulerTimerHandle, TIM_FLAG_UPDATE) != RESET) {
+        __HAL_TIM_CLEAR_IT(&schedulerTimerHandle, TIM_IT_UPDATE);
+        Scheduler.onInterrupt();
+    } else {
+        __HAL_TIM_CLEAR_IT(&schedulerTimerHandle, TIM_IT_UPDATE);
+    }
+}
+#endif

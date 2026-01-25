@@ -6,7 +6,8 @@
 // https://opensource.org/licenses/MIT
 //
 
-#include <Arduino.h>
+#include <cstdio>
+#include <cstring>
 #include "PDProtocolAnalyzer.h"
 #include "PDController.h"
 
@@ -76,53 +77,52 @@ void USBPDProtocolAnalyzer::poll() {
     if (logEntry == nullptr)
         return;
 
-    Serial.printf("%9lu  ", logEntry->time);
+    printf("%9lu  ", static_cast<unsigned long>(logEntry->time));
 
     switch (logEntry->type) {
     case PDLogEntryType::messageReceived:
-        Serial.print("RX: ");
+        printf("RX: ");
         printMessage(logEntry->message);
         break;
     case PDLogEntryType::sinkSourceConnected:
-        Serial.printf("Connected: CC%d", PowerController.ccPin);
-        Serial.println();
+        printf("Connected: CC%d\n", PowerController.ccPin);
         break;
     case PDLogEntryType::sinkSourceDisconnected:
-        Serial.println("Disconnected");
+        printf("Disconnected\n");
         break;
     case PDLogEntryType::error:
-        Serial.println("Error");
+        printf("Error\n");
         break;
     case PDLogEntryType::hardReset:
-        Serial.println("--- Hard Reset");
+        printf("--- Hard Reset\n");
         break;
     case PDLogEntryType::cableReset:
-        Serial.println("--- Cable Reset");
+        printf("--- Cable Reset\n");
         break;
     case PDLogEntryType::transmissionStarted:
-        Serial.print("TX: ");
+        printf("TX: ");
         printMessage(logEntry->message);
         break;
     case PDLogEntryType::transmissionCompleted:
-        Serial.println("TX: completed");
+        printf("TX: completed\n");
         break;
     case PDLogEntryType::transmissionFailed:
-        Serial.println("TX: failed");
+        printf("TX: failed\n");
         break;
     }
 }
 
 void USBPDProtocolAnalyzer::printMessage(const PDMessage* message) {
-    Serial.printf("CC%d %-5s %-7s %-20s %d  %04x",
+    printf("CC%d %-5s %-7s %-20s %d  %04x",
             message->cc, getSOPSequenceName(message->sopSequence),
-            getSender(message),getMessageName(message->type()),
+            getSender(message), getMessageName(message->type()),
             message->messageId(), message->header);
 
     int numObjects = message->numObjects();
     for (int i = 0; i < numObjects; i++)
-        Serial.printf(" %08x", message->objects[i]);
+        printf(" %08x", message->objects[i]);
     
-    Serial.println();
+    printf("\n");
 
     if (numObjects > 0) {
         switch (message->type()) {
@@ -149,33 +149,33 @@ void USBPDProtocolAnalyzer::printCapabilitiesDetails(const PDMessage* message) {
         auto object = message->objects[i];
         int supplyType = (object >> 30) & 0x03;
 
-        Serial.printf("  %2d:", i + 1);
+        printf("  %2d:", i + 1);
 
         if (supplyType == 0) {
             // fixed supply: Vmin = Vmax
             int maxCurrent = (object & 0x3ff) * 10;
             int maxVoltage = ((object >> 10) & 0x3ff) * 50;
-            Serial.printf("  Fixed                   %6dmV (fix) %6dmA (max)  ", maxVoltage, maxCurrent);
-            if ((object & (1 << 24)) != 0) Serial.print("extended msg, ");
-            if ((object & (1 << 25)) != 0) Serial.print("dual-role data, ");
-            if ((object & (1 << 26)) != 0) Serial.print("USB comm capable, ");
-            if ((object & (1 << 27)) != 0) Serial.print("unconstrained power, ");
-            if ((object & (1 << 28)) != 0) Serial.print("USB suspend, ");
-            if ((object & (1 << 29)) != 0) Serial.print("dual-role power");
+            printf("  Fixed                   %6dmV (fix) %6dmA (max)  ", maxVoltage, maxCurrent);
+            if ((object & (1 << 24)) != 0) printf("extended msg, ");
+            if ((object & (1 << 25)) != 0) printf("dual-role data, ");
+            if ((object & (1 << 26)) != 0) printf("USB comm capable, ");
+            if ((object & (1 << 27)) != 0) printf("unconstrained power, ");
+            if ((object & (1 << 28)) != 0) printf("USB suspend, ");
+            if ((object & (1 << 29)) != 0) printf("dual-role power");
 
         } else if (supplyType == 1) {
             // battery
             int maxCurrent = (object & 0x3ff) * 10;
             int minVoltage = ((object >> 10) & 0x3ff) * 50;
             int maxVoltage = ((object >> 20) & 0x3ff) * 50;
-            Serial.printf("  Battery  %6dmV (min) %6dmV (max) %6dmA (max)", minVoltage, maxVoltage, maxCurrent);
+            printf("  Battery  %6dmV (min) %6dmV (max) %6dmA (max)", minVoltage, maxVoltage, maxCurrent);
 
         } else if (supplyType == 2) {
             // variable
             int maxPower = (object & 0x3ff) * 250;
             int minVoltage = ((object >> 10) & 0x3ff) * 50;
             int maxVoltage = ((object >> 20) & 0x3ff) * 50;
-            Serial.printf("  Variable %6dmV (min) %6dmV (max) %6dmW (max)", minVoltage, maxVoltage, maxPower);
+            printf("  Variable %6dmV (min) %6dmV (max) %6dmW (max)", minVoltage, maxVoltage, maxPower);
 
         } else {
             // APDO
@@ -184,11 +184,11 @@ void USBPDProtocolAnalyzer::printCapabilitiesDetails(const PDMessage* message) {
                 int maxCurrent = (object & 0x7f) * 50;
                 int minVoltage = ((object >> 8) & 0xff) * 100;
                 int maxVoltage = ((object >> 17) & 0xff) * 100;
-                Serial.printf("  PPS      %6dmV (min) %6dmV (max) %6dmA (max)", minVoltage, maxVoltage, maxCurrent);
+                printf("  PPS      %6dmV (min) %6dmV (max) %6dmA (max)", minVoltage, maxVoltage, maxCurrent);
             }
         }
 
-        Serial.println();
+        printf("\n");
     } 
 }
 
@@ -202,24 +202,24 @@ void USBPDProtocolAnalyzer::printRequestDetails(const PDMessage* message) {
     if (supplyType == 0 || supplyType == 2) {
         int current0 = (object & 0x3ff) * 10;
         int current1 = ((object >> 10) & 0x3ff) * 10;
-        Serial.printf("  Capability: %d  %6dmA (oper)  %6dmA (%s)   ", objPos, current1, current0, giveBack ? "min" : "max");
+        printf("  Capability: %d  %6dmA (oper)  %6dmA (%s)   ", objPos, current1, current0, giveBack ? "min" : "max");
 
     } else if (supplyType == 1) {
         int power0 = (object & 0x3ff) * 250;
         int power1 = ((object >> 10) & 0x3ff) * 250;
-        Serial.printf("  Capability: %d  %6dmW (oper)  %6dmW (%s)   ", objPos, power1, power0, giveBack ? "min" : "max");
+        printf("  Capability: %d  %6dmW (oper)  %6dmW (%s)   ", objPos, power1, power0, giveBack ? "min" : "max");
 
     } else {
         int current = (object & 0x7f) * 50;
         int voltage = ((object >> 9) & 0x7ff) * 20;
-        Serial.printf("  Capability: %d  %6dmV (oper)  %6dmA (oper)  ", objPos, voltage, current);
+        printf("  Capability: %d  %6dmV (oper)  %6dmA (oper)  ", objPos, voltage, current);
     }
 
-    if ((object & (1 << 23)) != 0) Serial.print("extended msg, ");
-    if ((object & (1 << 24)) != 0) Serial.print("USB suspend, ");
-    if ((object & (1 << 25)) != 0) Serial.print("USB comm capable, ");
-    if (giveBack) Serial.print("give back");
-    Serial.println();
+    if ((object & (1 << 23)) != 0) printf("extended msg, ");
+    if ((object & (1 << 24)) != 0) printf("USB suspend, ");
+    if ((object & (1 << 25)) != 0) printf("USB comm capable, ");
+    if (giveBack) printf("give back");
+    printf("\n");
 }
 
 const char* USBPDProtocolAnalyzer::getMessageName(PDMessageType messageType) {

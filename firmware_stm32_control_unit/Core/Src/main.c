@@ -48,6 +48,9 @@ I2C_HandleTypeDef hi2c2;
 I2C_HandleTypeDef hi2c3;
 
 SPI_HandleTypeDef hspi1;
+SPI_HandleTypeDef hspi3;
+
+TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
@@ -70,6 +73,8 @@ static void MX_UCPD1_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USB_PCD_Init(void);
+static void MX_TIM7_Init(void);
+static void MX_SPI3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -117,6 +122,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_USB_PCD_Init();
+  MX_TIM7_Init();
+  MX_SPI3_Init();
   /* USER CODE BEGIN 2 */
   
   /* Initialize C++ application */
@@ -426,6 +433,84 @@ static void MX_SPI1_Init(void)
 }
 
 /**
+  * @brief SPI3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI3_Init(void)
+{
+
+  /* USER CODE BEGIN SPI3_Init 0 */
+
+  /* USER CODE END SPI3_Init 0 */
+
+  /* USER CODE BEGIN SPI3_Init 1 */
+
+  /* USER CODE END SPI3_Init 1 */
+  /* SPI3 parameter configuration*/
+  hspi3.Instance = SPI3;
+  hspi3.Init.Mode = SPI_MODE_MASTER;
+  hspi3.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi3.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi3.Init.NSS = SPI_NSS_SOFT;
+  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi3.Init.CRCPolynomial = 7;
+  hspi3.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi3.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  if (HAL_SPI_Init(&hspi3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI3_Init 2 */
+
+  /* USER CODE END SPI3_Init 2 */
+
+}
+
+/**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 0;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 65535;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
   * @brief UCPD1 Initialization Function
   * @param None
   * @retval None
@@ -612,21 +697,22 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, STEPPER1_DIR_Pin|HX711_CLK_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(STEPPER1_DIR_GPIO_Port, STEPPER1_DIR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, STEPPER1_STEP_Pin|STEPPER2_STEP_Pin|STEPPER2_DIR_Pin|LED_INFO_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, STEPPER1_STEP_Pin|STEPPER2_STEP_Pin|STEPPER2_DIR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(STEPPER_EN_GPIO_Port, STEPPER_EN_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : TOF3_IRQ_Pin HX711_DATA_Pin */
-  GPIO_InitStruct.Pin = TOF3_IRQ_Pin|HX711_DATA_Pin;
+  /*Configure GPIO pin : TOF3_IRQ_Pin */
+  GPIO_InitStruct.Pin = TOF3_IRQ_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(TOF3_IRQ_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : TOF2_IRQ_Pin TOF1_IRQ_Pin */
   GPIO_InitStruct.Pin = TOF2_IRQ_Pin|TOF1_IRQ_Pin;
@@ -634,15 +720,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : STEPPER1_DIR_Pin HX711_CLK_Pin */
-  GPIO_InitStruct.Pin = STEPPER1_DIR_Pin|HX711_CLK_Pin;
+  /*Configure GPIO pin : STEPPER1_DIR_Pin */
+  GPIO_InitStruct.Pin = STEPPER1_DIR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(STEPPER1_DIR_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : STEPPER1_STEP_Pin STEPPER2_STEP_Pin STEPPER2_DIR_Pin LED_INFO_Pin */
-  GPIO_InitStruct.Pin = STEPPER1_STEP_Pin|STEPPER2_STEP_Pin|STEPPER2_DIR_Pin|LED_INFO_Pin;
+  /*Configure GPIO pins : STEPPER1_STEP_Pin STEPPER2_STEP_Pin STEPPER2_DIR_Pin */
+  GPIO_InitStruct.Pin = STEPPER1_STEP_Pin|STEPPER2_STEP_Pin|STEPPER2_DIR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -654,6 +740,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(STEPPER_EN_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : IO3_Pin */
+  GPIO_InitStruct.Pin = IO3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(IO3_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : IO2_Pin IO1_Pin */
+  GPIO_InitStruct.Pin = IO2_Pin|IO1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

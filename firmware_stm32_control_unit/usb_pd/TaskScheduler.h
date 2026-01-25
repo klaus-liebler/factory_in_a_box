@@ -39,7 +39,7 @@ struct TaskScheduler {
      * @brief Schedules a task to be executed at a time in the future.
      * 
      * @param task task to execute
-     * @param time time, in µs, same base as `micros()`
+    * @param time time, in µs, same base as `pdMicros()`
      */
     void scheduleTaskAt(TaskFunction task, uint32_t time);
 
@@ -71,3 +71,6 @@ private:
  * Global scheduler instance for executing tasks in the future
  */
 extern TaskScheduler Scheduler;
+
+/// Returns monotonically increasing time in µs (wraps after ~71 minutes).
+uint32_t pdMicros();

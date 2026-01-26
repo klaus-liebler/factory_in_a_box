@@ -47,6 +47,33 @@ enum class RegIdx : uint8_t {
 
 };
 
+enum class RegDefaultValues : uint32_t {
+  GCONF        = 0b1000000010000000000000000000000,
+  GSTAT        = 0b0000000000000000000000000000001,
+  IFCNT        = 0x00000000,
+  NODECONF    = 0x00000000,
+  OTP_PROG    = 0x00000000,
+  OTP_READ    = 0x00000000,
+  IOIN         = 0x21000000,
+  FACTORY_CONF = 0x00000000,
+  IHOLD_IRUN   = 0x00001F00,
+  TPOWERDOWN   = 20,
+  TSTEP        = 0x00000000,
+  TPWMTHRS     = 0x00000000,
+  VACTUAL      = 0x00000000,
+  TCOOLTHRS    = 0x00000000,
+  SGTHRS       = 0x00000000,
+  SG_RESULT    = 0x00000000,
+  COOLCONF     = 0,
+  MSCNT        = 0x00000000,
+  MSCURACT     = 0x00000000,
+  CHOPCONF     = 0x10000053,
+  DRV_STATUS   = 0x00000480,
+  PWMCONF      = 0xC10D0024,
+  PWM_SCALE    = 0x00000000,
+  PWM_AUTO     = 0x00000000
+};
+
 /**
  * @namespace TMC2209_REG_FIELD
  * @brief Namespace containing definitions of register structures for TMC2209.
@@ -76,7 +103,7 @@ union GCONF {
     uint32_t test_mode : 1;        // 0: normal operation, 1: Enable analog test output on pin ENN
     uint32_t reserved : 22;      // DO NOT USE!
   } REG;
-  uint32_t UINT32;
+  uint32_t U32;
 };
 
 /**
@@ -91,7 +118,7 @@ union GSTAT {
     uint8_t iuv_cprun : 1; // Indicates an undervoltage on the charge pump
     uint8_t reserved : 5;  // DO NOT USE!
   } REG;
-  uint8_t UINT8;
+  uint32_t U32;
 };
 
 
@@ -106,7 +133,7 @@ union NODECONF {
                           // the last read access
     uint32_t reserved2 : 20; // DO NOT USE!
   } REG;
-  uint32_t UINT32;
+  uint32_t U32;
 };
 
 /**
@@ -127,7 +154,7 @@ union IOIN {
     uint32_t reserved3 : 14; // DO NOT USE!
     uint32_t version : 8;    // Chip version: 0x21
   } REG;
-  uint32_t UINT32;
+  uint32_t U32;
 };
 
 /**
@@ -135,15 +162,96 @@ union IOIN {
  */
 union IHOLD_IRUN {
   struct {
-    uint32_t ihold : 5;      // IHOLD. Standstill current (0=1/32 … 31=32/32)
+    uint32_t ihold : 5;      // IHOLD. Standstill current (0=1/32 … 31=32/32). Default OTP
     uint32_t reserved1 : 3;  // DO NOT USE!
-    uint32_t irun : 5;       // IRUN. Motor run current (0=1/32 … 31=32/32)
+    uint32_t irun : 5;       // IRUN. Motor run current (0=1/32 … 31=32/32). Normal IRUN should be 16...31. Default 31
     uint32_t reserved2 : 3;  // DO NOT USE!
-    uint32_t iholddelay : 4; // IHOLDDELAY
+    uint32_t iholddelay : 4; // IHOLDDELAY. Controls the number of clock cycles for motor power down after standstill is detected and TPOWERDOWN has expired. Default OTP
     uint32_t reserved3 : 12; // DO NOT USE!
   } REG;
-  uint32_t UINT32;
+  uint32_t U32;
 };
+
+/**
+ * @brief CoolStep configuration: WRITE
+ */
+union COOLCONF {
+  struct {
+    uint32_t semin : 4;      // minimum StallGuard value for smart current control and smart current enable 0=OFF, 1...15=VALUE 
+    uint32_t reserved1 : 1;  // DO NOT USE!
+    uint32_t seup : 2;       // Current up step. 0b00 … 0b11: 1, 2, 4, 8
+    uint32_t reserved2 : 1;  // DO NOT USE!
+    uint32_t semax : 4;      // StallGuard hysteresis value for smart current control 
+    uint32_t reserved3 : 1;  // DO NOT USE!
+    uint32_t sedn : 2;       // current down step speed 0b00 … 0b11: 32, 8, 2, 1
+    uint32_t seimin : 1;     // Minimum current for smart current control, 0: 1/2 of current setting (IRUN), 1: 1/4 of current setting (IRUN) 
+    uint32_t reserved4 : 16; // DO NOT USE!
+  } REG;
+  uint32_t U32;
+};
+
+/**
+ * @brief Chopper and driver configuration: WRITE
+ */
+union CHOPCONF {
+  struct {
+    uint32_t toff : 4;      // 0: Driver disable; 2 ... 15: Duration of slow decay phase
+    uint32_t hstrt : 3;     // Hysteresis start value added to HEND
+    uint32_t hend : 4;      // Hysteresis low value
+    uint32_t reserved1 : 4; // DO NOT USE!
+    uint32_t tbl : 2;       // Comparator blank time select
+    uint32_t vsense : 1;    // Current resistor sensetivity. 0: Low; 1: High
+    uint32_t reserved2 : 6; // DO NOT USE!
+    uint32_t mres : 4;      // Microstepping resolution 0 ... 8 <=> 256 ... 0 (Selection by pins unless disabled by GCONF. mstep_reg_select) 
+    uint32_t interpolation : 1; // Interpolation. 0: Off; 1: On
+    uint32_t double_edge : 1; // Double edge step pulses to reduce step freq. 0: Off; 1: On
+    uint32_t diss2g : 1;      // Disable GND Short proection
+    uint32_t diss2vs : 1;     // Disable VSS Short proection
+  } REG;
+  uint32_t U32;
+};
+
+/**
+ * @brief StealthChop PWM chopper configuration: WRITE
+ */
+union PWMCONF {
+  struct {
+    uint32_t pwm_offset : 8;    // User defined amplitude (offset)
+    uint32_t pwm_grad : 8;      // User defined amplitude gradient
+    uint32_t pwm_freq : 2;      // PWM frequency selection, 0b01 is default and is ideal for most applications
+    uint32_t pwm_autoscale : 1; // PWM automatic amplitude scaling
+    uint32_t pwm_autograd : 1;  // PWM automatic gradient adaptation
+    uint32_t freewheel : 2; // Stand Still mode if I_HOLD=0. 0b01: Freewheeling;
+                            //0b00:  Normal operation 
+                            //0b01: Freewheeling
+                            // 0b10: Coil shorted using LS drivers
+                            //0b11: Coil shorted using HS drivers
+    uint32_t reserved : 2;  // DO NOT USE!
+    uint32_t pwm_reg : 4;   //User defined maximum PWM amplitude change per half wave when using pwm_autoscale=1. (1…15): 
+    uint32_t pwm_lim : 4; // PWM automatic scale amplitude limit when switching on
+  } REG;
+  uint32_t U32;
+};
+
+union PWM_SCALE{
+  struct {
+    uint8_t pwm_scale_sum : 8;   // Actual PWM duty cycle. This value is used for scaling the values CUR_A and CUR_B read from the sine wave table. 
+    uint32_t reserved1 : 8; // DO NOT USE!
+    int16_t pwm_scale_auto : 9;  // 9 Bit signed offset added to the calculated PWM duty cycle. This is the result of the automatic amplitude regulation based on current measurement. 
+    uint32_t reserved2 : 7; // DO NOT USE!
+  } REG;
+  uint32_t U32;
+};
+
+union PWM_AUTO {
+  struct {
+    uint32_t pwm_ofs_auto : 8; // Actual offset used for StealthChop PWM
+    uint32_t pwm_grad_auto : 8; // Actual gradient used for StealthChop PWM
+    uint32_t reserved : 16;    // DO NOT USE!
+  } REG;
+  uint32_t U32;
+};
+
 
 
 
@@ -152,7 +260,7 @@ union IHOLD_IRUN {
  */
 union DRV_STATUS {
   struct {
-    uint32_t over_temperature_warning : 1;  // Overtemperature prewarning flag
+    uint32_t over_temperature_prewarning : 1;  // Overtemperature prewarning flag
     uint32_t over_temperature_shutdown : 1; // Overtemperature warning shutdown
     uint32_t short_to_ground_a : 1;         // Short coil detection
     uint32_t short_to_ground_b : 1;         // Short coil detection
@@ -167,113 +275,10 @@ union DRV_STATUS {
     uint32_t reserved1 : 4;             // DO NOT USE!
     uint32_t current_scaling : 5;       // Actual current scaling
     uint32_t reserved2 : 9;             // DO NOT USE!
-    uint32_t
-        stealth_chop_mode : 1; // Chopper mode. 0: SpreadCycle; 1: StealthChop
+    uint32_t stealth_chop_mode : 1; // Chopper mode. 0: SpreadCycle; 1: StealthChop
     uint32_t standstill : 1;   // Standstill indicator
   } REG;
-  uint32_t UINT32;
-};
-
-/**
- * @brief Chopper and driver configuration: WRITE
- */
-union CHOPCONF {
-  struct {
-    uint32_t
-        toff : 4; // 0: Driver disable; 2 ... 15: Duration of slow decay phase
-    uint32_t hstrt : 3;     // Hysteresis start value
-    uint32_t hend : 4;      // Hysteresis low value
-    uint32_t reserved1 : 4; // DO NOT USE!
-    uint32_t tbl : 2;       // Comparator blank time select
-    uint32_t vsense : 1;    // Current resistor sensetivity. 0: Low; 1: High
-    uint32_t reserved2 : 6; // DO NOT USE!
-    uint32_t mres : 4;      // Microstepping resolution 0 ... 8 <=> 256 ... 0
-    uint32_t interpolation : 1; // Interpolation. 0: Off; 1: On
-    uint32_t double_edge : 1; // Double edge step pulses to reduce step freq. 0:
-                              // Off; 1: On
-    uint32_t diss2g : 1;      // Disable GND Short proection
-    uint32_t diss2vs : 1;     // Disable VSS Short proection
-  } REG;
-  uint32_t UINT32;
-};
-
-/**
- * @brief StealthChop PWM chopper configuration: WRITE
- */
-union PWMCONF {
-  struct {
-    uint32_t pwm_offset : 8;    // User defined amplitude (offset)
-    uint32_t pwm_grad : 8;      // User defined amplitude gradient
-    uint32_t pwm_freq : 2;      // PWM frequency 0b01 or 0b10
-    uint32_t pwm_autoscale : 1; // PWM automatic amplitude scaling
-    uint32_t pwm_autograd : 1;  // PWM automatic gradient adaptation
-    uint32_t freewheel : 2; // Stand Still mode if I_HOLD=0. 0b01: Freewheeling;
-                            // 0b10: Passive bracking
-    uint32_t reserved : 2;  // DO NOT USE!
-    uint32_t pwm_reg : 4;   // Regulation loop gradient
-    uint32_t
-        pwm_lim : 4; // PWM automatic scale amplitude limit when switching on
-  } REG;
-  uint32_t UINT32;
-};
-
-/**
- * @brief CoolStep configuration: WRITE
- */
-union COOLCONF {
-  struct {
-    uint32_t semin : 4;      // Load compensation (Increase current)
-    uint32_t reserved1 : 1;  // DO NOT USE!
-    uint32_t seup : 2;       // Current up step. 0b00 … 0b11: 1, 2, 4, 8
-    uint32_t reserved2 : 1;  // DO NOT USE!
-    uint32_t semax : 4;      // Load compensation (Decrease current)
-    uint32_t reserved3 : 1;  // DO NOT USE!
-    uint32_t sedn : 2;       // Current up step. 0b00 … 0b11: 1, 2, 4, 8
-    uint32_t seimin : 1;     // Minimum current for smart current control
-    uint32_t reserved4 : 16; // DO NOT USE!
-  } REG;
-  uint32_t UINT32;
-};
-
-/**
- * @brief Threshold velocity for switching CoolStep/StealthChop/SpreadCycle:
- * WRITE
- */
-union THRS {
-  struct {
-    uint32_t threshold : 20; // Threshold velocity
-    uint32_t reserved : 12;  // DO NOT USE!
-  } REG;
-  uint32_t UINT32;
-};
-
-/**
- * @brief Results of StealthChop amplitude regulator: READ
- * These values can be used to monitor
- * automatic PWM amplitude scaling (255=max. voltage)
- */
-union PWM_SCALE {
-  struct {
-    uint32_t pwm_scale_sum : 8;  // Actual PWM duty cycle
-    uint32_t reserved1 : 8;      // DO NOT USE!
-    uint32_t pwm_scale_auto : 9; // 9 Bit signed offset added to the calculated
-                                 // PWM duty cycle
-    uint32_t reserved2 : 7;      // DO NOT USE!
-  } REG;
-  uint32_t UINT32;
-};
-
-/**
- * @brief Current values of PWM_GRAD and PWM_OFS: READ
- */
-union PWM_AUTO {
-  struct {
-    uint32_t pwm_ofs_auto : 8;  // Automatically determined offset value
-    uint32_t reserved1 : 8;     // DO NOT USE!
-    uint32_t pwm_grad_auto : 8; // Automatically determined gradient value
-    uint32_t reserved2 : 8;     // DO NOT USE!
-  } REG;
-  uint32_t UINT32;
+  uint32_t U32;
 };
 }
 

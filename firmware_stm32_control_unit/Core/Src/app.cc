@@ -16,52 +16,58 @@ namespace pins {
     constexpr gpio::Pin LED_PIN = gpio::Pin::PB12;
 };
 
-
-
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
 
+// Motor controller instance
+static tmc2209::TMC2209* g_motor = nullptr;
+
+
+
 // Private variables
 static uint32_t last_tick = 0;
-static int loop_count = 0;
-const uint32_t LOOP_INTERVAL_MS = 1000;
 
-// Test-Funktion: alle TMC2209 an huart3 abfragen
-static void test_tmc2209_devices(void) {
-    log_info("TMC2209: Starting device test on huart3");
 
- 
-    tmc2209::TMC2209 test_driver(&huart3, 0, pins::TMC2209_EN);
-    test_driver.enable();
-    
-    // Versuche GSTAT zu lesen (Register 0x01)
-    uint32_t gstat = 0;
-    bool found = test_driver.readRegister(tmc2209::Reg::GSTAT, gstat, 50);
-    
-    if (found) {
-        log_info("FOUND - GSTAT: 0x%02X", (unsigned int)gstat & 0xFF);
+
+
+/**
+ * UART RX complete callback - called by HAL
+ * This needs to be in the main.c or called from there
+ */
+extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart == &huart2) {
+        // Process the received byte
+        //uint8_t rx_byte = cmd_buffer[0];
+        //process_uart_data(rx_byte);
         
-        // Versuche auch IOIN zu lesen für weitere Infos
-        uint32_t ioin = 0;
-        if (test_driver.readRegister(tmc2209::Reg::IOIN, ioin, 50)) {
-            log_info("         IOIN: 0x%08X", (unsigned int)ioin);
-        }
-    } else {
-        log_info("TMC2209 Not found");
+        // Re-enable receive for next byte
+        //HAL_UART_Receive_IT(&huart2, cmd_buffer, 1);
     }
 }
-    
 
 single_led::M<false> led(pins::LED_PIN);
 single_led::BlinkPattern blink_pattern(200, 800);
 
 extern "C" void app_setup(void) {
-    log_info("=== STM32 C++ Application Started ===");
+    printf("\r\n\r\n\r\n");
+    log_info("FacoryInABox Controller Application Starting...");
     
+    // Initialize GPIO
     gpio::Gpio::ConfigureGPIOOutput(pins::LED_PIN, false);
     
-    // TMC2209 Funktionstest
-    test_tmc2209_devices();
+    // Create motor controller instance
+    g_motor = new tmc2209::TMC2209(&huart3, 0, pins::TMC2209_EN);
+    
+    // Initialize motor
+    if (g_motor->initForNormalSpeedAndUartBasedOperation(false)) {
+        log_info("Motor initialized successfully");
+    } else {
+        log_error("Failed to initialize motor");
+    }
+    g_motor->printPrettyFullSystemState();
+    g_motor->performStealthChopAutoTuningForQuietOperation();
+    
+    
     led.AnimatePixel(HAL_GetTick(), &blink_pattern);
     
     last_tick = HAL_GetTick();
@@ -71,10 +77,5 @@ extern "C" void app_setup(void) {
 extern "C" void app_loop(void) {
     uint32_t current_tick = HAL_GetTick();
     led.Loop(current_tick);
-    // Jede Sekunde ausführen
-    if ((current_tick - last_tick) >= LOOP_INTERVAL_MS) {
-        last_tick = current_tick;
-        log_info("Heartbeat %d", loop_count);
-        loop_count++;
-    }
+    HAL_Delay(20);
 }

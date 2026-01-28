@@ -4,3 +4,9 @@ licheerv_nano_base/fp-info-cache
 /licheerv_nano_base/jlcpcb/production
 /firmware_stm32_control_unit/build
 /radxa_zero_3e_control_unit/radxa_zero_3e_control_unit-backups
+/firmware_stm32_control_unit/test/CMakeFiles
+firmware_stm32_control_unit/test/CMakeCache.txt
+firmware_stm32_control_unit/test/sigmoid_test.exe
+firmware_stm32_control_unit/test/.ninja_log
+firmware_stm32_control_unit/test/build.ninja
+firmware_stm32_control_unit/test/.ninja_deps

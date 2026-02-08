@@ -39,14 +39,43 @@ enable_language(C ASM CXX)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
 
-# Add STM32CubeMX generated sources
+# Create output directory for generated files
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+# Generate git constants header before build
+find_package(Git QUIET)
+if(GIT_FOUND)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/gitconstants.hh
+        COMMAND ${CMAKE_COMMAND}
+            -D GIT_EXECUTABLE=${GIT_EXECUTABLE}
+            -D OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/generated
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_git_constants.cmake
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Generating git constants header..."
+        VERBATIM
+    )
+    
+    # Create a target that depends on the generated file
+    add_custom_target(generate_git_constants ALL
+        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/gitconstants.hh
+    )
+    
+    # Make the executable depend on git constants generation
+    add_dependencies(${CMAKE_PROJECT_NAME} generate_git_constants)
+else()
+    message(WARNING "Git not found, skipping git constants generation")
+endif()
 add_subdirectory(cmake/stm32cubemx)
 
 # Add common STM32 utilities library
 add_subdirectory(common_stm32)
 
 # Add TMC2209 driver library
-add_subdirectory(TMC2209)
+add_subdirectory(tmc2209)
+
+# Add USB PD library
+add_subdirectory(usb_pd)
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -57,12 +86,13 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/app.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/sigmoid_stepper.cc
+    # ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/sigmoid_stepper.cc
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
 # Add project symbols (macros)
@@ -72,7 +102,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Propagate extra symbols to CubeMX interface (affects HAL sources, too)
-target_compile_definitions(stm32cubemx INTERFACE STM32G4)
+target_compile_definitions(stm32cubemx INTERFACE STM32G4xx STM32G4)
 
 # Remove wrong libob.a library dependency when using cpp files
 list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
@@ -80,7 +110,9 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
-    TMC2209
+    tmc2209
+    common_stm32
+    usb_pd
 
     # Add user defined libraries
 )

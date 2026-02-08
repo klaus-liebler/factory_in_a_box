@@ -114,6 +114,22 @@ enum class Pin : uint8_t {
   PF13,
   PF14,
   PF15,
+  PG00,
+  PG01,
+  PG02,
+  PG03,
+  PG04,
+  PG05,
+  PG06,
+  PG07,
+  PG08,
+  PG09,
+  PG10,
+  PG11,
+  PG12,
+  PG13,
+  PG14,
+  PG15,
   NO_PIN = UINT8_MAX
 };
 

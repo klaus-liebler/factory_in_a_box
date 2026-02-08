@@ -38,6 +38,9 @@ public:
     bool writeRegister(RegIdx reg, uint32_t value, uint32_t timeoutMs = 200);
     bool readRegister(RegIdx reg, uint32_t& value, uint32_t timeoutMs = 200, bool checkStartByte = true);
 
+    bool checkedWriteRegister(RegIdx reg, uint32_t value, const char* error_msg);                                   
+    bool checkedReadRegister(RegIdx reg, uint32_t& value, const char* error_msg);
+
     // Generate steps at specified speed in full steps per second. A common stepper motor with 200 steps/rev
     // will rotate at with 2 Rotations per second when set to value "400"
     bool generateSteps(int fullStepsPerSecond);

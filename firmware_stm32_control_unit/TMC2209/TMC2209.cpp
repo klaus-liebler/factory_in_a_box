@@ -1,4 +1,5 @@
 #include "TMC2209.hpp"
+#include "common.hh"
 #include "gpio.hh"
 #include "log.h"
 #include "tmc2209_reg.hpp"
@@ -8,23 +9,26 @@
 #include <cstring>
 #include <sys/types.h>
 
-#define CHECK_REG_WRITE(reg, value, error_msg)                                 \
-  do {                                                                         \
-    if (!writeRegister(reg, value)) {                                          \
-      log_error("TMC2209: " error_msg);                                        \
-      return false;                                                            \
-    }                                                                          \
-  } while (0)
-
-#define CHECK_REG_READ(reg, value, error_msg)                                  \
-  do {                                                                         \
-    if (!readRegister(reg, value)) {                                           \
-      log_error("TMC2209: " error_msg);                                        \
-      return false;                                                            \
-    }                                                                          \
-  } while (0)
 
 namespace tmc2209 {
+
+  bool TMC2209::checkedWriteRegister(RegIdx reg, uint32_t value, const char* error_msg){                                   
+    if (!writeRegister(reg, value)) {       
+      log_error(error_msg);                                        
+      return false;                                                            
+    }
+    return true;                                                                          
+  } 
+
+  bool TMC2209::checkedReadRegister(RegIdx reg, uint32_t& value, const char* error_msg){                                   
+    if (!readRegister(reg, value)) {                                          
+      log_error(error_msg);                                        
+      return false;                                                           
+    }       
+    return true;                                                                   
+  }
+
+
 
 uint8_t TMC2209::crc8(uint8_t *datagram, size_t datagram_size_with_crc) {
   uint8_t crc = 0;
@@ -49,7 +53,7 @@ TMC2209::TMC2209(UART_HandleTypeDef *huart, uint8_t address, gpio::Pin enPin)
 bool TMC2209::fetchImportantRegistersForLocalMirroring() {
   // Verify communication by reading the IOIN register
   REG_FIELD::IOIN ioin;
-  CHECK_REG_READ(RegIdx::IOIN, ioin.U32,
+  checkedReadRegister(RegIdx::IOIN, ioin.U32,
                  "Failed to read IOIN register during init");
   if (ioin.REG.version != 0x21) {
     log_error("TMC2209: Unexpected chip version 0x%02X",
@@ -58,7 +62,7 @@ bool TMC2209::fetchImportantRegistersForLocalMirroring() {
   }
 
   uint32_t gconfValue = 0;
-  CHECK_REG_READ(RegIdx::GCONF, gconfValue,
+  checkedReadRegister(RegIdx::GCONF, gconfValue,
                  "Failed to read GCONF register for local mirroring");
   gconf.U32 = gconfValue;
   return true;
@@ -67,7 +71,7 @@ bool TMC2209::fetchImportantRegistersForLocalMirroring() {
 bool TMC2209::shaftTurnReversed(bool reversed) {
 
   gconf.REG.shaft = reversed ? 1 : 0;
-  CHECK_REG_WRITE(RegIdx::GCONF, gconf.U32, "Failed to write GCONF register");
+  checkedWriteRegister(RegIdx::GCONF, gconf.U32, "Failed to write GCONF register");
   return true;
 }
 
@@ -88,7 +92,7 @@ bool TMC2209::initForNormalSpeedAndUartBasedOperation(
       1;                        // Microstepping. 0: MS1, MS2 pins; 1: register
   gconf.REG.multistep_filt = 1; // Step pulse filter. 0: disable; 1: enable
 
-  CHECK_REG_WRITE(RegIdx::GCONF, gconf.U32,
+  checkedWriteRegister(RegIdx::GCONF, gconf.U32,
                   "Failed to write GCONF register during init");
   return true;
 }
@@ -99,13 +103,13 @@ bool TMC2209::performStealthChopAutoTuningForQuietOperation() {
   log_info("IHOLD_IRUN: IHOLD=8 (0.5A), IRUN=31 (max 2.8A), IHOLDDELAY=6");
   REG_FIELD::IHOLD_IRUN ihold_irun_reg = {
       .REG = {.ihold = 8, .irun = 31, .iholddelay = 6}};
-  CHECK_REG_WRITE(RegIdx::IHOLD_IRUN, ihold_irun_reg.U32,
+  checkedWriteRegister(RegIdx::IHOLD_IRUN, ihold_irun_reg.U32,
                   "Failed to write IHOLD_IRUN register for StealthChop");
 
   // 3. TPWMTHRS: Übergang zwischen StealthChop und SpreadCycle.  (ca. 200-500
   // Hz) Formel: TPWMTHRS = f_CLK / (f_thrs * 256) Für f_thrs = 500Hz: 12Mhz /
   // (500 * 256) ≈ 94
-  CHECK_REG_WRITE(RegIdx::TPWMTHRS, 94,
+  checkedWriteRegister(RegIdx::TPWMTHRS, 94,
                   "Failed to write TPWMTHRS register for StealthChop");
 
   // 4. Initiale PWM Konfiguration
@@ -123,7 +127,7 @@ bool TMC2209::performStealthChopAutoTuningForQuietOperation() {
               .reserved = 0,
               .pwm_reg = 8,    // 4 increments (default with OTP2.1=0)
               .pwm_lim = 12}}; // Default Wert
-  CHECK_REG_WRITE(RegIdx::PWMCONF, pwmconf.U32,
+  checkedWriteRegister(RegIdx::PWMCONF, pwmconf.U32,
                   "Failed to write PWMCONF register for StealthChop");
 
   // 3. Motor mit konstanter Geschwindigkeit bewegen für Tuning
@@ -132,9 +136,9 @@ bool TMC2209::performStealthChopAutoTuningForQuietOperation() {
   generateSteps(400); // 400 steps/s = 2 RPS = 120 RPM for 200 steps/rev motor
   for (int i = 0; i < 10; i++) {
     REG_FIELD::PWM_AUTO pwm_auto;
-    CHECK_REG_READ(RegIdx::PWMCONF, pwmconf.U32,
+    checkedReadRegister(RegIdx::PWMCONF, pwmconf.U32,
                    "Failed to read PWMCONF register for tuning results");
-    CHECK_REG_READ(RegIdx::PWM_AUTO, pwm_auto.U32,
+    checkedReadRegister(RegIdx::PWM_AUTO, pwm_auto.U32,
                    "Failed to read PWM_AUTO register for tuning results");
     log_info("  Tuning Step %d: PWM_GRAD=%d, PWM_OFFSET=%d, "
              "PWM_OFFSET_AUTO=0x%03X, PWM_GRADIENT_AUTO=0x%03X",

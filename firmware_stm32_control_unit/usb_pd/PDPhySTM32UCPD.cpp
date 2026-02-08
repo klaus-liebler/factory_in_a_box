@@ -8,12 +8,12 @@
 
 #if defined(STM32G0xx) || defined(STM32G4xx)
 
-#include "stm32yyxx_ll_bus.h"
-#include "stm32yyxx_ll_dma.h"
-#include "stm32yyxx_ll_gpio.h"
-#include "stm32yyxx_ll_pwr.h"
-#include "stm32yyxx_ll_ucpd.h"
-#include "stm32yyxx_ll_system.h"
+#include "stm32g4xx_ll_bus.h"
+#include "stm32g4xx_ll_dma.h"
+#include "stm32g4xx_ll_gpio.h"
+#include "stm32g4xx_ll_pwr.h"
+#include "stm32g4xx_ll_ucpd.h"
+#include "stm32g4xx_ll_system.h"
 #include "PDController.h"
 #include "PDPhySTM32UCPD.h"
 

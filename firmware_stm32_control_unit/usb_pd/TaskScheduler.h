@@ -55,6 +55,11 @@ struct TaskScheduler {
      */
     void cancelAllTasks();
 
+    /**
+     * @brief Interrupt handler entry point (called from ISR)
+     */
+    static void onInterrupt();
+
 private:
     int numScheduledTasks;
     uint32_t scheduledTimes[10];
@@ -62,7 +67,6 @@ private:
 
     void start();
     void checkPendingTasks();
-    static void onInterrupt();
 };
 
 /**

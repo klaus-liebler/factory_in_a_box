@@ -1,103 +1,210 @@
+#include "gpio.hh"
 #include "log.h"
 #include "main.h"
-#include <cmath>
-#include <cstring>
-#include <cstdio>
-#include "TMC2209.hpp"
-#include "gpio.hh"
 #include "single_led.hh"
-#include "log.h"
 #include "stm32g431xx.h"
 #include "stm32g4xx_hal.h"
-#include "sigmoid_stepper.hh"
+#include "tmc2209.hpp"
+#include <cmath>
+#include <cstdio>
+#include <cstring>
 
-namespace pins {
-    constexpr gpio::Pin TMC2209_EN = gpio::Pin::PA08;
-    constexpr gpio::Pin TMC2209_DIR = gpio::Pin::PB05;
-    constexpr gpio::Pin STEPPER1_STEP = gpio::Pin::PB00;
-    constexpr gpio::Pin STEPPER2_STEP = gpio::Pin::PB01;
-    constexpr gpio::Pin LED_PIN = gpio::Pin::PB12;
-};
+// #include "sigmoid_stepper.hh"
+#include "USBPowerDelivery.h"
+#include "gitconstants.hh"
+
+namespace pinsV1 {
+
+constexpr gpio::Pin RESET = gpio::Pin::PG10;
+constexpr gpio::Pin USB_VESENSE = gpio::Pin::PF01;
+constexpr gpio::Pin IO3 = gpio::Pin::PD02;
+
+constexpr gpio::Pin I2C1_SCL = gpio::Pin::PC04;
+constexpr gpio::Pin I2C1_SDA = gpio::Pin::PF00;
+
+constexpr gpio::Pin I2C2_SCL = gpio::Pin::PC08;
+constexpr gpio::Pin I2C2_SDA = gpio::Pin::PC09;
+
+constexpr gpio::Pin I2C3_SCL = gpio::Pin::PA15;
+constexpr gpio::Pin I2C3_SDA = gpio::Pin::PB07;
+
+constexpr gpio::Pin HX711_DATA = gpio::Pin::PC10;
+constexpr gpio::Pin HX711_CLK = gpio::Pin::PC11;
+
+constexpr gpio::Pin HX711_DATA_ALT = gpio::Pin::PC11;
+constexpr gpio::Pin HX711_CLK_ALT = gpio::Pin::PC12;
+
+constexpr gpio::Pin BOOT_U2_TX = gpio::Pin::PA02;
+constexpr gpio::Pin BOOT_U2_RX = gpio::Pin::PA03;
+
+constexpr gpio::Pin U3_TX = gpio::Pin::PB10;
+constexpr gpio::Pin U3_RX = gpio::Pin::PB11;
+
+constexpr gpio::Pin SPI1_NSS = gpio::Pin::PA04;
+constexpr gpio::Pin SPI1_CLK = gpio::Pin::PA05;
+constexpr gpio::Pin SPI1_MISO = gpio::Pin::PA06;
+constexpr gpio::Pin SPI1_MOSI = gpio::Pin::PA07;
+
+constexpr gpio::Pin STEPPER_EN = gpio::Pin::PA08;
+
+constexpr gpio::Pin TMC2209_EN = gpio::Pin::PA08;
+constexpr gpio::Pin STEPPER1_DIR = gpio::Pin::PC05;
+constexpr gpio::Pin STEPPER2_DIR = gpio::Pin::PB02;
+constexpr gpio::Pin STEPPER1_STEP = gpio::Pin::PB00;
+constexpr gpio::Pin STEPPER2_STEP = gpio::Pin::PB01;
+constexpr gpio::Pin LED_PIN = gpio::Pin::PB12;
+}; // namespace pinsV1
 
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
 
 // Motor controller instance
-static tmc2209::TMC2209* g_motor = nullptr;
+static tmc2209::TMC2209 *g_motor = nullptr;
 
 // RampStepper global instance with pins
-static SigmoidStepper g_ramp_stepper(pins::STEPPER1_STEP, pins::TMC2209_DIR);
+// static SigmoidStepper g_ramp_stepper(pins::STEPPER1_STEP, pins::TMC2209_DIR);
 
-
-
-// Private variables
 static uint32_t last_tick = 0;
-
-
-
 
 /**
  * UART RX complete callback - called by HAL
  * This needs to be in the main.c or called from there
  */
 extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-    if (huart == &huart2) {
-        // Process the received byte
-        //uint8_t rx_byte = cmd_buffer[0];
-        //process_uart_data(rx_byte);
-        
-        // Re-enable receive for next byte
-        //HAL_UART_Receive_IT(&huart2, cmd_buffer, 1);
-    }
+  if (huart == &huart2) {
+    // Process the received byte
+    // uint8_t rx_byte = cmd_buffer[0];
+    // process_uart_data(rx_byte);
+
+    // Re-enable receive for next byte
+    // HAL_UART_Receive_IT(&huart2, cmd_buffer, 1);
+  }
 }
 
 extern "C" void TIM1_TRG_COM_TIM17_IRQHandler(void) {
-    if (TIM17->SR & TIM_SR_UIF) {
-        TIM17->SR &= ~TIM_SR_UIF;
-        g_ramp_stepper.handle_update_interrupt_();
-    }
+  if (TIM17->SR & TIM_SR_UIF) {
+    TIM17->SR &= ~TIM_SR_UIF;
+    // g_ramp_stepper.handle_update_interrupt_();
+  }
 }
 
 single_led::M<false> led(pins::LED_PIN);
 single_led::BlinkPattern blink_pattern(200, 800);
 
-extern "C" void app_setup(void) {
-    printf("\r\n\r\n\r\n");
-    log_info("FacoryInABox Controller Application Starting...");
-    
-    // Initialize GPIO
-    gpio::Gpio::ConfigureGPIOOutput(pins::LED_PIN, false);
-    gpio::Gpio::ConfigureGPIOOutput(pins::TMC2209_EN, true); // Enable TMC2209 driver
-    gpio::Gpio::ConfigureGPIOOutput(pins::TMC2209_DIR, false); // Set initial direction for motor
-    gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_STEP, false); // Initialize step pin low
-    gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER2_STEP, false); // Initialize step pin low
-
-    // Initialize ramp stepper subsystem
-    g_ramp_stepper.init();
-
-
-    
-    // Create motor controller instance
-    g_motor = new tmc2209::TMC2209(&huart3, 0, pins::TMC2209_EN);
-    
-    // Initialize motor
-    if (g_motor->initForNormalSpeedAndUartBasedOperation(false)) {
-        log_info("Motor initialized successfully");
-    } else {
-        log_error("Failed to initialize motor");
+void requestVoltage() {
+  // check if 12V is supported
+  for (int i = 0; i < PowerSink.numSourceCapabilities; i += 1) {
+    if (PowerSink.sourceCapabilities[i].minVoltage <= 12000 &&
+        PowerSink.sourceCapabilities[i].maxVoltage >= 12000) {
+      PowerSink.requestPower(12000);
+      return;
     }
-    g_motor->printPrettyFullSystemState();
-    g_motor->performStealthChopAutoTuningForQuietOperation();
-    
-    
-    led.AnimatePixel(HAL_GetTick(), &blink_pattern);
-    
-    last_tick = HAL_GetTick();
+  }
+
+  // check if 15V is supported
+  for (int i = 0; i < PowerSink.numSourceCapabilities; i += 1) {
+    if (PowerSink.sourceCapabilities[i].minVoltage <= 15000 &&
+        PowerSink.sourceCapabilities[i].maxVoltage >= 15000) {
+      PowerSink.requestPower(15000);
+      return;
+    }
+  }
+
+  log_warn("Neither 12V nor 15V is supported");
+}
+
+extern "C" void handleEvent(PDSinkEventType eventType) {
+
+  if (eventType == PDSinkEventType::sourceCapabilitiesChanged) {
+    // source capabilities have changed
+    if (PowerSink.isConnected()) {
+      // USB PD supply is connected
+      requestVoltage();
+
+    } else {
+      // no supply or no USB PD capable supply is connected
+      PowerSink.requestPower(5000); // reset to 5V
+    }
+
+  } else if (eventType == PDSinkEventType::voltageChanged) {
+    // voltage has changed
+    if (PowerSink.activeVoltage != 0) {
+      log_info("Voltage: %d mV @ %d mA (max)", PowerSink.activeVoltage,
+               PowerSink.activeCurrent);
+    } else {
+      log_info("Disconnected");
+    }
+
+  } else if (eventType == PDSinkEventType::powerRejected) {
+    // rare case: power supply rejected requested power
+    log_warn("Power request rejected");
+    log_warn("Voltage: %d mV @ %d mA (max)", PowerSink.activeVoltage,
+             PowerSink.activeCurrent);
+  }
+}
+
+extern "C" void app_setup(void) {
+  printf("\r\n\r\n\r\n");
+  printf("=== FacoryInABox Controller Application Starting=== ");
+
+  // Print version information
+  log_info("=== Build Information ===");
+  printf("  Version: %.*s\r\n", (int)git::VERSION.length(),
+         git::VERSION.data());
+  printf("  Commit: %.*s (%.*s)\r\n", (int)git::COMMIT_HASH.length(),
+         git::COMMIT_HASH.data(), (int)git::BRANCH.length(),
+         git::BRANCH.data());
+  printf("  Message: %.*s\r\n", (int)git::COMMIT_MESSAGE.length(),
+         git::COMMIT_MESSAGE.data());
+  printf("  Author: %.*s\r\n", (int)git::COMMIT_AUTHOR.length(),
+         git::COMMIT_AUTHOR.data());
+  printf("  Built: %.*s\r\n", (int)git::BUILD_TIMESTAMP.length(),
+         git::BUILD_TIMESTAMP.data());
+  if (git::IS_DIRTY) {
+    log_warn("⚠ Working directory has uncommitted changes!");
+  } else {
+    log_info("Working directory was clean related to Git.");
+  }
+  log_info("========================\r\n");
+
+  // Initialize GPIO
+  gpio::Gpio::ConfigureGPIOOutput(pins::LED_PIN, false);
+  gpio::Gpio::ConfigureGPIOOutput(pins::TMC2209_EN,
+                                  true); // Enable TMC2209 driver
+  gpio::Gpio::ConfigureGPIOOutput(pins::TMC2209_DIR,
+                                  false); // Set initial direction for motor
+  gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_STEP,
+                                  false); // Initialize step pin low
+  gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER2_STEP,
+                                  false); // Initialize step pin low
+
+  // Init USB PD
+  PowerSink.start(handleEvent);
+
+  // Initialize ramp stepper subsystem
+  // g_ramp_stepper.init();
+
+  // Create motor controller instance
+  g_motor = new tmc2209::TMC2209(&huart3, 0, pins::TMC2209_EN);
+
+  // Initialize motor
+  if (g_motor->initForNormalSpeedAndUartBasedOperation(false)) {
+    log_info("Motor initialized successfully");
+  } else {
+    log_error("Failed to initialize motor");
+  }
+  g_motor->printPrettyFullSystemState();
+  g_motor->performStealthChopAutoTuningForQuietOperation();
+
+  led.AnimatePixel(HAL_GetTick(), &blink_pattern);
+
+  last_tick = HAL_GetTick();
 }
 
 // Loop-Funktion: im Hauptloop aufgerufen
 extern "C" void app_loop(void) {
-    uint32_t current_tick = HAL_GetTick();
-    led.Loop(current_tick);
-    HAL_Delay(20);
+  uint32_t current_tick = HAL_GetTick();
+  led.Loop(current_tick);
+  PowerSink.poll();
+  HAL_Delay(20);
 }

@@ -5628,7 +5628,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_Molex:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical"
+		(property "Footprint" "Connector_Molex:Molex_SPOX_5268-03A_1x03_P2.50mm_Horizontal"
 			(at 213.36 97.79 0)
 			(effects
 				(font

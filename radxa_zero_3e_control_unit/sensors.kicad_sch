@@ -2153,6 +2153,28 @@
 			)
 		)
 	)
+	(global_label "HX711_SPI2_MISO"
+		(shape output)
+		(at 83.82 39.37 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "287917e2-edd4-465b-8ffa-ddb2d40dc769")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 103.7989 39.37 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
 	(global_label "E-"
 		(shape bidirectional)
 		(at 21.59 44.45 180)
@@ -2241,29 +2263,7 @@
 			)
 		)
 	)
-	(global_label "HX711_DATA"
-		(shape output)
-		(at 83.82 39.37 0)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "c45c4fe4-21d0-4a46-841a-8bf8ca95ffcb")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 98.3561 39.37 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
-	(global_label "HX711_CLK"
+	(global_label "HX711_SPI2_MOSI"
 		(shape input)
 		(at 83.82 41.91 0)
 		(fields_autoplaced yes)
@@ -2273,9 +2273,9 @@
 			)
 			(justify left)
 		)
-		(uuid "ea2f9e6f-7aec-42e3-a260-5d2439a464d0")
+		(uuid "dfaf39e9-67f1-4d51-baa1-4bcedd90b2aa")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 97.5094 41.91 0)
+			(at 103.7989 41.91 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -2447,7 +2447,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 			(at 23.8252 44.45 0)
 			(effects
 				(font
@@ -2827,7 +2827,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 			(at 53.0352 69.85 0)
 			(effects
 				(font
@@ -3099,7 +3099,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 			(at 100.0252 34.29 0)
 			(effects
 				(font
@@ -3632,7 +3632,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "liebler_CONN:JST_XH_S4B-XH-A-1_1x04_P2.50mm_Horizontal_SmallerCourtyard"
+		(property "Footprint" "liebler_CONN:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical_smaller"
 			(at 33.02 21.59 0)
 			(effects
 				(font
@@ -3774,7 +3774,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 54.102 41.91 90)
 			(effects
 				(font
@@ -3799,6 +3799,22 @@
 					(size 1.27 1.27)
 				)
 				(hide yes)
+			)
+		)
+		(property "Sim.Device" "R"
+			(at 55.88 41.91 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Sim.Pins" ""
+			(at 55.88 41.91 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
 			)
 		)
 		(pin "1"
@@ -3909,7 +3925,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 			(at 32.7152 58.42 0)
 			(effects
 				(font
@@ -4120,7 +4136,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 			(at 88.5952 34.29 0)
 			(effects
 				(font
@@ -4457,7 +4473,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 49.022 40.64 90)
 			(effects
 				(font

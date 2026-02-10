@@ -3101,6 +3101,131 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "power:+24V"
+			(power)
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 0 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "+24V"
+				(at 0 3.556 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"+24V\""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "+24V_0_1"
+				(polyline
+					(pts
+						(xy -0.762 1.27) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 2.54) (xy 0.762 1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "+24V_1_1"
+				(pin power_in line
+					(at 0 0 90)
+					(length 0)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "power:+3V3"
 			(power)
 			(pin_numbers
@@ -4529,7 +4654,7 @@
 		)
 		(uuid "ff59b322-cac5-4ea0-9073-a02f987d7626")
 	)
-	(global_label "ROBOT_RXD"
+	(global_label "ROBOT_U4T"
 		(shape input)
 		(at 193.04 102.87 180)
 		(fields_autoplaced yes)
@@ -4541,7 +4666,7 @@
 		)
 		(uuid "1fbaf6a1-49db-48a7-b207-7cd94e4109a5")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 179.1691 102.87 0)
+			(at 179.411 102.87 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4617,29 +4742,7 @@
 			)
 		)
 	)
-	(global_label "Conveyor_PWM"
-		(shape input)
-		(at 118.11 60.96 180)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "384aff61-8f0c-47dd-b2d5-f2b33e37f7df")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 101.4574 60.96 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-				(hide yes)
-			)
-		)
-	)
-	(global_label "Stepper1_Step"
+	(global_label "STEPPER1_STEP"
 		(shape input)
 		(at 35.56 60.96 180)
 		(fields_autoplaced yes)
@@ -4651,7 +4754,7 @@
 		)
 		(uuid "3c244bd7-a183-45ef-bc04-785ec7f043c6")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 19.0283 60.96 0)
+			(at 17.5165 60.96 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4661,7 +4764,7 @@
 			)
 		)
 	)
-	(global_label "Stepper2_Dir"
+	(global_label "STEPPER2_DIR_T3C1_T8C1"
 		(shape input)
 		(at 35.56 147.32 180)
 		(fields_autoplaced yes)
@@ -4673,29 +4776,7 @@
 		)
 		(uuid "434a5e7d-da0f-4799-980a-97184b1b8a4d")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 20.5401 147.32 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-				(hide yes)
-			)
-		)
-	)
-	(global_label "Compressor_PWM"
-		(shape input)
-		(at 200.66 57.15 180)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "491e0028-5df7-48cc-93fe-00d512792a06")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 181.4069 57.15 0)
+			(at 7.7194 147.32 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4749,7 +4830,7 @@
 			)
 		)
 	)
-	(global_label "Valve"
+	(global_label "VALVE"
 		(shape input)
 		(at 153.67 60.96 180)
 		(fields_autoplaced yes)
@@ -4761,7 +4842,7 @@
 		)
 		(uuid "6f41153c-afdc-4ee0-bb4d-298f8016a9fe")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 145.7258 60.96 0)
+			(at 145.2419 60.96 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4771,7 +4852,7 @@
 			)
 		)
 	)
-	(global_label "Stepper1_Dir"
+	(global_label "STEPPER1_DIR"
 		(shape input)
 		(at 35.56 63.5 180)
 		(fields_autoplaced yes)
@@ -4783,7 +4864,7 @@
 		)
 		(uuid "885f3038-8d96-4e4b-aa99-62543d70e687")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 20.5401 63.5 0)
+			(at 18.9678 63.5 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4793,7 +4874,7 @@
 			)
 		)
 	)
-	(global_label "Stepper2_Step"
+	(global_label "STEPPER2_STEP_T3C2_T8C2"
 		(shape input)
 		(at 35.56 144.78 180)
 		(fields_autoplaced yes)
@@ -4805,7 +4886,29 @@
 		)
 		(uuid "891ad937-34eb-4010-95bc-ae73f1795ff2")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 19.0283 144.78 0)
+			(at 6.2681 144.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "COMPRESSOR_T2C1"
+		(shape input)
+		(at 200.66 57.15 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "8f014448-0e66-41fc-80c1-ac0d78d664b0")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 179.2902 57.15 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4837,7 +4940,7 @@
 			)
 		)
 	)
-	(global_label "ROBOT_TXD"
+	(global_label "ROBOT_U4R"
 		(shape output)
 		(at 191.77 95.25 180)
 		(fields_autoplaced yes)
@@ -4849,7 +4952,7 @@
 		)
 		(uuid "a15c502d-7391-46e9-a64a-7138ae776fab")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 178.2015 95.25 0)
+			(at 177.8386 95.25 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4916,6 +5019,28 @@
 		(uuid "cb773a6a-0dc8-4f58-8266-513461299e52")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 17.5541 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "CONVEYOR_T2C2"
+		(shape input)
+		(at 118.11 60.96 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "cf717742-d960-4509-b97a-502fb58ec8b2")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 99.6429 60.96 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5128,7 +5253,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Capacitor_THT:CP_Radial_D6.3mm_P2.50mm"
+		(property "Footprint" "Capacitor_THT:CP_Radial_D8.0mm_P2.50mm"
 			(at 135.5852 39.37 0)
 			(effects
 				(font
@@ -5195,7 +5320,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 197.358 99.06 90)
 			(effects
 				(font
@@ -5628,7 +5753,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_Molex:Molex_SPOX_5268-03A_1x03_P2.50mm_Horizontal"
+		(property "Footprint" "Connector_Molex:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical"
 			(at 213.36 97.79 0)
 			(effects
 				(font
@@ -5686,72 +5811,6 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
 					(reference "J20")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+VSW")
-		(at 168.91 60.96 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "175bad09-1237-476f-8ad5-8c64abdf5f8c")
-		(property "Reference" "#PWR078"
-			(at 168.91 64.77 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "5-24V"
-			(at 168.91 55.88 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 168.91 60.96 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 168.91 60.96 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+VSW\""
-			(at 168.91 60.96 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "dbdd6afa-b134-49e6-b113-536a47079b7c")
-		)
-		(instances
-			(project "licheerv_nano_base"
-				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
-					(reference "#PWR078")
 					(unit 1)
 				)
 			)
@@ -6082,7 +6141,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 127.508 72.39 90)
 			(effects
 				(font
@@ -6333,72 +6392,6 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
 					(reference "#PWR067")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+VSW")
-		(at 215.9 57.15 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "229c8f3b-af12-4e42-b5a1-f9944dd206cc")
-		(property "Reference" "#PWR087"
-			(at 215.9 60.96 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "5-24V"
-			(at 215.9 52.07 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 215.9 57.15 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 215.9 57.15 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+VSW\""
-			(at 215.9 57.15 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "a40a2483-a0b1-4980-bc4f-42ed7df47495")
-		)
-		(instances
-			(project "licheerv_nano_base"
-				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
-					(reference "#PWR087")
 					(unit 1)
 				)
 			)
@@ -7042,7 +7035,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "liebler_CONN:JST_XH_S4B-XH-A-1_1x04_P2.50mm_Horizontal_SmallerCourtyard"
+		(property "Footprint" "liebler_CONN:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical_smaller"
 			(at 71.12 41.91 0)
 			(effects
 				(font
@@ -7241,7 +7234,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 35.56 38.1 90)
+		(at 35.56 40.64 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -7250,7 +7243,7 @@
 		(fields_autoplaced yes)
 		(uuid "4884e08c-234a-4b5d-a750-fe6a4d6d17aa")
 		(property "Reference" "#PWR0115"
-			(at 39.37 38.1 0)
+			(at 39.37 40.64 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7259,7 +7252,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 31.75 38.0999 90)
+			(at 31.75 40.6399 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7268,7 +7261,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 35.56 38.1 0)
+			(at 35.56 40.64 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7277,7 +7270,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 35.56 38.1 0)
+			(at 35.56 40.64 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7286,7 +7279,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 35.56 38.1 0)
+			(at 35.56 40.64 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7494,7 +7487,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 113.792 26.67 90)
 			(effects
 				(font
@@ -7864,72 +7857,6 @@
 		)
 	)
 	(symbol
-		(lib_id "power:+VSW")
-		(at 133.35 60.96 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "6b33b97b-22e7-4de7-9b5c-8c652bd52ccc")
-		(property "Reference" "#PWR076"
-			(at 133.35 64.77 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "5-24V"
-			(at 133.35 55.88 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 133.35 60.96 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 133.35 60.96 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+VSW\""
-			(at 133.35 60.96 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "54e44d4e-746e-4918-ac42-bd3dfc449141")
-		)
-		(instances
-			(project "licheerv_nano_base"
-				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
-					(reference "#PWR076")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:GND")
 		(at 208.28 100.33 270)
 		(unit 1)
@@ -8174,7 +8101,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 210.058 68.58 90)
 			(effects
 				(font
@@ -9044,6 +8971,72 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+24V")
+		(at 133.35 60.96 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "9f08fdd6-f037-4298-8325-e44d098c16ae")
+		(property "Reference" "#PWR076"
+			(at 133.35 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+24V"
+			(at 133.35 55.88 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 133.35 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 133.35 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+24V\""
+			(at 133.35 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "47448460-6a76-4a18-9767-e025a679c31e")
+		)
+		(instances
+			(project ""
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
+					(reference "#PWR076")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 35.56 124.46 270)
 		(unit 1)
@@ -9137,7 +9130,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 			(at 42.8752 29.21 0)
 			(effects
 				(font
@@ -9360,7 +9353,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "liebler_CONN:JST_XH_S4B-XH-A-1_1x04_P2.50mm_Horizontal_SmallerCourtyard"
+		(property "Footprint" "liebler_CONN:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical_smaller"
 			(at 71.12 125.73 0)
 			(effects
 				(font
@@ -10116,7 +10109,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 163.068 72.39 90)
 			(effects
 				(font
@@ -10843,7 +10836,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 117.602 26.67 90)
 			(effects
 				(font
@@ -10886,6 +10879,72 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+24V")
+		(at 168.91 60.96 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "c656bcb6-5748-48bd-82cc-ca94630439c4")
+		(property "Reference" "#PWR078"
+			(at 168.91 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+24V"
+			(at 168.91 55.88 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 168.91 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 168.91 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+24V\""
+			(at 168.91 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "bf0e191c-d327-44c6-8c9f-bc6de22211a1")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
+					(reference "#PWR078")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
 		(at 41.91 109.22 0)
 		(unit 1)
@@ -10912,7 +10971,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 			(at 42.8752 113.03 0)
 			(effects
 				(font
@@ -10999,7 +11058,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 205.232 91.44 90)
 			(effects
 				(font
@@ -11455,7 +11514,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 35.56 40.64 270)
+		(at 35.56 38.1 270)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11464,7 +11523,7 @@
 		(fields_autoplaced yes)
 		(uuid "ed81f69d-e686-4b0d-a6db-dbfef5669c01")
 		(property "Reference" "#PWR050"
-			(at 29.21 40.64 0)
+			(at 29.21 38.1 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11473,7 +11532,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 31.75 40.6399 90)
+			(at 31.75 38.0999 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11482,7 +11541,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 35.56 40.64 0)
+			(at 35.56 38.1 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11491,7 +11550,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 35.56 40.64 0)
+			(at 35.56 38.1 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11500,7 +11559,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 35.56 40.64 0)
+			(at 35.56 38.1 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11584,6 +11643,72 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
 					(reference "J10")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+24V")
+		(at 215.9 57.15 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "f3403ff3-4223-40e4-9767-fd3dd89f1ad2")
+		(property "Reference" "#PWR082"
+			(at 215.9 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+24V"
+			(at 215.9 52.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 215.9 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 215.9 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+24V\""
+			(at 215.9 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "26b907d1-7716-4c03-995c-5f8375b3f48f")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963/607480ec-6159-45fb-845c-991fd3ee49c5"
+					(reference "#PWR082")
 					(unit 1)
 				)
 			)
@@ -11835,7 +11960,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "TestPoint:TestPoint_THTPad_1.0x1.0mm_Drill0.5mm"
+		(property "Footprint" "TestPoint:TestPoint_THTPad_D1.0mm_Drill0.5mm"
 			(at 129.54 30.48 0)
 			(effects
 				(font

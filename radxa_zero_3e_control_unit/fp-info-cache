@@ -1,4 +1,4 @@
-26990124792799944
+27004313083635408
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -105441,12 +105441,47 @@ connector JST SH top entry
 8
 7
 liebler_CONN
+JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical_smaller
+JST XH series connector, B3B-XH-A (http://www.jst-mfg.com/product/pdf/eng/eXH.pdf), generated with kicad-footprint-generator
+connector JST XH vertical
+0
+3
+3
+liebler_CONN
+JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical_smaller
+JST XH series connector, B4B-XH-A (http://www.jst-mfg.com/product/pdf/eng/eXH.pdf), generated with kicad-footprint-generator
+connector JST XH vertical
+0
+4
+4
+liebler_CONN
+JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical_smaller
+JST XH series connector, B5B-XH-A (http://www.jst-mfg.com/product/pdf/eng/eXH.pdf), generated with kicad-footprint-generator
+connector JST XH vertical
+0
+5
+5
+liebler_CONN
 JST_XH_S4B-XH-A-1_1x04_P2.50mm_Horizontal_SmallerCourtyard
 JST XH series connector, S4B-XH-A-1 (http://www.jst-mfg.com/product/pdf/eng/eXH.pdf), generated with kicad-footprint-generator
 connector JST XH horizontal
 0
 4
 4
+liebler_CONN
+JST_XH_S5B-XH-A-1_1x03_P2.50mm_Horizontal_smaller
+JST XH series connector, S5B-XH-A-1 (http://www.jst-mfg.com/product/pdf/eng/eXH.pdf), generated with kicad-footprint-generator
+connector JST XH horizontal
+0
+3
+3
+liebler_CONN
+JST_XH_S5B-XH-A-1_1x05_P2.50mm_Horizontal_smaller
+JST XH series connector, S5B-XH-A-1 (http://www.jst-mfg.com/product/pdf/eng/eXH.pdf), generated with kicad-footprint-generator
+connector JST XH horizontal
+0
+5
+5
 liebler_CONN
 JST_XH_S6B-XH-A_1x06_P2.50mm_Horizontal_smaller
 JST XH series connector, S6B-XH-A (http://www.jst-mfg.com/product/pdf/eng/eXH.pdf), generated with kicad-footprint-generator
@@ -106512,6 +106547,13 @@ Through hole angled pin header THT 1x04 2.54mm single row
 4
 4
 liebler_MODULES
+DCDC_MT3608
+
+
+0
+4
+4
+liebler_MODULES
 DD0315NA_MODULE
 
 
@@ -106827,6 +106869,13 @@ Through hole socket strip THT 2x20 2.54mm double row
 40
 40
 liebler_MODULES
+RasPi5
+Through hole straight socket strip, 2x20, 2.54mm pitch, double cols (from Kicad 4.0.7), script generated
+Through hole socket strip THT 2x20 2.54mm double row
+0
+40
+40
+liebler_MODULES
 SIM800L
 
 
@@ -106861,6 +106910,13 @@ TPA3110_module
 0
 11
 11
+liebler_MODULES
+Untitled
+
+
+0
+0
+0
 liebler_MODULES
 W5500-mini
 

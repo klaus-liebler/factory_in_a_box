@@ -10,7 +10,7 @@
 
 #include "PDSink.h"
 #include "TaskScheduler.h"
-#include "main.h"
+#include "stm32g4xx_hal.h"
 
 PDSink PowerSink;
 
@@ -20,6 +20,7 @@ PDSink::PDSink(bool busPowered)
       flagVoltageChanged(false), flagPowerRejected(false) {}
 
 void PDSink::start(EventCallbackFunction callback) {
+    Scheduler.start();
     eventCallback = callback;
     reset(false);
     PowerController.startController([this](auto event) { handleEvent(event); });
@@ -36,6 +37,9 @@ void PDSink::reset(bool connected) {
     flagPowerRejected = false;
     capabilitiesChanged = false;
     Scheduler.cancelTask(rerequestPPSCallback);
+    Scheduler.cancelTask(requestSourceCapsCallback);
+    if (connected)
+        Scheduler.scheduleTaskAfter(requestSourceCapsCallback, SourceCapsRequestDelayUs);
 }
 
 void PDSink::poll() {
@@ -161,6 +165,8 @@ void PDSink::onSourceCapabilities(const PDMessage* message) {
     // parse source capabilities message
     PDSourceCapability::parseMessage(message, numSourceCapabilities, sourceCapabilities);
 
+    Scheduler.cancelTask(requestSourceCapsCallback);
+
     capabilitiesChanged = true;
 
     ErrorCode err = requestPowerCore(desiredVoltage, desiredCurrent);
@@ -196,4 +202,20 @@ void PDSink::onRerequestPPS() {
     bool successful = PowerController.sendDataMessage(PDMessageType::dataRequest, 1, &requestObject);
     if (!successful)
         Scheduler.scheduleTaskAfter(rerequestPPSCallback, 100000);
+}
+
+void PDSink::requestSourceCapsCallback() {
+    PowerSink.onRequestSourceCaps();
+}
+
+void PDSink::onRequestSourceCaps() {
+    if (PowerController.ccPin == 0 || numSourceCapabilities > 0)
+        return;
+
+    bool sent = PowerController.sendControlMessage(PDMessageType::controlGetSourceCap);
+    if (!sent) {
+        Scheduler.scheduleTaskAfter(requestSourceCapsCallback, 10000);
+    } else {
+        Scheduler.scheduleTaskAfter(requestSourceCapsCallback, SourceCapsRetryDelayUs);
+    }
 }

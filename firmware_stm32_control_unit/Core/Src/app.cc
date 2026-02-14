@@ -1,3 +1,6 @@
+#include "PDController.h"
+#include "PDProtocolAnalyzer.h"
+#include "PDSink.h"
 #include "gpio.hh"
 #include "log.h"
 #include "main.h"
@@ -13,10 +16,37 @@
 #include "USBPowerDelivery.h"
 #include "gitconstants.hh"
 
-namespace pinsV1 {
-
+namespace pinsDevBoard {
+constexpr std::string_view BOARD_NAME = "WeAct STM32G431 CoreBoard";
 constexpr gpio::Pin RESET = gpio::Pin::PG10;
-constexpr gpio::Pin USB_VESENSE = gpio::Pin::PF01;
+constexpr gpio::Pin USB_VSENSE = gpio::Pin::PB02;
+
+constexpr gpio::Pin HX711_DATA = gpio::Pin::PC10;
+constexpr gpio::Pin HX711_CLK = gpio::Pin::PC11;
+
+constexpr gpio::Pin HX711_DATA_ALT = gpio::Pin::PC11;
+constexpr gpio::Pin HX711_CLK_ALT = gpio::Pin::PC12;
+
+constexpr gpio::Pin BOOT_U2_TX = gpio::Pin::PA02;
+constexpr gpio::Pin BOOT_U2_RX = gpio::Pin::PA03;
+
+constexpr gpio::Pin U3_TX = gpio::Pin::PB10;
+constexpr gpio::Pin U3_RX = gpio::Pin::PB11;
+
+constexpr gpio::Pin STEPPER_EN = gpio::Pin::PA08;
+
+constexpr gpio::Pin TMC2209_EN = gpio::Pin::PA08;
+constexpr gpio::Pin STEPPER1_DIR = gpio::Pin::PC05;
+//Conflict with vsense! constexpr gpio::Pin STEPPER2_DIR = gpio::Pin::PB02;
+constexpr gpio::Pin STEPPER1_STEP = gpio::Pin::PB00;
+constexpr gpio::Pin STEPPER2_STEP = gpio::Pin::PB01;
+constexpr gpio::Pin LED_PIN = gpio::Pin::PC06;
+constexpr bool LED_ON_LEVEL = true; // LED is active high
+}; // namespace pinsDevBoard
+
+namespace pinsV1 {
+constexpr gpio::Pin RESET = gpio::Pin::PG10;
+constexpr gpio::Pin USB_VSENSE = gpio::Pin::PF01;
 constexpr gpio::Pin IO3 = gpio::Pin::PD02;
 
 constexpr gpio::Pin I2C1_SCL = gpio::Pin::PC04;
@@ -53,17 +83,21 @@ constexpr gpio::Pin STEPPER2_DIR = gpio::Pin::PB02;
 constexpr gpio::Pin STEPPER1_STEP = gpio::Pin::PB00;
 constexpr gpio::Pin STEPPER2_STEP = gpio::Pin::PB01;
 constexpr gpio::Pin LED_PIN = gpio::Pin::PB12;
+constexpr bool LED_ON_LEVEL = false; // LED is active high
 }; // namespace pinsV1
+
+// Namespace alias to allow easy switching between pin versions
+namespace pins = pinsDevBoard;
 
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
 
+/*
 // Motor controller instance
-static tmc2209::TMC2209 *g_motor = nullptr;
-
 // RampStepper global instance with pins
-// static SigmoidStepper g_ramp_stepper(pins::STEPPER1_STEP, pins::TMC2209_DIR);
-
+static tmc2209::TMC2209 *g_motor{nullptr};
+static SigmoidStepper g_ramp_stepper(pins::STEPPER1_STEP, pins::STEPPER1_DIR, pins::STEPPER_EN);
+*/
 static uint32_t last_tick = 0;
 
 /**
@@ -88,7 +122,7 @@ extern "C" void TIM1_TRG_COM_TIM17_IRQHandler(void) {
   }
 }
 
-single_led::M<false> led(pins::LED_PIN);
+single_led::M<pins::LED_ON_LEVEL> led(pins::LED_PIN);
 single_led::BlinkPattern blink_pattern(200, 800);
 
 void requestVoltage() {
@@ -115,14 +149,16 @@ void requestVoltage() {
 
 extern "C" void handleEvent(PDSinkEventType eventType) {
 
+  log_debug("handleUSBCEvent. eventType=%d", eventType);
   if (eventType == PDSinkEventType::sourceCapabilitiesChanged) {
     // source capabilities have changed
     if (PowerSink.isConnected()) {
-      // USB PD supply is connected
+      log_info("USB PD supply is connected. Requesting suitable voltage...");
       requestVoltage();
 
     } else {
-      // no supply or no USB PD capable supply is connected
+      log_info("No supply or no USB PD capable supply is connected");
+
       PowerSink.requestPower(5000); // reset to 5V
     }
 
@@ -145,10 +181,10 @@ extern "C" void handleEvent(PDSinkEventType eventType) {
 
 extern "C" void app_setup(void) {
   printf("\r\n\r\n\r\n");
-  printf("=== FacoryInABox Controller Application Starting=== ");
-
+  printf("=== FacoryInABox Controller Application Starting===\r\n");
+  printf("Running on Board %.*s\r\n", (int)pins::BOARD_NAME.length(), pins::BOARD_NAME.data());
   // Print version information
-  log_info("=== Build Information ===");
+  printf("=== Build Information ===\r\n");
   printf("  Version: %.*s\r\n", (int)git::VERSION.length(),
          git::VERSION.data());
   printf("  Commit: %.*s (%.*s)\r\n", (int)git::COMMIT_HASH.length(),
@@ -161,29 +197,30 @@ extern "C" void app_setup(void) {
   printf("  Built: %.*s\r\n", (int)git::BUILD_TIMESTAMP.length(),
          git::BUILD_TIMESTAMP.data());
   if (git::IS_DIRTY) {
-    log_warn("⚠ Working directory has uncommitted changes!");
+    printf("⚠ Working directory has uncommitted changes!\r\n");
   } else {
-    log_info("Working directory was clean related to Git.");
+    printf("Working directory was clean related to Git.\r\n");
   }
-  log_info("========================\r\n");
+  printf("========================\r\n");
 
   // Initialize GPIO
   gpio::Gpio::ConfigureGPIOOutput(pins::LED_PIN, false);
   gpio::Gpio::ConfigureGPIOOutput(pins::TMC2209_EN,
                                   true); // Enable TMC2209 driver
-  gpio::Gpio::ConfigureGPIOOutput(pins::TMC2209_DIR,
+  gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_DIR,
                                   false); // Set initial direction for motor
   gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_STEP,
                                   false); // Initialize step pin low
   gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER2_STEP,
                                   false); // Initialize step pin low
 
-  // Init USB PD
+  // Init USB PD sink
   PowerSink.start(handleEvent);
 
   // Initialize ramp stepper subsystem
   // g_ramp_stepper.init();
 
+  /*
   // Create motor controller instance
   g_motor = new tmc2209::TMC2209(&huart3, 0, pins::TMC2209_EN);
 
@@ -195,7 +232,7 @@ extern "C" void app_setup(void) {
   }
   g_motor->printPrettyFullSystemState();
   g_motor->performStealthChopAutoTuningForQuietOperation();
-
+*/
   led.AnimatePixel(HAL_GetTick(), &blink_pattern);
 
   last_tick = HAL_GetTick();
@@ -205,6 +242,7 @@ extern "C" void app_setup(void) {
 extern "C" void app_loop(void) {
   uint32_t current_tick = HAL_GetTick();
   led.Loop(current_tick);
+  PDProtocolAnalyzer.poll();
   PowerSink.poll();
   HAL_Delay(20);
 }

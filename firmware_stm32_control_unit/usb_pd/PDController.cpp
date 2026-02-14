@@ -6,10 +6,14 @@
 // https://opensource.org/licenses/MIT
 //
 
+
 #include <cstring>
+
 #include "PDController.h"
 #include "PDPhy.h"
 #include "TaskScheduler.h"
+#include "common.hh"
+#include "stm32g4xx_hal.h"
 
 PDController PowerController{};
 
@@ -46,7 +50,7 @@ const PDLogEntry* PDController::popLogEntry() {
 void PDController::log(PDLogEntryType type, const PDMessage* message) {
     uint32_t index = logHead % LogSize;
     logEntries[index].type = type;
-    logEntries[index].time = pdMicros();
+    logEntries[index].time = micros();
     logEntries[index].message = message;
     logHead += 1;
 }

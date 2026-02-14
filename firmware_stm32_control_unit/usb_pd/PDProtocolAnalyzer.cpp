@@ -5,7 +5,6 @@
 // Licensed under MIT License
 // https://opensource.org/licenses/MIT
 //
-
 #include <cstdio>
 #include <cstring>
 #include "PDProtocolAnalyzer.h"
@@ -77,7 +76,7 @@ void USBPDProtocolAnalyzer::poll() {
     if (logEntry == nullptr)
         return;
 
-    printf("%9lu  ", static_cast<unsigned long>(logEntry->time));
+    printf("%9lu  ", logEntry->time);
 
     switch (logEntry->type) {
     case PDLogEntryType::messageReceived:
@@ -85,29 +84,29 @@ void USBPDProtocolAnalyzer::poll() {
         printMessage(logEntry->message);
         break;
     case PDLogEntryType::sinkSourceConnected:
-        printf("Connected: CC%d\n", PowerController.ccPin);
+        printf("Connected: CC%d\r\n", PowerController.ccPin);
         break;
     case PDLogEntryType::sinkSourceDisconnected:
-        printf("Disconnected\n");
+        printf("Disconnected\r\n");
         break;
     case PDLogEntryType::error:
-        printf("Error\n");
+        printf("Error\r\n");
         break;
     case PDLogEntryType::hardReset:
-        printf("--- Hard Reset\n");
+        printf("--- Hard Reset\r\n");
         break;
     case PDLogEntryType::cableReset:
-        printf("--- Cable Reset\n");
+        printf("--- Cable Reset\r\n");
         break;
     case PDLogEntryType::transmissionStarted:
         printf("TX: ");
         printMessage(logEntry->message);
         break;
     case PDLogEntryType::transmissionCompleted:
-        printf("TX: completed\n");
+        printf("TX: completed\r\n");
         break;
     case PDLogEntryType::transmissionFailed:
-        printf("TX: failed\n");
+        printf("TX: failed\r\n");
         break;
     }
 }
@@ -115,14 +114,14 @@ void USBPDProtocolAnalyzer::poll() {
 void USBPDProtocolAnalyzer::printMessage(const PDMessage* message) {
     printf("CC%d %-5s %-7s %-20s %d  %04x",
             message->cc, getSOPSequenceName(message->sopSequence),
-            getSender(message), getMessageName(message->type()),
+            getSender(message),getMessageName(message->type()),
             message->messageId(), message->header);
 
     int numObjects = message->numObjects();
     for (int i = 0; i < numObjects; i++)
         printf(" %08x", message->objects[i]);
     
-    printf("\n");
+    printf("\r\n");
 
     if (numObjects > 0) {
         switch (message->type()) {
@@ -188,7 +187,7 @@ void USBPDProtocolAnalyzer::printCapabilitiesDetails(const PDMessage* message) {
             }
         }
 
-        printf("\n");
+        printf("\r\n");
     } 
 }
 
@@ -219,7 +218,7 @@ void USBPDProtocolAnalyzer::printRequestDetails(const PDMessage* message) {
     if ((object & (1 << 24)) != 0) printf("USB suspend, ");
     if ((object & (1 << 25)) != 0) printf("USB comm capable, ");
     if (giveBack) printf("give back");
-    printf("\n");
+    printf("\r\n");
 }
 
 const char* USBPDProtocolAnalyzer::getMessageName(PDMessageType messageType) {

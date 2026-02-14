@@ -38,7 +38,7 @@ enum class PDLogEntryType {
 struct PDLogEntry {
     /// Log entry type
     PDLogEntryType type;
-    /// Time the event occured (in µs, same as `pdMicros()`)
+    /// Time the event occured (in µs, same as 'micros()')
     unsigned long time;
     /// PD message if 'type == PDLogEntryType::messageReceived'
     const PDMessage* message;
@@ -187,9 +187,6 @@ private:
     static void noGoodCrcReceivedCallback();
     
     friend struct PDPhy;
-    friend struct PDPhySTM32F1;
-    friend struct PDPhySTM32F4;
-    friend struct PDPhySTM32L4;
     friend struct PDPhySTM32UCPD;
     friend struct PDMessageDecoder;
 };

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
 /**
  * @brief Computes and validates the CRC32 checksum.

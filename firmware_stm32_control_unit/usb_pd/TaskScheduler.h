@@ -39,7 +39,7 @@ struct TaskScheduler {
      * @brief Schedules a task to be executed at a time in the future.
      * 
      * @param task task to execute
-    * @param time time, in µs, same base as `pdMicros()`
+     * @param time time, in µs, same base as `micros()`
      */
     void scheduleTaskAt(TaskFunction task, uint32_t time);
 
@@ -54,19 +54,20 @@ struct TaskScheduler {
      * @brief Cancels the execution of all scheduled tasks.
      */
     void cancelAllTasks();
-
-    /**
-     * @brief Interrupt handler entry point (called from ISR)
-     */
     static void onInterrupt();
+    void start();
 
 private:
-    int numScheduledTasks;
-    uint32_t scheduledTimes[10];
-    TaskFunction scheduledFunctions[10];
+    struct TaskSchedulerItem {
+        uint32_t time;
+        TaskFunction task;
+    };
 
-    void start();
+    int numScheduledTasks;
+    TaskSchedulerItem scheduledItems[10];
+
     void checkPendingTasks();
+    
 };
 
 /**
@@ -75,6 +76,3 @@ private:
  * Global scheduler instance for executing tasks in the future
  */
 extern TaskScheduler Scheduler;
-
-/// Returns monotonically increasing time in µs (wraps after ~71 minutes).
-uint32_t pdMicros();

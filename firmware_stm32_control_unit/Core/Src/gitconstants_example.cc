@@ -42,17 +42,4 @@ bool is_built_from_main_branch() {
            git::BRANCH == std::string_view("master");
 }
 
-// Example: Get commit info as C strings for embedded systems
-void get_commit_info_as_cstring() {
-    // Note: string_view is not null-terminated, so be careful when converting
-    // Better to use the string_view directly or create a null-terminated copy
-    
-    char commit_str[16] = {0};
-    if (git::COMMIT_HASH.length() < sizeof(commit_str)) {
-        for (size_t i = 0; i < git::COMMIT_HASH.length(); ++i) {
-            commit_str[i] = git::COMMIT_HASH[i];
-        }
-    }
-    
-    log_info("Latest commit: %s", commit_str);
-}
+

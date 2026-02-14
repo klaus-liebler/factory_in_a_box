@@ -1,4 +1,5 @@
 #include "common.hh"
+#include "stm32g4xx_hal.h"
 
 namespace {
 
@@ -50,6 +51,7 @@ inline uint64_t load_le64(const uint8_t *buf, size_t off) {
 }
 
 } // namespace
+
 
 size_t byteBuf2hexCharBuf(char* charBuf, size_t charBufLen, const uint8_t* byteBuf, size_t byteBufLen){
 	if (!charBuf || charBufLen == 0) return 0;
@@ -226,6 +228,23 @@ uint32_t ParseU32_BigEndian(const uint8_t *const buffer, size_t offset)
 	*ptr1 = *(buffer + offset + 3);
 	return step;
 }
+
+
+uint32_t micros(void)
+{
+  uint32_t m0 = HAL_GetTick();
+  __IO uint32_t u0 = SysTick->VAL;
+  uint32_t m1 = HAL_GetTick();
+  __IO uint32_t u1 = SysTick->VAL;
+  const uint32_t tms = SysTick->LOAD + 1;
+
+  if (m1 != m0) {
+    return (m1 * 1000 + ((tms - u1) * 1000) / tms);
+  } else {
+    return (m0 * 1000 + ((tms - u0) * 1000) / tms);
+  }
+}
+
 
 
 

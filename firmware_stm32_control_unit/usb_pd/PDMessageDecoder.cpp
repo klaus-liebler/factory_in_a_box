@@ -8,7 +8,7 @@
 
 #include "CRC32.h"
 #include "PDMessageDecoder.h"
-#include <string.h>
+#include <cstring>
 
 
 // sorted from LSB to MSB

@@ -125,6 +125,9 @@ private:
     bool flagVoltageChanged;
     bool flagPowerRejected;
 
+    static constexpr uint32_t SourceCapsRequestDelayUs = 100000;
+    static constexpr uint32_t SourceCapsRetryDelayUs = 200000;
+
     ErrorCode requestPowerCore(int voltage, int maxCurrent);
     void handleEvent(const PDControllerEvent& event);
 
@@ -136,6 +139,9 @@ private:
 
     void onRerequestPPS();
     static void rerequestPPSCallback();
+
+    void onRequestSourceCaps();
+    static void requestSourceCapsCallback();
 };
 
 /// Global object for controlling USB power sink

@@ -119,7 +119,7 @@ void USBPDProtocolAnalyzer::printMessage(const PDMessage* message) {
 
     int numObjects = message->numObjects();
     for (int i = 0; i < numObjects; i++)
-        printf(" %08x", message->objects[i]);
+        printf(" %08lx", message->objects[i]);
     
     printf("\r\n");
 

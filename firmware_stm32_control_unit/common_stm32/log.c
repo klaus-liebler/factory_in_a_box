@@ -53,7 +53,7 @@ void log_log(int level, char const* file, int line, char const* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   if (L.lock) { L.lock(true); }
-  fprintf(stdout, "%lu %s%s\x1b[0m \x1b[90m%-8.8s:%03d:\x1b[0m ", (unsigned long)HAL_GetTick(), level_colors[level], level_strings[level], file, line);
+  fprintf(stdout, "\x1b[0m%6lu\x1b[0m %s%s\x1b[0m \x1b[90m%-8.8s:%03d:\x1b[0m ", (unsigned long)HAL_GetTick(), level_colors[level], level_strings[level], file, line);
   vfprintf(stdout, fmt, ap);
   fprintf(stdout, "\r\n");
   fflush(stdout);

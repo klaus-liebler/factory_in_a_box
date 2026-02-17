@@ -1,108 +1,55 @@
-#include <array>
-#include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <iostream>
+#include <cstdlib>
 
-#include "../Core/Inc/sigmoid_lut.hh"
+#include "gpio.hh"
+#include "sigmoid_acceleration_profile_100_1000_5.hh"
+#include "sigmoid_stepper.hh"
+#include "log.h"
+#include "stm32g431xx.h"
 
-enum class MotionPhase { Idle, Accel, Cruise, Decel };
+static void run_motion(SigmoidStepper &stepper, int32_t target, int32_t log_stride) {
+  uint64_t time = 0;
+  log_debug("gotoPosition target=%ld", target);
+  stepper.gotoPosition(target);
 
-using DefaultSigmoidProfile = SigmoidProfile<100, 1000, 16, 3>;
-
-// Current motion state
-int32_t motion_velocity_arr32{2000};
-MotionPhase motion_phase_{MotionPhase::Idle};
-bool motion_direction{true};
-
-// Sigmoid LUT state
-uint32_t lut_segment_index_{0};
-uint32_t lut_steps_done_{0};
-
-bool use_sigmoid_profile_{false};
-
-// Position tracking
-int32_t current_position_{0};
-int32_t target_position_{0};
-
-void reset_lut_state_() {
-
-}
-
-void apply_sigmoid_step() {
-  const auto &table = DefaultSigmoidProfile::table;
-  if (lut_segment_index_ >= table.size()) {
-    return;
-  }
-
-  const std::size_t idx = (motion_phase_ == MotionPhase::Decel)
-                              ? (table.size() - 1U - lut_segment_index_)
-                              : lut_segment_index_;
-  const auto &seg = table[idx];
-
-  const int32_t steps_to_go = std::abs(target_position_ - current_position_);
-
-  switch (motion_phase_) {
-  case MotionPhase::Accel: {
-    motion_velocity_arr32 += seg.slope_q16;
-    printf(" Set value to %u\n", static_cast<uint16_t>(motion_velocity_arr32 >> 16) );
-
-    ++lut_steps_done_;
-    if (lut_steps_done_ >= DefaultSigmoidProfile::StepsPerAccelerationSegment) {
-      lut_steps_done_ = 0;
-      ++lut_segment_index_;
+  const int32_t max_ticks = target + 1000;
+  for (int32_t tick = 0; tick < max_ticks && stepper.isMotionActive(); ++tick) {
+    stepper.handle_update_interrupt_();
+    
+    if (log_stride > 0 && (tick % log_stride) == 0) {
+      log_debug("time=%ld pos=%ld", time, stepper.getCurrentPosition());
     }
+    time += static_cast<uint64_t>(SIGMOID_STEPPER_TIMER->ARR + 1);
+  }
 
-    if (lut_segment_index_ >= table.size()) {
-      lut_segment_index_ = 0;
-      motion_phase_ = MotionPhase::Cruise;
-    }
-    break;
-  }
-  case MotionPhase::Cruise: {
-    motion_velocity_arr32 = DefaultSigmoidProfile::EndArr16<<16;
-    printf(" Set value to %u\n", static_cast<uint16_t>(motion_velocity_arr32 >> 16) );
-
-    if (steps_to_go <=
-        static_cast<int32_t>(DefaultSigmoidProfile::TotalAccelSteps)) {
-      motion_phase_ = MotionPhase::Decel;
-      lut_segment_index_ = 0;
-      lut_steps_done_ = 0;
-    }
-    break;
-  }
-  case MotionPhase::Decel: {
-    motion_velocity_arr32 -= seg.slope_q16; // reverse slope for decel
-    printf(" Set value to %u\n", static_cast<uint16_t>(motion_velocity_arr32 >> 16) );
-
-    ++lut_steps_done_;
-    if (lut_steps_done_ >= DefaultSigmoidProfile::StepsPerAccelerationSegment) {
-      lut_steps_done_ = 0;
-      ++lut_segment_index_;
-      // When all decel segments are consumed, hold the slowest ARR and stop
-      // ramping
-      if (lut_segment_index_ >= table.size()) {
-        motion_velocity_arr32 = DefaultSigmoidProfile::StartArr16<<16;
-        printf(" Set value to %u\n", static_cast<uint16_t>(motion_velocity_arr32 >> 16) );
-        motion_phase_ = MotionPhase::Idle;
-      }
-    }
-    break;
-  }
-  default:
-    break;
-  }
+  log_debug("done pos=%ld target=%ld active=%d time=%lu",
+            stepper.getCurrentPosition(),
+            stepper.getTargetPosition(),
+            stepper.isMotionActive() ? 1 : 0,
+            time);
 }
 
 int main() {
-  DefaultSigmoidProfile::make_table_runtime_debug();
+  const SigmoidAccelerationProfile *profile = &profile_100_1000_5;
 
-  printf("StartArr16: %d\n", DefaultSigmoidProfile::StartArr16);
-  printf("EndArr16:   %d\n", DefaultSigmoidProfile::EndArr16);
-  printf("TotalAccelSteps: %u\n", DefaultSigmoidProfile::TotalAccelSteps);
-  for(size_t i=0; i<DefaultSigmoidProfile::TotalAccelSteps+30; i++) {
-      apply_sigmoid_step();
-  }
+  log_debug("StartArr16=%u EndArr16=%u TotalSteps=%lu",
+            profile->getLowSpeedARR16(),
+            profile->speed_to_arr(profile->getHighSpeedStepsPerSecond()),
+            static_cast<unsigned long>(profile->getTotalSteps()));
+
+  gpio::Pin step{gpio::Pin::PA08};
+  gpio::Pin dir(gpio::Pin::PA09);
+  SigmoidStepper stepper(step, dir, profile);
+  stepper.init();
+
+  const int32_t full_target =
+      static_cast<int32_t>(profile->getTotalSteps() + 200);
+  run_motion(stepper, full_target, 200);
+
+  const int32_t short_target =
+      static_cast<int32_t>(stepper.getCurrentPosition() + (profile->getTotalSteps() / 4));
+  run_motion(stepper, short_target, 100);
+
   return 0;
 }

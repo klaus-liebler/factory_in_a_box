@@ -7861,6 +7861,18 @@
 		(uuid "17d48fd0-6f5a-49c2-a42a-f20266c85ca8")
 	)
 	(junction
+		(at 248.92 134.62)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "1d491ae7-c854-4c4c-bb47-b6a2140990d1")
+	)
+	(junction
+		(at 248.92 132.08)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "27ba9f1d-c4f2-4e8b-8cd1-045c83262638")
+	)
+	(junction
 		(at 198.12 31.75)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -7907,6 +7919,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "6a79e142-6aab-401a-86d4-13a568afd625")
+	)
+	(junction
+		(at 248.92 129.54)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "74a08a69-df2e-47da-badd-8e9c6051d4f7")
 	)
 	(junction
 		(at 334.01 93.98)
@@ -8005,10 +8023,22 @@
 		(uuid "f0293db7-b42b-41c3-8419-e367466d42d6")
 	)
 	(junction
+		(at 248.92 124.46)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "f2eab967-754c-4578-bafa-8ad8c3ebf910")
+	)
+	(junction
 		(at 195.58 36.83)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "fab4728b-50a9-4a3c-a323-f5907439bcdf")
+	)
+	(junction
+		(at 248.92 127)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "fed87a12-d361-4620-a6dd-ec507ac9074c")
 	)
 	(no_connect
 		(at 335.28 229.87)
@@ -8048,6 +8078,16 @@
 	)
 	(wire
 		(pts
+			(xy 248.92 124.46) (xy 248.92 127)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0bbf2a7d-9214-4863-9f4b-301a8b4adec8")
+	)
+	(wire
+		(pts
 			(xy 331.47 80.01) (xy 344.17 80.01)
 		)
 		(stroke
@@ -8078,6 +8118,16 @@
 	)
 	(wire
 		(pts
+			(xy 248.92 134.62) (xy 248.92 137.16)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "235e30d4-9a6c-48a1-b2fb-a37b62575df1")
+	)
+	(wire
+		(pts
 			(xy 198.12 25.4) (xy 198.12 20.32)
 		)
 		(stroke
@@ -8095,6 +8145,16 @@
 			(type default)
 		)
 		(uuid "32f512c5-12ac-44b2-8383-ff7c79d2e775")
+	)
+	(wire
+		(pts
+			(xy 248.92 129.54) (xy 248.92 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "338c7ea4-74ac-452b-bf4c-5741b489d03e")
 	)
 	(wire
 		(pts
@@ -8145,6 +8205,16 @@
 			(type default)
 		)
 		(uuid "5a32911f-e416-4fdd-8983-2b3586920401")
+	)
+	(wire
+		(pts
+			(xy 248.92 127) (xy 248.92 129.54)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5a417908-937a-4849-a568-4a0b8f5cf163")
 	)
 	(wire
 		(pts
@@ -8395,6 +8465,16 @@
 			(type default)
 		)
 		(uuid "a5621e3e-e82c-4bd2-9f11-0c35f0a10f1f")
+	)
+	(wire
+		(pts
+			(xy 248.92 132.08) (xy 248.92 134.62)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "aa4b1dec-dd4b-426f-8b1c-25f3b845168c")
 	)
 	(wire
 		(pts
@@ -9508,6 +9588,28 @@
 			)
 		)
 	)
+	(global_label "I2C3_SCL"
+		(shape bidirectional)
+		(at 256.54 127 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "656291ab-6bb5-4f68-b017-fd7001714a2a")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 269.4055 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
 	(global_label "U3R"
 		(shape input)
 		(at 210.82 115.57 0)
@@ -9970,6 +10072,28 @@
 			)
 		)
 	)
+	(global_label "I2C3_SDA"
+		(shape bidirectional)
+		(at 256.54 124.46 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "95465600-5e64-40e5-ac5b-03a2a52950e9")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 269.466 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
 	(global_label "SCL"
 		(shape bidirectional)
 		(at 128.27 57.15 0)
@@ -10058,6 +10182,28 @@
 			)
 		)
 	)
+	(global_label "I2C2_SDA"
+		(shape bidirectional)
+		(at 256.54 129.54 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "aeeb1892-e491-41b3-9ccf-29dfefe6e5b6")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 269.466 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
 	(global_label "INT_RGB"
 		(shape input)
 		(at 175.26 62.23 180)
@@ -10076,6 +10222,28 @@
 					(size 1.27 1.27)
 				)
 				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "I2C1_SCL"
+		(shape bidirectional)
+		(at 256.54 137.16 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "b087aaee-854d-4bee-b472-b9a89035b776")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 269.4055 137.16 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
 				(hide yes)
 			)
 		)
@@ -10234,6 +10402,28 @@
 			)
 		)
 	)
+	(global_label "I2C2_SCL"
+		(shape bidirectional)
+		(at 256.54 132.08 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "bd8551a5-309c-4ee2-b69e-cfe735321c5d")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 269.4055 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
 	(global_label "I2C3_SDA"
 		(shape bidirectional)
 		(at 175.26 90.17 180)
@@ -10318,6 +10508,28 @@
 					(size 1.27 1.27)
 				)
 				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "I2C1_SDA"
+		(shape bidirectional)
+		(at 256.54 134.62 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "c38d2a31-8a58-40f0-a5bf-f22c05c929ac")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 269.466 134.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
 				(hide yes)
 			)
 		)
@@ -11175,6 +11387,75 @@
 			(project "radxa_zero_3e_control_unit"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(reference "#PWR0124")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 252.73 134.62 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "104879d6-458a-47e7-8a34-089c4c2eb524")
+		(property "Reference" "R42"
+			(at 252.73 140.97 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "5k1"
+			(at 254 134.62 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+			(at 252.73 136.398 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 252.73 134.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 252.73 134.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "55887ecd-fbfd-4095-be8a-db99a8ef74f3")
+		)
+		(pin "2"
+			(uuid "03251b69-cca8-4a1a-9e8f-ce5bbca1d1df")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "R42")
 					(unit 1)
 				)
 			)
@@ -12951,6 +13232,75 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 252.73 129.54 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "589bba5c-74e7-4d5e-aca6-4b82761ef6b3")
+		(property "Reference" "R40"
+			(at 252.73 135.89 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "5k1"
+			(at 254 129.54 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+			(at 252.73 131.318 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 252.73 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 252.73 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "d6218b63-5fce-4192-854e-d886fc2d2325")
+		)
+		(pin "2"
+			(uuid "d51d3653-f724-4f98-9057-52917030ee6e")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "R40")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:+5V")
 		(at 90.17 138.43 0)
 		(unit 1)
@@ -13604,6 +13954,75 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(reference "#PWR090")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 252.73 132.08 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "6fb3a502-983e-4dbb-aef6-1af58db20cce")
+		(property "Reference" "R41"
+			(at 252.73 138.43 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "5k1"
+			(at 254 132.08 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+			(at 252.73 133.858 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 252.73 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 252.73 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "1d674dfc-32c3-4999-846c-f812350a834a")
+		)
+		(pin "2"
+			(uuid "2b2c555c-7fda-4ae0-a938-951e6d5ca4fd")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "R41")
 					(unit 1)
 				)
 			)
@@ -14569,6 +14988,75 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(reference "H8")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 252.73 137.16 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "88833109-0bcf-47a2-830d-641bb80f26ac")
+		(property "Reference" "R43"
+			(at 252.73 143.51 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "5k1"
+			(at 254 137.16 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+			(at 252.73 138.938 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 252.73 137.16 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 252.73 137.16 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "dc7b434d-168f-4074-a4fc-c731facf68a7")
+		)
+		(pin "2"
+			(uuid "b4aac092-f14b-407d-8b67-e1e6eb5dec51")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "R43")
 					(unit 1)
 				)
 			)
@@ -15614,6 +16102,75 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 252.73 124.46 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "a59b26e4-8317-4ddf-8d34-9c1b41e78078")
+		(property "Reference" "R38"
+			(at 252.73 130.81 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "5k1"
+			(at 254 124.46 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+			(at 252.73 126.238 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 252.73 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 252.73 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "99714aaa-18f8-4b5a-b312-3792173cf5fb")
+		)
+		(pin "2"
+			(uuid "fa749029-7c83-4c2e-803e-79df3c71ed33")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "R38")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "liebler_MODULES:Radxa_Zero_3E")
 		(at 81.28 48.26 0)
 		(unit 1)
@@ -16079,6 +16636,75 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(reference "#PWR0113")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 252.73 127 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "ae31dd1a-763d-40c4-8440-1e36d81762c4")
+		(property "Reference" "R39"
+			(at 252.73 133.35 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "5k1"
+			(at 254 127 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+			(at 252.73 128.778 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 252.73 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 252.73 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "509926f4-5b6d-4951-9de8-6233fcc3bc94")
+		)
+		(pin "2"
+			(uuid "3344c4d0-1cda-4c38-b7fd-36d78e05e05f")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "R39")
 					(unit 1)
 				)
 			)
@@ -19283,6 +19909,72 @@
 			(project "licheerv_nano_base"
 				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
 					(reference "#PWR03")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3V3")
+		(at 248.92 124.46 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "f7752ccd-3f9f-469f-8e76-00d3eae54d77")
+		(property "Reference" "#PWR0132"
+			(at 248.92 128.27 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 248.92 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 248.92 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 248.92 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 248.92 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "cb9a8ffe-0d66-48c6-aa28-8fc796fcbc9b")
+		)
+		(instances
+			(project "radxa_zero_3e_control_unit"
+				(path "/8d672852-c950-41bc-8e5f-2837fc931963"
+					(reference "#PWR0132")
 					(unit 1)
 				)
 			)

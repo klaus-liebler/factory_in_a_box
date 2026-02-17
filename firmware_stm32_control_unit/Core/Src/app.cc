@@ -12,7 +12,7 @@
 #include <cstdio>
 #include <cstring>
 
-// #include "sigmoid_stepper.hh"
+#include "sigmoid_stepper.hh"
 #include "USBPowerDelivery.h"
 #include "gitconstants.hh"
 
@@ -92,12 +92,12 @@ namespace pins = pinsDevBoard;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
 
-/*
+
 // Motor controller instance
 // RampStepper global instance with pins
 static tmc2209::TMC2209 *g_motor{nullptr};
 static SigmoidStepper g_ramp_stepper(pins::STEPPER1_STEP, pins::STEPPER1_DIR, pins::STEPPER_EN);
-*/
+
 static uint32_t last_tick = 0;
 
 /**
@@ -242,7 +242,7 @@ extern "C" void app_setup(void) {
 extern "C" void app_loop(void) {
   uint32_t current_tick = HAL_GetTick();
   led.Loop(current_tick);
-  PDProtocolAnalyzer.poll();
+  //PDProtocolAnalyzer.poll();
   PowerSink.poll();
   HAL_Delay(20);
 }

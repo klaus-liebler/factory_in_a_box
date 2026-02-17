@@ -2,15 +2,27 @@
 #include "TaskScheduler.h"
 #include <cstring>
 #include "log.h"
+#include "stm32g431xx.h"
 #include "stm32g4xx_hal.h"
 #include "common.hh"
+//#define USE_TIMER6_FOR_SCHEDULER
+#define USE_TIMER7_FOR_SCHEDULER
 
-#define SCHEDULER_TIMER_NAME "TIM7"
-#define SCHEDULER_TIMER TIM7
-#define SCHEDULER_TIMER_IRQn TIM7_DAC_IRQn
-#define SCHEDULER_TIMER_IRQ_HANDLER TIM7_DAC_IRQHandler
-#define ENABLE_TIMER_CLOCK() __HAL_RCC_TIM7_CLK_ENABLE()
-
+#ifdef USE_TIMER6_FOR_SCHEDULER
+    #define SCHEDULER_TIMER_NAME "TIM6"
+    #define SCHEDULER_TIMER TIM6
+    #define SCHEDULER_TIMER_IRQn TIM6_DAC_IRQn
+    #define SCHEDULER_TIMER_IRQ_HANDLER TIM6_DAC_IRQHandler
+    #define ENABLE_TIMER_CLOCK() __HAL_RCC_TIM6_CLK_ENABLE()
+#elif defined(USE_TIMER7_FOR_SCHEDULER)
+    #define SCHEDULER_TIMER_NAME "TIM7"
+    #define SCHEDULER_TIMER TIM7
+    #define SCHEDULER_TIMER_IRQn TIM7_IRQn
+    #define SCHEDULER_TIMER_IRQ_HANDLER TIM7_IRQHandler
+    #define ENABLE_TIMER_CLOCK() __HAL_RCC_TIM7_CLK_ENABLE()
+#else
+    #error "No timer selected for Task Scheduler"
+#endif
 #define _countof(a) (sizeof(a) / sizeof(*(a)))
 
 static TIM_HandleTypeDef schedulerTimerHandle{};
@@ -38,9 +50,7 @@ TaskScheduler::TaskScheduler() : numScheduledTasks(-1) { }
 
 void TaskScheduler::start() {
     numScheduledTasks = 0;
-
     ENABLE_TIMER_CLOCK();
-
     uint32_t prescaler = ((getTimerClockHz() + 500000) / 1000000)-1;
     log_info("Starting Scheduler using Timer %s with timer freqency %d and a prescaler %d", SCHEDULER_TIMER_NAME, getTimerClockHz(), prescaler);
     schedulerTimerHandle.Instance = SCHEDULER_TIMER;

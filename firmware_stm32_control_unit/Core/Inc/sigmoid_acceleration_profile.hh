@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <array>
 #include <cmath>
+#include <cstddef>
 
 /**
  * @file SigmoidAcceleration.hpp
@@ -29,92 +30,38 @@ struct AccelerationSegment {
 class SigmoidAccelerationProfile {
 public:
     /// Konstruktor mit Beschleunigungsparametern
+    template <size_t N>
     constexpr SigmoidAccelerationProfile(
         uint32_t timer_freq_hz,           ///< Timer-Frequenz nach Prescaler in Hz
         uint16_t prescaler,               ///< Prescaler-Wert (PSC Register)
-        uint16_t initial_arr,             ///< Initialer ARR-Wert (Startgeschwindigkeit)
-        uint16_t start_speed_steps_per_s, ///< Startgeschwindigkeit in steps/s
-        uint16_t target_speed_steps_per_s,///< Zielgeschwindigkeit in steps/s
+        uint16_t low_speed_arr,             ///< Low-Speed ARR-Wert (Startgeschwindigkeit)
+        uint16_t low_speed_steps_per_s, ///< Startgeschwindigkeit in steps/s
+        uint16_t high_speed_steps_per_s,///< Zielgeschwindigkeit in steps/s
         uint8_t shift_bits,               ///< Anzahl der Bit-Verschiebungen für ARR-Werte
-        uint8_t num_segments = 0          ///< Anzahl der Segmente (wird beim Initialisieren gesetzt)
+        uint32_t total_steps,             ///< Gesamtanzahl Schritte (Beschleunigen+Abbremsen)
+        const std::array<AccelerationSegment, N>& table ///< Lookup-Tabelle
     ) : timer_frequency_hz(timer_freq_hz),
-        start_speed(start_speed_steps_per_s),
-        target_speed(target_speed_steps_per_s),
+        low_speed_steps_per_s(low_speed_steps_per_s),
+        high_speed_steps_per_s(high_speed_steps_per_s),
         shift_bits(shift_bits),
         prescaler_value(prescaler),
-        initial_arr_value(initial_arr),
-        num_segments(num_segments),
-        current_segment_idx(0),
-        current_step_in_segment(0),
-        current_arr(initial_arr << shift_bits),
-        current_arr_slope(0),
-        is_acceleration_complete(false)
+        low_speed_arr(low_speed_arr),
+        total_steps(total_steps),
+        num_segments(static_cast<uint8_t>(N)),
+        lookup_table(table.data())
     {}
     
-    /// Reset des Beschleunigungsprofils
-    void reset() {
-        current_segment_idx = 0;
-        current_step_in_segment = 0;
-        is_acceleration_complete = false;
-        // Verwende den initialisierten ARR-Wert
-        current_arr = initial_arr_value << shift_bits;
-    }
+
     
-    /// Liefert den nächsten ARR-Wert für einen Schritt
-    /// @return ARR-Wert für den Timer (0-65535), oder 65535 wenn fertig
-    uint16_t getNextARR() {
-        if (is_acceleration_complete) {
-            return speed_to_arr(target_speed);
-        }
-        
-        if (current_segment_idx >= num_segments) {
-            is_acceleration_complete = true;
-            return speed_to_arr(target_speed);
-        }
-        
-        const AccelerationSegment& seg = lookup_table[current_segment_idx];
-        
-        // Wenn wir das Segment abgeschlossen haben, zum nächsten gehen
-        if (current_step_in_segment >= seg.steps) {
-            current_segment_idx++;
-            current_step_in_segment = 0;
-            
-            if (current_segment_idx >= num_segments) {
-                is_acceleration_complete = true;
-                return speed_to_arr(target_speed);
-            }
-            const AccelerationSegment& next_seg = lookup_table[current_segment_idx];
-            current_arr_slope = next_seg.arr_slope;
-        }
-        
-        // Berechne den nächsten ARR-Wert
-        uint16_t result = current_arr >> shift_bits;
-        
-        // Aktualisiere für nächsten Aufruf
-        current_arr += current_arr_slope;
-        current_step_in_segment++;
-        
-        return result;
-    }
-    
-    /// Gibt zurück, ob die Beschleunigung abgeschlossen ist
-    bool isComplete() const {
-        return is_acceleration_complete;
-    }
-    
-    /// Gibt die aktuelle Segmentnummer zurück (0-basiert)
-    uint8_t getCurrentSegment() const {
-        return current_segment_idx;
-    }
     
     /// Gibt die Anzahl der Segmente zurück
     uint8_t getNumSegments() const {
         return num_segments;
     }
-    
-    /// Setzt den Zeiger auf eine externe Lookup-Tabelle
-    void setLookupTable(const AccelerationSegment* table) {
-        lookup_table = table;
+
+    /// Liefert ein Segment aus der Lookup-Tabelle
+    const AccelerationSegment& getSegment(uint8_t index) const {
+        return lookup_table[index];
     }
     
     /// Konvertiert Speed in ARR-Wert (ohne Bit-Verschiebung)
@@ -142,13 +89,13 @@ public:
     }
     
     /// Gibt die Startgeschwindigkeit zurück
-    uint16_t getStartSpeed() const {
-        return start_speed;
+    uint16_t getLowSpeedStepsPerSecond() const {
+        return low_speed_steps_per_s;
     }
     
     /// Gibt die Zielgeschwindigkeit zurück
-    uint16_t getTargetSpeed() const {
-        return target_speed;
+    uint16_t getHighSpeedStepsPerSecond() const {
+        return high_speed_steps_per_s;
     }
     
     /// Gibt den Prescaler-Wert zurück
@@ -157,26 +104,29 @@ public:
     }
     
     /// Gibt den initialen ARR-Wert zurück
-    uint16_t getInitialARR() const {
-        return initial_arr_value;
+    uint16_t getLowSpeedARR16() const {
+        return low_speed_arr;
+    }
+
+    /// Gibt die Gesamtanzahl der Schritte zurück (Beschleunigen+Abbremsen)
+    uint32_t getTotalSteps() const {
+        return total_steps;
+    }
+
+    uint8_t getShiftBits() const {
+        return shift_bits;
     }
 
 private:
     const uint32_t timer_frequency_hz;
-    const uint16_t start_speed;
-    const uint16_t target_speed;
+    const uint16_t low_speed_steps_per_s;
+    const uint16_t high_speed_steps_per_s;
     const uint8_t shift_bits;
     const uint16_t prescaler_value;
-    const uint16_t initial_arr_value;
-    uint8_t num_segments;
-    
-    // Laufzeit-Variablen
-    const AccelerationSegment* lookup_table = nullptr;
-    uint8_t current_segment_idx;
-    uint16_t current_step_in_segment;
-    uint32_t current_arr;
-    int16_t current_arr_slope;
-    bool is_acceleration_complete;
+    const uint16_t low_speed_arr;
+    const uint32_t total_steps;
+    const uint8_t num_segments;
+    const AccelerationSegment* lookup_table;
 };
 
 /**

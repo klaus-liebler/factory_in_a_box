@@ -158,6 +158,8 @@ public:
     start_motion();
   }
 
+  uint16_t getCurrentARR() const { return static_cast<uint16_t>(current_arr32 >> profile->getShiftBits()); }  
+
   int32_t getCurrentPosition() const { return current_position_; }
 
   bool isMotionActive() const { return TIM_CR1_CEN & SIGMOID_STEPPER_TIMER->CR1; }
@@ -165,8 +167,6 @@ public:
   bool getLastDirection() const { return motion_direction; }
 
   int32_t getTargetPosition() const { return target_position_; }
-
-  
 
   void handle_update_interrupt_() {
     // Toggle step pin

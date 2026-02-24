@@ -10,3 +10,4 @@ firmware_stm32_control_unit/test/sigmoid_test.exe
 firmware_stm32_control_unit/test/.ninja_log
 firmware_stm32_control_unit/test/build.ninja
 firmware_stm32_control_unit/test/.ninja_deps
+/pcb_control_unit_ethernet/pcb_control_unit_ethernet-backups

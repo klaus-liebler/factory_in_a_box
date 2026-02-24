@@ -104,11 +104,9 @@ void Error_Handler(void);
 #define STEPPER_EN_GPIO_Port GPIOA
 #define I3C_Pin GPIO_PIN_15
 #define I3C_GPIO_Port GPIOA
-#define IO4_Pin GPIO_PIN_10
-#define IO4_GPIO_Port GPIOC
-#define HX711_DATA_Pin GPIO_PIN_11
+#define HX711_DATA_Pin GPIO_PIN_10
 #define HX711_DATA_GPIO_Port GPIOC
-#define HX711_CLK_Pin GPIO_PIN_12
+#define HX711_CLK_Pin GPIO_PIN_11
 #define HX711_CLK_GPIO_Port GPIOC
 #define IO3_Pin GPIO_PIN_2
 #define IO3_GPIO_Port GPIOD

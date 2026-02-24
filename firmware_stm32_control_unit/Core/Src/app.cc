@@ -7,14 +7,19 @@
 #include "single_led.hh"
 #include "stm32g431xx.h"
 #include "stm32g4xx_hal.h"
+#include "stm32g4xx_hal_gpio.h"
 #include "tmc2209.hpp"
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 
-#include "sigmoid_stepper.hh"
 #include "USBPowerDelivery.h"
 #include "gitconstants.hh"
+#include "hx711.hh"
+#include "sigmoid_acceleration_profile_100_1000_5.hh"
+#include "sigmoid_stepper.hh"
+
 
 namespace pinsDevBoard {
 constexpr std::string_view BOARD_NAME = "WeAct STM32G431 CoreBoard";
@@ -37,7 +42,7 @@ constexpr gpio::Pin STEPPER_EN = gpio::Pin::PA08;
 
 constexpr gpio::Pin TMC2209_EN = gpio::Pin::PA08;
 constexpr gpio::Pin STEPPER1_DIR = gpio::Pin::PC05;
-//Conflict with vsense! constexpr gpio::Pin STEPPER2_DIR = gpio::Pin::PB02;
+// Conflict with vsense! constexpr gpio::Pin STEPPER2_DIR = gpio::Pin::PB02;
 constexpr gpio::Pin STEPPER1_STEP = gpio::Pin::PB00;
 constexpr gpio::Pin STEPPER2_STEP = gpio::Pin::PB01;
 constexpr gpio::Pin LED_PIN = gpio::Pin::PC06;
@@ -92,11 +97,12 @@ namespace pins = pinsDevBoard;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
 
-
 // Motor controller instance
 // RampStepper global instance with pins
-static tmc2209::TMC2209 *g_motor{nullptr};
-static SigmoidStepper g_ramp_stepper(pins::STEPPER1_STEP, pins::STEPPER1_DIR, pins::STEPPER_EN);
+//static tmc2209::TMC2209 *g_motor{nullptr};
+static SigmoidStepper g_ramp_stepper(pins::STEPPER1_STEP, pins::STEPPER1_DIR,
+                                     &profile_100_1000_5);
+static HX711 g_hx711(GPIOC, GPIO_PIN_11, GPIOC, GPIO_PIN_10); // CLK, DATA
 
 static uint32_t last_tick = 0;
 
@@ -179,10 +185,11 @@ extern "C" void handleEvent(PDSinkEventType eventType) {
   }
 }
 
-extern "C" void app_setup(void) {
+void greeting() {
   printf("\r\n\r\n\r\n");
   printf("=== FacoryInABox Controller Application Starting===\r\n");
-  printf("Running on Board %.*s\r\n", (int)pins::BOARD_NAME.length(), pins::BOARD_NAME.data());
+  printf("Running on Board %.*s\r\n", (int)pins::BOARD_NAME.length(),
+         pins::BOARD_NAME.data());
   // Print version information
   printf("=== Build Information ===\r\n");
   printf("  Version: %.*s\r\n", (int)git::VERSION.length(),
@@ -202,6 +209,9 @@ extern "C" void app_setup(void) {
     printf("Working directory was clean related to Git.\r\n");
   }
   printf("========================\r\n");
+}
+
+extern "C" void app_setup(void) {
 
   // Initialize GPIO
   gpio::Gpio::ConfigureGPIOOutput(pins::LED_PIN, false);
@@ -214,7 +224,13 @@ extern "C" void app_setup(void) {
   gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER2_STEP,
                                   false); // Initialize step pin low
 
-  // Init USB PD sink
+  //init hx711
+  g_hx711.set_gain(128, 128); // Set gain for both channels
+  g_hx711.set_scale(-44.25, -10.98);
+  g_hx711.tare_all(10);
+  log_info("HX711 initialized");
+  
+                                  // Init USB PD sink
   PowerSink.start(handleEvent);
 
   // Initialize ramp stepper subsystem
@@ -237,12 +253,24 @@ extern "C" void app_setup(void) {
 
   last_tick = HAL_GetTick();
 }
-
+int64_t last_weight_measurement_time = 0;
 // Loop-Funktion: im Hauptloop aufgerufen
 extern "C" void app_loop(void) {
   uint32_t current_tick = HAL_GetTick();
   led.Loop(current_tick);
-  //PDProtocolAnalyzer.poll();
+  // PDProtocolAnalyzer.poll();
   PowerSink.poll();
+  // g_ramp_stepper.handle_loop();
+  if(current_tick - last_weight_measurement_time >= 1000) {
+    last_weight_measurement_time = current_tick;
+    long weightA = 0;
+	  long weightB = 0;
+
+    // Measure the weight for channel A
+    weightA = g_hx711.get_weight(10, CHANNEL_A);
+    weightB = g_hx711.get_weight(10, CHANNEL_B);
+    log_info("Weight: %ld %ld", weightA, weightB);
+  } 
+  
   HAL_Delay(20);
 }

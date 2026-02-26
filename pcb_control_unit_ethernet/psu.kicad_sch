@@ -3213,6 +3213,18 @@
 		)
 		(uuid f7491807-4e31-4a5e-9e83-0f0db6c3b9ec)
 	)
+	(text "CC1 and CC2 vertauscht \nwg einfacherem Layout\n--> sollte kein Problem sein"
+		(exclude_from_sim no)
+		(at 141.224 35.306 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+				(color 255 50 76 1)
+			)
+			(justify left)
+		)
+		(uuid "25fd6283-c4ec-4357-ad01-87577fd4262f")
+	)
 	(text "PSU"
 		(exclude_from_sim no)
 		(at 15.24 16.51 0)
@@ -3908,7 +3920,7 @@
 		)
 		(uuid "b7d8db85-af42-4c19-893d-18db4230e4f2")
 	)
-	(global_label "I2C3_SDA"
+	(global_label "I2C4_SDA"
 		(shape bidirectional)
 		(at 204.47 45.72 0)
 		(fields_autoplaced yes)
@@ -3932,28 +3944,6 @@
 	)
 	(global_label "USBPD_CC1"
 		(shape input)
-		(at 139.7 27.94 0)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "32ab72e6-e2dd-483e-b053-4aa5980570be")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 153.7523 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
-	(global_label "USBPD_CC2"
-		(shape input)
 		(at 139.7 30.48 0)
 		(fields_autoplaced yes)
 		(effects
@@ -3962,7 +3952,7 @@
 			)
 			(justify left)
 		)
-		(uuid "34208da8-066a-4f29-9554-15194c4ce49c")
+		(uuid "32ab72e6-e2dd-483e-b053-4aa5980570be")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 153.7523 30.48 0)
 			(effects
@@ -3974,7 +3964,29 @@
 			)
 		)
 	)
-	(global_label "I2C3_SCL"
+	(global_label "USBPD_CC2"
+		(shape input)
+		(at 139.7 27.94 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "34208da8-066a-4f29-9554-15194c4ce49c")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 153.7523 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "I2C4_SCL"
 		(shape bidirectional)
 		(at 204.47 48.26 0)
 		(fields_autoplaced yes)
@@ -5133,7 +5145,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
+		(property "Footprint" "Capacitor_SMD:C_0201_0603Metric"
 			(at 211.7852 40.64 0)
 			(effects
 				(font

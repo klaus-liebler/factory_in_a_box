@@ -1331,131 +1331,6 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "power:+3.3VA"
-			(power)
-			(pin_numbers
-				(hide yes)
-			)
-			(pin_names
-				(offset 0)
-				(hide yes)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(property "Reference" "#PWR"
-				(at 0 -3.81 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Value" "+3.3VA"
-				(at 0 3.556 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" ""
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Datasheet" ""
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Description" "Power symbol creates a global label with name \"+3.3VA\""
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "ki_keywords" "global power"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(symbol "+3.3VA_0_1"
-				(polyline
-					(pts
-						(xy -0.762 1.27) (xy 0 2.54)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 0 2.54) (xy 0.762 1.27)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 0 0) (xy 0 2.54)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-			)
-			(symbol "+3.3VA_1_1"
-				(pin power_in line
-					(at 0 0 90)
-					(length 0)
-					(name "~"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
 		(symbol "power:+3V3"
 			(power)
 			(pin_numbers
@@ -1808,12 +1683,6 @@
 		(uuid "1744c4bf-e5c7-4fc0-a18d-9c3d383c8a70")
 	)
 	(junction
-		(at 106.68 69.85)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "0573e843-63b3-4658-bc94-f61bb8adc854")
-	)
-	(junction
 		(at 57.15 46.99)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -1842,6 +1711,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "8cb000c4-6ceb-4895-99db-5f4d5229cfe9")
+	)
+	(junction
+		(at 106.68 69.85)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "dc16e3b4-8550-4487-b900-59aa1f634068")
 	)
 	(junction
 		(at 33.02 52.07)
@@ -1926,6 +1801,16 @@
 			(type default)
 		)
 		(uuid "3b419d18-d575-4592-8443-92c5e9f3a195")
+	)
+	(wire
+		(pts
+			(xy 106.68 71.12) (xy 106.68 69.85)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "49356092-f3f3-4d2a-9e67-d4061d48068e")
 	)
 	(wire
 		(pts
@@ -2079,6 +1964,16 @@
 	)
 	(wire
 		(pts
+			(xy 107.95 71.12) (xy 106.68 71.12)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fb549f24-983a-4fcf-8f9c-2326462e6b51")
+	)
+	(wire
+		(pts
 			(xy 53.34 63.5) (xy 59.69 63.5)
 		)
 		(stroke
@@ -2086,6 +1981,56 @@
 			(type default)
 		)
 		(uuid "fe0a8411-6b3c-421a-b1a3-e5fe43866c7b")
+	)
+	(label "VA_HX711"
+		(at 88.9 27.94 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "12657148-9e1a-4c9a-95df-bfcd43fea9b6")
+	)
+	(label "VA_HX711"
+		(at 107.95 71.12 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "32a5a3f8-0ebc-48cc-812d-80006f53464f")
+	)
+	(label "VA_HX711"
+		(at 114.3 27.94 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "a49b9fb0-5781-46d5-a35d-596fe3b0b92f")
+	)
+	(label "VA_HX711"
+		(at 69.85 27.94 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "c8b9d564-8f07-46b8-bbb2-bb9d03169936")
+	)
+	(label "VA_HX711"
+		(at 52.07 27.94 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "f33c15f8-b095-4f58-946b-406acda34e53")
 	)
 	(global_label "E+"
 		(shape bidirectional)
@@ -2282,71 +2227,6 @@
 				)
 				(justify right)
 				(hide yes)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+3.3VA")
-		(at 114.3 27.94 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "1cd817bd-f429-4d73-9d04-e5b7e5686746")
-		(property "Reference" "#PWR0147"
-			(at 114.3 31.75 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+3.3VA"
-			(at 114.3 21.59 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 114.3 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 114.3 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+3.3VA\""
-			(at 114.3 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "537a8713-aede-4fac-ad55-6c0da08df867")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/a880958f-925d-472a-a47d-531b373edb44"
-					(reference "#PWR0147")
-					(unit 1)
-				)
 			)
 		)
 	)
@@ -2653,71 +2533,6 @@
 			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/a880958f-925d-472a-a47d-531b373edb44"
 					(reference "#PWR0137")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+3.3VA")
-		(at 88.9 27.94 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "38b79893-b185-424e-bb74-d92644e2042d")
-		(property "Reference" "#PWR0141"
-			(at 88.9 31.75 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+3.3VA"
-			(at 88.9 21.59 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 88.9 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 88.9 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+3.3VA\""
-			(at 88.9 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "0c046bdf-3bc8-4be5-ae34-974142573e69")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/a880958f-925d-472a-a47d-531b373edb44"
-					(reference "#PWR0141")
 					(unit 1)
 				)
 			)
@@ -3220,71 +3035,6 @@
 		)
 	)
 	(symbol
-		(lib_id "power:+3.3VA")
-		(at 69.85 27.94 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "754227d0-cb33-4add-9357-074814750297")
-		(property "Reference" "#PWR0136"
-			(at 69.85 31.75 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+3.3VA"
-			(at 69.85 21.59 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 69.85 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 69.85 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+3.3VA\""
-			(at 69.85 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "11ab8a92-735c-4add-b50d-42e9f3024d9b")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/a880958f-925d-472a-a47d-531b373edb44"
-					(reference "#PWR0136")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Device:L")
 		(at 36.83 38.1 90)
 		(unit 1)
@@ -3347,71 +3097,6 @@
 			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/a880958f-925d-472a-a47d-531b373edb44"
 					(reference "L4")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+3.3VA")
-		(at 106.68 69.85 270)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "804f2213-3910-4125-9760-7b2e82952878")
-		(property "Reference" "#PWR0146"
-			(at 102.87 69.85 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+3.3VA"
-			(at 113.03 69.85 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 106.68 69.85 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 106.68 69.85 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+3.3VA\""
-			(at 106.68 69.85 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "d27eea29-2d74-482b-9edd-59dc05667662")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/a880958f-925d-472a-a47d-531b373edb44"
-					(reference "#PWR0146")
 					(unit 1)
 				)
 			)
@@ -3956,71 +3641,6 @@
 			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/a880958f-925d-472a-a47d-531b373edb44"
 					(reference "#PWR0142")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+3.3VA")
-		(at 52.07 27.94 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "a521b02c-69a0-4ff4-a092-b15cadf3388c")
-		(property "Reference" "#PWR0134"
-			(at 52.07 31.75 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+3.3VA"
-			(at 52.07 21.59 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 52.07 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 52.07 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+3.3VA\""
-			(at 52.07 27.94 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "a686207b-acc1-4e55-8a79-97c3292a1364")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/a880958f-925d-472a-a47d-531b373edb44"
-					(reference "#PWR0134")
 					(unit 1)
 				)
 			)

@@ -3787,7 +3787,7 @@
 		)
 		(uuid 972e2d9c-83ad-42f3-84e6-801852e3b06a)
 	)
-	(text "Bus Servos"
+	(text "Robot"
 		(exclude_from_sim no)
 		(at 187.96 83.82 0)
 		(effects
@@ -3977,12 +3977,6 @@
 		(uuid "ad5ba5ca-f07e-4b56-b3f8-d42ff0f0c234")
 	)
 	(junction
-		(at 148.59 33.02)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "b6014243-6d0f-49d1-9785-fc62444ae451")
-	)
-	(junction
 		(at 90.17 25.4)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4017,6 +4011,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "e05271c4-972f-4068-a0f7-9c9576fcac01")
+	)
+	(junction
+		(at 148.59 33.02)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "e425fe60-f967-4955-8940-eb7b52c5a2a6")
 	)
 	(junction
 		(at 72.39 109.22)
@@ -4654,7 +4654,7 @@
 		)
 		(uuid "fce3f253-5015-4888-8e09-6c1d3da51254")
 	)
-	(global_label "STEPPER2_DIR_T3C1_T8C1"
+	(global_label "STEPPER2_DIR"
 		(shape input)
 		(at 44.45 148.59 180)
 		(fields_autoplaced yes)
@@ -4666,7 +4666,7 @@
 		)
 		(uuid "1358eed3-75fd-4e86-bbe8-16f30dc2e626")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 16.6094 148.59 0)
+			(at 27.8578 148.59 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4698,7 +4698,7 @@
 			)
 		)
 	)
-	(global_label "ROBOT_U4T"
+	(global_label "ROBOT_TX"
 		(shape input)
 		(at 201.93 104.14 180)
 		(fields_autoplaced yes)
@@ -4710,7 +4710,7 @@
 		)
 		(uuid "304e6e8e-a1a2-4e46-85a6-de9c12c1f67b")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 188.301 104.14 0)
+			(at 189.6315 104.14 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4742,7 +4742,7 @@
 			)
 		)
 	)
-	(global_label "STEPPER2_STEP_T3C2_T8C2"
+	(global_label "STEPPER2_STEP"
 		(shape input)
 		(at 44.45 146.05 180)
 		(fields_autoplaced yes)
@@ -4754,7 +4754,7 @@
 		)
 		(uuid "39d0d028-4874-4ab8-aa96-673e8ad70211")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 15.1581 146.05 0)
+			(at 26.4065 146.05 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4786,7 +4786,7 @@
 			)
 		)
 	)
-	(global_label "COMPRESSOR_T2C1"
+	(global_label "COMPRESSOR_PWM"
 		(shape input)
 		(at 209.55 58.42 180)
 		(fields_autoplaced yes)
@@ -4798,7 +4798,7 @@
 		)
 		(uuid "4fd91798-9b56-4287-be0f-4e68249e507c")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 188.1802 58.42 0)
+			(at 188.664 58.42 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4940,7 +4940,7 @@
 			)
 		)
 	)
-	(global_label "U3R"
+	(global_label "STEPPER_RX"
 		(shape output)
 		(at 119.38 26.67 90)
 		(fields_autoplaced yes)
@@ -4952,7 +4952,7 @@
 		)
 		(uuid "cd1197a7-ea6a-44b0-94f7-6a81a25b71cd")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 119.38 19.8748 90)
+			(at 119.38 11.9526 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4962,7 +4962,7 @@
 			)
 		)
 	)
-	(global_label "CONVEYOR_T2C2"
+	(global_label "CONVEYOR_PWM"
 		(shape input)
 		(at 127 62.23 180)
 		(fields_autoplaced yes)
@@ -4974,7 +4974,7 @@
 		)
 		(uuid "ce59c542-3927-4ac5-a5ac-e8935870a869")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 108.5329 62.23 0)
+			(at 109.0167 62.23 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4984,7 +4984,7 @@
 			)
 		)
 	)
-	(global_label "ROBOT_U4R"
+	(global_label "ROBOT_RX"
 		(shape output)
 		(at 200.66 96.52 180)
 		(fields_autoplaced yes)
@@ -4996,7 +4996,7 @@
 		)
 		(uuid "cf6908e2-fd9a-44b4-ac33-cc589c594a49")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 186.7286 96.52 0)
+			(at 188.0591 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5006,7 +5006,7 @@
 			)
 		)
 	)
-	(global_label "U3T"
+	(global_label "STEPPER_TX"
 		(shape input)
 		(at 111.76 26.67 90)
 		(fields_autoplaced yes)
@@ -5018,7 +5018,7 @@
 		)
 		(uuid "d8bc2194-c7be-4d00-83ea-904be24f6152")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 111.76 20.1772 90)
+			(at 111.76 12.255 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6714,6 +6714,74 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:C_Polarized")
+		(at 148.59 36.83 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "2cb7ebc5-9cbe-4ade-a4a6-8bfbf8605a12")
+		(property "Reference" "C53"
+			(at 156.21 35.941 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "100uF"
+			(at 151.13 41.91 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:CP_Elec_6.3x7.7"
+			(at 149.5552 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "C72478"
+			(at 148.59 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Polarized capacitor"
+			(at 148.59 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "80eb58d2-2f5f-41d4-abfb-cf36da4c404e")
+		)
+		(pin "1"
+			(uuid "061e310c-d2dd-453d-8ea5-945d9c4f92d4")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
+					(reference "C53")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:+VSW")
 		(at 36.83 118.11 90)
 		(unit 1)
@@ -7195,7 +7263,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
 			(at 126.492 27.94 90)
 			(effects
 				(font
@@ -8310,74 +8378,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:C_Polarized")
-		(at 148.59 36.83 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "8095479d-ede2-443a-9bba-3c29b8727df5")
-		(property "Reference" "C53"
-			(at 156.21 35.941 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "100uF"
-			(at 151.13 41.91 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_THT:CP_Radial_D8.0mm_P2.50mm"
-			(at 149.5552 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 148.59 36.83 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Polarized capacitor"
-			(at 148.59 36.83 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "ef9dc342-35c6-4e3b-97b0-8162b2d187b3")
-		)
-		(pin "1"
-			(uuid "1d27647c-4dba-4b90-92e4-6aae4be6ec2f")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
-					(reference "C53")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Connector_Generic:Conn_01x02")
 		(at 229.87 58.42 0)
 		(unit 1)
@@ -9148,7 +9148,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
 			(at 122.682 27.94 90)
 			(effects
 				(font
@@ -10179,7 +10179,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Capacitor_THT:CP_Radial_D8.0mm_P2.50mm"
+		(property "Footprint" "Capacitor_SMD:CP_Elec_6.3x7.7"
 			(at 144.4752 40.64 0)
 			(effects
 				(font
@@ -10188,7 +10188,7 @@
 				(hide yes)
 			)
 		)
-		(property "Datasheet" "~"
+		(property "Datasheet" "C72478"
 			(at 143.51 36.83 0)
 			(effects
 				(font

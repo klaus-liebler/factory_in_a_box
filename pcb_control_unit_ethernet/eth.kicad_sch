@@ -6642,8 +6642,18 @@
 		)
 		(uuid "11f968d2-720c-4f47-b3af-ea238c0dc16b")
 	)
+	(label "ETH_VA"
+		(at 144.78 36.83 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "728c56cc-da64-4e11-b3cd-fb883aea3cfd")
+	)
 	(label "LED2"
-		(at 152.4 97.79 180)
+		(at 152.4 110.49 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6663,7 +6673,7 @@
 		(uuid "dfda263b-6600-443d-9dde-739f813b1c6c")
 	)
 	(label "LED1"
-		(at 152.4 110.49 180)
+		(at 152.4 97.79 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6673,7 +6683,7 @@
 		(uuid "fbfb91b2-cc37-4a21-93f6-d3fe11023115")
 	)
 	(global_label "ETH_RST"
-		(shape bidirectional)
+		(shape input)
 		(at 85.09 87.63 180)
 		(fields_autoplaced yes)
 		(effects
@@ -6684,7 +6694,7 @@
 		)
 		(uuid "115542ce-122b-4bd2-8fd1-4f072b7913f8")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 73.1317 87.63 0)
+			(at 74.243 87.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7734,7 +7744,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Crystal:Crystal_SMD_2016-4Pin_2.0x1.6mm"
 			(at 80.01 113.03 0)
 			(effects
 				(font

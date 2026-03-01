@@ -1433,343 +1433,6 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Device:R_Network04"
-			(pin_names
-				(offset 0)
-				(hide yes)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(property "Reference" "RN"
-				(at -7.62 0 90)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Value" "R_Network04"
-				(at 5.08 0 90)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" "Resistor_THT:R_Array_SIP5"
-				(at 6.985 0 90)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Datasheet" "http://www.vishay.com/docs/31509/csc.pdf"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Description" "4 resistor network, star topology, bussed resistors, small symbol"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "ki_keywords" "R network star-topology"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "ki_fp_filters" "R?Array?SIP*"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(symbol "R_Network04_0_1"
-				(rectangle
-					(start -6.35 -3.175)
-					(end 3.81 3.175)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type background)
-					)
-				)
-				(rectangle
-					(start -5.842 1.524)
-					(end -4.318 -2.54)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(circle
-					(center -5.08 2.286)
-					(radius 0.254)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type outline)
-					)
-				)
-				(polyline
-					(pts
-						(xy -5.08 1.524) (xy -5.08 2.286) (xy -2.54 2.286) (xy -2.54 1.524)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy -5.08 -2.54) (xy -5.08 -3.81)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(rectangle
-					(start -3.302 1.524)
-					(end -1.778 -2.54)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(circle
-					(center -2.54 2.286)
-					(radius 0.254)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type outline)
-					)
-				)
-				(polyline
-					(pts
-						(xy -2.54 1.524) (xy -2.54 2.286) (xy 0 2.286) (xy 0 1.524)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy -2.54 -2.54) (xy -2.54 -3.81)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(rectangle
-					(start -0.762 1.524)
-					(end 0.762 -2.54)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(circle
-					(center 0 2.286)
-					(radius 0.254)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type outline)
-					)
-				)
-				(polyline
-					(pts
-						(xy 0 1.524) (xy 0 2.286) (xy 2.54 2.286) (xy 2.54 1.524)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 0 -2.54) (xy 0 -3.81)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(rectangle
-					(start 1.778 1.524)
-					(end 3.302 -2.54)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 2.54 -2.54) (xy 2.54 -3.81)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-			)
-			(symbol "R_Network04_1_1"
-				(pin passive line
-					(at -5.08 5.08 270)
-					(length 2.54)
-					(name "common"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -5.08 -5.08 90)
-					(length 1.27)
-					(name "R1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -2.54 -5.08 90)
-					(length 1.27)
-					(name "R2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "3"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 0 -5.08 90)
-					(length 1.27)
-					(name "R3"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "4"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 2.54 -5.08 90)
-					(length 1.27)
-					(name "R4"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "5"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
 		(symbol "HR911105A_small_1"
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -6543,6 +6206,18 @@
 		(uuid "1fa51d86-2ace-4633-bbfc-1354792c3243")
 	)
 	(junction
+		(at 218.44 31.75)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "2358d5d6-cb1c-4913-a0e1-eb6f22398299")
+	)
+	(junction
+		(at 213.36 73.66)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "254cb5af-ff82-486a-9a87-b262ab8fc896")
+	)
+	(junction
 		(at 16.51 115.57)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -6609,6 +6284,12 @@
 		(uuid "4700a4e0-0b77-4e54-911d-27c3d1f65261")
 	)
 	(junction
+		(at 227.33 31.75)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "48374e96-d676-4e9d-a514-b9448b1c3bab")
+	)
+	(junction
 		(at 260.35 101.6)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -6619,6 +6300,18 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "4cfab8b4-8cf6-45b2-8d55-df8e76cdcf23")
+	)
+	(junction
+		(at 227.33 73.66)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "4fe822fc-8a27-42c0-8204-e0c3de1ec9c0")
+	)
+	(junction
+		(at 218.44 73.66)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "580125e5-3b1c-4ddb-bd31-9910ef4ec3b4")
 	)
 	(junction
 		(at 176.53 13.97)
@@ -6711,6 +6404,12 @@
 		(uuid "929aa25b-1a26-4fcb-ac3f-d5e02a2c890d")
 	)
 	(junction
+		(at 213.36 31.75)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "a1f84eda-3b61-432a-ac57-91dd4288d9ca")
+	)
+	(junction
 		(at 181.61 41.91)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -6771,10 +6470,22 @@
 		(uuid "fc9ab27d-9051-4a45-8490-15f84a9e4c0d")
 	)
 	(junction
+		(at 215.9 73.66)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "fca6f24f-d724-43b1-ab52-bf0a5530077b")
+	)
+	(junction
 		(at 166.37 13.97)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "fcb649ab-2719-459c-a148-55f5691c3155")
+	)
+	(junction
+		(at 215.9 31.75)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "fe401579-91eb-4709-9c7d-ed2a9b79e341")
 	)
 	(no_connect
 		(at 149.86 83.82)
@@ -6936,6 +6647,16 @@
 	)
 	(wire
 		(pts
+			(xy 213.36 31.75) (xy 215.9 31.75)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1557ff8b-e055-47b0-b2b5-8405f596faa4")
+	)
+	(wire
+		(pts
 			(xy 227.33 86.36) (xy 233.68 86.36)
 		)
 		(stroke
@@ -7026,7 +6747,17 @@
 	)
 	(wire
 		(pts
-			(xy 227.33 40.64) (xy 227.33 44.45)
+			(xy 247.65 -2.54) (xy 247.65 13.97)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1dcacffd-000f-4bae-a68c-ca194394857d")
+	)
+	(wire
+		(pts
+			(xy 227.33 17.78) (xy 227.33 31.75)
 		)
 		(stroke
 			(width 0)
@@ -7053,6 +6784,26 @@
 			(type default)
 		)
 		(uuid "20791605-ea50-461c-9401-b3939ffb0e7d")
+	)
+	(wire
+		(pts
+			(xy 218.44 31.75) (xy 227.33 31.75)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "27459efd-4be9-4af7-b094-50cd60802470")
+	)
+	(wire
+		(pts
+			(xy 215.9 31.75) (xy 218.44 31.75)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2780d910-f531-4bb2-99ac-1c0f87d1a732")
 	)
 	(wire
 		(pts
@@ -7123,6 +6874,16 @@
 			(type default)
 		)
 		(uuid "2eda51b3-ffab-4f34-8a97-98aecc4ded64")
+	)
+	(wire
+		(pts
+			(xy 227.33 73.66) (xy 227.33 86.36)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "305c205d-fb39-45c7-bd63-367a474ae7f4")
 	)
 	(wire
 		(pts
@@ -7316,6 +7077,26 @@
 	)
 	(wire
 		(pts
+			(xy 247.65 21.59) (xy 247.65 33.02)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "60f6484c-80d3-43d0-ab19-5a916ccce121")
+	)
+	(wire
+		(pts
+			(xy 213.36 73.66) (xy 215.9 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6214b105-f09a-4355-af92-06abd2fbc1d4")
+	)
+	(wire
+		(pts
 			(xy 210.82 96.52) (xy 233.68 96.52)
 		)
 		(stroke
@@ -7426,6 +7207,16 @@
 	)
 	(wire
 		(pts
+			(xy 227.33 31.75) (xy 227.33 44.45)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "78be5474-20ef-4acc-821a-285548e04a04")
+	)
+	(wire
+		(pts
 			(xy 149.86 48.26) (xy 167.64 48.26)
 		)
 		(stroke
@@ -7433,6 +7224,16 @@
 			(type default)
 		)
 		(uuid "7c1e8f24-8abc-481d-999a-28fd86aa7fe7")
+	)
+	(wire
+		(pts
+			(xy 232.41 21.59) (xy 232.41 25.4)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7e63efe5-86ba-4b1a-81ae-9144fad70100")
 	)
 	(wire
 		(pts
@@ -7463,6 +7264,16 @@
 			(type default)
 		)
 		(uuid "8233f8dd-1460-48e2-a491-d277035772ae")
+	)
+	(wire
+		(pts
+			(xy 210.82 31.75) (xy 213.36 31.75)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "84966b07-179d-4474-adae-8431cb768308")
 	)
 	(wire
 		(pts
@@ -7606,6 +7417,16 @@
 	)
 	(wire
 		(pts
+			(xy 237.49 21.59) (xy 237.49 27.94)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b5571940-12e8-47e0-8858-b2f4529e11bf")
+	)
+	(wire
+		(pts
 			(xy 29.21 107.95) (xy 29.21 104.14)
 		)
 		(stroke
@@ -7623,6 +7444,26 @@
 			(type default)
 		)
 		(uuid "b6ff296e-6490-4820-ab96-c3913fae1c5a")
+	)
+	(wire
+		(pts
+			(xy 210.82 73.66) (xy 213.36 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b9501b3b-8a65-41b9-b1db-897a5a97f974")
+	)
+	(wire
+		(pts
+			(xy 218.44 73.66) (xy 227.33 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bfb9b00d-0daf-4e54-a1a8-a5a5670d2117")
 	)
 	(wire
 		(pts
@@ -7686,7 +7527,17 @@
 	)
 	(wire
 		(pts
-			(xy 227.33 52.07) (xy 227.33 86.36)
+			(xy 242.57 21.59) (xy 242.57 30.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "dcafc231-22d6-4d80-acf0-671196397a01")
+	)
+	(wire
+		(pts
+			(xy 227.33 52.07) (xy 227.33 73.66)
 		)
 		(stroke
 			(width 0)
@@ -7753,6 +7604,16 @@
 			(type default)
 		)
 		(uuid "f1ced845-2de6-4378-b732-87c66f29c75b")
+	)
+	(wire
+		(pts
+			(xy 215.9 73.66) (xy 218.44 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f706dfa2-5719-4854-9449-2b9a239e66d5")
 	)
 	(label "TXNB"
 		(at 219.71 88.9 0)
@@ -8289,6 +8150,75 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 218.44 35.56 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "04832d43-db20-4374-bb6b-296009628317")
+		(property "Reference" "R71"
+			(at 218.44 31.75 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "49R9"
+			(at 218.44 38.1 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 216.662 35.56 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "C87044"
+			(at 218.44 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 218.44 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "286e46a1-3adc-407f-b73c-a828fc1039ca")
+		)
+		(pin "1"
+			(uuid "58a0d106-d42d-4b0b-af14-ac6b65664f02")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "R71")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 149.86 137.16 0)
 		(unit 1)
@@ -8576,6 +8506,75 @@
 			(project "ethercad"
 				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
 					(reference "C?")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 218.44 77.47 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "222528d8-262b-43db-81f0-d7548031d4ad")
+		(property "Reference" "R75"
+			(at 218.44 73.66 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "49R9"
+			(at 218.44 80.01 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 216.662 77.47 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "C87044"
+			(at 218.44 77.47 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 218.44 77.47 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "b6df0655-713b-4c5a-b457-12ab9acc23b8")
+		)
+		(pin "1"
+			(uuid "c894caef-0fa9-4ddb-b2ff-431270a2a141")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "R75")
 					(unit 1)
 				)
 			)
@@ -9544,91 +9543,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:R_Network04")
-		(at 215.9 76.2 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "51ec30d9-4c51-4e2f-88fb-9f544b3e04fa")
-		(property "Reference" "RN1"
-			(at 220.98 75.1839 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "50R"
-			(at 220.98 77.7239 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_THT:R_Array_SIP5"
-			(at 222.885 76.2 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "http://www.vishay.com/docs/31509/csc.pdf"
-			(at 215.9 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "4 resistor network, star topology, bussed resistors, small symbol"
-			(at 215.9 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "0d0fdfd7-f132-4f51-882e-1ba6f8c56abb")
-		)
-		(pin "5"
-			(uuid "1d42a324-352a-4900-8bf4-692432ba239e")
-		)
-		(pin "4"
-			(uuid "24e50bb7-db67-4141-956a-9fac78e0c7ff")
-		)
-		(pin "3"
-			(uuid "bfa55e77-14c7-4d21-ac0e-0f40be6177ce")
-		)
-		(pin "1"
-			(uuid "45b8f2e6-f70b-4fad-acac-dce5c9642553")
-		)
-		(instances
-			(project "ethercad"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
-					(reference "RN1")
-					(unit 1)
-				)
-			)
-			(project "ethercad"
-				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
-					(reference "RN1")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:+3V3")
 		(at 149.86 13.97 90)
 		(unit 1)
@@ -9814,26 +9728,16 @@
 		)
 	)
 	(symbol
-		(lib_id "power:+3V3")
-		(at 210.82 71.12 270)
+		(lib_id "Device:R")
+		(at 210.82 77.47 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "61db079f-4f34-4e79-880c-aeee542aaffe")
-		(property "Reference" "#PWR04"
-			(at 207.01 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+3V3"
-			(at 214.63 71.1199 90)
+		(uuid "6066d3cc-2c49-4794-b0a3-c2a32dabd0f7")
+		(property "Reference" "R72"
+			(at 210.82 72.644 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9841,8 +9745,17 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
-			(at 210.82 71.12 0)
+		(property "Value" "49R9"
+			(at 210.82 80.01 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 209.042 77.47 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9850,8 +9763,8 @@
 				(hide yes)
 			)
 		)
-		(property "Datasheet" ""
-			(at 210.82 71.12 0)
+		(property "Datasheet" "C87044"
+			(at 210.82 77.47 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9859,28 +9772,25 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 210.82 71.12 0)
+		(property "Description" "Resistor"
+			(at 210.82 77.47 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 				(hide yes)
 			)
+		)
+		(pin "2"
+			(uuid "5e094fac-bbbe-4a0c-865e-9fa62907852c")
 		)
 		(pin "1"
-			(uuid "66c6acef-f5a1-412d-9c62-43e6203b9cdf")
+			(uuid "43f32fb7-451c-4e95-a1cd-df5dfe12ec6f")
 		)
 		(instances
-			(project "ethercad"
+			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
-					(reference "#PWR04")
-					(unit 1)
-				)
-			)
-			(project "ethercad"
-				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
-					(reference "#PWR04")
+					(reference "R72")
 					(unit 1)
 				)
 			)
@@ -10262,78 +10172,6 @@
 			(project "ethercad"
 				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
 					(reference "CN?")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+3V3")
-		(at 210.82 29.21 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "70ebafa7-8525-42d9-863e-1866f640c844")
-		(property "Reference" "#PWR02"
-			(at 210.82 33.02 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+3V3"
-			(at 210.82 24.13 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 210.82 29.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 210.82 29.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 210.82 29.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "b79809c8-8e5a-4d9c-bba8-964aa27d13f8")
-		)
-		(instances
-			(project "ethercad"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
-					(reference "#PWR02")
-					(unit 1)
-				)
-			)
-			(project "ethercad"
-				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
-					(reference "#PWR02")
 					(unit 1)
 				)
 			)
@@ -11310,6 +11148,75 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 215.9 35.56 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "abf69cea-734c-4205-bdb9-fbbd12034eb1")
+		(property "Reference" "R70"
+			(at 215.9 30.734 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "49R9"
+			(at 215.9 38.1 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 214.122 35.56 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "C87044"
+			(at 215.9 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 215.9 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "477fb152-ae81-40a3-92c9-390933892e01")
+		)
+		(pin "1"
+			(uuid "849052ed-3902-40df-8719-d89b26066c9e")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "R70")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "liebler_CONN:HR911105A_small")
 		(at 254 49.53 0)
 		(unit 1)
@@ -11415,6 +11322,75 @@
 			(project "ethercad"
 				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
 					(reference "X?")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 210.82 35.56 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "b24f61a7-ac75-4428-b34c-bbb2c1330169")
+		(property "Reference" "R68"
+			(at 210.82 30.734 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "49R9"
+			(at 210.82 38.1 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 209.042 35.56 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "C87044"
+			(at 210.82 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 210.82 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "d9bbaaa3-7e87-4de0-94dd-d2cde1242127")
+		)
+		(pin "1"
+			(uuid "906aafc1-963b-4726-9810-0d3bfbce825c")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "R68")
 					(unit 1)
 				)
 			)
@@ -11643,8 +11619,77 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 213.36 35.56 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "b8f55345-9298-4452-ac30-cbf8c1c2de7a")
+		(property "Reference" "R69"
+			(at 213.36 31.242 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "49R9"
+			(at 213.36 38.1 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 211.582 35.56 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "C87044"
+			(at 213.36 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 213.36 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "ce0cca10-2a25-4709-98c6-4876256b04db")
+		)
+		(pin "1"
+			(uuid "b56ec6db-8133-48ab-99ac-a82f1b483f02")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "R69")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:+3V3")
-		(at 227.33 35.56 0)
+		(at 227.33 12.7 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11653,7 +11698,7 @@
 		(fields_autoplaced yes)
 		(uuid "bf5b4a2f-f5e4-47da-bf10-abf6dca5b60c")
 		(property "Reference" "#PWR01"
-			(at 227.33 39.37 0)
+			(at 227.33 16.51 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11662,7 +11707,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 227.33 30.48 0)
+			(at 227.33 7.62 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11670,7 +11715,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 227.33 35.56 0)
+			(at 227.33 12.7 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11679,7 +11724,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 227.33 35.56 0)
+			(at 227.33 12.7 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11688,7 +11733,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 227.33 35.56 0)
+			(at 227.33 12.7 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12328,7 +12373,7 @@
 	)
 	(symbol
 		(lib_id "Device:L_Ferrite_Small")
-		(at 227.33 38.1 0)
+		(at 227.33 15.24 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12336,7 +12381,7 @@
 		(dnp no)
 		(uuid "ca9fd49e-1780-4f8a-a6f4-b7182f68eaeb")
 		(property "Reference" "L9"
-			(at 226.06 38.1 90)
+			(at 226.06 15.24 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12344,7 +12389,7 @@
 			)
 		)
 		(property "Value" "600R@100M"
-			(at 226.06 38.1 90)
+			(at 226.06 15.24 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12353,7 +12398,7 @@
 			)
 		)
 		(property "Footprint" "Inductor_SMD:L_0603_1608Metric"
-			(at 227.33 38.1 0)
+			(at 227.33 15.24 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12362,7 +12407,7 @@
 			)
 		)
 		(property "Datasheet" "C19330"
-			(at 227.33 38.1 0)
+			(at 227.33 15.24 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12371,7 +12416,7 @@
 			)
 		)
 		(property "Description" "Inductor with ferrite core, small symbol"
-			(at 227.33 38.1 0)
+			(at 227.33 15.24 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12395,6 +12440,75 @@
 			(project "ethercad"
 				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
 					(reference "L?")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 213.36 77.47 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "caf16c5d-2a2a-48b7-be7e-e7b98d1df90a")
+		(property "Reference" "R73"
+			(at 213.36 73.152 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "49R9"
+			(at 213.36 80.01 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 211.582 77.47 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "C87044"
+			(at 213.36 77.47 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 213.36 77.47 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "43e7553f-e084-4f5e-a2c6-9491babeb10e")
+		)
+		(pin "1"
+			(uuid "76e5ef5f-b237-4c9d-aaab-5f46256b5cb7")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "R73")
 					(unit 1)
 				)
 			)
@@ -13063,6 +13177,75 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 215.9 77.47 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "edc67fd3-8698-4b15-a0d1-f6eb6286c08f")
+		(property "Reference" "R74"
+			(at 215.9 72.644 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "49R9"
+			(at 215.9 80.01 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 214.122 77.47 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "C87044"
+			(at 215.9 77.47 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 215.9 77.47 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "869ca9d1-3222-4407-ba97-6a824add5454")
+		)
+		(pin "1"
+			(uuid "fee456a8-ac08-4ded-be95-d5c3676bddc9")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "R74")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:L_Ferrite_Small")
 		(at 191.77 52.07 0)
 		(unit 1)
@@ -13352,91 +13535,6 @@
 			(project "ethercad"
 				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
 					(reference "#PWR?")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:R_Network04")
-		(at 215.9 34.29 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "f9def1dd-0223-4545-8379-a4184575d1d9")
-		(property "Reference" "RN1"
-			(at 220.98 33.2739 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "50R"
-			(at 220.98 35.8139 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_THT:R_Array_SIP5"
-			(at 222.885 34.29 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "http://www.vishay.com/docs/31509/csc.pdf"
-			(at 215.9 34.29 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "4 resistor network, star topology, bussed resistors, small symbol"
-			(at 215.9 34.29 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "a0265d26-f1ef-4270-82a6-b5c12b7cb0e1")
-		)
-		(pin "5"
-			(uuid "12ec665c-5bb2-43bc-8980-092aca030827")
-		)
-		(pin "4"
-			(uuid "1c3b679f-625f-4611-b2ca-4a57dc31cfff")
-		)
-		(pin "3"
-			(uuid "49d33600-7ef8-4ad2-bded-3bfd5628dbb2")
-		)
-		(pin "1"
-			(uuid "460c4997-64c9-435e-903f-1d3a1feb3554")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
-					(reference "RN1")
-					(unit 1)
-				)
-			)
-			(project "ethercad"
-				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
-					(reference "RN?")
 					(unit 1)
 				)
 			)

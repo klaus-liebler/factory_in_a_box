@@ -2578,6 +2578,28 @@
 			)
 		)
 	)
+	(global_label "WS2812_CH1"
+		(shape input)
+		(at 113.03 91.44 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "552bc07e-7ced-4acf-a729-5180241e3f02")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 97.7683 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+				(hide yes)
+			)
+		)
+	)
 	(global_label "I2C2_SCL"
 		(shape bidirectional)
 		(at 31.75 115.57 180)
@@ -2635,6 +2657,28 @@
 		(uuid "748419dc-a5d1-4299-9945-4d94432b9166")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 97.7077 58.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "WS2812_CH2"
+		(shape input)
+		(at 113.03 100.33 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "7990c797-e8b7-4289-9220-4cee03792d3d")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 97.7683 100.33 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -3370,6 +3414,79 @@
 		)
 	)
 	(symbol
+		(lib_id "Connector_Generic:Conn_01x03")
+		(at 118.11 88.9 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "2da79c74-f87f-4e50-9ea0-3d34b9038047")
+		(property "Reference" "J24"
+			(at 120.65 87.6299 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "WS2812_CH1"
+			(at 120.65 90.1699 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "liebler_CONN:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical_smaller"
+			(at 118.11 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 118.11 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic connector, single row, 01x03, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 118.11 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "0bab1df2-fbbc-4e2f-a307-1a8d1fc48685")
+		)
+		(pin "1"
+			(uuid "1a573954-d4f0-4612-8d84-467f47a6970e")
+		)
+		(pin "3"
+			(uuid "9566fbf7-29f4-4d8d-96ce-0a13b4baf174")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/57bd821a-1824-4d33-9527-59477d510592"
+					(reference "J24")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:+5V")
 		(at 96.52 58.42 90)
 		(unit 1)
@@ -3498,6 +3615,79 @@
 			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/57bd821a-1824-4d33-9527-59477d510592"
 					(reference "#PWR089")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector_Generic:Conn_01x03")
+		(at 118.11 97.79 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "36018adf-2d6e-4c34-8912-d25d6b860124")
+		(property "Reference" "J25"
+			(at 120.65 96.5199 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "WS2812_CH2"
+			(at 120.65 99.0599 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "liebler_CONN:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical_smaller"
+			(at 118.11 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 118.11 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic connector, single row, 01x03, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 118.11 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "a3cf2bce-aaf0-4fd4-a8b7-48f9616885f1")
+		)
+		(pin "1"
+			(uuid "bb8b017e-8ff2-4b16-9446-bd18a9c51d1c")
+		)
+		(pin "3"
+			(uuid "d10a3ce7-9f07-42e4-9ff9-d2354afcf60a")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/57bd821a-1824-4d33-9527-59477d510592"
+					(reference "J25")
 					(unit 1)
 				)
 			)
@@ -5114,6 +5304,73 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+5V")
+		(at 113.03 95.25 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "ad2e8789-f56b-41c3-9cef-99241732ab86")
+		(property "Reference" "#PWR0136"
+			(at 116.84 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+5V"
+			(at 109.22 95.2499 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 113.03 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 113.03 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+5V\""
+			(at 113.03 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "2de10a35-fbfb-45c7-8d74-e772d13981b1")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/57bd821a-1824-4d33-9527-59477d510592"
+					(reference "#PWR0136")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 48.26 27.94 90)
 		(unit 1)
@@ -5610,6 +5867,73 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+5V")
+		(at 113.03 86.36 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "d24b652d-fffb-4550-a940-0098fc4f7e03")
+		(property "Reference" "#PWR0134"
+			(at 116.84 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+5V"
+			(at 109.22 86.3599 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 113.03 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 113.03 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+5V\""
+			(at 113.03 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "57b81fd4-28cd-4deb-a57a-23832570c201")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/57bd821a-1824-4d33-9527-59477d510592"
+					(reference "#PWR0134")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 31.75 123.19 270)
 		(unit 1)
@@ -5958,6 +6282,73 @@
 	)
 	(symbol
 		(lib_id "power:GND")
+		(at 113.03 88.9 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "f1bbe999-0ec1-4bc2-815b-8dfe87c6a3fa")
+		(property "Reference" "#PWR0156"
+			(at 106.68 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 109.22 88.8999 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 113.03 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 113.03 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 113.03 88.9 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "589991c5-f287-4f91-991a-619846550244")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/57bd821a-1824-4d33-9527-59477d510592"
+					(reference "#PWR0156")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
 		(at 113.03 46.99 270)
 		(unit 1)
 		(exclude_from_sim no)
@@ -6097,6 +6488,73 @@
 			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/57bd821a-1824-4d33-9527-59477d510592"
 					(reference "J11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 113.03 97.79 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "ff938336-1e05-4a3f-b5dd-99f003e503d1")
+		(property "Reference" "#PWR0141"
+			(at 106.68 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 109.22 97.7899 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 113.03 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 113.03 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 113.03 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "4eb3c98f-29db-43ae-b8e6-066715c83ddf")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/57bd821a-1824-4d33-9527-59477d510592"
+					(reference "#PWR0141")
 					(unit 1)
 				)
 			)

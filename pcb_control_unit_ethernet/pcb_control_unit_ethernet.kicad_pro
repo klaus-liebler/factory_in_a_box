@@ -714,6 +714,10 @@
     [
       "a880958f-925d-472a-a47d-531b373edb44",
       "sensors"
+    ],
+    [
+      "f2fdf4e4-4878-452d-8edd-af4cbe9f58a2",
+      "EtherCAT"
     ]
   ],
   "text_variables": {}

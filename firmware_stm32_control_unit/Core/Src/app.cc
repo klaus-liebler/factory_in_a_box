@@ -47,6 +47,7 @@ constexpr gpio::Pin STEPPER1_STEP = gpio::Pin::PB00;
 constexpr gpio::Pin STEPPER2_STEP = gpio::Pin::PB01;
 constexpr gpio::Pin LED_PIN = gpio::Pin::PC06;
 constexpr bool LED_ON_LEVEL = true; // LED is active high
+constexpr int VOLTAGE_FROM_USBC = 5000; // default voltage if powered from USB-C
 }; // namespace pinsDevBoard
 
 namespace pinsV1 {
@@ -89,6 +90,7 @@ constexpr gpio::Pin STEPPER1_STEP = gpio::Pin::PB00;
 constexpr gpio::Pin STEPPER2_STEP = gpio::Pin::PB01;
 constexpr gpio::Pin LED_PIN = gpio::Pin::PB12;
 constexpr bool LED_ON_LEVEL = false; // LED is active high
+constexpr int VOLTAGE_FROM_USBC = 15000; // default voltage if powered from USB-C
 }; // namespace pinsV1
 
 // Namespace alias to allow easy switching between pin versions
@@ -132,25 +134,17 @@ single_led::M<pins::LED_ON_LEVEL> led(pins::LED_PIN);
 single_led::BlinkPattern blink_pattern(200, 800);
 
 void requestVoltage() {
-  // check if 12V is supported
-  for (int i = 0; i < PowerSink.numSourceCapabilities; i += 1) {
-    if (PowerSink.sourceCapabilities[i].minVoltage <= 12000 &&
-        PowerSink.sourceCapabilities[i].maxVoltage >= 12000) {
-      PowerSink.requestPower(12000);
+  // check if desired voltage is supported
+  for (int i = 0; i < PowerSink.numSourceCapabilities; i ++) {
+    if (PowerSink.sourceCapabilities[i].minVoltage <= pins::VOLTAGE_FROM_USBC &&
+        PowerSink.sourceCapabilities[i].maxVoltage >= pins::VOLTAGE_FROM_USBC) {
+      PowerSink.requestPower(pins::VOLTAGE_FROM_USBC);
+      log_info("Requested voltage %d mV from USB PD supply", pins::VOLTAGE_FROM_USBC);
       return;
     }
   }
 
-  // check if 15V is supported
-  for (int i = 0; i < PowerSink.numSourceCapabilities; i += 1) {
-    if (PowerSink.sourceCapabilities[i].minVoltage <= 15000 &&
-        PowerSink.sourceCapabilities[i].maxVoltage >= 15000) {
-      PowerSink.requestPower(15000);
-      return;
-    }
-  }
-
-  log_warn("Neither 12V nor 15V is supported");
+  log_warn("Desired voltage %d mV is not supported", pins::VOLTAGE_FROM_USBC);
 }
 
 extern "C" void handleEvent(PDSinkEventType eventType) {

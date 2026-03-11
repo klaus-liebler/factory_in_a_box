@@ -12,7 +12,9 @@
 
 namespace tmc2209 {
 
-  
+  enum class MicroStepResolution { RES256=0b0000, RES128=0b0001, RES64=0b0010, RES32=0b0011, RES16=0b0100, RES8=0b0101, RES4=0b0110, RES2=0b0111, RES_FULL_STEP=0b1000 };
+
+
   bool TMC2209::checkedWriteRegister(RegIdx reg, uint32_t value, const char* error_msg){                                   
     if (!writeRegister(reg, value)) {       
       log_error(error_msg);                                        
@@ -27,11 +29,6 @@ namespace tmc2209 {
       return false;                                                           
     }       
     return true;                                                                   
-  }
-
-  bool TMC2209::clearGStat(const char* error_msg) {
-    constexpr uint32_t clear_all_gstat_flags = 0x00000007;
-    return checkedWriteRegister(RegIdx::GSTAT, clear_all_gstat_flags, error_msg);
   }
 
 
@@ -84,80 +81,41 @@ bool TMC2209::ShaftTurnReversed(bool reversed) {
   checkedWriteRegister(RegIdx::GCONF, gconf.U32, "Failed to write GCONF register");
   return true;
 }
-/**
- * Initialize the TMC2209 for normal speed (=StealthChop) and UART-based operation
- * @param usePotimeterForCurrentScaling Whether to use the potentiometer for current scaling
- * @param disable_read Whether to disable reading of registers
- * @param resolution Microstep resolution
- * @return true if initialization was successful, false otherwise
- */
+
 bool TMC2209::InitForNormalSpeedAndUartBasedOperation(
-    bool usePotimeterForCurrentScaling, bool disable_read, MicroStepResolution resolution) {
+    bool usePotimeterForCurrentScaling, bool disable_read) {
   // Optionally, perform any initialization here
   enable();
-  HAL_Delay(10);
   if(!disable_read) {
     if (!fetchImportantRegistersForLocalMirroring()) {
       return false;
     }
   }
 
-  if (!clearGStat("Failed to clear GSTAT before init")) {
-    return false;
-  }
+  chopconf.REG.mres = (uint32_t)MicroStepResolution::RES_FULL_STEP;
+  checkedWriteRegister(RegIdx::CHOPCONF, chopconf.U32, "Failed to write CHOPCONF register");
 
-  gconf.REG.i_scale_analog = usePotimeterForCurrentScaling ? 0b1 : 0b0;
+  gconf.REG.i_scale_analog = usePotimeterForCurrentScaling ? 0b0 : 0b1;
   gconf.REG.internal_rsense =
       0; // Current sense resistors. 0: Exteral; 1: internal
-    gconf.REG.enable_spread_cycle =
-      0; // 0: StealthChop; 1: SpreadCycle
+  gconf.REG.enable_spread_cycle =
+      0; // Speed mode. 0: StealthChop; 1: SpreadCycle
   gconf.REG.shaft = 0;
   gconf.REG.pdn_disable = 1; // Disable PDN_UART input function
   gconf.REG.mstep_reg_select =
       1;                        // Microstepping. 0: MS1, MS2 pins; 1: register
   gconf.REG.multistep_filt = 1; // Step pulse filter. 0: disable; 1: enable
   gconf.REG.test_mode = 0;        // 0: normal operation, 1: Enable analog test output on pin ENN
-  if (!checkedWriteRegister(RegIdx::GCONF, gconf.U32,
-                  "Failed to write GCONF register during init")) {
-    return false;
-  }
-
-  if (!disable_read) {
-    uint32_t gconf_readback = 0;
-    if (!checkedReadRegister(RegIdx::GCONF, gconf_readback,
-                    "Failed to verify GCONF register during init")) {
-      return false;
-    }
-    constexpr uint32_t gconf_mask = 0x000003FF;
-    if ((gconf_readback & gconf_mask) != (gconf.U32 & gconf_mask)) {
-      log_error("TMC2209: GCONF verification failed. Wrote 0x%08X, read back 0x%08X",
-                (unsigned int)gconf.U32, (unsigned int)gconf_readback);
-      return false;
-    }
-  }
-if(resolution != MicroStepResolution::RES256){
-  chopconf.REG.mres = static_cast<uint32_t>(resolution);
-  if (!checkedWriteRegister(RegIdx::CHOPCONF, chopconf.U32,
-                  "Failed to write CHOPCONF register during init")) {
-    return false;
-  }
-
-}
-
-
-  if (!clearGStat("Failed to clear GSTAT after init")) {
-    return false;
-  }
-
-  return true;
+  return checkedWriteRegister(RegIdx::GCONF, gconf.U32,
+                  "Failed to write GCONF register during init");
 }
 
 bool TMC2209::PerformStealthChopAutoTuningForQuietOperation() {
 
   // 2. Stromparameter für 17HS4401S-22B (1.7A/Phase)
-  log_info("IHOLD_IRUN: IHOLD=8 (0.5A), IRUN=16 (max 2.8A), IHOLDDELAY=6");
+  log_info("IHOLD_IRUN: IHOLD=8 (0.5A), IRUN=31 (max 2.8A), IHOLDDELAY=6");
   REG_FIELD::IHOLD_IRUN ihold_irun_reg = {
-      .REG = {.ihold = 8, .irun = 16, .iholddelay = 6}};
+      .REG = {.ihold = 8, .irun = 31, .iholddelay = 6}};
   checkedWriteRegister(RegIdx::IHOLD_IRUN, ihold_irun_reg.U32,
                   "Failed to write IHOLD_IRUN register for StealthChop");
 
@@ -212,27 +170,25 @@ void TMC2209::PrintPrettyFullSystemState() {
     log_info("================================================");
     log_info("TMC2209: Full System State:");
     log_info("================================================");
+
     // GCONF Register
-    if (readRegister(RegIdx::GCONF, this->gconf.U32)) {
-      log_info("GCONF (0x00): 0x%08X", (unsigned int)gconf.U32);
-      log_info("  i_scale_analog: %d", gconf.REG.i_scale_analog);
-      log_info("  internal_rsense: %d", gconf.REG.internal_rsense);
-      log_info("  shaft: %d", gconf.REG.shaft);
-      log_info("  index_otpw: %d", gconf.REG.index_otpw);
-      log_info("  index_step: %d", gconf.REG.index_step);
-      log_info("  pdn_disable: %d", gconf.REG.pdn_disable);
-      log_info("  mstep_reg_select: %d", gconf.REG.mstep_reg_select);
-      log_info("  multistep_filt: %d", gconf.REG.multistep_filt);
-    }
-    
+    log_info("GCONF (0x00): 0x%08X", (unsigned int)gconf.U32);
+    log_info("  i_scale_analog: %d", gconf.REG.i_scale_analog);
+    log_info("  internal_rsense: %d", gconf.REG.internal_rsense);
+    log_info("  shaft: %d", gconf.REG.shaft);
+    log_info("  index_otpw: %d", gconf.REG.index_otpw);
+    log_info("  index_step: %d", gconf.REG.index_step);
+    log_info("  pdn_disable: %d", gconf.REG.pdn_disable);
+    log_info("  mstep_reg_select: %d", gconf.REG.mstep_reg_select);
+    log_info("  multistep_filt: %d", gconf.REG.multistep_filt);
 
     // GSTAT Register
-    REG_FIELD::GSTAT gstat;
-    if (readRegister(RegIdx::GSTAT, gstat.U32)) {
-      log_info("GSTAT (0x01): 0x%08X", (unsigned int)gstat.U32);
-      log_info("  reset: %d", gstat.REG.reset);
-      log_info("  drv_err: %d", gstat.REG.drv_err);
-      log_info("  uv_cp: %d", gstat.REG.uv_cp);
+    uint32_t gstat = 0;
+    if (readRegister(RegIdx::GSTAT, gstat)) {
+      log_info("GSTAT (0x01): 0x%08X", (unsigned int)gstat);
+      log_info("  reset: %d", (gstat >> 0) & 0x01);
+      log_info("  drv_err: %d", (gstat >> 1) & 0x01);
+      log_info("  uv_cp: %d", (gstat >> 2) & 0x01);
     }
 
     // IFCOUNT Register
@@ -242,76 +198,59 @@ void TMC2209::PrintPrettyFullSystemState() {
                (unsigned int)ifcount, (unsigned int)(ifcount & 0xFF));
     }
 
+    // IHOLD_IRUN Register
+    uint32_t iholdIrun = 0;
+    if (readRegister(RegIdx::IHOLD_IRUN, iholdIrun)) {
+      log_info("IHOLD_IRUN (0x10): 0x%08X", (unsigned int)iholdIrun);
+      log_info("  ihold: %u", (unsigned int)(iholdIrun & 0x1F));
+      log_info("  irun: %u", (unsigned int)((iholdIrun >> 8) & 0x1F));
+      log_info("  iholddelay: %u", (unsigned int)((iholdIrun >> 16) & 0x0F));
+    }
+
     // CHOPCONF Register
-    REG_FIELD::CHOPCONF chopconf;
-    if (readRegister(RegIdx::CHOPCONF, chopconf.U32)) {
-      log_info("CHOPCONF (0x6C): 0x%08X", (unsigned int)chopconf.U32);
-      log_info("  toff: %u", (unsigned int)(chopconf.REG.toff));
-      log_info("  hstrt: %u", (unsigned int)(chopconf.REG.hstrt));
-      log_info("  hend: %u", (unsigned int)(chopconf.REG.hend));
-      log_info("  tbl: %u", (unsigned int)(chopconf.REG.tbl));
-      log_info("  vsense: %u", (unsigned int)(chopconf.REG.vsense));
-      log_info("  mres: %u", (unsigned int)(chopconf.REG.mres));
-      log_info("  interpolation: %u", (unsigned int)(chopconf.REG.interpolation));
-      log_info("  double_edge: %u", (unsigned int)(chopconf.REG.double_edge));
-      log_info("  diss2g: %u", (unsigned int)(chopconf.REG.diss2g));
-      log_info("  diss2vs: %u", (unsigned int)(chopconf.REG.diss2vs));
+    uint32_t chopconf = 0;
+    if (readRegister(RegIdx::CHOPCONF, chopconf)) {
+      log_info("CHOPCONF (0x6C): 0x%08X", (unsigned int)chopconf);
+      log_info("  toff: %u", (unsigned int)(chopconf & 0x0F));
+      log_info("  hstrt: %u", (unsigned int)((chopconf >> 4) & 0x07));
+      log_info("  hend: %u", (unsigned int)((chopconf >> 7) & 0x0F));
+      log_info("  chm: %u", (unsigned int)((chopconf >> 14) & 0x01));
+      log_info("  mres: %u", (unsigned int)((chopconf >> 24) & 0x0F));
+      log_info("  intpol: %u", (unsigned int)((chopconf >> 28) & 0x01));
+      log_info("  dedge: %u", (unsigned int)((chopconf >> 29) & 0x01));
+      log_info("  diss2g: %u", (unsigned int)((chopconf >> 30) & 0x01));
     }
 
     // COOLCONF Register
-    REG_FIELD::COOLCONF coolconf;
-    if (readRegister(RegIdx::COOLCONF, coolconf.U32)) {
-      log_info("COOLCONF (0x42): 0x%08X", (unsigned int)coolconf.U32);
-      log_info("  semin: %u", (unsigned int)(coolconf.REG.semin));
-      log_info("  seup: %u", (unsigned int)(coolconf.REG.seup));
-      log_info("  semax: %u", (unsigned int)(coolconf.REG.semax));
-      log_info("  sedn: %u", (unsigned int)(coolconf.REG.sedn));
-      log_info("  seimin: %u", (unsigned int)(coolconf.REG.seimin));
+    uint32_t coolconf = 0;
+    if (readRegister(RegIdx::COOLCONF, coolconf)) {
+      log_info("COOLCONF (0x6D): 0x%08X", (unsigned int)coolconf);
+      log_info("  semin: %u", (unsigned int)(coolconf & 0x0F));
+      log_info("  seup: %u", (unsigned int)((coolconf >> 5) & 0x03));
+      log_info("  semax: %u", (unsigned int)((coolconf >> 8) & 0x0F));
+      log_info("  sedn: %u", (unsigned int)((coolconf >> 13) & 0x03));
+      log_info("  seimin: %u", (unsigned int)((coolconf >> 15) & 0x01));
     }
 
 
 
     // DRV_STATUS Register
-    REG_FIELD::DRV_STATUS drvStatus;
-    if (readRegister(RegIdx::DRV_STATUS, drvStatus.U32)) {
-      log_info("DRV_STATUS (0x6F): 0x%08X", (unsigned int)drvStatus.U32);
-      log_info("  otpw: %d", drvStatus.REG.over_temperature_prewarning);
-      log_info("  ot: %d", (drvStatus.REG.over_temperature));
-      log_info("  short_to_ground_a: %d", (drvStatus.REG.short_to_ground_a));
-      log_info("  short_to_ground_b: %d", (drvStatus.REG.short_to_ground_b));
-      log_info("  open_load_a: %d", (drvStatus.REG.open_load_a));
-      log_info("  open_load_b: %d", (drvStatus.REG.open_load_b));
-      log_info("  over_temperature_120c: %d", (drvStatus.REG.over_temperature_120c));
-      log_info("  over_temperature_143c: %d", (drvStatus.REG.over_temperature_143c));
-      log_info("  over_temperature_150c: %d", (drvStatus.REG.over_temperature_150c));
-      log_info("  over_temperature_157c: %d", (drvStatus.REG.over_temperature_157c));
-      log_info("  current_scaling: %u", (unsigned int)(drvStatus.REG.current_scaling));
-      log_info("  stealth_chop_mode: %d", (drvStatus.REG.stealth_chop_mode));
-      log_info("  standstill: %d", (drvStatus.REG.standstill));
-    }
-    REG_FIELD::IOIN ioin;
-    if(readRegister(RegIdx::IOIN, ioin.U32)){
-      log_info("IOIN (0x06): 0x%08X", (unsigned int)ioin.U32);
-      log_info("  version (should be 0x21): 0x%02X", ioin.REG.version);
-      log_info("  enn (0 means enabled): %u", (unsigned int)ioin.REG.enn);
-      log_info("  ms1: %u", (unsigned int)ioin.REG.ms1);
-      log_info("  ms2: %u", (unsigned int)ioin.REG.ms2);
-      log_info("  diag (1 means error condition): %d", ioin.REG.diag);
-      log_info("  pdn_uart: %d", ioin.REG.pdn_uart);
-      log_info("  step: %u", (unsigned int)ioin.REG.step);
-      log_info("  spread_en: %u", (unsigned int)ioin.REG.spread_en);
-      log_info("  dir: %u", (unsigned int)ioin.REG.dir);
-
-    }
-
-    //TSTEP and TPWMTHRS
-    uint32_t tstep = 0, tpwmthrs = 0;
-    if (readRegister(RegIdx::TSTEP, tstep)) {
-      log_info("TSTEP (0x12): %u (Actual measured time between two 1/256 microsteps)",
-               (unsigned int)tstep);
-    }
-    if (readRegister(RegIdx::TPWMTHRS, tpwmthrs)) {
-      log_info("TPWMTHRS (0x13): %u", (unsigned int)tpwmthrs);
+    uint32_t drvStatus = 0;
+    if (readRegister(RegIdx::DRV_STATUS, drvStatus)) {
+      log_info("DRV_STATUS (0x6F): 0x%08X", (unsigned int)drvStatus);
+      log_info("  otpw: %d", (drvStatus >> 0) & 0x01);
+      log_info("  ot: %d", (drvStatus >> 1) & 0x01);
+      log_info("  s2ga: %d", (drvStatus >> 2) & 0x01);
+      log_info("  s2gb: %d", (drvStatus >> 3) & 0x01);
+      log_info("  ola: %d", (drvStatus >> 4) & 0x01);
+      log_info("  olb: %d", (drvStatus >> 5) & 0x01);
+      log_info("  t120: %d", (drvStatus >> 6) & 0x01);
+      log_info("  t143: %d", (drvStatus >> 7) & 0x01);
+      log_info("  t150: %d", (drvStatus >> 8) & 0x01);
+      log_info("  t157: %d", (drvStatus >> 9) & 0x01);
+      log_info("  cs_actual: %u", (unsigned int)((drvStatus >> 16) & 0x1F));
+      log_info("  stealth: %d", (drvStatus >> 30) & 0x01);
+      log_info("  standstill: %d", (drvStatus >> 31) & 0x01);
     }
 
     log_info("================================================");
@@ -454,10 +393,10 @@ bool TMC2209::setIHoldIRun(uint8_t ihold, uint8_t irun, uint8_t iholddelay) {
   ihold &= 0x1F;
   irun &= 0x1F;
   iholddelay &= 0x0F;
-  const uint32_t value = (static_cast<uint32_t>(iholddelay) << 16) |
-                         (static_cast<uint32_t>(irun) << 8) |
-                         (static_cast<uint32_t>(ihold));
-  return writeRegister(RegIdx::IHOLD_IRUN, value);
+  uint32_t v = (static_cast<uint32_t>(iholddelay) << 16) |
+               (static_cast<uint32_t>(irun) << 8) |
+               (static_cast<uint32_t>(ihold));
+  return writeRegister(RegIdx::IHOLD_IRUN, v);
 }
 
 constexpr float t = (1 << 24) / 12000000.0f;
@@ -479,43 +418,6 @@ bool TMC2209::GenerateSteps(int fullStepsPerSecond) {
   if (!writeRegister(RegIdx::VACTUAL, vactualUnion.u32)) {
     log_error("TMC2209: Failed to write VACTUAL register");
     return false;
-  }
-
-  // Read back key runtime registers to verify that velocity mode is actually active.
-  uint32_t vactual_readback = 0;
-  if (readRegister(RegIdx::VACTUAL, vactual_readback, 200, false)) {
-    log_info("TMC2209: VACTUAL readback = 0x%08X (%ld)",
-             (unsigned int)vactual_readback,
-             (long)static_cast<int32_t>(vactual_readback));
-  }
-
-  REG_FIELD::DRV_STATUS drv_status{};
-  if (readRegister(RegIdx::DRV_STATUS, drv_status.U32, 200, false)) {
-    log_info("TMC2209: DRV_STATUS after VACTUAL = 0x%08X (standstill=%u, cs=%u)",
-             (unsigned int)drv_status.U32,
-             (unsigned int)drv_status.REG.standstill,
-             (unsigned int)drv_status.REG.current_scaling);
-  }
-
-  uint32_t tstep = 0;
-  if (readRegister(RegIdx::TSTEP, tstep, 200, false)) {
-    log_info("TMC2209: TSTEP after VACTUAL = %u", (unsigned int)tstep);
-  }
-
-  uint32_t mscnt = 0;
-  if (readRegister(RegIdx::MSCNT, mscnt, 200, false)) {
-    log_info("TMC2209: MSCNT after VACTUAL = %u", (unsigned int)(mscnt & 0x3FF));
-
-    HAL_Delay(50);
-    uint32_t mscnt_later = 0;
-    if (readRegister(RegIdx::MSCNT, mscnt_later, 200, false)) {
-      const uint16_t m0 = static_cast<uint16_t>(mscnt & 0x3FF);
-      const uint16_t m1 = static_cast<uint16_t>(mscnt_later & 0x3FF);
-      const uint16_t delta = static_cast<uint16_t>((m1 + 1024U - m0) % 1024U);
-      log_info("TMC2209: MSCNT after 50ms = %u (delta=%u)",
-               (unsigned int)m1,
-               (unsigned int)delta);
-    }
   }
   return true;
 }

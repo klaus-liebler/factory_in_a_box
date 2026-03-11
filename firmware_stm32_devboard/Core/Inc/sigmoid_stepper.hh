@@ -168,7 +168,7 @@ public:
 
   int32_t GetTargetPosition() const { return target_position_; }
 
-  void Handle_update_interrupt_() {
+  void HandleUpdateInterrupt_() {
     // Toggle step pin
     gpio::Gpio::Toggle(step_pin);
 

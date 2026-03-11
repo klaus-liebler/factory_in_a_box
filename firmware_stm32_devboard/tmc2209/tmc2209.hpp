@@ -17,9 +17,6 @@ namespace tmc2209 {
 
 */
 
-enum class MicroStepResolution { RES256=0b0000, RES128=0b0001, RES64=0b0010, RES32=0b0011, RES16=0b0100, RES8=0b0101, RES4=0b0110, RES2=0b0111, RES_FULL_STEP=0b1000 };
-
-
 struct TuningResults{
     uint32_t pwm_grad;
     uint32_t pwm_ofs;
@@ -33,7 +30,7 @@ public:
     // Optional EN pin: pass Pin::NO_PIN to disable GPIO control
     TMC2209(UART_HandleTypeDef* huart, uint8_t address, gpio::Pin enPin = gpio::Pin::NO_PIN);
 
-    bool InitForNormalSpeedAndUartBasedOperation(bool usePotentiometerForCurrentScaling = false, bool disable_read = false,  MicroStepResolution resolution = MicroStepResolution::RES256);
+    bool InitForNormalSpeedAndUartBasedOperation(bool usePotentiometerForCurrentScaling = false, bool disable_read = false);
     bool ShaftTurnReversed(bool reversed);
     void PrintPrettyFullSystemState();
     bool PerformStealthChopAutoTuningForQuietOperation();
@@ -59,7 +56,6 @@ private:
     REG_FIELD::CHOPCONF chopconf;
 
     bool fetchImportantRegistersForLocalMirroring();
-    bool clearGStat(const char* error_msg);
     bool writeRegister(RegIdx reg, uint32_t value, uint32_t timeoutMs = 200);
     bool readRegister(RegIdx reg, uint32_t& value, uint32_t timeoutMs = 200, bool checkStartByte = true);
 

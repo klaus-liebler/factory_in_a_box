@@ -13,6 +13,7 @@
 #include "PDController.h"
 #include "PDSourceCapability.h"
 #include <functional>
+#include <vector>
 
 enum class PDSinkEventType {
     sourceCapabilitiesChanged,
@@ -30,10 +31,25 @@ enum class PDSinkEventType {
  */
 class PDSink {
 public:
+
+    /**
+    * Checks if the power supply can provide the specified voltage.
+    */    
+    bool canProvideVoltage(int voltage);
     /**
      * Type of function that will be called when an event has occurred.
      */
     typedef std::function<void(PDSinkEventType eventType)> EventCallbackFunction;
+
+    /**
+     * @brief Tries to request the first available voltage from a priority-sorted list.
+     *
+     * Voltages must be ordered from highest to lowest priority.
+     *
+     * @param desiredVoltagesDescendingPriority_mV desired voltages in mV, sorted by priority
+        * @return true if one of the desired voltages was successfully requested, otherwise false
+     */
+        bool TryRequestPreferredVoltages(std::vector<int> desiredVoltagesDescendingPriority_mV);
 
     /**
      * @brief Construct a new instance
@@ -50,8 +66,8 @@ public:
     /**
      * Starts USB Power Delivery as a power sink.
      *
-     * The callback function will be called when 'poll()' is called and
-     * an event has occurred since the last call of 'poll()'.
+     * The callback function will be called when 'Loop()' is called and
+     * an event has occurred since the last call of 'Loop()'.
      *
      * @param callback event callback function
      */
@@ -62,7 +78,7 @@ public:
      * 
      * Call this function frequently from 'loop()'.
      */
-    void poll();
+    void Loop();
 
     /// Indicates if the sink is connected to a USB PD power supply
     bool isConnected();

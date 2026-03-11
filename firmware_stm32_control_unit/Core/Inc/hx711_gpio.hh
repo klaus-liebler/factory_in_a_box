@@ -1,171 +1,228 @@
-#include "stdint.h"
-#include "stdbool.h"
-#include "main.h"
-#include "stm32g4xx_hal.h"
+#pragma once
 
-#define CHANNEL_A 0
-#define CHANNEL_B 1
+#include "gpio.hh"
+#include "log.h"
+
+#include <climits>
+#include <cstdint>
+#include <utility>
+#include <vector>
+
 #define interrupts() __enable_irq()
 #define noInterrupts() __disable_irq()
 
+enum class Channel_And_Gain {
+  CH_A_GAIN_128 = 0x40,
+  CH_B_GAIN_32 = 0x50,
+  CH_A_GAIN_64 = 0x54,
+};
+
 class HX711 {
+  struct CalibrationPoint {
+    int32_t reading;
+    double weight;
+  };
+
+  enum class ReadoutState {
+    WAIT_FOR_DATA_READY,
+    ERROR,
+  };
+
 private:
-  GPIO_TypeDef  *clk_gpio;
-  uint16_t      clk_pin;
-  GPIO_TypeDef  *dat_gpio;
-  uint16_t      dat_pin;
-  long       	Aoffset=0;
-  float         Ascale=0.0;
-  uint8_t		Again=0;
-  long       	Boffset=0;
-  float         Bscale=0.0;
-  uint8_t		Bgain=0;
+  gpio::Pin clk_pin;
+  gpio::Pin data_pin;
+  std::vector<Channel_And_Gain> readout_order;
+  int32_t current_readout_index{-1};
+  int32_t channelA_last_reading{INT32_MIN};
+  int32_t channelB_last_reading{INT32_MIN};
+  CalibrationPoint calibration_points_chA[2] = {
+    {0, 0.0},
+    {1, 1.0},
+  };
+  CalibrationPoint calibration_points_chB[2] = {
+    {0, 0.0},
+    {1, 1.0},
+  };
+  ReadoutState readout_state{ReadoutState::ERROR};
 
-  uint8_t shiftIn(uint8_t bitOrder) {
-      uint8_t value = 0;
-      uint8_t i;
+  static uint8_t modeToPulseCount(Channel_And_Gain mode) {
+    switch (mode) {
+      case Channel_And_Gain::CH_A_GAIN_128:
+        return 1;
+      case Channel_And_Gain::CH_B_GAIN_32:
+        return 2;
+      case Channel_And_Gain::CH_A_GAIN_64:
+        return 3;
+    }
+    return 1;
+  }
 
-      for(i = 0; i < 8; ++i) {
-          HAL_GPIO_WritePin(clk_gpio, clk_pin, GPIO_PIN_SET);
-          if(bitOrder == 0)
-              value |= HAL_GPIO_ReadPin(dat_gpio, dat_pin) << i;
-          else
-              value |= HAL_GPIO_ReadPin(dat_gpio, dat_pin) << (7 - i);
-          HAL_GPIO_WritePin(clk_gpio, clk_pin, GPIO_PIN_RESET);
-      }
-      return value;
+  uint8_t shiftInMsbFirst() {
+    uint8_t value = 0;
+    for (uint8_t i = 0; i < 8; ++i) {
+      gpio::Gpio::Set(clk_pin, true);
+      value |= (gpio::Gpio::Get(data_pin) ? 1U : 0U) << (7U - i);
+      gpio::Gpio::Set(clk_pin, false);
+    }
+    return value;
+  }
+
+  void updateLastReading(Channel_And_Gain mode_for_result, int32_t reading) {
+    switch (mode_for_result) {
+      case Channel_And_Gain::CH_A_GAIN_128:
+      case Channel_And_Gain::CH_A_GAIN_64:
+        channelA_last_reading = reading;
+        break;
+      case Channel_And_Gain::CH_B_GAIN_32:
+        channelB_last_reading = reading;
+        break;
+    }
+  }
+
+  int32_t readOneCycleBitBanged(Channel_And_Gain mode_to_request_next) {
+    uint8_t data[3] = {0};
+
+    noInterrupts();
+    data[2] = shiftInMsbFirst();
+    data[1] = shiftInMsbFirst();
+    data[0] = shiftInMsbFirst();
+
+    const uint8_t pulses = modeToPulseCount(mode_to_request_next);
+    log_debug("HX711(GPIO): start bit-banged read, request next mode=0x%02X, pulses=%u",
+              static_cast<unsigned>(mode_to_request_next),
+              static_cast<unsigned>(pulses));
+    for (uint8_t i = 0; i < pulses; ++i) {
+      gpio::Gpio::Set(clk_pin, true);
+      gpio::Gpio::Set(clk_pin, false);
+    }
+    interrupts();
+
+    const uint8_t filler = (data[2] & 0x80U) ? 0xFFU : 0x00U;
+    const uint32_t value =
+      ((uint32_t)filler << 24)
+      | ((uint32_t)data[2] << 16)
+      | ((uint32_t)data[1] << 8)
+      | (uint32_t)data[0];
+
+    const int32_t result = (int32_t)value;
+    log_debug("HX711(GPIO): raw read complete, value=%ld", (long)result);
+    return result;
   }
 
 public:
-  // Constructor
-  HX711(GPIO_TypeDef *clk_gpio, uint16_t clk_pin, GPIO_TypeDef *dat_gpio, uint16_t dat_pin):
-    clk_gpio(clk_gpio), clk_pin(clk_pin), dat_gpio(dat_gpio), dat_pin(dat_pin) {
-
-
-    GPIO_InitTypeDef  gpio = {0};
-    gpio.Mode = GPIO_MODE_OUTPUT_PP;
-    gpio.Pull = GPIO_NOPULL;
-    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-    gpio.Pin = clk_pin;
-    HAL_GPIO_Init(clk_gpio, &gpio);
-    gpio.Mode = GPIO_MODE_INPUT;
-    gpio.Pull = GPIO_PULLUP;
-    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-    gpio.Pin = dat_pin;
-    HAL_GPIO_Init(dat_gpio, &gpio);
+  HX711(gpio::Pin clk_pin,
+        gpio::Pin data_pin,
+        std::vector<Channel_And_Gain> query_order = {
+          Channel_And_Gain::CH_A_GAIN_128,
+          Channel_And_Gain::CH_B_GAIN_32,
+        })
+    : clk_pin(clk_pin),
+      data_pin(data_pin),
+      readout_order(std::move(query_order)) {
+    gpio::Gpio::ConfigureGPIOOutput(this->clk_pin, false);
+    gpio::Gpio::ConfigureGPIOInput(this->data_pin);
   }
 
-  void set_scale(float Ascale_param, float Bscale_param) {
-    // Set the scale. To calibrate the cell, run the program with a scale of 1, call the tare function and then the get_units function. 
-    // Divide the obtained weight by the real weight. The result is the parameter to pass to scale
-    Ascale = Ascale_param;
-    Bscale = Bscale_param;
-  }
-
-  void set_gain(uint8_t Again_param, uint8_t Bgain_param) {
-    // Define A channel's gain
-    switch (Again_param) {
-        case 128:		// channel A, gain factor 128
-          Again = 1;
-          break;
-        case 64:		// channel A, gain factor 64
-          Again = 3;
-          break;
+  void setup(void) {
+    log_debug("HX711(GPIO): setup start");
+    if (readout_order.empty()) {
+      log_error("HX711(GPIO): setup failed, readout_order is empty");
+      readout_state = ReadoutState::ERROR;
+      return;
     }
-    Bgain = 2;
+    gpio::Gpio::Set(clk_pin, false);
+    current_readout_index = -1;
+    channelA_last_reading = INT32_MIN;
+    channelB_last_reading = INT32_MIN;
+    readout_state = ReadoutState::WAIT_FOR_DATA_READY;
+    log_debug("HX711(GPIO): setup done, order size=%u", static_cast<unsigned>(readout_order.size()));
   }
 
-  void set_offset(long offset, uint8_t channel) {
-    if(channel == CHANNEL_A) Aoffset = offset;
-    else Boffset = offset;
-  }
-
-  bool is_ready() {
-    if(HAL_GPIO_ReadPin(dat_gpio, dat_pin) == GPIO_PIN_RESET) {
-      return 1;
+  bool getLastRawValueA(int32_t *out_value) {
+    if (channelA_last_reading == INT32_MIN) {
+      return false;
     }
-    return 0;
+    *out_value = channelA_last_reading;
+    return true;
   }
 
-  void wait_ready() {
-    // Wait for the chip to become ready.
-    while (!is_ready()) {
-      HAL_Delay(0);
+  bool getLastRawValueB(int32_t *out_value) {
+    if (channelB_last_reading == INT32_MIN) {
+      return false;
     }
+    *out_value = channelB_last_reading;
+    return true;
   }
 
-  long read(uint8_t channel) {
-    wait_ready();
-    unsigned long value = 0;
-    uint8_t data[3] = { 0 };
-    uint8_t filler = 0x00;
+  bool getLastCalibratedWeightA(double *out_value) {
+    if (channelA_last_reading == INT32_MIN) {
+      return false;
+    }
+    int32_t reading_1 = calibration_points_chA[0].reading;
+    double weight_1 = calibration_points_chA[0].weight;
+    int32_t reading_2 = calibration_points_chA[1].reading;
+    double weight_2 = calibration_points_chA[1].weight;
 
-    noInterrupts();
-
-    data[2] = shiftIn(1);
-    data[1] = shiftIn(1);
-    data[0] = shiftIn(1);
-
-    uint8_t gain = 0;
-    if(channel == 0) gain = Again;
-    else gain = Bgain;
-
-    for (unsigned int i = 0; i < gain; i++) {
-      HAL_GPIO_WritePin(clk_gpio, clk_pin, GPIO_PIN_SET);
-      HAL_GPIO_WritePin(clk_gpio, clk_pin, GPIO_PIN_RESET);
+    if (reading_1 == reading_2) {
+      return false;
     }
 
-    interrupts();
+    *out_value = weight_1
+      + (static_cast<double>(channelA_last_reading) - reading_1)
+          * (weight_2 - weight_1)
+          / (reading_2 - reading_1);
+    return true;
+  }
 
-    // Replicate the most significant bit to pad out a 32-bit signed integer
-    if (data[2] & 0x80) {
-      filler = 0xFF;
+  bool getLastCalibratedWeightB(double *out_value) {
+    if (channelB_last_reading == INT32_MIN) {
+      return false;
+    }
+    int32_t reading_1 = calibration_points_chB[0].reading;
+    double weight_1 = calibration_points_chB[0].weight;
+    int32_t reading_2 = calibration_points_chB[1].reading;
+    double weight_2 = calibration_points_chB[1].weight;
+
+    if (reading_1 == reading_2) {
+      return false;
+    }
+
+    *out_value = weight_1
+      + (static_cast<double>(channelB_last_reading) - reading_1)
+          * (weight_2 - weight_1)
+          / (reading_2 - reading_1);
+    return true;
+  }
+
+  void loop(void) {
+    if (readout_state == ReadoutState::ERROR) {
+      log_error("HX711(GPIO): loop in ERROR state");
+      return;
+    }
+
+    if (gpio::Gpio::Get(data_pin)) {
+      log_debug("HX711(GPIO): WAIT_FOR_DATA_READY, DOUT is HIGH");
+      return;
+    }
+
+    const auto next_mode = readout_order[(current_readout_index + 1) % readout_order.size()];
+    log_debug("HX711(GPIO): DOUT ready, reading cycle; next_mode=0x%02X, current_index=%ld",
+              static_cast<unsigned>(next_mode),
+              (long)current_readout_index);
+    const int32_t reading = readOneCycleBitBanged(next_mode);
+
+    if (current_readout_index >= 0) {
+      const auto mode_for_result = readout_order[current_readout_index];
+      updateLastReading(mode_for_result, reading);
+      log_debug("HX711(GPIO): stored reading=%ld for mode=0x%02X at index=%ld",
+                (long)reading,
+                static_cast<unsigned>(mode_for_result),
+                (long)current_readout_index);
     } else {
-      filler = 0x00;
+      log_debug("HX711(GPIO): priming cycle complete, first sample intentionally not assigned");
     }
 
-    // Construct a 32-bit signed integer
-    value = ( (unsigned long)(filler) << 24
-        | (unsigned long)(data[2]) << 16
-        | (unsigned long)(data[1]) << 8
-        | (unsigned long)(data[0]) );
-
-    return (long)(value);
-  }
-
-  long read_average(int8_t times, uint8_t channel) {
-    long sum = 0;
-    for (int8_t i = 0; i < times; i++) {
-      sum += read(channel);
-      HAL_Delay(0);
-    }
-    return sum / times;
-  }
-
-  double get_value(int8_t times, uint8_t channel) {
-    long offset = 0;
-    if(channel == CHANNEL_A) offset = Aoffset;
-    else offset = Boffset;
-    return read_average(times, channel) - offset;
-  }
-
-  void tare(uint8_t times, uint8_t channel) {
-    read(channel); // Change channel
-    double sum = read_average(times, channel);
-    set_offset(sum, channel);
-  }
-
-  void tare_all(uint8_t times) {
-    tare(times, CHANNEL_A);
-    tare(times, CHANNEL_B);
-  }
-
-  float get_weight(int8_t times, uint8_t channel) {
-    // Read load cell
-    read(channel);
-    float scale = 0;
-    if(channel == CHANNEL_A) scale = Ascale;
-    else scale = Bscale;
-    return get_value(times, channel) / scale;
+    current_readout_index = (current_readout_index + 1) % readout_order.size();
+    log_debug("HX711(GPIO): next current_readout_index=%ld", (long)current_readout_index);
   }
 };

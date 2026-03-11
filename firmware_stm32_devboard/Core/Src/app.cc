@@ -2,40 +2,120 @@
 #include "gpio.hh"
 #include "log.h"
 #include "main.h"
-
+#include "single_led.hh"
 #include "stm32g431xx.h"
 #include "stm32g4xx_hal.h"
-#include "stm32g4xx_hal_gpio.h"
-#include "stm32g4xx_hal_spi.h"
 
+#include "stm32g4xx_hal_gpio.h"
+#include "tmc2209.hpp"
+#include <string_view>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <string_view>
-#include "hx711.hh"
+#include "sigmoid_acceleration_profile_100_1000_5.hh"
+#include "sigmoid_stepper.hh"
 
+namespace pinsWeActCore {
+constexpr std::string_view BOARD_NAME = "WeActCore Board v1.0";
+constexpr gpio::Pin RESET = gpio::Pin::PG10;
+constexpr gpio::Pin USB_VSENSE = gpio::Pin::PF01;
+
+
+constexpr gpio::Pin STEPPER_TX = gpio::Pin::PB10;
+constexpr gpio::Pin STEPPER_RX = gpio::Pin::PB11;
+constexpr gpio::Pin STEPPER_EN = gpio::Pin::PB02;
+
+constexpr gpio::Pin STEPPER1_DIR = gpio::Pin::PB00;
+constexpr gpio::Pin STEPPER1_STEP = gpio::Pin::PB01;
+constexpr gpio::Pin STEPPER1_STEP_ALT = gpio::Pin::PC04;
+constexpr gpio::Pin LED_PIN = gpio::Pin::PA08;
+constexpr bool LED_ON_LEVEL = true; // LED is active high
+constexpr int VOLTAGE_FROM_USBC = 5000; // default voltage if powered from USB-C
+
+}; // namespace pinsWeActCore
+
+// Namespace alias to allow easy switching between pin versions
+namespace pins = pinsWeActCore;
+
+extern UART_HandleTypeDef huart2;
+extern UART_HandleTypeDef huart3;
 extern SPI_HandleTypeDef hspi3;
-HX711 g_hx711_instance(&hspi3, gpio::Pin::PC11, {Channel_And_Gain::CH_A_GAIN_64});
-//HX711 g_hx711_instance(gpio::Pin::PB05, gpio::Pin::PC11, {Channel_And_Gain::CH_A_GAIN_128, Channel_And_Gain::CH_B_GAIN_32});
-uint32_t last_measurement_time = 0;
 
-extern "C" void app_setup(void) {
-  
-  log_info("Starting HX711 test with raw measurements");
-  g_hx711_instance.setup();
-  last_measurement_time = HAL_GetTick();
-  log_info("HX711 initialized, starting continuous measurements...");
+// Motor controller instance
+// RampStepper global instance with pins
+tmc2209::TMC2209 g_motor(&huart3, 0, pins::STEPPER_EN);
+SigmoidStepper g_ramp_stepper(pins::STEPPER1_STEP, pins::STEPPER1_DIR,
+                              &profile_100_1000_5);
+
+/**
+ * UART RX complete callback - called by HAL
+ * This needs to be in the main.c or called from there
+ */
+extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+  if (huart == &huart2) {
+    // Process the received byte
+    // uint8_t rx_byte = cmd_buffer[0];
+    // process_uart_data(rx_byte);
+
+    // Re-enable receive for next byte
+    // HAL_UART_Receive_IT(&huart2, cmd_buffer, 1);
+  }
 }
 
-extern "C" void app_loop(void) {
-  g_hx711_instance.loop();
-  uint32_t now = HAL_GetTick();
-  if (now - last_measurement_time >= 1000) {
-    int32_t weight = 0;
-    bool quality =g_hx711_instance.getLastRawValueA(&weight);
-    log_info("Raw measurement (Channel A): %d %s", weight, quality ? "OK" : "N/A");
-    last_measurement_time = now;
+extern "C" void TIM1_TRG_COM_TIM17_IRQHandler(void) {
+  if (TIM17->SR & TIM_SR_UIF) {
+    TIM17->SR &= ~TIM_SR_UIF;
+    g_ramp_stepper.HandleUpdateInterrupt_();
   }
-  HAL_Delay(20);
+}
+
+single_led::M<pins::LED_ON_LEVEL> led(pins::LED_PIN);
+single_led::BlinkPattern blink_pattern(200, 800);
+
+
+extern "C" void app_setup(void) {
+
+  // Initialize GPIO
+  gpio::Gpio::ConfigureGPIOOutput(pins::LED_PIN, false);
+  gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER_EN,
+                                  true); // Enable TMC2209 driver
+  gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_DIR,
+                                  false); // Set initial direction for motor
+  gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_STEP,
+                                  false); // Initialize step pin low
+
+  gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_STEP_ALT,
+                                  false); // Initialize step pin low
+
+  // Initialize ramp stepper subsystem
+  g_ramp_stepper.Init();
+
+  // Create motor controller instance
+
+  // Initialize motor
+  if (g_motor.InitForNormalSpeedAndUartBasedOperation(false)) {
+    log_info("Motor initialized successfully");
+  } else {
+    log_error("Failed to initialize motor");
+  }
+  // g_motor.PrintPrettyFullSystemState();
+  // g_motor.PerformStealthChopAutoTuningForQuietOperation();
+  g_ramp_stepper.GotoPosition(2000); // Move 2000 steps forward as a test
+  //g_motor.GenerateSteps(400); // Move at 400 steps/s as a test
+
+  led.AnimatePixel(HAL_GetTick(), &blink_pattern);
+}
+
+uint32_t lastDebugOutput = 0;
+// Loop-Funktion: im Hauptloop aufgerufen
+extern "C" void app_loop(void) {
+  uint32_t current_tick = HAL_GetTick();
+  led.Loop(current_tick);
+  if (current_tick - lastDebugOutput > 1000) {
+    log_info("app_loop is running. Current Stepper Position: %ld. Tick: %lu",
+             g_ramp_stepper.GetCurrentPosition(), current_tick);
+    lastDebugOutput = current_tick;
+  }
+  HAL_Delay(10);
 }

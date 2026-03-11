@@ -24,6 +24,11 @@ enum class Channel_And_Gain{
   CH_A_GAIN_64 = 0x54, //for 27 pulses on the clock pin
 };
 
+ struct CalibrationPoint {
+    int32_t reading;
+    double weight;
+  };
+
 template<size_t AVERAGE_OVER_READINGS = 8>
 class HX711 {
   struct u32i32_converter{
@@ -40,10 +45,7 @@ class HX711 {
     ERROR,
   };
 
-  struct CalibrationPoint {
-    int32_t reading;
-    double weight;
-  };
+ 
 
 private:
   SPI_HandleTypeDef* hspi;
@@ -57,14 +59,6 @@ private:
   uint8_t TxData[8] ={0x55, 0x55, 0x55, 0x55, 0x55, 0x55,(uint8_t)Channel_And_Gain::CH_A_GAIN_128,0x00};  
   uint8_t RxData[8]= {0};
   
-  CalibrationPoint calibration_points[2] = {
-    {0, 0.0}, 
-    {1, 1.0}  
-  };
-
-  
-
-
   ReadoutState readout_state = ReadoutState::ERROR; // Start in error state until setup is called to ensure loop() doesn't run before setup()
 
   void convertArrayToUint32AndUpdateLastReading() {
@@ -120,7 +114,7 @@ public:
     TxData[6] = (uint8_t)channel_and_gain;
   }
 
-void setup(void) {
+void Setup(void) {
   log_info("Starting SPI HX711 setup");
   if (hspi == nullptr) {
     log_error("SPI handle is null");
@@ -129,11 +123,8 @@ void setup(void) {
   }
   
   //Fire an initial dummy read to set the MOSI line to the correct idle state (LOW) before the first real readout cycle starts.
-  HAL_SPI_TransmitReceive_DMA(hspi, (uint8_t*) (&TxData), (uint8_t*) (&RxData), sizeof(TxData));
-  while(hspi->State != HAL_SPI_STATE_READY) {
-    log_debug("Waiting for initial dummy SPI read to complete, current state=%lu, error=0x%08lX", (unsigned long)hspi->State, (unsigned long)hspi->ErrorCode);
-    HAL_Delay(10);
-  }
+  uint8_t dummy_tx[4] = {0};
+  HAL_SPI_Transmit(hspi, dummy_tx, 4, HAL_MAX_DELAY);
   this->readout_state = ReadoutState::WAIT_FOR_DATA_READY; // Start in WAIT_FOR_DATA_READY state to begin the measurement cycle
   log_info("SPI HX711 setup complete including initial dummy read, state machine initialized");
 }
@@ -226,11 +217,12 @@ bool getLastRawValue(int32_t* out_value) {
 }
 
 
-bool getLastCalibratedWeightA(double* out_value) {
-  if(readings_buffer[(current_reading_index + AVERAGE_OVER_READINGS - 1) % AVERAGE_OVER_READINGS] == INT32_MIN) {
+bool getAverageCalibratedWeight(double* out_value, std::array<CalibrationPoint, 2> calibration_points) {
+  int32_t average_raw_value;
+  if (!getAverageRawValue(&average_raw_value)) {
     return false;
   }
-  // Linear calibration with two points
+  
   int32_t reading_1 = calibration_points[0].reading;
   double weight_1 = calibration_points[0].weight;
   int32_t reading_2 = calibration_points[1].reading;
@@ -239,7 +231,7 @@ bool getLastCalibratedWeightA(double* out_value) {
   if (reading_1 == reading_2) {
     return false;
   }
-  *out_value = weight_1 + (static_cast<double>(readings_buffer[(current_reading_index + AVERAGE_OVER_READINGS - 1) % AVERAGE_OVER_READINGS]) - reading_1) * (weight_2 - weight_1) / (reading_2 - reading_1);
+  *out_value = weight_1 + (average_raw_value - reading_1) * (weight_2 - weight_1) / (reading_2 - reading_1);
   return true;
 }
 

@@ -8,109 +8,113 @@
 #include "stm32g4xx_hal_gpio.h"
 #include "stm32g4xx_hal_spi.h"
 
+#include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 enum class Channel_And_Gain{
-  CH_A_GAIN_128 = 0xA0,//for 25 pulses on the clock pin
-  CH_B_GAIN_32 = 0xA8, //for 26 pulses on the clock pin
-  CH_A_GAIN_64 = 0xAA, //for 27 pulses on the clock pin
+  CH_A_GAIN_128 = 0x40,//for 25 pulses on the clock pin
+  CH_B_GAIN_32 = 0x50, //for 26 pulses on the clock pin
+  CH_A_GAIN_64 = 0x54, //for 27 pulses on the clock pin
 };
 
+ struct CalibrationPoint {
+    int32_t reading;
+    double weight;
+  };
 
-enum class ReadoutState {
-  WAIT_BETWEEN_MEASUREMENTS,
-  WAIT_FOR_DATA_READY,
-  WAIT_FOR_DMA_COMPLETION,
-  ERROR,
-};
-
-struct CalibrationPoint {
-  int32_t reading;
-  double weight;
-};
-
-
-
+template<size_t AVERAGE_OVER_READINGS = 8>
 class HX711 {
+  struct u32i32_converter{
+    union
+    {
+      uint32_t uint32_value;
+      int32_t int32_value;
+    };
+  };
+
+  enum class ReadoutState {
+    WAIT_FOR_DATA_READY,
+    WAIT_FOR_DMA_COMPLETION,
+    ERROR,
+  };
+
+ 
+
 private:
   SPI_HandleTypeDef* hspi;
   gpio::Pin data_pin;
-  Channel_And_Gain mode;
-  Channel_And_Gain mode_used_in_last_measurement[2] = {Channel_And_Gain::CH_A_GAIN_128, Channel_And_Gain::CH_A_GAIN_128};
-  int32_t channelA__last_reading{INT32_MIN};
-  int32_t channelB_last_reading{INT32_MIN};
-  uint8_t TxData[8] ={0x2A, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,0x8,0x0};  
+  Channel_And_Gain channel_and_gain=Channel_And_Gain::CH_A_GAIN_128;
+  std::array<int32_t, AVERAGE_OVER_READINGS> readings_buffer{INT32_MIN};
+  size_t current_reading_index{0};
+  
+
+  //see https://community.st.com/t5/stm32-mcus-products/spi-mosi-idle-state-quirk-sometimes-high-sometimes-low/td-p/298590
+  uint8_t TxData[8] ={0x55, 0x55, 0x55, 0x55, 0x55, 0x55,(uint8_t)Channel_And_Gain::CH_A_GAIN_128,0x00};  
   uint8_t RxData[8]= {0};
-  CalibrationPoint calibration_points_chA[2] = {
-    {0, 0.0}, 
-    {1, 1.0}  
-  };
+  
+  ReadoutState readout_state = ReadoutState::ERROR; // Start in error state until setup is called to ensure loop() doesn't run before setup()
 
-  CalibrationPoint calibration_points_chB[2] = {
-    {0, 0.0}, 
-    {1, 1.0}  
-  };
-
-
-  volatile ReadoutState readout_state = ReadoutState::WAIT_BETWEEN_MEASUREMENTS;
-  uint32_t spi3_dma_test_start_count{0};
-  uint32_t spi3_dma_test_cplt_count{0};
-  uint32_t spi3_dma_test_error_count{0};
-  uint32_t spi3_dma_test_last_error{0};
-  uint32_t last_state_change{0};
-
-  void convertArrayToUint32AndUpdateLastReading(uint8_t* arr, Channel_And_Gain current_mode) {
-    // Read every second bit starting from bit index 1, collecting 24 bits total
-    // Bits to extract: 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47
-    uint32_t raw_value = 0;
+  void convertArrayToUint32AndUpdateLastReading() {
+    // Read every second bit starting from bit index 2, collecting 24 bits total
+    // Bits to extract: 2, 4, 6, ..., 48 (24 bits total)
     
-    int output_bit = 0;
-    for (int bit_index = 1; bit_index < 48; bit_index += 2) {
-      int byte_index = bit_index / 8;
-      int bit_in_byte = bit_index % 8;
-      
-      uint8_t bit = (arr[byte_index] >> bit_in_byte) & 1;
-      raw_value |= ((uint32_t)bit) << output_bit;
-      output_bit++;
-    }
-    
-    // Handle two's complement: if bit 23 (sign bit) is set, sign-extend to 32-bit
-    if (raw_value & 0x800000) {
-      raw_value |= 0xFF000000;
-    }
+    uint32_t raw_value = 
+    ((RxData[0] & 0b01000000)>>6)<<23 |
+    ((RxData[0] & 0b00010000)>>4)<<22 |
+    ((RxData[0] & 0b00000100)>>2)<<21 |
+    ((RxData[0] & 0b00000001)>>0)<<20 |
+    ((RxData[1] & 0b01000000)>>6)<<19 |
+    ((RxData[1] & 0b00010000)>>4)<<18 |
+    ((RxData[1] & 0b00000100)>>2)<<17 |
+    ((RxData[1] & 0b00000001)>>0)<<16 |
+    ((RxData[2] & 0b01000000)>>6)<<15 |
+    ((RxData[2] & 0b00010000)>>4)<<14 |
+    ((RxData[2] & 0b00000100)>>2)<<13 |
+    ((RxData[2] & 0b00000001)>>0)<<12 |
+    ((RxData[3] & 0b01000000)>>6)<<11 |
+    ((RxData[3] & 0b00010000)>>4)<<10 |
+    ((RxData[3] & 0b00000100)>>2)<<9  |
+    ((RxData[3] & 0b00000001)>>0)<<8  |
+    ((RxData[4] & 0b01000000)>>6)<<7  |
+    ((RxData[4] & 0b00010000)>>4)<<6  |
+    ((RxData[4] & 0b00000100)>>2)<<5  |
+    ((RxData[4] & 0b00000001)>>0)<<4  |
+    ((RxData[5] & 0b01000000)>>6)<<3  |
+    ((RxData[5] & 0b00010000)>>4)<<2  |
+    ((RxData[5] & 0b00000100)>>2)<<1  |
+    ((RxData[5] & 0b00000001)>>0)<<0;
+  
 
-    
-    int32_t result = (int32_t)raw_value;
-    switch(current_mode) {
-      case Channel_And_Gain::CH_A_GAIN_128:
-        log_info("Channel A, Gain 128 selected. Raw value: %d", result);
-        channelA__last_reading = result;
-        break;
-      case Channel_And_Gain::CH_B_GAIN_32:
-        log_info("Channel B, Gain 32 selected. Raw value: %d", result);
-        channelB_last_reading = result >> 2; // Aligning B gain 32 reading to be comparable with A gain 128 by shifting right 2 bits (multiplying by 32/128 = 1/4)
-        break;
-      case Channel_And_Gain::CH_A_GAIN_64:
-        log_info("Channel A, Gain 64 selected. Raw value: %d", result);
-        channelA__last_reading = result >> 1; // Aligning A gain 64 reading to be comparable with A gain 128 by shifting right 1 bit (multiplying by 64/128 = 1/2)
-        break;
-    }
+    log_debug("RxData: 0x%02X %02X %02X %02X %02X %02X %02X %02X Raw read complete, raw_value=0x%08lX", 
+             RxData[0], RxData[1], RxData[2], RxData[3], RxData[4], RxData[5], RxData[6], RxData[7], raw_value);
+		u32i32_converter u32i32;
+    u32i32.uint32_value = raw_value << 8;
+    int32_t result = u32i32.int32_value/256;
+    readings_buffer[current_reading_index] = result;
+    current_reading_index = (current_reading_index + 1) % AVERAGE_OVER_READINGS;
+    log_debug("Updated readings buffer with new value: %ld, current buffer index for next reading: %lu", (long)result, (unsigned long)current_reading_index);
+  
   }
 
 
 public:
   // Constructor
-  HX711(SPI_HandleTypeDef* hspi, gpio::Pin data_pin, Channel_And_Gain initial_mode):
-    hspi(hspi), data_pin(data_pin), mode(initial_mode) {
-    mode_used_in_last_measurement[0] = initial_mode;
-    mode_used_in_last_measurement[1] = initial_mode;
+  HX711(SPI_HandleTypeDef* hspi, gpio::Pin data_pin, Channel_And_Gain channel_and_gain=Channel_And_Gain::CH_A_GAIN_128) :
+    hspi(hspi),
+    data_pin(data_pin),
+    channel_and_gain(channel_and_gain)
+  {
+    TxData[6] = (uint8_t)channel_and_gain;
   }
 
-void setup(void) {
+void Setup(void) {
   log_info("Starting SPI HX711 setup");
   if (hspi == nullptr) {
     log_error("SPI handle is null");
@@ -118,16 +122,66 @@ void setup(void) {
     return;
   }
   
-  // Don't start initial DMA transfer in setup - let loop() handle everything
-  readout_state = ReadoutState::WAIT_BETWEEN_MEASUREMENTS;
-  last_state_change = HAL_GetTick();
-  log_info("HX711 setup complete, state machine ready");
+  //Fire an initial dummy read to set the MOSI line to the correct idle state (LOW) before the first real readout cycle starts.
+  uint8_t dummy_tx[4] = {0};
+  HAL_SPI_Transmit(hspi, dummy_tx, 4, HAL_MAX_DELAY);
+  this->readout_state = ReadoutState::WAIT_FOR_DATA_READY; // Start in WAIT_FOR_DATA_READY state to begin the measurement cycle
+  log_info("SPI HX711 setup complete including initial dummy read, state machine initialized");
 }
-int64_t last_weight_measurement_time = 0;
 
+void loop(void) {
+  switch (readout_state) {
+    case ReadoutState::WAIT_FOR_DATA_READY:
+      {
+        bool pin_state = gpio::Gpio::Get(data_pin);
+        if(pin_state)  // Pin is HIGH, data not ready
+        {
+          log_debug("WAIT_FOR_DATA_READY: pin is HIGH (not ready), waiting... ");
+          return;
+        }
+      }
+      log_debug("WAIT_FOR_DATA_READY --> DATA IS READY, starting DMA readout --> WAIT_FOR_DMA_COMPLETION");
+      
+      if (HAL_SPI_TransmitReceive_DMA(hspi, (uint8_t*) (&TxData), (uint8_t*) (&RxData), sizeof(TxData)) != HAL_OK){
+        log_warn("Failed to start DMA readout: state=%lu err=0x%08lX", (unsigned long)hspi->State, (unsigned long)hspi->ErrorCode);
+        readout_state = ReadoutState::ERROR;
+        
+      } else {
+        log_debug("Started DMA readout successfully");
+        readout_state = ReadoutState::WAIT_FOR_DMA_COMPLETION;
+      }
+      break;
+    case ReadoutState::WAIT_FOR_DMA_COMPLETION:
+      if (hspi->ErrorCode != 0) {
+        // DMA error occurred
+        log_warn("WAIT_FOR_DMA_COMPLETION error: state=%lu err=0x%08lX", (unsigned long)hspi->State, (unsigned long)hspi->ErrorCode);
+        readout_state = ReadoutState::ERROR;
+      }else if (hspi->State != HAL_SPI_STATE_READY && hspi->State != HAL_SPI_STATE_RESET) {
+          log_debug("WAIT_FOR_DMA_COMPLETION, still waiting, debug info: state=%lu err=0x%08lX",
+                 (unsigned long)hspi->State, (unsigned long)hspi->ErrorCode);
+          return; // Still waiting for DMA to complete
+      } else if (hspi->State == HAL_SPI_STATE_READY) {
+        log_debug("DMA readout completed successfully");
+        convertArrayToUint32AndUpdateLastReading();
+        readout_state = ReadoutState::WAIT_FOR_DATA_READY;
+      }else{
+        log_debug("WAIT_FOR_DMA_COMPLETION, unexpected state, debug info: state=%lu err=0x%08lX",
+                 (unsigned long)hspi->State, (unsigned long)hspi->ErrorCode);
+        readout_state = ReadoutState::ERROR;
+      }
+      break;
+    case ReadoutState::ERROR:
+      log_error("HX711 readout error state reached. Please check previous logs for details.");
+      return;
+  }
+}
+
+/*
 void Calibration(uint8_t step_0_or_1, Channel_And_Gain mode, double weight){
+  //const std::vector<Channel_And_Gain> query_order_before_calibration = query_order;
+
   step_0_or_1%=2; // Ensure step is either 0 or 1
-  changeMode(mode);
+  
   switch (mode) {
     case Channel_And_Gain::CH_A_GAIN_128:
     case Channel_And_Gain::CH_A_GAIN_64:
@@ -147,119 +201,56 @@ void Calibration(uint8_t step_0_or_1, Channel_And_Gain mode, double weight){
       calibration_points_chB[step_0_or_1].weight = weight;
       break;
   }
-}
 
-void changeMode(Channel_And_Gain new_mode) {
-  mode = new_mode;
-  switch (new_mode) {
-    case Channel_And_Gain::CH_A_GAIN_128:
-    case Channel_And_Gain::CH_A_GAIN_64:
-      channelA__last_reading = INT32_MIN; // Reset last reading for channel A gain 128
-      break;
-    case Channel_And_Gain::CH_B_GAIN_32:
-      channelB_last_reading = INT32_MIN; // Reset last reading for channel B gain 32
-      break;
-  }
+  applyQueryOrderAndResync(query_order_before_calibration);
 }
+*/
 
-bool getLastReadingA(double* out_value) {
-  if(channelA__last_reading == INT32_MIN) {
+
+bool getLastRawValue(int32_t* out_value) {
+  if(readings_buffer[(current_reading_index + AVERAGE_OVER_READINGS - 1) % AVERAGE_OVER_READINGS] == INT32_MIN) {
     return false;
   }
-  // Linear calibration with two points
-  int32_t reading_1 = calibration_points_chA[0].reading;
-  double weight_1 = calibration_points_chA[0].weight;
-  int32_t reading_2 = calibration_points_chA[1].reading;
-  double weight_2 = calibration_points_chA[1].weight;
+  // Linear calibration with two points 
+  *out_value = readings_buffer[(current_reading_index + AVERAGE_OVER_READINGS - 1) % AVERAGE_OVER_READINGS];
+  return true;
+}
+
+
+bool getAverageCalibratedWeight(double* out_value, std::array<CalibrationPoint, 2> calibration_points) {
+  int32_t average_raw_value;
+  if (!getAverageRawValue(&average_raw_value)) {
+    return false;
+  }
+  
+  int32_t reading_1 = calibration_points[0].reading;
+  double weight_1 = calibration_points[0].weight;
+  int32_t reading_2 = calibration_points[1].reading;
+  double weight_2 = calibration_points[1].weight;
   
   if (reading_1 == reading_2) {
     return false;
   }
-  *out_value = weight_1 + (static_cast<double>(channelA__last_reading) - reading_1) * (weight_2 - weight_1) / (reading_2 - reading_1);
+  *out_value = weight_1 + (average_raw_value - reading_1) * (weight_2 - weight_1) / (reading_2 - reading_1);
   return true;
 }
 
-bool getLastReadingB(double* out_value) {
-  if(channelB_last_reading == INT32_MIN) {
+bool getAverageRawValue(int32_t* out_value) {
+  int64_t sum = 0;
+  size_t count = 0;
+  for (size_t i = 0; i < AVERAGE_OVER_READINGS; ++i) {
+    int32_t reading = readings_buffer[i];
+    if (reading != INT32_MIN) {
+      sum += reading;
+      count++;
+    }
+  }
+  if (count == 0) {
     return false;
   }
-  // Linear calibration with two points
-  int32_t reading_1 = calibration_points_chB[0].reading;
-  double weight_1 = calibration_points_chB[0].weight;
-  int32_t reading_2 = calibration_points_chB[1].reading;
-  double weight_2 = calibration_points_chB[1].weight;
-  
-  if (reading_1 == reading_2) {
-    return false;
-  }
-  
-  *out_value = weight_1 + (static_cast<double>(channelB_last_reading) - reading_1) * (weight_2 - weight_1) / (reading_2 - reading_1);
+  *out_value = static_cast<int32_t>(sum / count);
   return true;
 }
 
-void loop(void) {
-  uint32_t now = HAL_GetTick();
-  switch (readout_state) {
-    case ReadoutState::WAIT_BETWEEN_MEASUREMENTS:
-      if(now - last_state_change < 2000U) {  // Wait 2 seconds after power-on or between measurements
-        log_debug("WAIT_BETWEEN_MEASUREMENTS -->WAITING... %lu ms", now - last_state_change);
-        return;
-      }
-      log_info("WAIT_BETWEEN_MEASUREMENTS --> WAIT_FOR_DATA_READY");
-      readout_state = ReadoutState::WAIT_FOR_DATA_READY;
-      break;
-    case ReadoutState::WAIT_FOR_DATA_READY:
-      {
-        bool pin_state = gpio::Gpio::Get(data_pin);
-        if(pin_state != false)  // Pin is HIGH, data not ready
-        {
-          log_debug("WAIT_FOR_DATA_READY: pin is HIGH (not ready), waiting... %lu ms", now - last_state_change);
-          return;
-        }
-      }
-      log_info("WAIT_FOR_DATA_READY --> DATA pin is LOW, starting DMA readout --> WAIT_FOR_DMA_COMPLETION");
-      TxData[6] = static_cast<uint8_t>(mode);
-      mode_used_in_last_measurement[1] = mode_used_in_last_measurement[0];
-      mode_used_in_last_measurement[0] = mode;
-      if (HAL_SPI_TransmitReceive_DMA(hspi, (uint8_t*) (&TxData), (uint8_t*) (&RxData), sizeof(TxData)) != HAL_OK){
-        log_warn("Failed to start DMA readout: state=%lu err=0x%08lX", (unsigned long)hspi->State, (unsigned long)hspi->ErrorCode);
-        readout_state = ReadoutState::ERROR;
-        
-      } else {
-        log_debug("Started DMA readout successfully");
-        spi3_dma_test_start_count++;
-        readout_state = ReadoutState::WAIT_FOR_DMA_COMPLETION;
-      }
-      break;
-    case ReadoutState::WAIT_FOR_DMA_COMPLETION:
-      if (hspi->ErrorCode != 0) {
-        // DMA error occurred
-        log_warn("WAIT_FOR_DMA_COMPLETION error: state=%lu err=0x%08lX", (unsigned long)hspi->State, (unsigned long)hspi->ErrorCode);
-        spi3_dma_test_error_count++;
-        spi3_dma_test_last_error = hspi->ErrorCode;
-        readout_state = ReadoutState::ERROR;
-      }else if (hspi->State != HAL_SPI_STATE_READY && hspi->State != HAL_SPI_STATE_RESET) {
-          log_debug("WAIT_FOR_DMA_COMPLETION, still waiting, debug info: state=%lu err=0x%08lX, DMA start count=%lu, DMA complete count=%lu, DMA error count=%lu, last DMA error=0x%08lX",
-                 (unsigned long)hspi->State, (unsigned long)hspi->ErrorCode, spi3_dma_test_start_count, spi3_dma_test_cplt_count, spi3_dma_test_error_count, spi3_dma_test_last_error);
-          return; // Still waiting for DMA to complete
-      } else if (hspi->State == HAL_SPI_STATE_READY) {
-        log_info("DMA readout completed successfully");
-        spi3_dma_test_cplt_count++;
-        log_info("WAIT_FOR_DMA_COMPLETION --> CALCULATE_WEIGHT_AND_LOG ");
-        convertArrayToUint32AndUpdateLastReading(RxData, mode_used_in_last_measurement[1]);
-        readout_state = ReadoutState::WAIT_BETWEEN_MEASUREMENTS;
-        last_state_change = HAL_GetTick();
-      }else{
-        log_debug("WAIT_FOR_DMA_COMPLETION, unexpected state, debug info: state=%lu err=0x%08lX, DMA start count=%lu, DMA complete count=%lu, DMA error count=%lu, last DMA error=0x%08lX",
-                 (unsigned long)hspi->State, (unsigned long)hspi->ErrorCode, spi3_dma_test_start_count, spi3_dma_test_cplt_count, spi3_dma_test_error_count, spi3_dma_test_last_error);
-        readout_state = ReadoutState::ERROR;
-      }
-      break;
-    case ReadoutState::ERROR:
-      log_error("HX711 readout error state reached. Please check previous logs for details.");
-      return;
-  }
-  last_state_change = now;
-  
-}
+
 };

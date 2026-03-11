@@ -2054,6 +2054,16 @@
 		)
 		(uuid "1744c4bf-e5c7-4fc0-a18d-9c3d383c8a70")
 	)
+	(text "Recalculate voltage divisor -->target voltage 3V"
+		(exclude_from_sim no)
+		(at 43.18 44.45 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "18f00fef-2a25-48fe-97f8-b4a89c6e025c")
+	)
 	(junction
 		(at 36.83 53.34)
 		(diameter 0)
@@ -3114,7 +3124,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "8k2"
+		(property "Value" "10k"
 			(at 39.37 53.34 90)
 			(effects
 				(font
@@ -4558,7 +4568,7 @@
 				(hide yes)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "4k7"
 			(at 45.72 43.18 90)
 			(effects
 				(font

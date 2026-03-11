@@ -115,7 +115,8 @@ union GSTAT {
                          // read access to GSTAT
     uint8_t drv_err : 1; // Indicates, that the driver has been shut down since
                          // the last read access
-    uint8_t uv_cp : 1; // Indicates an undervoltage on the charge pump
+    uint8_t iuv_cprun : 1; // Indicates an undervoltage on the charge pump
+    uint8_t reserved : 5;  // DO NOT USE!
   } REG;
   uint32_t U32;
 };
@@ -260,7 +261,7 @@ union PWM_AUTO {
 union DRV_STATUS {
   struct {
     uint32_t over_temperature_prewarning : 1;  // Overtemperature prewarning flag
-    uint32_t over_temperature : 1; // Overtemperature warning shutdown
+    uint32_t over_temperature_shutdown : 1; // Overtemperature warning shutdown
     uint32_t short_to_ground_a : 1;         // Short coil detection
     uint32_t short_to_ground_b : 1;         // Short coil detection
     uint32_t low_side_short_a : 1;          // Short coil detection

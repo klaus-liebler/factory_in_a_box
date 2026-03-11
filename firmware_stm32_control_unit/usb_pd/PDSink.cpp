@@ -42,7 +42,7 @@ void PDSink::reset(bool connected) {
         Scheduler.scheduleTaskAfter(requestSourceCapsCallback, SourceCapsRequestDelayUs);
 }
 
-void PDSink::poll() {
+void PDSink::Loop() {
     if (eventCallback == nullptr)
         return;
 
@@ -64,6 +64,16 @@ void PDSink::poll() {
 
 bool PDSink::isConnected() {
     return numSourceCapabilities > 0;
+}
+
+bool PDSink::TryRequestPreferredVoltages(std::vector<int> desiredVoltagesDescendingPriority_mV) {
+    for (int voltage_mV : desiredVoltagesDescendingPriority_mV) {
+        if (canProvideVoltage(voltage_mV)) {
+            return requestPower(voltage_mV);
+        }
+    }
+
+    return false;
 }
 
 bool PDSink::requestPower(int voltage, int maxCurrent) {
@@ -140,6 +150,14 @@ void PDSink::handleEvent(const PDControllerEvent& event) {
 
     default:; // ignore
     }
+}
+
+bool PDSink::canProvideVoltage(int voltage) {
+    for (int i = 0; i < numSourceCapabilities; i++) {
+        if (sourceCapabilities[i].minVoltage <= voltage && sourceCapabilities[i].maxVoltage >= voltage)
+            return true;
+    }
+    return false;
 }
 
 void PDSink::onMessageReceived(const PDMessage* message) {

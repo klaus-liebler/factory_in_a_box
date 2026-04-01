@@ -37,6 +37,11 @@ public:
     bool ShaftTurnReversed(bool reversed);
     void PrintPrettyFullSystemState();
     bool PerformStealthChopAutoTuningForQuietOperation();
+    bool EnableCoolStep(uint32_t tcoolthrs = 450, uint8_t sgthrs = 10,
+                        uint8_t semin = 5, uint8_t seup = 1,
+                        uint8_t semax = 2, uint8_t sedn = 1,
+                        bool seimin = false);
+    bool LogCoolStepRuntimeStatus();
 
    
 
@@ -57,6 +62,10 @@ private:
     gpio::Pin en_;
     REG_FIELD::GCONF gconf;
     REG_FIELD::CHOPCONF chopconf;
+    uint32_t last_tcoolthrs_ = 0;
+    uint8_t last_sgthrs_ = 0;
+    uint32_t last_coolconf_ = 0;
+    bool coolstep_configured_ = false;
 
     bool fetchImportantRegistersForLocalMirroring();
     bool clearGStat(const char* error_msg);

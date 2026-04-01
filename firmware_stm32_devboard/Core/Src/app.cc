@@ -28,7 +28,6 @@ constexpr gpio::Pin STEPPER_EN = gpio::Pin::PB02;
 
 constexpr gpio::Pin STEPPER1_DIR = gpio::Pin::PB00;
 constexpr gpio::Pin STEPPER1_STEP = gpio::Pin::PB01;
-constexpr gpio::Pin STEPPER1_STEP_ALT = gpio::Pin::PC04;
 constexpr gpio::Pin LED_PIN = gpio::Pin::PA08;
 constexpr bool LED_ON_LEVEL = true; // LED is active high
 constexpr int VOLTAGE_FROM_USBC = 5000; // default voltage if powered from USB-C
@@ -78,33 +77,36 @@ extern "C" void app_setup(void) {
 
   // Initialize GPIO
   gpio::Gpio::ConfigureGPIOOutput(pins::LED_PIN, false);
-  gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER_EN,
-                                  true); // Enable TMC2209 driver
+  gpio::Gpio::ConfigureGPIOOutput(pins::TMC2209_EN,
+                                  true); // Disable TMC2209 driver
+  HAL_Delay(50); // Short delay to ensure driver is disabled before changing EN pin state
   gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_DIR,
                                   false); // Set initial direction for motor
   gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_STEP,
                                   false); // Initialize step pin low
 
-  gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER1_STEP_ALT,
-                                  false); // Initialize step pin low
 
   // Initialize ramp stepper subsystem
   g_ramp_stepper.Init();
-
-  // Create motor controller instance
-
-  // Initialize motor
-  if (g_motor.InitForNormalSpeedAndUartBasedOperation(false)) {
-    log_info("Motor initialized successfully");
-  } else {
-    log_error("Failed to initialize motor");
-  }
-  // g_motor.PrintPrettyFullSystemState();
-  // g_motor.PerformStealthChopAutoTuningForQuietOperation();
-  g_ramp_stepper.GotoPosition(2000); // Move 2000 steps forward as a test
-  //g_motor.GenerateSteps(400); // Move at 400 steps/s as a test
-
+  // Init USB PD sink
+  PowerSink.start(handleEvent);
   led.AnimatePixel(HAL_GetTick(), &blink_pattern);
+  while(PowerSink.activeVoltage < 15000) {
+    PowerSink.loop();
+    led.Loop(current_tick);
+    HAL_Delay(1);
+  }
+    
+  log_info("USB-PD target voltage reached.");
+  if (!g_motor.InitForNormalSpeedAndUartBasedOperation()) {
+    log_error("Failed to initialize motor after USB-PD voltage became available");
+  }
+  log_info("Motor initialized successfully");
+  g_motor.PrintPrettyFullSystemState();
+  log_info("Starting motor at %d full steps/s for bring-up", kMotorStartupSpeedFullStepsPerSecond);
+  if (!g_motor.GenerateSteps(400)) {
+    log_error("Failed to start motor after initialization");
+  }
 }
 
 uint32_t lastDebugOutput = 0;

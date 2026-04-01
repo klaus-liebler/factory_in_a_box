@@ -244,9 +244,10 @@ union PWM_SCALE{
 
 union PWM_AUTO {
   struct {
-    uint32_t pwm_ofs_auto : 8; // Actual offset used for StealthChop PWM
-    uint32_t pwm_grad_auto : 8; // Actual gradient used for StealthChop PWM
-    uint32_t reserved : 16;    // DO NOT USE!
+    uint32_t pwm_ofs_auto : 8;  // [7:0]   Actual offset used for StealthChop PWM
+    uint32_t reserved1 : 8;     // [15:8]  Reserved
+    uint32_t pwm_grad_auto : 8; // [23:16] Actual gradient used for StealthChop PWM
+    uint32_t reserved2 : 8;     // [31:24] Reserved
   } REG;
   uint32_t U32;
 };

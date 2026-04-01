@@ -78,45 +78,9 @@ SigmoidStepper g_ramp_stepper(pins::STEPPER1_STEP, pins::STEPPER1_DIR,
                                      &profile_100_1000_5);
 
 namespace {
-bool g_motor_initialized = false;
-bool g_motor_start_failed = false;
-bool g_motor_voltage_wait_logged = false;
-constexpr int kMotorStartupSpeedFullStepsPerSecond = 50;
-
-void TryStartMotorWhenSupplyReady() {
-  if (g_motor_initialized || g_motor_start_failed) {
-    return;
-  }
-
-  if (PowerSink.activeVoltage < pins::VOLTAGE_FROM_USBC) {
-    if (!g_motor_voltage_wait_logged) {
-      log_warn("Motor start deferred: USB-PD supply not ready yet. Active=%d mV, required=%d mV",
-               PowerSink.activeVoltage, pins::VOLTAGE_FROM_USBC);
-      g_motor_voltage_wait_logged = true;
-    }
-    return;
-  }
-
-  log_info("USB-PD target voltage reached. Initializing TMC2209 at %d mV",
-           PowerSink.activeVoltage);
-  if (!g_motor.InitForNormalSpeedAndUartBasedOperation(
-          false, false, tmc2209::MicroStepResolution::RES_FULL_STEP)) {
-    log_error("Failed to initialize motor after USB-PD voltage became available");
-    g_motor_start_failed = true;
-    return;
-  }
-
-  log_info("Motor initialized successfully");
-  g_motor.PrintPrettyFullSystemState();
-  log_info("Starting motor at %d full steps/s for bring-up", kMotorStartupSpeedFullStepsPerSecond);
-  if (!g_motor.GenerateSteps(kMotorStartupSpeedFullStepsPerSecond)) {
-    log_error("Failed to start motor after initialization");
-    g_motor_start_failed = true;
-    return;
-  }
-
-  g_motor_initialized = true;
-}
+constexpr uint8_t kIhold = 2;
+constexpr uint8_t kIrun = 5;
+constexpr uint8_t kIholdDelay = 4;
 } // namespace
 
 
@@ -142,31 +106,18 @@ single_led::M<pins::LED_ON_LEVEL> led(pins::LED_PIN);
 single_led::BlinkPattern blink_pattern(200, 800);
 
 extern "C" void handleEvent(PDSinkEventType eventType) {
-
-  log_debug("handleUSBCEvent. eventType=%d", eventType);
-  if (eventType == PDSinkEventType::sourceCapabilitiesChanged) {
-    // source capabilities have changed
-    if (PowerSink.isConnected()) {
-      PowerSink.TryRequestPreferredVoltages({pins::VOLTAGE_FROM_USBC, 5000});
-    } else {
-      log_info("No supply or no USB PD capable supply is connected");
-      PowerSink.requestPower(5000); // reset to 5V
-    }
-  } else if (eventType == PDSinkEventType::voltageChanged) {
-    // voltage has changed
-    if (PowerSink.activeVoltage != 0) {
-      log_info("Voltage: %d mV @ %d mA (max)", PowerSink.activeVoltage, PowerSink.activeCurrent);
-      if (PowerSink.activeVoltage >= pins::VOLTAGE_FROM_USBC) {
-        g_motor_voltage_wait_logged = false;
+  switch (eventType) {
+    case PDSinkEventType::sourceCapabilitiesChanged:
+       if (PowerSink.isConnected()) {
+        PowerSink.TryRequestPreferredVoltages({pins::VOLTAGE_FROM_USBC, 5000});
       }
-    } else {
-      log_info("Disconnected");
-    }
-
-  } else if (eventType == PDSinkEventType::powerRejected) {
-    // rare case: power supply rejected requested power
-    log_warn("Power request rejected");
-    log_warn("Voltage: %d mV @ %d mA (max)", PowerSink.activeVoltage, PowerSink.activeCurrent);
+      break;
+    case PDSinkEventType::voltageChanged:
+      log_info("Voltage: %d mV @ %d mA (max)", PowerSink.activeVoltage, PowerSink.activeCurrent);
+      break;
+    default:
+      log_info("USB-PD Event: %d", static_cast<int>(eventType));
+      break;
   }
 }
 
@@ -212,21 +163,38 @@ extern "C" void app_setup(void) {
   gpio::Gpio::ConfigureGPIOOutput(pins::STEPPER2_STEP,
                                   false); // Initialize step pin low
 
-
-  
- 
-  
-
-  // Initialize ramp stepper subsystem
   g_ramp_stepper.Init();
-  
   // Init USB PD sink
   PowerSink.start(handleEvent);
-  log_info("Motor initialization deferred until USB-PD reaches %d mV", pins::VOLTAGE_FROM_USBC);
-  
   led.AnimatePixel(HAL_GetTick(), &blink_pattern);
-
-
+  while(PowerSink.activeVoltage < 15000) {
+    uint32_t current_tick = HAL_GetTick();
+    PowerSink.Loop();
+    led.Loop(current_tick);
+    HAL_Delay(1);
+  }
+    
+  log_info("USB-PD target voltage reached.");
+  if (!g_motor.InitForNormalSpeedAndUartBasedOperation()) {
+    log_error("Failed to initialize motor after USB-PD voltage became available");
+  }
+  g_motor.PerformStealthChopAutoTuningForQuietOperation();
+  if (!g_motor.setIHoldIRun(kIhold, kIrun, kIholdDelay)) {
+    log_error("Failed to set IHOLD_IRUN for low-load stealthChop profile");
+  }
+  log_info("Motor initialized successfully");
+  g_motor.PrintPrettyFullSystemState();
+  log_info("Starting motor with no-load quiet ramp");
+  // Keep no-load operation away from strong audible resonance bands.
+  constexpr int kRampStepsPerSecond[] = {120, 220, 320, 400};
+  constexpr uint32_t kRampStepDelayMs = 60;
+  for (int sps : kRampStepsPerSecond) {
+    if (!g_motor.GenerateSteps(sps)) {
+      log_error("Failed to start motor after initialization");
+      break;
+    }
+    HAL_Delay(kRampStepDelayMs);
+  }
 }
 
 uint32_t lastDebugOutput=0;
@@ -235,10 +203,9 @@ extern "C" void app_loop(void) {
   uint32_t current_tick = HAL_GetTick();
   led.Loop(current_tick);
   PowerSink.Loop();
-  TryStartMotorWhenSupplyReady();
   if(current_tick - lastDebugOutput > 1000){
     log_info("app_loop is running. Current Stepper Position: %ld. Tick: %lu", g_ramp_stepper.GetCurrentPosition(), current_tick);
     lastDebugOutput = current_tick;
   }
-  HAL_Delay(20);
+  HAL_Delay(10);
 }

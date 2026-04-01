@@ -153,25 +153,24 @@ if(resolution != MicroStepResolution::RES256){
 }
 
 bool TMC2209::PerformStealthChopAutoTuningForQuietOperation() {
-
-  // 2. Stromparameter für 17HS4401S-22B (1.7A/Phase)
-  log_info("IHOLD_IRUN: IHOLD=8 (0.5A), IRUN=16 (max 2.8A), IHOLDDELAY=6");
+  log_info("Starting StealthChop auto-tuning for quiet operation...");
+  // 2. Stromparameter für no-load/low-load Betrieb:
+  // weniger Strom reduziert Vibrationen und akustisches Rauschen deutlich.
+  log_info("  IHOLD_IRUN: IHOLD=4, IRUN=12 (no-load quiet mode), IHOLDDELAY=6");
   REG_FIELD::IHOLD_IRUN ihold_irun_reg = {
-      .REG = {.ihold = 8, .irun = 16, .iholddelay = 6}};
+      .REG = {.ihold = 4, .irun = 12, .iholddelay = 6}};
   checkedWriteRegister(RegIdx::IHOLD_IRUN, ihold_irun_reg.U32,
                   "Failed to write IHOLD_IRUN register for StealthChop");
 
-  // 3. TPWMTHRS: Übergang zwischen StealthChop und SpreadCycle.  (ca. 200-500
-  // Hz) Formel: TPWMTHRS = f_CLK / (f_thrs * 256) Für f_thrs = 500Hz: 12Mhz /
-  // (500 * 256) ≈ 94
-  checkedWriteRegister(RegIdx::TPWMTHRS, 94,
+  // TPWMTHRS: Übergang zwischen StealthChop und SpreadCycle.
+  // 0 = deaktiviert → StealthChop bei ALLEN Geschwindigkeiten erzwungen (leisester Betrieb).
+  // Beispielwert für Grenze bei ~500 Hz: f_CLK / (f_thrs * 256) = 12MHz / (500 * 256) ≈ 94
+  checkedWriteRegister(RegIdx::TPWMTHRS, 0,
                   "Failed to write TPWMTHRS register for StealthChop");
 
   // 4. Initiale PWM Konfiguration
   log_info(
-      "PWMCONF: pwm_offset=36, pwm_grad=2, pwm_freq=35kHz, "
-      "pwm_autoscale=1, pwm_autograd=1, freewheel=0 (normal), "
-      "pwm_reg=8, pwm_lim=12");
+      "  Initial PWMCONF: pwm_offset=36, pwm_grad=2, pwm_freq=35kHz, pwm_autoscale=1, pwm_autograd=1, freewheel=0 (normal), pwm_reg=8, pwm_lim=12");
   REG_FIELD::PWMCONF pwmconf = {
       .REG = {.pwm_offset = 36,   // Default Wert
               .pwm_grad = 2,      // Sanfter Start
@@ -187,10 +186,10 @@ bool TMC2209::PerformStealthChopAutoTuningForQuietOperation() {
 
   // 3. Motor mit konstanter Geschwindigkeit bewegen für Tuning
   // Datasheet empfiehlt:  "A typical range is 60-300 RPM"
-  log_info("Start Automatic Tuning with 400 Steps per Second.");
+  log_info("  Turn Motor with 400 Steps per Second.");
   GenerateSteps(400); // 400 steps/s = 2 RPS = 120 RPM for 200 steps/rev motor
+  REG_FIELD::PWM_AUTO pwm_auto;
   for (int i = 0; i < 10; i++) {
-    REG_FIELD::PWM_AUTO pwm_auto;
     checkedReadRegister(RegIdx::PWMCONF, pwmconf.U32,
                    "Failed to read PWMCONF register for tuning results");
     checkedReadRegister(RegIdx::PWM_AUTO, pwm_auto.U32,
@@ -204,7 +203,109 @@ bool TMC2209::PerformStealthChopAutoTuningForQuietOperation() {
   }
   // Motor anhalten
   GenerateSteps(0); // Stop motor
+
+  // Write back converged auto-tuned values into PWMCONF so future power-ups
+  // start from the calibrated operating point instead of the initial defaults.
+  pwmconf.REG.pwm_offset = pwm_auto.REG.pwm_ofs_auto;
+  pwmconf.REG.pwm_grad   = pwm_auto.REG.pwm_grad_auto;
+  checkedWriteRegister(RegIdx::PWMCONF, pwmconf.U32,
+                  "Failed to write back auto-tuned values to PWMCONF");
+  log_info("  Written back tuned values to PWMCONF: pwm_offset=%d, pwm_grad=%d",
+           (unsigned int)pwmconf.REG.pwm_offset,
+           (unsigned int)pwmconf.REG.pwm_grad);
+
   log_info("Automatic Tuning completed.");
+  return true;
+}
+
+bool TMC2209::EnableCoolStep(uint32_t tcoolthrs, uint8_t sgthrs,
+                             uint8_t semin, uint8_t seup,
+                             uint8_t semax, uint8_t sedn,
+                             bool seimin) {
+  if (semin > 0x0F || seup > 0x03 || semax > 0x0F || sedn > 0x03) {
+    log_error("EnableCoolStep: Invalid COOLCONF field value");
+    return false;
+  }
+
+  // CoolStep uses StallGuard and therefore needs SpreadCycle enabled.
+  gconf.REG.enable_spread_cycle = 1;
+  if (!checkedWriteRegister(RegIdx::GCONF, gconf.U32,
+                            "Failed to enable SpreadCycle for CoolStep")) {
+    return false;
+  }
+
+  if (!checkedWriteRegister(RegIdx::TCOOLTHRS, tcoolthrs,
+                            "Failed to write TCOOLTHRS for CoolStep")) {
+    return false;
+  }
+
+  if (!checkedWriteRegister(RegIdx::SGTHRS, sgthrs,
+                            "Failed to write SGTHRS for CoolStep")) {
+    return false;
+  }
+
+  REG_FIELD::COOLCONF coolconf = {
+      .REG = {.semin = semin,
+              .reserved1 = 0,
+              .seup = seup,
+              .reserved2 = 0,
+              .semax = semax,
+              .reserved3 = 0,
+              .sedn = sedn,
+              .seimin = seimin ? 1U : 0U,
+              .reserved4 = 0}};
+
+  if (!checkedWriteRegister(RegIdx::COOLCONF, coolconf.U32,
+                            "Failed to write COOLCONF for CoolStep")) {
+    return false;
+  }
+
+  last_tcoolthrs_ = tcoolthrs;
+  last_sgthrs_ = sgthrs;
+  last_coolconf_ = coolconf.U32;
+  coolstep_configured_ = true;
+
+  if (semin == 0) {
+    log_error("EnableCoolStep: semin is 0, CoolStep stays disabled");
+  }
+
+  log_info("CoolStep configured: TCOOLTHRS=%lu SGTHRS=%u COOLCONF=0x%08lX",
+           (unsigned long)tcoolthrs, (unsigned int)sgthrs,
+           (unsigned long)coolconf.U32);
+  return true;
+}
+
+bool TMC2209::LogCoolStepRuntimeStatus() {
+  if (!coolstep_configured_) {
+    return false;
+  }
+
+  uint32_t sg_result = 0;
+  REG_FIELD::DRV_STATUS drv_status = {};
+  uint32_t tstep = 0;
+
+  if (!checkedReadRegister(RegIdx::SG_RESULT, sg_result,
+                           "Failed to read SG_RESULT for CoolStep diagnostics")) {
+    return false;
+  }
+  if (!checkedReadRegister(RegIdx::DRV_STATUS, drv_status.U32,
+                           "Failed to read DRV_STATUS for CoolStep diagnostics")) {
+    return false;
+  }
+  if (!checkedReadRegister(RegIdx::TSTEP, tstep,
+                           "Failed to read TSTEP for CoolStep diagnostics")) {
+    return false;
+  }
+
+  log_info(
+      "CoolStep runtime: SG_RESULT=%lu CS_ACTUAL=%u TSTEP=%lu SGTHRS=%u "
+      "TCOOLTHRS=%lu COOLCONF=0x%08lX",
+      (unsigned long)(sg_result & 0x3FF),
+      (unsigned int)drv_status.REG.current_scaling,
+      (unsigned long)tstep,
+      (unsigned int)last_sgthrs_,
+      (unsigned long)last_tcoolthrs_,
+      (unsigned long)last_coolconf_);
   return true;
 }
 
@@ -258,15 +359,18 @@ void TMC2209::PrintPrettyFullSystemState() {
       log_info("  diss2vs: %u", (unsigned int)(chopconf.REG.diss2vs));
     }
 
-    // COOLCONF Register
-    REG_FIELD::COOLCONF coolconf;
-    if (readRegister(RegIdx::COOLCONF, coolconf.U32)) {
-      log_info("COOLCONF (0x42): 0x%08X", (unsigned int)coolconf.U32);
+    // COOLCONF readback is not reliable on TMC2209 in this UART mode.
+    if (coolstep_configured_) {
+      REG_FIELD::COOLCONF coolconf = {.U32 = last_coolconf_};
+      log_info("COOLCONF (0x42): write-only in practice, cached value 0x%08X",
+               (unsigned int)coolconf.U32);
       log_info("  semin: %u", (unsigned int)(coolconf.REG.semin));
       log_info("  seup: %u", (unsigned int)(coolconf.REG.seup));
       log_info("  semax: %u", (unsigned int)(coolconf.REG.semax));
       log_info("  sedn: %u", (unsigned int)(coolconf.REG.sedn));
       log_info("  seimin: %u", (unsigned int)(coolconf.REG.seimin));
+      log_info("  sgthrs (cached): %u", (unsigned int)last_sgthrs_);
+      log_info("  tcoolthrs (cached): %u", (unsigned int)last_tcoolthrs_);
     }
 
 
@@ -305,14 +409,12 @@ void TMC2209::PrintPrettyFullSystemState() {
     }
 
     //TSTEP and TPWMTHRS
-    uint32_t tstep = 0, tpwmthrs = 0;
+    uint32_t tstep = 0;
     if (readRegister(RegIdx::TSTEP, tstep)) {
       log_info("TSTEP (0x12): %u (Actual measured time between two 1/256 microsteps)",
                (unsigned int)tstep);
     }
-    if (readRegister(RegIdx::TPWMTHRS, tpwmthrs)) {
-      log_info("TPWMTHRS (0x13): %u", (unsigned int)tpwmthrs);
-    }
+    // TPWMTHRS (0x13) is write-only; reading always returns 0, skipping readback.
 
     log_info("================================================");
   

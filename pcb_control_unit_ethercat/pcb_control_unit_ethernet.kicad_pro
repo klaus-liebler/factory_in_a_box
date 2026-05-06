@@ -62,99 +62,11 @@
       ],
       "drc_exclusions": [
         [
-          "copper_edge_clearance|113150000|71950000|7c3feccc-9739-4d41-9b80-36421249753c|29063067-6d25-45e1-a7c3-fc7ef9ac5644",
+          "copper_edge_clearance|69300000|69050000|ec9b131a-520f-4c11-9a73-cd8146bd729c|5c347dba-ed50-476d-9d24-1fc323f88628",
           ""
         ],
         [
-          "copper_edge_clearance|115350000|71950000|8a6c78a7-1f45-4517-bb79-bc16576a639f|c6bf53f1-a170-4935-9cca-8dc13623c5a4",
-          ""
-        ],
-        [
-          "copper_edge_clearance|192865000|88075000|efa086e5-31fd-448e-9fa7-54696a72c873|b72347e5-c30d-4685-a392-22279c115003",
-          ""
-        ],
-        [
-          "copper_edge_clearance|192865000|90275000|efa086e5-31fd-448e-9fa7-54696a72c873|bb69fe5a-6976-4d26-a87a-1a44416bdd25",
-          ""
-        ],
-        [
-          "copper_edge_clearance|193565000|88075000|efa086e5-31fd-448e-9fa7-54696a72c873|2c92eb21-b88a-4f37-ac45-8306eb24b87b",
-          ""
-        ],
-        [
-          "copper_edge_clearance|193565000|90275000|efa086e5-31fd-448e-9fa7-54696a72c873|0202a241-2fc1-497c-9b46-156d599f7e20",
-          ""
-        ],
-        [
-          "copper_edge_clearance|69100000|66350000|ec9b131a-520f-4c11-9a73-cd8146bd729c|4c517fff-8c8b-412c-adab-209fbd312e69",
-          ""
-        ],
-        [
-          "copper_edge_clearance|69300000|68500000|ec9b131a-520f-4c11-9a73-cd8146bd729c|5c347dba-ed50-476d-9d24-1fc323f88628",
-          ""
-        ],
-        [
-          "copper_edge_clearance|70200000|112050000|f645c55c-3a0d-4016-bd82-cb6fd61c1c69|5b8ae46b-6637-45f0-a444-c0e963126555",
-          ""
-        ],
-        [
-          "copper_edge_clearance|70525751|112266986|be283914-751f-4e28-8cac-e8e48e7ef6c4|155c5c18-2bc7-4358-ad28-eeef769bcaa4",
-          ""
-        ],
-        [
-          "copper_edge_clearance|71500000|68500000|1672ab00-68d7-4076-88b5-70a5f1f39ce2|1b202b67-f6a5-47ca-99c6-7c8242405a29",
-          ""
-        ],
-        [
-          "copper_edge_clearance|71700000|66350000|bb7435c4-cdf4-48cf-8849-5f343b6d9690|23a7c32a-cb9c-403f-ae0d-89e85636c0d3",
-          ""
-        ],
-        [
-          "copper_edge_clearance|72400000|112050000|71a10868-1431-476b-b839-e3bebc3a89d9|12171858-8e19-482f-a99a-df22098b2bb7",
-          ""
-        ],
-        [
-          "copper_edge_clearance|77600000|66350000|6c013e14-33a4-40f2-ad60-c01306821480|b7b1325d-3d94-4f59-8689-e59abe6f33be",
-          ""
-        ],
-        [
-          "copper_edge_clearance|77800000|68500000|6c013e14-33a4-40f2-ad60-c01306821480|c34b30cc-b838-4bf1-ad44-ec9aec110dcc",
-          ""
-        ],
-        [
-          "copper_edge_clearance|78700000|110700000|20749bbe-12a8-4e72-9934-1528f6e19de5|e77da086-a9d9-4ef7-8e5e-a02d4dce27aa",
-          ""
-        ],
-        [
-          "copper_edge_clearance|79025751|112216986|1593c047-790a-4406-981e-21036f2760b0|64c15c34-e24e-41e7-8c1a-46d0a607abb8",
-          ""
-        ],
-        [
-          "copper_edge_clearance|80000000|68500000|c6e6c437-ca86-46c0-92eb-ab3395c855b0|c5970bb0-77d7-40e4-95b9-19bdefbcfe3c",
-          ""
-        ],
-        [
-          "copper_edge_clearance|80200000|66350000|356ed30b-5d9e-4098-95e1-0107bd98daf3|b6a4ab6a-68ec-46ce-be11-3eb427260cf6",
-          ""
-        ],
-        [
-          "copper_edge_clearance|80900000|110700000|20749bbe-12a8-4e72-9934-1528f6e19de5|40a18f5e-26db-4ed9-8a40-db9be64af65d",
-          ""
-        ],
-        [
-          "copper_edge_clearance|86100000|66350000|9871662c-bccf-470f-b02d-79f92c271b50|27994f32-13d5-4461-8142-86a7b941d579",
-          ""
-        ],
-        [
-          "copper_edge_clearance|86260000|68550000|9871662c-bccf-470f-b02d-79f92c271b50|5ca1f000-7bb1-4072-8edf-93c29ecb4425",
-          ""
-        ],
-        [
-          "copper_edge_clearance|88460000|68550000|4665942a-388c-4b5b-b731-6e1f28568566|e550856c-f8b3-4a49-a9c1-c500a3114a84",
-          ""
-        ],
-        [
-          "copper_edge_clearance|88700000|66350000|41c316ee-ad2e-4484-a297-e2139156a26e|8c6713bd-6e40-436a-89af-5f7ca3f679a3",
+          "copper_edge_clearance|77800000|69050000|6c013e14-33a4-40f2-ad60-c01306821480|c34b30cc-b838-4bf1-ad44-ec9aec110dcc",
           ""
         ]
       ],
@@ -554,11 +466,14 @@
       "duplicate_sheet_names": "error",
       "endpoint_off_grid": "warning",
       "extra_units": "error",
+      "field_name_whitespace": "warning",
       "footprint_filter": "ignore",
       "footprint_link_issues": "warning",
       "four_way_junction": "ignore",
       "global_label_dangling": "warning",
+      "ground_pin_not_ground": "warning",
       "hier_label_mismatch": "error",
+      "isolated_pin_label": "warning",
       "label_dangling": "error",
       "label_multiple_wires": "warning",
       "lib_symbol_issues": "warning",
@@ -581,6 +496,7 @@
       "similar_power": "warning",
       "simulation_model_issue": "ignore",
       "single_global_label": "ignore",
+      "stacked_pin_name": "warning",
       "unannotated": "error",
       "unconnected_wire_endpoint": "warning",
       "undefined_netclass": "error",
@@ -613,13 +529,14 @@
         "priority": 2147483647,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 0.2,
+        "tuning_profile": "",
         "via_diameter": 0.6,
         "via_drill": 0.3,
         "wire_width": 6
       }
     ],
     "meta": {
-      "version": 4
+      "version": 5
     },
     "net_colors": null,
     "netclass_assignments": null,
@@ -641,6 +558,10 @@
   },
   "schematic": {
     "annotate_start_num": 0,
+    "annotation": {
+      "method": 0,
+      "sort_order": 0
+    },
     "bom_export_filename": "${PROJECTNAME}.csv",
     "bom_fmt_presets": [],
     "bom_fmt_settings": {
@@ -828,6 +749,7 @@
       "default_line_thickness": 6.0,
       "default_text_size": 50.0,
       "field_names": [],
+      "hop_over_size_choice": 0,
       "intersheets_ref_own_page": false,
       "intersheets_ref_prefix": "",
       "intersheets_ref_short": false,
@@ -851,6 +773,7 @@
     "net_format_name": "",
     "page_layout_descr_file": "",
     "plot_directory": "",
+    "reuse_designators": true,
     "space_save_all_events": true,
     "spice_current_sheet_as_root": false,
     "spice_external_command": "spice \"%I\"",
@@ -866,7 +789,9 @@
         "name": "pcb_control_unit_ethernet",
         "uuid": "00000000-0000-0000-0000-000000000000"
       }
-    ]
+    ],
+    "used_designators": "",
+    "variants": []
   },
   "sheets": [
     [

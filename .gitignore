@@ -13,3 +13,4 @@ firmware_stm32_control_unit/test/.ninja_deps
 /pcb_control_unit_ethernet/pcb_control_unit_ethernet-backups
 /firmware_stm32_devboard/build
 pcb_control_unit_ethernet/fp-info-cache
+/pcb_control_unit_ethernet-2026-04-30_133407/pcb_control_unit_ethernet-backups

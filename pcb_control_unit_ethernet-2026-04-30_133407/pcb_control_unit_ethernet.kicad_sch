@@ -8076,28 +8076,6 @@
 			)
 		)
 	)
-	(global_label "PC14"
-		(shape bidirectional)
-		(at 148.59 160.02 0)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "ac906e61-4258-4d21-8b0b-2c0575576498")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 157.6455 160.02 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
 	(global_label "SD_CK"
 		(shape bidirectional)
 		(at 261.62 95.25 270)
@@ -8331,6 +8309,28 @@
 		(uuid "d44abd2d-2ce6-4f12-9d3f-6d0da249cf2f")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 163.3074 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "ETHERCAT_RESET"
+		(shape output)
+		(at 148.59 160.02 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "d5c7a371-d7b5-49ec-98f5-1ef3a4ca72dd")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 167.4802 160.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -8961,7 +8961,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 227.838 43.18 90)
 			(effects
 				(font
@@ -9156,7 +9156,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 259.842 91.44 90)
 			(effects
 				(font
@@ -9243,7 +9243,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 210.82 160.528 90)
 			(effects
 				(font
@@ -10089,7 +10089,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 268.732 86.36 90)
 			(effects
 				(font
@@ -10575,7 +10575,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 273.812 83.82 90)
 			(effects
 				(font
@@ -10727,7 +10727,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 210.82 155.448 90)
 			(effects
 				(font
@@ -11222,7 +11222,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 210.82 157.988 90)
 			(effects
 				(font
@@ -11557,7 +11557,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 253.492 96.52 90)
 			(effects
 				(font
@@ -11644,7 +11644,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 210.82 163.068 90)
 			(effects
 				(font
@@ -11936,7 +11936,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 210.82 150.368 90)
 			(effects
 				(font
@@ -12568,7 +12568,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 210.82 152.908 90)
 			(effects
 				(font
@@ -12904,7 +12904,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 23.368 163.83 90)
 			(effects
 				(font
@@ -13156,7 +13156,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 54.102 49.53 90)
 			(effects
 				(font
@@ -13995,7 +13995,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 23.368 171.45 90)
 			(effects
 				(font

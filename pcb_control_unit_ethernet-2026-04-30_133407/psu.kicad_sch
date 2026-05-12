@@ -3447,12 +3447,6 @@
 		(uuid "a74b31c7-98f0-45ce-b995-fe385478ab54")
 	)
 	(junction
-		(at 207.01 27.94)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "ad27d4ef-cf57-4f0d-8134-bde1b5a74283")
-	)
-	(junction
 		(at 194.31 27.94)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -3505,12 +3499,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "e93f3396-2ada-4b9c-8c9d-702e025e6722")
-	)
-	(junction
-		(at 212.09 27.94)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "ed0b5b0d-3a68-4d3e-b869-3a185a6f4f2e")
 	)
 	(junction
 		(at 124.46 82.55)
@@ -3599,16 +3587,6 @@
 			(type default)
 		)
 		(uuid "1694bc9d-8c42-43ed-bc7f-ed5fbe0a3212")
-	)
-	(wire
-		(pts
-			(xy 207.01 27.94) (xy 212.09 27.94)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1a2dcfd8-119e-479f-b705-09e80aba9f42")
 	)
 	(wire
 		(pts
@@ -3709,16 +3687,6 @@
 			(type default)
 		)
 		(uuid "537b9074-0e3d-4cf7-b456-e8a8b284ec19")
-	)
-	(wire
-		(pts
-			(xy 194.31 27.94) (xy 207.01 27.94)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "57e744a4-7c70-4570-83d7-a9c6a9f5883d")
 	)
 	(wire
 		(pts
@@ -3982,7 +3950,7 @@
 	)
 	(wire
 		(pts
-			(xy 212.09 27.94) (xy 217.17 27.94)
+			(xy 194.31 27.94) (xy 217.17 27.94)
 		)
 		(stroke
 			(width 0)
@@ -5632,7 +5600,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 215.392 31.75 90)
 			(effects
 				(font
@@ -5669,75 +5637,6 @@
 			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "R89")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:R")
-		(at 207.01 31.75 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "7a4fb05a-ce72-4150-bc17-88853090dbe8")
-		(property "Reference" "R87"
-			(at 204.724 33.274 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "10k"
-			(at 207.01 33.528 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
-			(at 205.232 31.75 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 207.01 31.75 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 207.01 31.75 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "ae3adb96-1091-4f86-938d-5b3fbab0e1fc")
-		)
-		(pin "1"
-			(uuid "5806648f-54a0-4d65-ad09-4ad4b41155bd")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
-					(reference "R87")
 					(unit 1)
 				)
 			)
@@ -6507,75 +6406,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:R")
-		(at 212.09 31.75 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "a94ac69d-3a17-453c-9b66-f8aff4b90513")
-		(property "Reference" "R88"
-			(at 210.058 33.528 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "10k"
-			(at 212.09 33.528 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
-			(at 210.312 31.75 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 212.09 31.75 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 212.09 31.75 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "a941e1ca-c2fe-48ab-ad1b-824cd765bcd6")
-		)
-		(pin "1"
-			(uuid "88844485-0fec-480d-bb27-cba1a7344b0e")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
-					(reference "R88")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Device:C")
 		(at 90.17 27.94 0)
 		(unit 1)
@@ -6841,7 +6671,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_2010_5025Metric"
+		(property "Footprint" "Resistor_SMD:R_1206_3216Metric"
 			(at 174.752 49.53 90)
 			(effects
 				(font

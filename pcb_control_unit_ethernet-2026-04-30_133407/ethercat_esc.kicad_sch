@@ -11788,7 +11788,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "2.2k"
+		(property "Value" "2k2"
 			(at 138.43 176.022 90)
 			(effects
 				(font
@@ -16879,10 +16879,10 @@
 			)
 		)
 		(pin "2"
-			(uuid "724cda35-a01f-4000-8d9e-9eca25adcf76")
+			(uuid "724cda35-a01f-4000-8d9e-9eca25adcf77")
 		)
 		(pin "1"
-			(uuid "35465a7c-36db-400f-94f2-833801bf0c6a")
+			(uuid "35465a7c-36db-400f-94f2-833801bf0c6b")
 		)
 		(instances
 			(project "pcb_control_unit_ethernet"
@@ -17341,7 +17341,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "2.2k"
+		(property "Value" "2k2"
 			(at 152.4 176.022 90)
 			(effects
 				(font

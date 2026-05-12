@@ -7703,12 +7703,6 @@
 		(uuid "1e99d63d-7611-4dd4-affb-9cafa2479d03")
 	)
 	(junction
-		(at 41.91 29.21)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "1fa51d86-2ace-4633-bbfc-1354792c3243")
-	)
-	(junction
 		(at 209.55 24.13)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -8160,16 +8154,6 @@
 	)
 	(wire
 		(pts
-			(xy 38.1 29.21) (xy 41.91 29.21)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "0b345c4e-74ec-4d3a-81cb-49ad7cf45e2e")
-	)
-	(wire
-		(pts
 			(xy 228.6 138.43) (xy 198.12 138.43)
 		)
 		(stroke
@@ -8280,7 +8264,7 @@
 	)
 	(wire
 		(pts
-			(xy 41.91 29.21) (xy 50.8 29.21)
+			(xy 38.1 29.21) (xy 50.8 29.21)
 		)
 		(stroke
 			(width 0)
@@ -10078,7 +10062,7 @@
 		)
 		(uuid "72c068e0-dcb4-494e-bbe4-452de0f43f90")
 	)
-	(label "VDD33TXRX1"
+	(label "VDD33TXRX2"
 		(at 46.99 180.34 0)
 		(effects
 			(font
@@ -11352,75 +11336,6 @@
 	)
 	(symbol
 		(lib_id "Device:C")
-		(at 218.44 52.07 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "15ecc275-cb76-4459-b1c7-a785c5fcc8ac")
-		(property "Reference" "C58"
-			(at 221.234 50.8 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "22n"
-			(at 221.234 53.34 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 219.4052 55.88 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 218.44 52.07 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Unpolarized capacitor"
-			(at 218.44 52.07 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "71dda294-ee26-4f35-a68e-afefce233a16")
-		)
-		(pin "2"
-			(uuid "3e558c04-422d-405f-a5ca-eab931a04aab")
-		)
-		(instances
-			(project ""
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
-					(reference "C58")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:C")
 		(at 161.29 17.78 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -11703,7 +11618,7 @@
 	)
 	(symbol
 		(lib_id "Device:Crystal_GND24")
-		(at 57.15 58.42 270)
+		(at 57.15 58.42 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11711,7 +11626,7 @@
 		(dnp no)
 		(uuid "224597b7-f245-4f06-a776-2a45366bc7a8")
 		(property "Reference" "Y2"
-			(at 62.23 59.69 90)
+			(at 52.07 57.15 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11719,7 +11634,7 @@
 			)
 		)
 		(property "Value" "25MHz"
-			(at 57.15 64.77 90)
+			(at 57.15 52.07 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11919,81 +11834,6 @@
 			(project ""
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
 					(reference "R84")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 210.82 104.14 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "2ab601ae-80bf-46c4-b54f-9f4f42b9634e")
-		(property "Reference" "C80"
-			(at 210.82 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "10n"
-			(at 210.82 106.68 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 211.7852 107.95 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "C100042"
-			(at 210.82 104.14 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Unpolarized capacitor"
-			(at 210.82 104.14 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "6d4220f2-9de6-403c-8c19-4acb2c1f32f5")
-		)
-		(pin "2"
-			(uuid "1440e870-1eec-4892-96e2-07f528949bf7")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
-					(reference "C80")
-					(unit 1)
-				)
-			)
-			(project "ethercad"
-				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
-					(reference "C?")
 					(unit 1)
 				)
 			)
@@ -12577,7 +12417,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 64.77 72.898 90)
 			(effects
 				(font
@@ -12650,7 +12490,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 64.77 80.518 90)
 			(effects
 				(font
@@ -13919,7 +13759,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0201_0603Metric"
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 			(at 34.29 30.988 90)
 			(effects
 				(font
@@ -15357,82 +15197,6 @@
 	)
 	(symbol
 		(lib_id "Device:C")
-		(at 41.91 25.4 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "9370d01a-2944-4dc6-b6df-692a3e6960c9")
-		(property "Reference" "C76"
-			(at 45.72 24.1299 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "u1"
-			(at 45.72 26.6699 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 42.8752 29.21 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 41.91 25.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Unpolarized capacitor"
-			(at 41.91 25.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "0c53b86a-52a8-4eb0-bd59-68e1bdce65e7")
-		)
-		(pin "1"
-			(uuid "fb25a454-c7bb-4c44-8114-089ae46234af")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
-					(reference "C76")
-					(unit 1)
-				)
-			)
-			(project "ethercad"
-				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
-					(reference "C?")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:C")
 		(at 195.58 104.14 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -15495,78 +15259,6 @@
 			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
 					(reference "C95")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 41.91 21.59 180)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "96de306b-a883-40de-a53d-5a5eb9d45d28")
-		(property "Reference" "#PWR0170"
-			(at 41.91 15.24 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 41.91 16.51 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 41.91 21.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 41.91 21.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 41.91 21.59 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "53db3022-b773-4640-b572-5495f71bfeed")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
-					(reference "#PWR0170")
-					(unit 1)
-				)
-			)
-			(project "ethercad"
-				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
-					(reference "#PWR?")
 					(unit 1)
 				)
 			)
@@ -16996,15 +16688,15 @@
 	)
 	(symbol
 		(lib_id "Device:C")
-		(at 186.69 17.78 0)
+		(at 218.44 52.07 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
 		(uuid "d5cc84d0-b48f-4b0d-81e6-4144fbbcdad2")
-		(property "Reference" "C70"
-			(at 186.944 15.494 0)
+		(property "Reference" "C73"
+			(at 218.694 49.784 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -17013,7 +16705,7 @@
 			)
 		)
 		(property "Value" "u1"
-			(at 186.69 19.812 0)
+			(at 218.44 54.102 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -17022,7 +16714,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 187.6552 21.59 0)
+			(at 219.4052 55.88 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -17031,7 +16723,7 @@
 			)
 		)
 		(property "Datasheet" "~"
-			(at 186.69 17.78 0)
+			(at 218.44 52.07 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -17040,7 +16732,7 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor"
-			(at 186.69 17.78 0)
+			(at 218.44 52.07 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -17057,13 +16749,7 @@
 		(instances
 			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
-					(reference "C70")
-					(unit 1)
-				)
-			)
-			(project "ethercad"
-				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
-					(reference "C?")
+					(reference "C73")
 					(unit 1)
 				)
 			)
@@ -17133,6 +16819,81 @@
 			(project ""
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
 					(reference "C93")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 186.69 17.78 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "dd3e44a0-70dc-4dad-adfa-e009176ffd4e")
+		(property "Reference" "C70"
+			(at 186.944 15.494 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "u1"
+			(at 186.69 19.812 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
+			(at 187.6552 21.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 186.69 17.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 186.69 17.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "724cda35-a01f-4000-8d9e-9eca25adcf76")
+		)
+		(pin "1"
+			(uuid "35465a7c-36db-400f-94f2-833801bf0c6a")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "C70")
+					(unit 1)
+				)
+			)
+			(project "ethercad"
+				(path "/f3847bc1-0251-41f2-94ae-9a4463c4e99a"
+					(reference "C?")
 					(unit 1)
 				)
 			)
@@ -18066,6 +17827,75 @@
 			(project "pcb_control_unit_ethernet"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
 					(reference "C87")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 210.82 104.14 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "fa8c9d79-e8a2-4832-9e46-691670d82d08")
+		(property "Reference" "C58"
+			(at 211.074 101.854 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "u1"
+			(at 210.82 106.172 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
+			(at 211.7852 107.95 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 210.82 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 210.82 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "910a07cc-293a-4378-8d6c-e6efac20bf8e")
+		)
+		(pin "1"
+			(uuid "67c62a81-45eb-4a4c-8e38-657ef4cf5d3b")
+		)
+		(instances
+			(project "pcb_control_unit_ethernet"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "C58")
 					(unit 1)
 				)
 			)

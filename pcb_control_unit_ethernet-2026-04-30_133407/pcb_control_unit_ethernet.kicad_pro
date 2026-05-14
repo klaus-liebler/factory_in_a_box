@@ -50,7 +50,23 @@
         "silk_text_thickness": 0.1,
         "silk_text_upright": false,
         "zones": {
-          "min_clearance": 0.2
+          "border_display_style": 2,
+          "border_hatch_pitch": 0.5,
+          "corner_radius": 0.0,
+          "corner_smoothing": 0,
+          "fill_mode": 0,
+          "hatch_gap": 1.5,
+          "hatch_orientation": 0.0,
+          "hatch_smoothing_level": 0,
+          "hatch_smoothing_value": 0.1,
+          "hatch_thickness": 1.0,
+          "min_clearance": 0.2,
+          "min_island_area": 10.0,
+          "min_thickness": 0.25,
+          "pad_connection": 1,
+          "remove_islands": 0,
+          "thermal_relief_gap": 0.5,
+          "thermal_relief_spoke_width": 0.5
         }
       },
       "diff_pair_dimensions": [
@@ -62,7 +78,7 @@
       ],
       "drc_exclusions": [
         [
-          "copper_edge_clearance|108875000|73875000|8a6c78a7-1f45-4517-bb79-bc16576a639f|c6bf53f1-a170-4935-9cca-8dc13623c5a4",
+          "copper_edge_clearance|108875000|73875000|ef70863c-7ad0-4374-a22c-3f54b338b5dc|c6bf53f1-a170-4935-9cca-8dc13623c5a4",
           ""
         ],
         [
@@ -94,23 +110,23 @@
           ""
         ],
         [
-          "copper_edge_clearance|70200000|110750000|ae8cf848-a4d8-4857-8b07-373c6f01050b|5b8ae46b-6637-45f0-a444-c0e963126555",
+          "copper_edge_clearance|70200000|112050000|f645c55c-3a0d-4016-bd82-cb6fd61c1c69|5b8ae46b-6637-45f0-a444-c0e963126555",
           ""
         ],
         [
-          "copper_edge_clearance|71500000|67350000|bb7435c4-cdf4-48cf-8849-5f343b6d9690|1b202b67-f6a5-47ca-99c6-7c8242405a29",
+          "copper_edge_clearance|71500000|68650000|5409d3a3-ed07-4290-a869-5519208e2fe4|1b202b67-f6a5-47ca-99c6-7c8242405a29",
           ""
         ],
         [
-          "copper_edge_clearance|72400000|110750000|ae8cf848-a4d8-4857-8b07-373c6f01050b|12171858-8e19-482f-a99a-df22098b2bb7",
+          "copper_edge_clearance|72400000|112050000|71a10868-1431-476b-b839-e3bebc3a89d9|12171858-8e19-482f-a99a-df22098b2bb7",
           ""
         ],
         [
-          "copper_edge_clearance|78100000|68800000|72206a06-b73f-4a63-a4d5-c3df34661b35|c34b30cc-b838-4bf1-ad44-ec9aec110dcc",
+          "copper_edge_clearance|77800000|68650000|6c013e14-33a4-40f2-ad60-c01306821480|c34b30cc-b838-4bf1-ad44-ec9aec110dcc",
           ""
         ],
         [
-          "copper_edge_clearance|78700000|112000000|1401da0a-fc7d-439c-8442-7677629d6ff2|e77da086-a9d9-4ef7-8e5e-a02d4dce27aa",
+          "copper_edge_clearance|78700000|110700000|20749bbe-12a8-4e72-9934-1528f6e19de5|e77da086-a9d9-4ef7-8e5e-a02d4dce27aa",
           ""
         ],
         [
@@ -118,19 +134,19 @@
           ""
         ],
         [
-          "copper_edge_clearance|80000000|67350000|4b82ad83-1a1a-4f4d-bb98-cf807ec73d93|c5970bb0-77d7-40e4-95b9-19bdefbcfe3c",
+          "copper_edge_clearance|80000000|68650000|356ed30b-5d9e-4098-95e1-0107bd98daf3|c5970bb0-77d7-40e4-95b9-19bdefbcfe3c",
           ""
         ],
         [
-          "copper_edge_clearance|80900000|112000000|e2881470-7025-4483-ad7d-59c708537e6a|40a18f5e-26db-4ed9-8a40-db9be64af65d",
+          "copper_edge_clearance|80900000|110700000|20749bbe-12a8-4e72-9934-1528f6e19de5|40a18f5e-26db-4ed9-8a40-db9be64af65d",
           ""
         ],
         [
-          "copper_edge_clearance|86560000|68850000|0fd6008d-b1cd-4664-ba56-be3fc038d30b|5ca1f000-7bb1-4072-8edf-93c29ecb4425",
+          "copper_edge_clearance|86260000|68700000|9871662c-bccf-470f-b02d-79f92c271b50|5ca1f000-7bb1-4072-8edf-93c29ecb4425",
           ""
         ],
         [
-          "copper_edge_clearance|88160000|68850000|0bd03fd3-26e4-44d1-9d18-c246563f40ac|e550856c-f8b3-4a49-a9c1-c500a3114a84",
+          "copper_edge_clearance|88460000|68700000|4665942a-388c-4b5b-b731-6e1f28568566|e550856c-f8b3-4a49-a9c1-c500a3114a84",
           ""
         ],
         [
@@ -559,11 +575,14 @@
       "duplicate_sheet_names": "error",
       "endpoint_off_grid": "warning",
       "extra_units": "error",
+      "field_name_whitespace": "warning",
       "footprint_filter": "ignore",
       "footprint_link_issues": "warning",
       "four_way_junction": "ignore",
       "global_label_dangling": "warning",
+      "ground_pin_not_ground": "warning",
       "hier_label_mismatch": "error",
+      "isolated_pin_label": "warning",
       "label_dangling": "error",
       "label_multiple_wires": "warning",
       "lib_symbol_issues": "warning",
@@ -586,6 +605,7 @@
       "similar_power": "warning",
       "simulation_model_issue": "ignore",
       "single_global_label": "ignore",
+      "stacked_pin_name": "warning",
       "unannotated": "error",
       "unconnected_wire_endpoint": "warning",
       "undefined_netclass": "error",
@@ -618,13 +638,14 @@
         "priority": 2147483647,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 0.2,
+        "tuning_profile": "",
         "via_diameter": 0.6,
         "via_drill": 0.3,
         "wire_width": 6
       }
     ],
     "meta": {
-      "version": 4
+      "version": 5
     },
     "net_colors": null,
     "netclass_assignments": null,
@@ -646,6 +667,10 @@
   },
   "schematic": {
     "annotate_start_num": 0,
+    "annotation": {
+      "method": 0,
+      "sort_order": 0
+    },
     "bom_export_filename": "${PROJECTNAME}.csv",
     "bom_fmt_presets": [],
     "bom_fmt_settings": {
@@ -833,6 +858,7 @@
       "default_line_thickness": 6.0,
       "default_text_size": 50.0,
       "field_names": [],
+      "hop_over_size_choice": 0,
       "intersheets_ref_own_page": false,
       "intersheets_ref_prefix": "",
       "intersheets_ref_short": false,
@@ -856,6 +882,7 @@
     "net_format_name": "",
     "page_layout_descr_file": "",
     "plot_directory": "",
+    "reuse_designators": true,
     "space_save_all_events": true,
     "spice_current_sheet_as_root": false,
     "spice_external_command": "spice \"%I\"",
@@ -869,14 +896,16 @@
       {
         "filename": "pcb_control_unit_ethernet.kicad_sch",
         "name": "pcb_control_unit_ethernet",
-        "uuid": "00000000-0000-0000-0000-000000000000"
+        "uuid": "9c57264a-0988-4c94-95c0-340e4ca73bd5"
       }
-    ]
+    ],
+    "used_designators": "",
+    "variants": []
   },
   "sheets": [
     [
       "9c57264a-0988-4c94-95c0-340e4ca73bd5",
-      "Root"
+      "pcb_control_unit_ethernet"
     ],
     [
       "53d03dea-1884-4b59-a05f-593b0c1ac681",

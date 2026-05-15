@@ -5799,16 +5799,6 @@
 		)
 		(uuid "e4540dc1-d7f4-4377-9ec7-3848b8fd3d91")
 	)
-	(text "To connect to PC0"
-		(exclude_from_sim no)
-		(at 177.292 152.4 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-		)
-		(uuid "fcf06958-b30e-428f-bf51-f69d55cbeef7")
-	)
 	(text "Extra SPI connection"
 		(exclude_from_sim no)
 		(at 63.754 97.028 0)
@@ -6122,6 +6112,10 @@
 	(no_connect
 		(at 210.82 83.82)
 		(uuid "f0289a41-396a-4b63-b0e0-94716ad29276")
+	)
+	(no_connect
+		(at 148.59 152.4)
+		(uuid "f8a39c63-1868-4f1d-853d-dbf6fc341f57")
 	)
 	(wire
 		(pts
@@ -7405,30 +7399,6 @@
 			)
 		)
 	)
-	(global_label "USB_VSENSE"
-		(shape bidirectional)
-		(at 148.59 152.4 0)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "37118c63-071b-49dc-992b-69533aa2ba8c")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 164.6002 152.4 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-	)
 	(global_label "LED_INFO"
 		(shape input)
 		(at 231.14 125.73 270)
@@ -7645,7 +7615,7 @@
 			)
 		)
 	)
-	(global_label "T15C2"
+	(global_label "WS2812_2"
 		(shape output)
 		(at 87.63 78.74 180)
 		(fields_autoplaced yes)
@@ -7657,7 +7627,7 @@
 		)
 		(uuid "51f14f70-f769-413f-951f-76bbbcdcb507")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 78.7787 78.74 0)
+			(at 74.9688 78.74 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7957,7 +7927,7 @@
 			)
 		)
 	)
-	(global_label "T15C1"
+	(global_label "WS2812_1"
 		(shape output)
 		(at 87.63 76.2 180)
 		(fields_autoplaced yes)
@@ -7969,7 +7939,7 @@
 		)
 		(uuid "7139e591-7e27-419d-8585-cbfcf2654131")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 78.7787 76.2 0)
+			(at 74.9688 76.2 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)

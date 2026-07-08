@@ -518,7 +518,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "pcb_control_unit_ethernet.kicad_pro",
+    "filename": "pcb_factory_control_unit.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -793,8 +793,8 @@
     "subpart_id_separator": 0,
     "top_level_sheets": [
       {
-        "filename": "pcb_control_unit_ethernet.kicad_sch",
-        "name": "pcb_control_unit_ethernet",
+        "filename": "pcb_factory_control_unit.kicad_sch",
+        "name": "pcb_factory_control_unit",
         "uuid": "9c57264a-0988-4c94-95c0-340e4ca73bd5"
       }
     ],

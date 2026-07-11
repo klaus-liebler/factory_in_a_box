@@ -1,0 +1,93 @@
+/* Beispiel-Integration der ModbusTcpServer-Klasse in app_netxduo.c */
+
+// 1. In den Includes oben hinzufügen:
+#include "modbus_tcp_server.hpp"
+
+// 2. Globale Instanz deklarieren (neben den anderen globalen Variablen, z.B. nach NX_WEB_HTTP_SERVER HTTPServer;):
+ModbusTcpServer* g_modbus_server = nullptr;
+TX_THREAD ModbusServerThread;
+
+// 3. Thread-Entry-Funktion hinzufügen (analog zu nx_server_thread_entry):
+static void modbus_server_thread_entry(ULONG thread_input)
+{
+    ModbusTcpServer* server = (ModbusTcpServer*)thread_input;
+    if (server) {
+        printf("Modbus TCP Server started on port 502\n");
+        server->run();  // Infinite loop, akzeptiert Clients
+        printf("Modbus TCP Server stopped\n");
+    }
+}
+
+// 4. In MX_NetXDuo_Init(), nach der HTTP-Server-Erstellung (ca. Zeile 290), hinzufügen:
+// --- Modbus TCP Server Setup ---
+// Allocate memory for Modbus server instance
+if(tx_byte_allocate(byte_pool, (VOID **) &pointer, sizeof(ModbusTcpServer), TX_NO_WAIT) != TX_SUCCESS)
+{
+    return TX_POOL_ERROR;
+}
+
+// Erstelle Modbus-Server-Instanz (Placement New)
+g_modbus_server = new(pointer) ModbusTcpServer(&NetXDuoEthIpInstance, &WebServerPool);
+
+// Initialisiere Modbus Server
+if (g_modbus_server->initialize() != NX_SUCCESS)
+{
+    printf("Modbus TCP Server initialization failed\n");
+    return NX_NOT_SUCCESSFUL;
+}
+
+// Allocate the Modbus server thread stack
+if (tx_byte_allocate(byte_pool, (VOID **) &pointer, 2 * DEFAULT_MEMORY_SIZE, TX_NO_WAIT) != TX_SUCCESS)
+{
+    return TX_POOL_ERROR;
+}
+
+// Create the Modbus server thread (but don't start yet)
+ret = tx_thread_create(
+    &ModbusServerThread,
+    "Modbus Server Thread",
+    modbus_server_thread_entry,
+    (ULONG)g_modbus_server,  // thread_input = pointer to server
+    pointer,
+    2 * DEFAULT_MEMORY_SIZE,
+    DEFAULT_PRIORITY,
+    DEFAULT_PRIORITY,
+    TX_NO_TIME_SLICE,
+    TX_DONT_START
+);
+
+if (ret != TX_SUCCESS)
+{
+    return TX_THREAD_ERROR;
+}
+
+// 5. In App_Main_Thread_Entry(), nach tx_thread_resume(&AppServerThread); hinzufügen:
+/* Start Modbus TCP Server thread */
+tx_thread_resume(&ModbusServerThread);
+
+// 6. Optional: Registerzugriff von der HTTP-Server-Callback aus
+// Z.B. in webserver_request_notify_callback() einen neuen Endpoint hinzufügen:
+else if (strcmp(resource, "/GetModbusReg") == 0)
+{
+    // Lese Holding Register 0 vom Modbus-Server
+    if (g_modbus_server) {
+        uint16_t reg_value = g_modbus_server->read_holding_register(0);
+        sprintf(data, "%u", reg_value);
+    }
+}
+else if (strcmp(resource, "/SetModbusReg") == 0)
+{
+    // Schreibe Holding Register 0 (würde Query-Params brauchen, vereinfacht hier)
+    if (g_modbus_server) {
+        g_modbus_server->write_holding_register(0, 1234);
+        sprintf(data, "OK");
+    }
+}
+
+// 7. Beim Shutdown (wenn implementiert) aufräumen:
+if (g_modbus_server) {
+    g_modbus_server->stop();
+    tx_thread_terminate(&ModbusServerThread);
+    tx_thread_delete(&ModbusServerThread);
+    // Destruktor würde automatisch aufgerufen, aber hier implizit genug
+}

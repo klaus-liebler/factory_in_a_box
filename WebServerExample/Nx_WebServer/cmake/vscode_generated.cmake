@@ -14,7 +14,6 @@ target_link_options(${BUILD_UNIT_0_NAME} PRIVATE ${CUBE_CMAKE_EXE_LINKER_FLAGS})
 # Add sources to executable/library
 target_sources(${BUILD_UNIT_0_NAME} PRIVATE
     "Core/Src/app.c"
-    "Core/Src/app_threadx.c"
     "Core/Src/main.c"
     "Core/Src/stm32h5xx_hal_msp.c"
     "Core/Src/stm32h5xx_hal_timebase_tim.c"

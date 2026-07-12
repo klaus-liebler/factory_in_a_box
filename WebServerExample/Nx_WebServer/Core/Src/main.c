@@ -119,10 +119,10 @@ int main(void)
   MX_USART1_UART_Init();
   MX_ICACHE_Init();
   /* USER CODE BEGIN 2 */
-
+  tx_kernel_enter();
   /* USER CODE END 2 */
 
-  MX_ThreadX_Init();
+  //MX_ThreadX_Init();
 
   /* We should never get here as control is now taken by the scheduler */
 

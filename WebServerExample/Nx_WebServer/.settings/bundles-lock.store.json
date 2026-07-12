@@ -197,6 +197,50 @@
           "version": "19.1.2+st.3"
         }
       ]
+    },
+    {
+      "name": "stlink-gdbserver",
+      "version": "7.13.0+st.3",
+      "platform": "aarch64-darwin",
+      "selected_by": [
+        {
+          "name": "stlink-gdbserver",
+          "version": "7.13.0+st.3"
+        }
+      ]
+    },
+    {
+      "name": "stlink-gdbserver",
+      "version": "7.13.0+st.3",
+      "platform": "darwin",
+      "selected_by": [
+        {
+          "name": "stlink-gdbserver",
+          "version": "7.13.0+st.3"
+        }
+      ]
+    },
+    {
+      "name": "stlink-gdbserver",
+      "version": "7.13.0+st.3",
+      "platform": "x86_64-linux",
+      "selected_by": [
+        {
+          "name": "stlink-gdbserver",
+          "version": "7.13.0+st.3"
+        }
+      ]
+    },
+    {
+      "name": "stlink-gdbserver",
+      "version": "7.13.0+st.3",
+      "platform": "x86_64-windows",
+      "selected_by": [
+        {
+          "name": "stlink-gdbserver",
+          "version": "7.13.0+st.3"
+        }
+      ]
     }
   ]
 }

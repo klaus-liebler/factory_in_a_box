@@ -69,6 +69,11 @@ static AppState g_app_state = {0};
         Error_Handler(); \
     }
 
+#define ASSURE_SUCCESS(status) \
+if (status != NX_SUCCESS) { \
+    printf("Error: %s:%d, status: 0x%x\n", __FILE__, __LINE__, status); \
+    Error_Handler(); \
+}
 // ============================================================================
 // Thread Entry Points
 // ============================================================================
@@ -96,18 +101,13 @@ static void ip_address_change_notify_callback(NX_IP *ip_instance, VOID *ptr) {
 
 static void http_server_thread_entry(ULONG arg) {
     (void)arg;
-    UINT status;
+    
     uint32_t data_buffer[512];
 
-    status = fx_media_open(&g_app_state.sd_media, "STM32_SDIO_DISK",
+    ASSURE_SUCCESS(fx_media_open(&g_app_state.sd_media, "STM32_SDIO_DISK",
                            fx_stm32_sd_driver, 0,
-                           (VOID *)data_buffer, sizeof(data_buffer));
+                           (VOID *)data_buffer, sizeof(data_buffer)));
 
-    if (status != FX_SUCCESS) {
-        printf("FX media open failed: 0x%x\n", status);
-        Error_Handler();
-        return;
-    }
 
     printf("FileX media opened\n");
 
@@ -119,13 +119,7 @@ static void http_server_thread_entry(ULONG arg) {
     };
     nx_web_http_server_mime_maps_additional_set(&g_app_state.http_server, mime_maps, 4);
 
-    status = nx_web_http_server_start(&g_app_state.http_server);
-    if (status != NX_SUCCESS) {
-        printf("HTTP Server start failed: 0x%x\n", status);
-        Error_Handler();
-        return;
-    }
-
+    ASSURE_SUCCESS(nx_web_http_server_start(&g_app_state.http_server));
     printf("HTTP Server started\n");
 }
 
@@ -282,117 +276,19 @@ static UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT requ
     return NX_WEB_HTTP_CALLBACK_COMPLETED;
 }
 
-// ============================================================================
-// Initialization Functions
-// ============================================================================
 
-extern UINT MX_NetXDuo_Init(VOID *memory_ptr) {
-    TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL *)memory_ptr;
-    VOID *ptr = NULL;
-    UINT ret;
 
-    nx_system_initialize();
 
-    ALLOC_FROM_POOL(byte_pool, ptr, NX_APP_PACKET_POOL_SIZE);
-    ret = nx_packet_pool_create(&g_app_state.packet_pool, "NetXDuo App Pool",
-                                DEFAULT_PAYLOAD_SIZE, ptr, NX_APP_PACKET_POOL_SIZE);
-    if (ret != NX_SUCCESS) return NX_POOL_ERROR;
-
-    ALLOC_FROM_POOL(byte_pool, ptr, Nx_IP_INSTANCE_THREAD_SIZE);
-    ret = nx_ip_create(&g_app_state.ip_instance, "NetX IP",
-                       NX_APP_DEFAULT_IP_ADDRESS, NX_APP_DEFAULT_NET_MASK,
-                       &g_app_state.packet_pool, nx_stm32_eth_driver,
-                       (UCHAR *)ptr, Nx_IP_INSTANCE_THREAD_SIZE,
-                       NX_APP_INSTANCE_PRIORITY);
-    if (ret != NX_SUCCESS) return NX_NOT_SUCCESSFUL;
-
-    ALLOC_FROM_POOL(byte_pool, ptr, DEFAULT_ARP_CACHE_SIZE);
-    if (nx_arp_enable(&g_app_state.ip_instance, (VOID *)ptr, DEFAULT_ARP_CACHE_SIZE) != NX_SUCCESS)
-        return NX_NOT_SUCCESSFUL;
-
-    if (nx_icmp_enable(&g_app_state.ip_instance) != NX_SUCCESS)
-        return NX_NOT_SUCCESSFUL;
-
-    if (nx_tcp_enable(&g_app_state.ip_instance) != NX_SUCCESS)
-        return NX_NOT_SUCCESSFUL;
-
-    if (nx_udp_enable(&g_app_state.ip_instance) != NX_SUCCESS)
-        return NX_NOT_SUCCESSFUL;
-
-    ALLOC_FROM_POOL(byte_pool, ptr, NX_APP_THREAD_STACK_SIZE);
-    tx_thread_create(&g_app_state.app_main_thread, "App Main Thread",
-                     app_main_thread_entry, 0,
-                     (VOID *)ptr, NX_APP_THREAD_STACK_SIZE,
-                     NX_APP_THREAD_PRIORITY, NX_APP_THREAD_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_AUTO_START);
-
-    ALLOC_FROM_POOL(byte_pool, ptr, 2 * DEFAULT_MEMORY_SIZE);
-    tx_thread_create(&g_app_state.http_server_thread, "HTTP Server Thread",
-                     http_server_thread_entry, 0,
-                     (VOID *)ptr, 2 * DEFAULT_MEMORY_SIZE,
-                     DEFAULT_PRIORITY, DEFAULT_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_DONT_START);
-
-    ALLOC_FROM_POOL(byte_pool, ptr, DEFAULT_MEMORY_SIZE);
-    tx_thread_create(&g_app_state.led_thread, "LED Thread",
-                     led_thread_entry, 0,
-                     (VOID *)ptr, DEFAULT_MEMORY_SIZE,
-                     TOGGLE_LED_PRIORITY, TOGGLE_LED_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_DONT_START);
-
-    ALLOC_FROM_POOL(byte_pool, ptr, 2 * DEFAULT_MEMORY_SIZE);
-    tx_thread_create(&g_app_state.link_thread, "Link Thread",
-                     link_thread_entry, 0,
-                     (VOID *)ptr, 2 * DEFAULT_MEMORY_SIZE,
-                     LINK_PRIORITY, LINK_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_AUTO_START);
-
-    ALLOC_FROM_POOL(byte_pool, ptr, SERVER_POOL_SIZE);
-    NX_PACKET_POOL *server_pool = (NX_PACKET_POOL *)ptr;
-    ret = nx_packet_pool_create(server_pool, "HTTP Server Pool",
-                                SERVER_PACKET_SIZE, (VOID *)(server_pool + 1),
-                                SERVER_POOL_SIZE - sizeof(NX_PACKET_POOL));
-    if (ret != NX_SUCCESS) return NX_NOT_SUCCESSFUL;
-
-    ALLOC_FROM_POOL(byte_pool, ptr, SERVER_STACK);
-    ret = nx_web_http_server_create(&g_app_state.http_server, "HTTP Server",
-                                    &g_app_state.ip_instance, CONNECTION_PORT,
-                                    &g_app_state.sd_media, (VOID *)ptr, SERVER_STACK,
-                                    server_pool, NX_NULL,
-                                    webserver_request_callback);
-    if (ret != NX_SUCCESS) return NX_NOT_SUCCESSFUL;
-
-    ret = nx_dhcp_create(&g_app_state.dhcp_client, &g_app_state.ip_instance, "DHCP Client");
-    if (ret != NX_SUCCESS) return NX_DHCP_ERROR;
-
-    tx_semaphore_create(&g_app_state.dhcp_semaphore, "DHCP Semaphore", 0);
-
-    printf("NetXDuo initialized\n");
-    return NX_SUCCESS;
-}
-
-extern UINT MX_FileX_Init(VOID *memory_ptr) {
-    (void)memory_ptr;
-    fx_system_initialize();
-    printf("FileX initialized\n");
-    return FX_SUCCESS;
-}
-
-extern UINT App_ThreadX_Init(VOID *memory_ptr) {
-    (void)memory_ptr;
-    printf("ThreadX initialized\n");
-    return TX_SUCCESS;
-}
 
 // ============================================================================
 // ThreadX Application Entry Point
 // ============================================================================
 
-extern void tx_application_define(void *first_unused_memory) {
-    printf("Application initialization starting...\n");
 
-#if (USE_STATIC_ALLOCATION == 1)
-    UINT status;
+
+extern void tx_application_define(void *first_unused_memory) {
+    printf("001 Application initialization starting...\n");
+
     static UCHAR tx_byte_pool_buffer[TX_APP_MEM_POOL_SIZE] __attribute__((aligned(4)));
     static TX_BYTE_POOL tx_app_byte_pool;
 
@@ -402,29 +298,90 @@ extern void tx_application_define(void *first_unused_memory) {
     static UCHAR nx_byte_pool_buffer[NX_APP_MEM_POOL_SIZE] __attribute__((aligned(4)));
     static TX_BYTE_POOL nx_app_byte_pool;
 
-    status = tx_byte_pool_create(&tx_app_byte_pool, "Tx App Pool",
-                                 tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE);
-    if (status != TX_SUCCESS) Error_Handler();
+    ASSURE_SUCCESS(tx_byte_pool_create(&tx_app_byte_pool, "Tx App Pool",
+                                 tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE));
+    
 
-    status = tx_byte_pool_create(&fx_app_byte_pool, "Fx App Pool",
-                                 fx_byte_pool_buffer, FX_APP_MEM_POOL_SIZE);
-    if (status != TX_SUCCESS) Error_Handler();
+    ASSURE_SUCCESS(tx_byte_pool_create(&fx_app_byte_pool, "Fx App Pool",
+                                 fx_byte_pool_buffer, FX_APP_MEM_POOL_SIZE));
 
-    status = tx_byte_pool_create(&nx_app_byte_pool, "Nx App Pool",
-                                 nx_byte_pool_buffer, NX_APP_MEM_POOL_SIZE);
-    if (status != TX_SUCCESS) Error_Handler();
+    ASSURE_SUCCESS(tx_byte_pool_create(&nx_app_byte_pool, "Nx App Pool",
+                                 nx_byte_pool_buffer, NX_APP_MEM_POOL_SIZE));
 
-    status = App_ThreadX_Init((VOID *)&tx_app_byte_pool);
-    if (status != TX_SUCCESS) Error_Handler();
+    fx_system_initialize();
+    printf("FileX initialized\n");
 
-    status = MX_FileX_Init((VOID *)&fx_app_byte_pool);
-    if (status != FX_SUCCESS) Error_Handler();
 
-    status = MX_NetXDuo_Init((VOID *)&nx_app_byte_pool);
-    if (status != NX_SUCCESS) Error_Handler();
-#else
-    (void)first_unused_memory;
-#endif
+    nx_system_initialize();
+    
+
+    void *ptr=0;
+    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, NX_APP_PACKET_POOL_SIZE);
+    ASSURE_SUCCESS(nx_packet_pool_create(&g_app_state.packet_pool, "NetXDuo App Pool",
+                                DEFAULT_PAYLOAD_SIZE, ptr, NX_APP_PACKET_POOL_SIZE));
+
+    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, Nx_IP_INSTANCE_THREAD_SIZE);
+    ASSURE_SUCCESS(nx_ip_create(&g_app_state.ip_instance, "NetX IP",
+                       NX_APP_DEFAULT_IP_ADDRESS, NX_APP_DEFAULT_NET_MASK,
+                       &g_app_state.packet_pool, nx_stm32_eth_driver,
+                       (UCHAR *)ptr, Nx_IP_INSTANCE_THREAD_SIZE,
+                       NX_APP_INSTANCE_PRIORITY));
+
+    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, DEFAULT_ARP_CACHE_SIZE);
+    ASSURE_SUCCESS(nx_arp_enable(&g_app_state.ip_instance, (VOID *)ptr, DEFAULT_ARP_CACHE_SIZE));
+
+    ASSURE_SUCCESS(nx_icmp_enable(&g_app_state.ip_instance));
+
+    ASSURE_SUCCESS(nx_tcp_enable(&g_app_state.ip_instance));
+
+    ASSURE_SUCCESS(nx_udp_enable(&g_app_state.ip_instance));
+
+    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, NX_APP_THREAD_STACK_SIZE);
+    tx_thread_create(&g_app_state.app_main_thread, "App Main Thread",
+                     app_main_thread_entry, 0,
+                     (VOID *)ptr, NX_APP_THREAD_STACK_SIZE,
+                     NX_APP_THREAD_PRIORITY, NX_APP_THREAD_PRIORITY,
+                     TX_NO_TIME_SLICE, TX_AUTO_START);
+
+    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, 8 * DEFAULT_MEMORY_SIZE);
+    tx_thread_create(&g_app_state.http_server_thread, "HTTP Server Thread",
+                     http_server_thread_entry, 0,
+                     (VOID *)ptr, 8 * DEFAULT_MEMORY_SIZE,
+                     DEFAULT_PRIORITY, DEFAULT_PRIORITY,
+                     TX_NO_TIME_SLICE, TX_DONT_START);
+
+    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, DEFAULT_MEMORY_SIZE);
+    tx_thread_create(&g_app_state.led_thread, "LED Thread",
+                     led_thread_entry, 0,
+                     (VOID *)ptr, DEFAULT_MEMORY_SIZE,
+                     TOGGLE_LED_PRIORITY, TOGGLE_LED_PRIORITY,
+                     TX_NO_TIME_SLICE, TX_DONT_START);
+
+    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, 2 * DEFAULT_MEMORY_SIZE);
+    tx_thread_create(&g_app_state.link_thread, "Link Thread",
+                     link_thread_entry, 0,
+                     (VOID *)ptr, 2 * DEFAULT_MEMORY_SIZE,
+                     LINK_PRIORITY, LINK_PRIORITY,
+                     TX_NO_TIME_SLICE, TX_AUTO_START);
+
+    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, SERVER_POOL_SIZE);
+    NX_PACKET_POOL *server_pool = (NX_PACKET_POOL *)ptr;
+    ASSURE_SUCCESS(nx_packet_pool_create(server_pool, "HTTP Server Pool",
+                                SERVER_PACKET_SIZE, (VOID *)(server_pool + 1),
+                                SERVER_POOL_SIZE - sizeof(NX_PACKET_POOL)));
+
+    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, SERVER_STACK);
+    ASSURE_SUCCESS(nx_web_http_server_create(&g_app_state.http_server, "HTTP Server",
+                                    &g_app_state.ip_instance, CONNECTION_PORT,
+                                    &g_app_state.sd_media, (VOID *)ptr, SERVER_STACK,
+                                    server_pool, NX_NULL,
+                                    webserver_request_callback));
+
+    ASSURE_SUCCESS(nx_dhcp_create(&g_app_state.dhcp_client, &g_app_state.ip_instance, "DHCP Client"));
+
+    tx_semaphore_create(&g_app_state.dhcp_semaphore, "DHCP Semaphore", 0);
+
+    printf("NetXDuo initialized\n");
 
     printf("Application initialization complete\n");
 }

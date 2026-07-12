@@ -13,7 +13,7 @@ target_link_options(${BUILD_UNIT_0_NAME} PRIVATE ${CUBE_CMAKE_EXE_LINKER_FLAGS})
 
 # Add sources to executable/library
 target_sources(${BUILD_UNIT_0_NAME} PRIVATE
-    "AZURE_RTOS/App/app_azure_rtos.c"
+    "Core/Src/app.c"
     "Core/Src/app_threadx.c"
     "Core/Src/main.c"
     "Core/Src/stm32h5xx_hal_msp.c"
@@ -22,9 +22,7 @@ target_sources(${BUILD_UNIT_0_NAME} PRIVATE
     "Core/Src/syscalls.c"
     "Core/Src/sysmem.c"
     "Core/Src/tx_initialize_low_level.S"
-    "FileX/App/app_filex.c"
     "FileX/Target/fx_stm32_sd_driver_glue.c"
-    "NetXDuo/App/app_netxduo.c"
     "Core/Src/startup_stm32h573iikx.s"
     "README.md"
     "Drivers/BSP/Components/lan8742/lan8742.c"

@@ -7,8 +7,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 # Project definition
 project(Nx_WebServer)
 
-# Enable CMake support for ASM and C/CPP languages
-enable_language(C ASM)
+# Enable CMake support for ASM, C and C++ languages
+enable_language(C CXX ASM)
 
 set(BUILD_UNIT_0_NAME Nx_WebServer)
 

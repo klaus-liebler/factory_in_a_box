@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include "nx_api.h"
 #include "fx_api.h"
 #include "tx_api.h"
@@ -26,7 +27,7 @@
 #define LINK_PRIORITY               11
 #define NX_APP_THREAD_PRIORITY      10
 #define NX_APP_INSTANCE_PRIORITY    10
-#define NX_APP_THREAD_STACK_SIZE    (2 * 1024)
+#define NX_APP_THREAD_STACK_SIZE    (8 * 1024)
 #define Nx_IP_INSTANCE_THREAD_SIZE  (2 * 1024)
 #define CONNECTION_PORT             80
 #define SERVER_PACKET_SIZE          (2 * NX_WEB_HTTP_SERVER_MIN_PACKET_SIZE)
@@ -44,7 +45,6 @@ typedef struct {
     NX_IP ip_instance;
     NX_PACKET_POOL packet_pool;
     NX_DHCP dhcp_client;
-    TX_SEMAPHORE dhcp_semaphore;
     NX_WEB_HTTP_SERVER http_server;
     FX_MEDIA sd_media;
 
@@ -52,33 +52,26 @@ typedef struct {
     ULONG net_mask;
 
     TX_THREAD app_main_thread;
-    TX_THREAD http_server_thread;
     TX_THREAD led_thread;
     TX_THREAD link_thread;
 } AppState;
 
 static AppState g_app_state = {0};
+static volatile bool blink_led = false;
 
 // ============================================================================
-// Allocator Macro
+// Success Macro
 // ============================================================================
 
-#define ALLOC_FROM_POOL(pool_ptr, ptr, size) \
-    if (tx_byte_allocate(pool_ptr, (VOID **) &ptr, size, TX_NO_WAIT) != TX_SUCCESS) { \
-        printf("Memory allocation failed for size %lu\n", (unsigned long)size); \
-        Error_Handler(); \
-    }
-
-#define ASSURE_SUCCESS(status) \
+#define ASSURE_SUCCESS(status, message_on_fail) \
 if (status != NX_SUCCESS) { \
-    printf("Error: %s:%d, status: 0x%x\n", __FILE__, __LINE__, status); \
+    printf("Error %s: %s:%d, status: 0x%x\n", message_on_fail, __FILE__, __LINE__, status); \
     Error_Handler(); \
 }
 // ============================================================================
 // Thread Entry Points
 // ============================================================================
 
-static void http_server_thread_entry(ULONG arg);
 static void led_thread_entry(ULONG arg);
 static void link_thread_entry(ULONG arg);
 static void app_main_thread_entry(ULONG arg);
@@ -91,36 +84,12 @@ static void ip_address_change_notify_callback(NX_IP *ip_instance, VOID *ptr) {
         return;
     }
     if (g_app_state.ip_address != 0) {
-        tx_semaphore_put(&g_app_state.dhcp_semaphore);
+        printf("IP Address: %lu.%lu.%lu.%lu\n",
+               (g_app_state.ip_address >> 24) & 0xff,
+               (g_app_state.ip_address >> 16) & 0xff,
+               (g_app_state.ip_address >> 8) & 0xff,
+               g_app_state.ip_address & 0xff);
     }
-}
-
-// ============================================================================
-// HTTP Server Thread
-// ============================================================================
-
-static void http_server_thread_entry(ULONG arg) {
-    (void)arg;
-    
-    uint32_t data_buffer[512];
-
-    ASSURE_SUCCESS(fx_media_open(&g_app_state.sd_media, "STM32_SDIO_DISK",
-                           fx_stm32_sd_driver, 0,
-                           (VOID *)data_buffer, sizeof(data_buffer)));
-
-
-    printf("FileX media opened\n");
-
-    NX_WEB_HTTP_SERVER_MIME_MAP mime_maps[] = {
-        {"css", "text/css"},
-        {"svg", "image/svg+xml"},
-        {"png", "image/png"},
-        {"jpg", "image/jpg"}
-    };
-    nx_web_http_server_mime_maps_additional_set(&g_app_state.http_server, mime_maps, 4);
-
-    ASSURE_SUCCESS(nx_web_http_server_start(&g_app_state.http_server));
-    printf("HTTP Server started\n");
 }
 
 // ============================================================================
@@ -130,7 +99,11 @@ static void http_server_thread_entry(ULONG arg) {
 static void led_thread_entry(ULONG arg) {
     (void)arg;
     while (1) {
-        HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
+        if (blink_led) {
+            HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
+        }else{
+            HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+        }
         tx_thread_sleep(50);
     }
 }
@@ -162,12 +135,6 @@ static void link_thread_entry(ULONG arg) {
                     nx_dhcp_stop(&g_app_state.dhcp_client);
                     nx_dhcp_reinitialize(&g_app_state.dhcp_client);
                     nx_dhcp_start(&g_app_state.dhcp_client);
-                    tx_semaphore_get(&g_app_state.dhcp_semaphore, TX_WAIT_FOREVER);
-                    printf("IP Address: %lu.%lu.%lu.%lu\n",
-                           (g_app_state.ip_address >> 24) & 0xff,
-                           (g_app_state.ip_address >> 16) & 0xff,
-                           (g_app_state.ip_address >> 8) & 0xff,
-                           g_app_state.ip_address & 0xff);
                 }
             }
         } else {
@@ -188,35 +155,32 @@ static void link_thread_entry(ULONG arg) {
 
 static void app_main_thread_entry(ULONG arg) {
     (void)arg;
-    UINT ret;
 
-    ret = nx_ip_address_change_notify(&g_app_state.ip_instance,
+    uint32_t data_buffer[512];
+
+    ASSURE_SUCCESS(fx_media_open(&g_app_state.sd_media, "STM32_SDIO_DISK",
+                           fx_stm32_sd_driver, 0,
+                           (VOID *)data_buffer, sizeof(data_buffer)),
+                           "FileX media open failed");
+
+    printf("FileX media opened\n");
+
+    NX_WEB_HTTP_SERVER_MIME_MAP mime_maps[] = {
+        {"css", "text/css"},
+        {"svg", "image/svg+xml"},
+        {"png", "image/png"},
+        {"jpg", "image/jpg"}
+    };
+    nx_web_http_server_mime_maps_additional_set(&g_app_state.http_server, mime_maps, 4);
+
+    ASSURE_SUCCESS(nx_web_http_server_start(&g_app_state.http_server), "HTTP Server start failed");
+    printf("HTTP Server started\n");
+
+    ASSURE_SUCCESS(nx_ip_address_change_notify(&g_app_state.ip_instance,
                                       ip_address_change_notify_callback,
-                                      NULL);
-    if (ret != NX_SUCCESS) {
-        Error_Handler();
-        return;
-    }
+                                      NULL), "IP address change notify failed");
 
-    ret = nx_dhcp_start(&g_app_state.dhcp_client);
-    if (ret != NX_SUCCESS) {
-        Error_Handler();
-        return;
-    }
-
-    if (tx_semaphore_get(&g_app_state.dhcp_semaphore, TX_WAIT_FOREVER) != TX_SUCCESS) {
-        Error_Handler();
-        return;
-    }
-
-    printf("IP Address: %lu.%lu.%lu.%lu\n",
-           (g_app_state.ip_address >> 24) & 0xff,
-           (g_app_state.ip_address >> 16) & 0xff,
-           (g_app_state.ip_address >> 8) & 0xff,
-           g_app_state.ip_address & 0xff);
-
-    tx_thread_resume(&g_app_state.http_server_thread);
-    tx_thread_relinquish();
+    ASSURE_SUCCESS(nx_dhcp_start(&g_app_state.dhcp_client), "DHCP start failed");
 }
 
 // ============================================================================
@@ -239,12 +203,12 @@ static UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT requ
                  g_app_state.ip_address & 0xff);
     } else if (strcmp(resource, "/LedOn") == 0) {
         printf("LED On\n");
-        tx_thread_resume(&g_app_state.led_thread);
+        blink_led = true;
         sprintf(response_data, "OK");
     } else if (strcmp(resource, "/LedOff") == 0) {
         printf("LED Off\n");
+        blink_led = false;
         HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
-        tx_thread_suspend(&g_app_state.led_thread);
         sprintf(response_data, "OK");
     } else {
         return NX_SUCCESS;
@@ -277,15 +241,9 @@ static UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT requ
 }
 
 
-
-
-
 // ============================================================================
 // ThreadX Application Entry Point
 // ============================================================================
-
-
-
 extern void tx_application_define(void *first_unused_memory) {
     printf("001 Application initialization starting...\n");
 
@@ -299,89 +257,74 @@ extern void tx_application_define(void *first_unused_memory) {
     static TX_BYTE_POOL nx_app_byte_pool;
 
     ASSURE_SUCCESS(tx_byte_pool_create(&tx_app_byte_pool, "Tx App Pool",
-                                 tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE));
-    
+                                 tx_byte_pool_buffer, TX_APP_MEM_POOL_SIZE), "Tx App Pool create failed");
+
 
     ASSURE_SUCCESS(tx_byte_pool_create(&fx_app_byte_pool, "Fx App Pool",
-                                 fx_byte_pool_buffer, FX_APP_MEM_POOL_SIZE));
+                                 fx_byte_pool_buffer, FX_APP_MEM_POOL_SIZE), "Fx App Pool create failed");
 
     ASSURE_SUCCESS(tx_byte_pool_create(&nx_app_byte_pool, "Nx App Pool",
-                                 nx_byte_pool_buffer, NX_APP_MEM_POOL_SIZE));
+                                 nx_byte_pool_buffer, NX_APP_MEM_POOL_SIZE), "Nx App Pool create failed");
 
     fx_system_initialize();
-    printf("FileX initialized\n");
-
-
     nx_system_initialize();
-    
 
     void *ptr=0;
-    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, NX_APP_PACKET_POOL_SIZE);
+    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, NX_APP_PACKET_POOL_SIZE, TX_NO_WAIT), "NetXDuo App Pool allocate failed");
     ASSURE_SUCCESS(nx_packet_pool_create(&g_app_state.packet_pool, "NetXDuo App Pool",
-                                DEFAULT_PAYLOAD_SIZE, ptr, NX_APP_PACKET_POOL_SIZE));
+                                DEFAULT_PAYLOAD_SIZE, ptr, NX_APP_PACKET_POOL_SIZE), "NetXDuo App Pool create failed");
 
-    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, Nx_IP_INSTANCE_THREAD_SIZE);
+    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, Nx_IP_INSTANCE_THREAD_SIZE, TX_NO_WAIT), "IP instance memory allocate failed");
     ASSURE_SUCCESS(nx_ip_create(&g_app_state.ip_instance, "NetX IP",
                        NX_APP_DEFAULT_IP_ADDRESS, NX_APP_DEFAULT_NET_MASK,
                        &g_app_state.packet_pool, nx_stm32_eth_driver,
                        (UCHAR *)ptr, Nx_IP_INSTANCE_THREAD_SIZE,
-                       NX_APP_INSTANCE_PRIORITY));
+                       NX_APP_INSTANCE_PRIORITY), "IP create failed");
 
-    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, DEFAULT_ARP_CACHE_SIZE);
-    ASSURE_SUCCESS(nx_arp_enable(&g_app_state.ip_instance, (VOID *)ptr, DEFAULT_ARP_CACHE_SIZE));
+    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, DEFAULT_ARP_CACHE_SIZE, TX_NO_WAIT), "ARP cache allocate failed");
+    ASSURE_SUCCESS(nx_arp_enable(&g_app_state.ip_instance, (VOID *)ptr, DEFAULT_ARP_CACHE_SIZE), "ARP enable failed");
 
-    ASSURE_SUCCESS(nx_icmp_enable(&g_app_state.ip_instance));
+    ASSURE_SUCCESS(nx_icmp_enable(&g_app_state.ip_instance), "ICMP enable failed");
 
-    ASSURE_SUCCESS(nx_tcp_enable(&g_app_state.ip_instance));
+    ASSURE_SUCCESS(nx_tcp_enable(&g_app_state.ip_instance), "TCP enable failed");
 
-    ASSURE_SUCCESS(nx_udp_enable(&g_app_state.ip_instance));
+    ASSURE_SUCCESS(nx_udp_enable(&g_app_state.ip_instance), "UDP enable failed");
 
-    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, NX_APP_THREAD_STACK_SIZE);
+    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, NX_APP_THREAD_STACK_SIZE, TX_NO_WAIT), "App Main Thread stack allocate failed");
     tx_thread_create(&g_app_state.app_main_thread, "App Main Thread",
                      app_main_thread_entry, 0,
                      (VOID *)ptr, NX_APP_THREAD_STACK_SIZE,
                      NX_APP_THREAD_PRIORITY, NX_APP_THREAD_PRIORITY,
                      TX_NO_TIME_SLICE, TX_AUTO_START);
 
-    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, 8 * DEFAULT_MEMORY_SIZE);
-    tx_thread_create(&g_app_state.http_server_thread, "HTTP Server Thread",
-                     http_server_thread_entry, 0,
-                     (VOID *)ptr, 8 * DEFAULT_MEMORY_SIZE,
-                     DEFAULT_PRIORITY, DEFAULT_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_DONT_START);
-
-    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, DEFAULT_MEMORY_SIZE);
+    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, DEFAULT_MEMORY_SIZE, TX_NO_WAIT), "LED Thread stack allocate failed");
     tx_thread_create(&g_app_state.led_thread, "LED Thread",
                      led_thread_entry, 0,
                      (VOID *)ptr, DEFAULT_MEMORY_SIZE,
                      TOGGLE_LED_PRIORITY, TOGGLE_LED_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_DONT_START);
+                     TX_NO_TIME_SLICE, TX_AUTO_START);
 
-    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, 2 * DEFAULT_MEMORY_SIZE);
+    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, 2 * DEFAULT_MEMORY_SIZE, TX_NO_WAIT), "Link Thread stack allocate failed");
     tx_thread_create(&g_app_state.link_thread, "Link Thread",
                      link_thread_entry, 0,
                      (VOID *)ptr, 2 * DEFAULT_MEMORY_SIZE,
                      LINK_PRIORITY, LINK_PRIORITY,
                      TX_NO_TIME_SLICE, TX_AUTO_START);
 
-    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, SERVER_POOL_SIZE);
+    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, SERVER_POOL_SIZE, TX_NO_WAIT), "HTTP Server Pool allocate failed");
     NX_PACKET_POOL *server_pool = (NX_PACKET_POOL *)ptr;
     ASSURE_SUCCESS(nx_packet_pool_create(server_pool, "HTTP Server Pool",
                                 SERVER_PACKET_SIZE, (VOID *)(server_pool + 1),
-                                SERVER_POOL_SIZE - sizeof(NX_PACKET_POOL)));
+                                SERVER_POOL_SIZE - sizeof(NX_PACKET_POOL)), "HTTP Server Pool create failed");
 
-    ALLOC_FROM_POOL(&nx_app_byte_pool, ptr, SERVER_STACK);
+    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, SERVER_STACK, TX_NO_WAIT), "HTTP Server stack allocate failed");
     ASSURE_SUCCESS(nx_web_http_server_create(&g_app_state.http_server, "HTTP Server",
                                     &g_app_state.ip_instance, CONNECTION_PORT,
                                     &g_app_state.sd_media, (VOID *)ptr, SERVER_STACK,
                                     server_pool, NX_NULL,
-                                    webserver_request_callback));
+                                    webserver_request_callback), "HTTP Server create failed");
 
-    ASSURE_SUCCESS(nx_dhcp_create(&g_app_state.dhcp_client, &g_app_state.ip_instance, "DHCP Client"));
-
-    tx_semaphore_create(&g_app_state.dhcp_semaphore, "DHCP Semaphore", 0);
-
-    printf("NetXDuo initialized\n");
+    ASSURE_SUCCESS(nx_dhcp_create(&g_app_state.dhcp_client, &g_app_state.ip_instance, "DHCP Client"), "DHCP Client create failed");
 
     printf("Application initialization complete\n");
 }

@@ -34,6 +34,7 @@
       "footprint_text",
       "footprint_anchors",
       "ratsnest",
+      "grid",
       "footprints_front",
       "footprints_back",
       "footprint_values",
@@ -50,7 +51,7 @@
       "conflict_shadows",
       "shapes"
     ],
-    "visible_layers": "ffffffff_ffffffff_ffffd575_575555f5",
+    "visible_layers": "ffffffff_ffffffff_ffffd575_575555a4",
     "zone_display_mode": 0
   },
   "git": {
@@ -60,7 +61,7 @@
     "ssh_key": ""
   },
   "meta": {
-    "filename": "pcb_control_unit_ethernet.kicad_prl",
+    "filename": "pcb_factory_control_unit.kicad_prl",
     "version": 5
   },
   "net_inspector_panel": {

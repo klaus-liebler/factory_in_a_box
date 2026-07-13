@@ -15,15 +15,14 @@ target_link_options(${BUILD_UNIT_0_NAME} PRIVATE ${CUBE_CMAKE_EXE_LINKER_FLAGS})
 target_sources(${BUILD_UNIT_0_NAME} PRIVATE
     "Core/Src/app.c"
     "Core/Src/main.c"
+    "Core/Src/fx_stm32_sd_driver_adapter.c"
     "Core/Src/stm32h5xx_hal_msp.c"
     "Core/Src/stm32h5xx_hal_timebase_tim.c"
     "Core/Src/stm32h5xx_it.c"
     "Core/Src/syscalls.c"
     "Core/Src/sysmem.c"
     "Core/Src/tx_initialize_low_level.S"
-    "FileX/Target/fx_stm32_sd_driver_glue.c"
     "Core/Src/startup_stm32h573iikx.s"
-    "README.md"
     "Drivers/BSP/Components/lan8742/lan8742.c"
     "Core/Src/system_stm32h5xx.c"
     "Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal.c"
@@ -954,12 +953,7 @@ target_sources(${BUILD_UNIT_0_NAME} PRIVATE
 )
 
 target_include_directories(${BUILD_UNIT_0_NAME} PRIVATE
-    "FileX/App"
-    "FileX/Target"
-    "NetXDuo/App"
-    "NetXDuo/Target"
     "Core/Inc"
-    "AZURE_RTOS/App"
     "Drivers/STM32H5xx_HAL_Driver/Inc"
     "Drivers/STM32H5xx_HAL_Driver/Inc/Legacy"
     "Drivers/BSP/Components/lan8742"

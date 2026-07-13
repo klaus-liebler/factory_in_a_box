@@ -68,6 +68,9 @@ if (status != NX_SUCCESS) { \
     printf("Error %s: %s:%d, status: 0x%x\n", message_on_fail, __FILE__, __LINE__, status); \
     Error_Handler(); \
 }
+
+
+
 // ============================================================================
 // Thread Entry Points
 // ============================================================================

@@ -68,14 +68,11 @@ else()
 endif()
 add_subdirectory(cmake/stm32cubemx)
 
-# Add common STM32 utilities library
-add_subdirectory(common_stm32)
-
-# Add TMC2209 driver library
-add_subdirectory(tmc2209)
-
-# Add USB PD library
-add_subdirectory(usb_pd)
+# Shared libraries from the stm32_libs submodule (../stm32_libs) - out-of-tree
+# add_subdirectory() needs an explicit binary dir.
+add_subdirectory(../stm32_libs/common_stm32 ${CMAKE_BINARY_DIR}/stm32_libs/common_stm32)
+add_subdirectory(../stm32_libs/tmc2209 ${CMAKE_BINARY_DIR}/stm32_libs/tmc2209)
+add_subdirectory(../stm32_libs/usb_pd ${CMAKE_BINARY_DIR}/stm32_libs/usb_pd)
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE

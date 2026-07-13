@@ -19,8 +19,7 @@
 /* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __MAIN_H
-#define __MAIN_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -64,10 +63,25 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
+/* Stage 1 Modbus I/O: pins verified against firmware_control_unit_ethercat (real target board) */
+#define LIGHTBARRIER1_Pin GPIO_PIN_6
+#define LIGHTBARRIER1_GPIO_Port GPIOC
+#define LIGHTBARRIER2_Pin GPIO_PIN_7
+#define LIGHTBARRIER2_GPIO_Port GPIOC
+/* LIGHTBARRIER3 (PC8) intentionally not wired on this eval board: PC8 is used by SDMMC1_D0 (FileX website hosting) */
+
+#define VALVE1_Pin GPIO_PIN_10
+#define VALVE1_GPIO_Port GPIOD
+#define VALVE2_Pin GPIO_PIN_5
+#define VALVE2_GPIO_Port GPIOD
+#define VALVE3_Pin GPIO_PIN_11
+#define VALVE3_GPIO_Port GPIOD
+
+#define PRESSURESENSOR_Pin GPIO_PIN_4
+#define PRESSURESENSOR_GPIO_Port GPIOA
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __MAIN_H */

@@ -10,8 +10,7 @@
 /**************************************************************************/
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef NX_STM32_ETH_CONFIG_H
-#define NX_STM32_ETH_CONFIG_H
+#pragma once
 
 #ifdef __cplusplus
  extern "C" {
@@ -72,5 +71,3 @@ extern void MX_ETH_Init(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* NX_STM32_ETH_CONFIG_H */

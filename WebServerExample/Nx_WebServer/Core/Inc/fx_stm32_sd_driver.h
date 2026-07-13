@@ -10,8 +10,7 @@
 /**************************************************************************/
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef FX_STM32_SD_DRIVER_H
-#define FX_STM32_SD_DRIVER_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -201,5 +200,3 @@ VOID fx_stm32_sd_driver(FX_MEDIA *media_ptr);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* FX_STM32_SD_DRIVER_H */

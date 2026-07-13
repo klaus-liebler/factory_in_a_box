@@ -9,8 +9,7 @@
 /*                                                                        */
 /**************************************************************************/
 
-#ifndef FILEX_STUB_H
-#define FILEX_STUB_H
+#pragma once
 
 /* This is a stub routine for FileX, for NetX applications that do not have FileX to rely on.  */
 
@@ -89,5 +88,3 @@ UINT        fx_file_relative_seek(FX_FILE *file_ptr, ULONG byte_offset, UINT see
 UINT        fx_file_seek(FX_FILE *file_ptr, ULONG byte_offset);
 UINT        fx_file_truncate(FX_FILE *file_ptr, ULONG size);
 UINT        fx_file_truncate_release(FX_FILE *file_ptr, ULONG size);
-
-#endif

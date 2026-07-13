@@ -13,7 +13,7 @@ target_link_options(${BUILD_UNIT_0_NAME} PRIVATE ${CUBE_CMAKE_EXE_LINKER_FLAGS})
 
 # Add sources to executable/library
 target_sources(${BUILD_UNIT_0_NAME} PRIVATE
-    "Core/Src/app.c"
+    "Core/Src/app.cpp"
     "Core/Src/main.c"
     "Core/Src/fx_stm32_sd_driver_adapter.c"
     "Core/Src/stm32h5xx_hal_msp.c"
@@ -26,6 +26,8 @@ target_sources(${BUILD_UNIT_0_NAME} PRIVATE
     "Drivers/BSP/Components/lan8742/lan8742.c"
     "Core/Src/system_stm32h5xx.c"
     "Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal.c"
+    "Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal_adc.c"
+    "Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal_adc_ex.c"
     "Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal_cortex.c"
     "Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal_dma.c"
     "Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal_dma_ex.c"

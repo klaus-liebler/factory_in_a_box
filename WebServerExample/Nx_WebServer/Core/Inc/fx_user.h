@@ -59,8 +59,7 @@
 /*                                                                        */
 /**************************************************************************/
 
-#ifndef FX_USER_H
-#define FX_USER_H
+#pragma once
 
 /* USER CODE BEGIN 1 */
 
@@ -232,5 +231,3 @@
 /* USER CODE BEGIN 2 */
 
 /* USER CODE END 2 */
-
-#endif

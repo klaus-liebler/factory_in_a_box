@@ -1,5 +1,4 @@
-#ifndef MODBUS_TCP_SERVER_HPP
-#define MODBUS_TCP_SERVER_HPP
+#pragma once
 
 #include "nx_api.h"
 #include "tx_api.h"
@@ -97,15 +96,24 @@ public:
     UINT initialize() {
         UINT status;
 
+        // Mutex zum Schutz von m_registers gegen parallelen Zugriff aus
+        // dem Modbus-Thread (dieser Klasse) und den I/O-Threads (Sensoren/Aktuatoren).
+        status = tx_mutex_create(&m_register_mutex, const_cast<CHAR *>("Modbus Register Mutex"), TX_INHERIT);
+        if (status != TX_SUCCESS) {
+            return status;
+        }
+
         // TCP Socket erstellen
         status = nx_tcp_socket_create(
             m_ip_instance,
             &m_server_socket,
-            "Modbus Server Socket",
+            const_cast<CHAR *>("Modbus Server Socket"),
             NX_IP_NORMAL,
             NX_FRAGMENT_OKAY,
             NX_IP_TIME_TO_LIVE,
-            512  // window size
+            512,  // window size
+            NX_NULL,  // urgent data callback
+            NX_NULL   // disconnect callback
         );
 
         if (status != NX_SUCCESS) {
@@ -132,8 +140,6 @@ public:
 
     // Main Server-Loop (wird in ThreadX-Thread aufgerufen)
     void run() {
-        NX_TCP_SOCKET client_socket;
-        NX_PACKET *packet_ptr;
         UINT status;
 
         while (m_is_running) {
@@ -165,27 +171,43 @@ public:
         }
     }
 
-    // Registerzugriff (Thread-Safe durch Aufruf aus Applikations-Kontext)
+    // Registerzugriff -- Thread-Safe via m_register_mutex, da sowohl der
+    // Modbus-Thread (process_modbus_request) als auch I/O-Threads (Sensoren/Aktuatoren)
+    // dieselben Arrays anfassen.
     uint16_t read_holding_register(uint16_t addr) const {
-        if (addr < MODBUS_MAX_REGISTERS)
-            return m_registers.holding_registers[addr];
-        return 0;
+        uint16_t value = 0;
+        if (addr < MODBUS_MAX_REGISTERS) {
+            tx_mutex_get(const_cast<TX_MUTEX*>(&m_register_mutex), TX_WAIT_FOREVER);
+            value = m_registers.holding_registers[addr];
+            tx_mutex_put(const_cast<TX_MUTEX*>(&m_register_mutex));
+        }
+        return value;
     }
 
     void write_holding_register(uint16_t addr, uint16_t value) {
-        if (addr < MODBUS_MAX_REGISTERS)
+        if (addr < MODBUS_MAX_REGISTERS) {
+            tx_mutex_get(&m_register_mutex, TX_WAIT_FOREVER);
             m_registers.holding_registers[addr] = value;
+            tx_mutex_put(&m_register_mutex);
+        }
     }
 
     uint16_t read_input_register(uint16_t addr) const {
-        if (addr < MODBUS_MAX_REGISTERS)
-            return m_registers.input_registers[addr];
-        return 0;
+        uint16_t value = 0;
+        if (addr < MODBUS_MAX_REGISTERS) {
+            tx_mutex_get(const_cast<TX_MUTEX*>(&m_register_mutex), TX_WAIT_FOREVER);
+            value = m_registers.input_registers[addr];
+            tx_mutex_put(const_cast<TX_MUTEX*>(&m_register_mutex));
+        }
+        return value;
     }
 
     void write_input_register(uint16_t addr, uint16_t value) {
-        if (addr < MODBUS_MAX_REGISTERS)
+        if (addr < MODBUS_MAX_REGISTERS) {
+            tx_mutex_get(&m_register_mutex, TX_WAIT_FOREVER);
             m_registers.input_registers[addr] = value;
+            tx_mutex_put(&m_register_mutex);
+        }
     }
 
     bool read_coil(uint16_t addr) const {
@@ -208,6 +230,7 @@ public:
         m_is_running = false;
         nx_tcp_socket_disconnect(&m_server_socket, NX_WAIT_FOREVER);
         nx_tcp_socket_delete(&m_server_socket);
+        tx_mutex_delete(&m_register_mutex);
     }
 
 private:
@@ -298,11 +321,13 @@ private:
             response[8] = quantity * 2;  // Byte count
 
             uint32_t offset = 9;
+            tx_mutex_get(&m_register_mutex, TX_WAIT_FOREVER);
             for (uint16_t i = 0; i < quantity; i++) {
                 uint16_t value = m_registers.holding_registers[start_addr + i];
                 response[offset++] = (value >> 8) & 0xFF;
                 response[offset++] = value & 0xFF;
             }
+            tx_mutex_put(&m_register_mutex);
 
             pdu_len = 3 + quantity * 2;
         }
@@ -320,11 +345,13 @@ private:
             response[8] = quantity * 2;
 
             uint32_t offset = 9;
+            tx_mutex_get(&m_register_mutex, TX_WAIT_FOREVER);
             for (uint16_t i = 0; i < quantity; i++) {
                 uint16_t value = m_registers.input_registers[start_addr + i];
                 response[offset++] = (value >> 8) & 0xFF;
                 response[offset++] = value & 0xFF;
             }
+            tx_mutex_put(&m_register_mutex);
 
             pdu_len = 3 + quantity * 2;
         }
@@ -338,7 +365,9 @@ private:
                 return build_exception_response(response, function_code, 0x02);
             }
 
+            tx_mutex_get(&m_register_mutex, TX_WAIT_FOREVER);
             m_registers.holding_registers[addr] = value;
+            tx_mutex_put(&m_register_mutex);
 
             // Echo request back
             std::memcpy(response + 7, request + 7, 6);
@@ -352,17 +381,19 @@ private:
             uint8_t byte_count = request[12];
 
             if (quantity > 123 || byte_count != quantity * 2 ||
-                request_len < 13 + byte_count ||
+                request_len < 13u + byte_count ||
                 start_addr + quantity > MODBUS_MAX_REGISTERS) {
                 return build_exception_response(response, function_code, 0x02);
             }
 
             // Schreibe Register
             const uint8_t* values = request + 13;
+            tx_mutex_get(&m_register_mutex, TX_WAIT_FOREVER);
             for (uint16_t i = 0; i < quantity; i++) {
                 uint16_t value = ((uint16_t)values[i*2] << 8) | values[i*2 + 1];
                 m_registers.holding_registers[start_addr + i] = value;
             }
+            tx_mutex_put(&m_register_mutex);
 
             response[7] = function_code;
             response[8] = (start_addr >> 8) & 0xFF;
@@ -439,8 +470,7 @@ private:
     NX_PACKET_POOL* m_packet_pool;
     NX_TCP_SOCKET m_server_socket;
     Registers m_registers;
+    TX_MUTEX m_register_mutex;
     uint16_t m_transaction_id;
     bool m_is_running;
 };
-
-#endif // MODBUS_TCP_SERVER_HPP

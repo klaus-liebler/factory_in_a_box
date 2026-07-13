@@ -67,8 +67,7 @@
 /*                                                                        */
 /**************************************************************************/
 
-#ifndef TX_USER_H
-#define TX_USER_H
+#pragma once
 
 /* USER CODE BEGIN 1 */
 
@@ -271,5 +270,3 @@
 /*#define TX_THREAD_USER_EXTENSION                ????*/
 
 /* USER CODE END 2 */
-
-#endif

@@ -23,8 +23,7 @@
 
 /* Define to prevent recursive inclusion -----------------------------------------------------------------------------*/
 
-#ifndef STM32H5xx_HAL_CONF_H
-#define STM32H5xx_HAL_CONF_H
+#pragma once
 
 #ifdef __cplusplus
  extern "C" {
@@ -41,7 +40,7 @@
 
 #define HAL_MODULE_ENABLED
 /*#define HAL_CCB_MODULE_ENABLED */
-/*#define HAL_ADC_MODULE_ENABLED */
+#define HAL_ADC_MODULE_ENABLED
 /*#define HAL_CEC_MODULE_ENABLED */
 /*#define HAL_COMP_MODULE_ENABLED */
 /*#define HAL_CORDIC_MODULE_ENABLED */
@@ -521,6 +520,4 @@
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* STM32H5xx_HAL_CONF_H */
 

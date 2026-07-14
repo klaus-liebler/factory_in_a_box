@@ -76,7 +76,24 @@
           "width": 0.0
         }
       ],
-      "drc_exclusions": [],
+      "drc_exclusions": [
+        [
+          "starved_thermal|129200000|75550000|2ea61268-674a-49bc-b596-106be493b965|cba9e09c-b34d-43fe-8343-58ceb4ae744d|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|129200000|77550000|2ea61268-674a-49bc-b596-106be493b965|a4fe65f6-d7fb-46a1-9f21-10c1b61cd7fe|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|131200000|75550000|2ea61268-674a-49bc-b596-106be493b965|4d03de2f-2f79-4627-b4c8-d5834f4abaf1|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|131200000|77550000|2ea61268-674a-49bc-b596-106be493b965|dc7cb17a-67e2-46fd-ae66-706b0f45a4e7|F.Cu",
+          ""
+        ]
+      ],
       "meta": {
         "version": 2
       },
@@ -148,9 +165,9 @@
         "max_error": 0.005,
         "min_clearance": 0.0,
         "min_connection": 0.0,
-        "min_copper_edge_clearance": 0.3,
+        "min_copper_edge_clearance": 0.2,
         "min_groove_width": 0.0,
-        "min_hole_clearance": 0.25,
+        "min_hole_clearance": 0.2,
         "min_hole_to_hole": 0.2,
         "min_microvia_diameter": 0.2,
         "min_microvia_drill": 0.1,
@@ -804,7 +821,7 @@
   "sheets": [
     [
       "9c57264a-0988-4c94-95c0-340e4ca73bd5",
-      "pcb_control_unit_ethernet"
+      "pcb_factory_control_unit"
     ],
     [
       "53d03dea-1884-4b59-a05f-593b0c1ac681",

@@ -3432,6 +3432,16 @@
 		)
 		(uuid "ad2caa3c-2f45-48b9-b3df-52aec4c91909")
 	)
+	(text "Activate Pullup in STM32!"
+		(exclude_from_sim no)
+		(at 215.9 57.15 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "b2dd21f1-d2ce-47c9-a5ff-9793f1b16783")
+	)
 	(text "5V - 3.3V"
 		(exclude_from_sim no)
 		(at 131.572 74.168 0)
@@ -3509,12 +3519,6 @@
 		(uuid "3bc780ad-d8e3-46b5-b53f-e0c36a41cbfa")
 	)
 	(junction
-		(at 207.01 45.72)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "3d6d004a-4fbf-469d-b453-653a2c11b328")
-	)
-	(junction
 		(at 100.33 24.13)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -3555,12 +3559,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "65c4c957-af25-4857-91d5-fc999462b9b7")
-	)
-	(junction
-		(at 212.09 48.26)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "72ed85d5-83dd-4aba-9ba5-34c29640b9ed")
 	)
 	(junction
 		(at 99.06 130.81)
@@ -3639,12 +3637,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "b25d0cbc-3097-4542-a410-831527da734a")
-	)
-	(junction
-		(at 217.17 27.94)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "b27bd26b-30b6-4ff4-afee-dc8417925142")
 	)
 	(junction
 		(at 85.09 130.81)
@@ -3774,16 +3766,6 @@
 	)
 	(wire
 		(pts
-			(xy 207.01 35.56) (xy 207.01 45.72)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "11d39590-f427-4061-a629-74398f61a88f")
-	)
-	(wire
-		(pts
 			(xy 53.34 40.64) (xy 53.34 36.83)
 		)
 		(stroke
@@ -3824,16 +3806,6 @@
 	)
 	(wire
 		(pts
-			(xy 212.09 35.56) (xy 212.09 48.26)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1ddd6f81-bb4c-484f-940b-2838684f2354")
-	)
-	(wire
-		(pts
 			(xy 88.9 130.81) (xy 90.17 130.81)
 		)
 		(stroke
@@ -3861,16 +3833,6 @@
 			(type default)
 		)
 		(uuid "298d7ad4-3eb4-4124-b24c-e5d36de12862")
-	)
-	(wire
-		(pts
-			(xy 217.17 35.56) (xy 217.17 53.34)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "2ceb6a98-e46a-4ca6-b552-83e6ff981c5a")
 	)
 	(wire
 		(pts
@@ -4024,7 +3986,7 @@
 	)
 	(wire
 		(pts
-			(xy 217.17 27.94) (xy 226.06 27.94)
+			(xy 194.31 27.94) (xy 226.06 27.94)
 		)
 		(stroke
 			(width 0)
@@ -4264,7 +4226,7 @@
 	)
 	(wire
 		(pts
-			(xy 207.01 45.72) (xy 204.47 45.72)
+			(xy 204.47 45.72) (xy 226.06 45.72)
 		)
 		(stroke
 			(width 0)
@@ -4321,16 +4283,6 @@
 			(type default)
 		)
 		(uuid "a91317a1-c044-476f-9ce8-e5131d39d2e2")
-	)
-	(wire
-		(pts
-			(xy 226.06 45.72) (xy 207.01 45.72)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "ac22e4e9-1c6f-4041-b715-45af85398df9")
 	)
 	(wire
 		(pts
@@ -4401,16 +4353,6 @@
 			(type default)
 		)
 		(uuid "c3b50f95-6a49-4aad-80d7-370be384f184")
-	)
-	(wire
-		(pts
-			(xy 194.31 27.94) (xy 217.17 27.94)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "c5fe8977-fa01-4497-90b3-ece9c5ad80f5")
 	)
 	(wire
 		(pts
@@ -4544,17 +4486,7 @@
 	)
 	(wire
 		(pts
-			(xy 226.06 48.26) (xy 212.09 48.26)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e9bb466a-3101-4bbd-8a2c-cbb5a4d1470a")
-	)
-	(wire
-		(pts
-			(xy 212.09 48.26) (xy 204.47 48.26)
+			(xy 204.47 48.26) (xy 226.06 48.26)
 		)
 		(stroke
 			(width 0)
@@ -4885,7 +4817,7 @@
 			(uuid "1c936069-a57c-4bec-b2a2-5405a61fe17e")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C30")
 					(unit 1)
@@ -5031,7 +4963,7 @@
 			(uuid "889cb209-9c98-4622-af17-5fae7ddd6514")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "J5")
 					(unit 1)
@@ -5109,7 +5041,7 @@
 			(uuid "4adcd61b-9a8a-442e-9d74-7e56c9bc0bd4")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR056")
 					(unit 1)
@@ -5195,7 +5127,7 @@
 			(uuid "2a860cdb-6aba-436f-acfe-8896dbeb7cdb")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "X1")
 					(unit 1)
@@ -5273,7 +5205,7 @@
 			(uuid "a26b2157-101b-48d6-829c-688b2c63ac93")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR0190")
 					(unit 1)
@@ -5374,7 +5306,7 @@
 			(uuid "d4f57d35-c2bd-4f03-b19d-12de296e15ce")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "L10")
 					(unit 1)
@@ -5452,7 +5384,7 @@
 			(uuid "1299ce30-ad5a-4142-b6a2-116ec6acefc5")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR066")
 					(unit 1)
@@ -5531,7 +5463,7 @@
 			(uuid "7f7a465d-33f5-4b3d-b163-04375a8c28a4")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "R96")
 					(unit 1)
@@ -5634,7 +5566,7 @@
 			(uuid "dec823f4-bf8b-44df-897f-bfc36e1f0c09")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "R33")
 					(unit 1)
@@ -5735,7 +5667,7 @@
 			(uuid "0017d7fd-b50e-4f4e-9cf6-6a9f2aaf08f5")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C88")
 					(unit 1)
@@ -5838,7 +5770,7 @@
 			(uuid "20acdf68-31b0-4324-9a26-99f442aec899")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "R31")
 					(unit 1)
@@ -5942,7 +5874,7 @@
 			(uuid "2851289f-6016-4f33-931c-5b9c7da91263")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "J4")
 					(unit 1)
@@ -6043,7 +5975,7 @@
 			(uuid "0a88f560-623c-4256-b1ec-74c1e3e427ac")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C76")
 					(unit 1)
@@ -6144,7 +6076,7 @@
 			(uuid "29004083-b143-48bd-8953-3ddd0bdf04ea")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C28")
 					(unit 1)
@@ -6222,7 +6154,7 @@
 			(uuid "bf28aa8c-af22-45fa-b09d-5bc03f20bccd")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR0170")
 					(unit 1)
@@ -6300,7 +6232,7 @@
 			(uuid "674e16b8-8e5f-4135-9219-493e45210277")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR044")
 					(unit 1)
@@ -6415,7 +6347,7 @@
 			(uuid "03995cf8-2391-4250-a668-6af16419c730")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "U12")
 					(unit 1)
@@ -6493,7 +6425,7 @@
 			(uuid "e59c2e99-65a2-41ff-aa25-1dd3516cd172")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR060")
 					(unit 1)
@@ -6596,7 +6528,7 @@
 			(uuid "d068885a-c4cd-420c-9ef4-95771aaf57c2")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C35")
 					(unit 1)
@@ -6699,7 +6631,7 @@
 			(uuid "0737721e-0e3b-4604-92de-0ec448ea21f6")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C98")
 					(unit 1)
@@ -6778,7 +6710,7 @@
 			(uuid "67a8b9b5-ebca-43db-9fc1-865c04b7fe1f")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR050")
 					(unit 1)
@@ -6861,90 +6793,9 @@
 			(uuid "4de9d2e5-c0d5-4652-846c-f655fe49ae0b")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "U5")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:R")
-		(at 217.17 31.75 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "7a1580ba-f44f-4c14-ae28-78818c92f1dd")
-		(property "Reference" "R89"
-			(at 215.138 33.528 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "10k"
-			(at 217.17 33.528 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 215.392 31.75 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 217.17 31.75 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 217.17 31.75 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "2"
-			(uuid "fedd16aa-14ef-4c89-9425-88ccb436df0a")
-		)
-		(pin "1"
-			(uuid "d80a31fd-9d18-4668-8193-bd4f8b0f06e8")
-		)
-		(instances
-			(project "pcb_control_unit_ethernet"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
-					(reference "R89")
 					(unit 1)
 				)
 			)
@@ -7043,7 +6894,7 @@
 			(uuid "6c7731b4-7d3e-48ec-af6e-5e2992c336d4")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C29")
 					(unit 1)
@@ -7121,7 +6972,7 @@
 			(uuid "cb3aff0c-bfa1-461f-9732-6d21f7cde8b1")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR065")
 					(unit 1)
@@ -7202,7 +7053,7 @@
 			(uuid "3cf87411-34d0-4c0b-af85-7d19dbf54f8d")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "R87")
 					(unit 1)
@@ -7305,7 +7156,7 @@
 			(uuid "d662431f-8da5-46bc-a493-c2c5ddbcd89d")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "R32")
 					(unit 1)
@@ -7383,7 +7234,7 @@
 			(uuid "476b2934-f081-43a3-9511-fde0b6eaa8d2")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR049")
 					(unit 1)
@@ -7484,7 +7335,7 @@
 			(uuid "0782c821-5fb6-407e-a5e3-c42061e78fd7")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C80")
 					(unit 1)
@@ -7561,7 +7412,7 @@
 			(uuid "a687be65-2aef-45a3-9d53-17c815f830ce")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#FLG02")
 					(unit 1)
@@ -7640,7 +7491,7 @@
 			(uuid "632752a5-ca0f-4392-9058-7754db9ee084")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR063")
 					(unit 1)
@@ -7718,7 +7569,7 @@
 			(uuid "19e32468-851b-4e47-88c7-47fe577865d4")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR0181")
 					(unit 1)
@@ -7795,7 +7646,7 @@
 			(uuid "33abd6a4-eac0-4591-bbfe-ee2191d14ef5")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#FLG01")
 					(unit 1)
@@ -7872,7 +7723,7 @@
 			(uuid "6d0b6dc4-6b9f-44ae-9373-821c0e937bb4")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR0180")
 					(unit 1)
@@ -7975,7 +7826,7 @@
 			(uuid "9194cde0-5bc6-4647-b0af-5fd4d4dd2570")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "R88")
 					(unit 1)
@@ -8052,7 +7903,7 @@
 			(uuid "0f41a932-5e1e-4497-976f-ed55bb7f3cba")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR057")
 					(unit 1)
@@ -8129,7 +7980,7 @@
 			(uuid "76a5c9b4-0e3f-4675-91e2-0787b8cadb0c")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR061")
 					(unit 1)
@@ -8207,7 +8058,7 @@
 			(uuid "138f3d68-238b-435d-812e-adbda04472af")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR058")
 					(unit 1)
@@ -8284,7 +8135,7 @@
 			(uuid "7677d72f-2d41-4e83-bf41-8aa3a79f9c92")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#FLG04")
 					(unit 1)
@@ -8387,7 +8238,7 @@
 			(uuid "24c53b25-f54d-4073-8d03-4aa6d7ab6aa1")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C31")
 					(unit 1)
@@ -8465,7 +8316,7 @@
 			(uuid "65f5cbc2-29fa-433c-b568-9f8a5d5ea276")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR064")
 					(unit 1)
@@ -8566,7 +8417,7 @@
 			(uuid "dda61c37-598c-4a07-9472-f2960273bdc0")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C27")
 					(unit 1)
@@ -8648,7 +8499,7 @@
 			(uuid "4e2aef76-d24a-4523-a08a-5d3271663bc9")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "R34")
 					(unit 1)
@@ -8727,7 +8578,7 @@
 			(uuid "973ebdfd-5980-42c1-b032-9c3ded9f4558")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR059")
 					(unit 1)
@@ -8830,7 +8681,7 @@
 			(uuid "41f6e970-5417-4289-bb8f-978fd2396eab")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C89")
 					(unit 1)
@@ -8908,7 +8759,7 @@
 			(uuid "7705a19e-4f3b-464a-8708-7bcf2395d3c1")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR062")
 					(unit 1)
@@ -8987,7 +8838,7 @@
 			(uuid "3fe1e4f6-6f31-4366-8f7e-999ba604ea77")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR053")
 					(unit 1)
@@ -9088,7 +8939,7 @@
 			(uuid "9297a749-c67d-4733-aa18-aa9b8956a8b7")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "L3")
 					(unit 1)
@@ -9167,7 +9018,7 @@
 			(uuid "e817031a-e589-4c53-94bc-8df4d636c6cf")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR055")
 					(unit 1)
@@ -9244,7 +9095,7 @@
 			(uuid "7164ee55-7c77-4b94-852e-8997a0823311")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR054")
 					(unit 1)
@@ -9323,7 +9174,7 @@
 			(uuid "6cc56836-c794-4c67-ae5d-7c53b65118de")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR048")
 					(unit 1)
@@ -9405,7 +9256,7 @@
 			(uuid "2c48f487-da60-4f0a-aba5-d7a8b13c94a7")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C33")
 					(unit 1)
@@ -9483,7 +9334,7 @@
 			(uuid "5715a493-5f8a-47ef-af90-27ccb7683657")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR051")
 					(unit 1)
@@ -9598,7 +9449,7 @@
 			(uuid "d2573b88-d755-42cb-828d-c21a937eab3f")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "U4")
 					(unit 1)
@@ -9675,7 +9526,7 @@
 			(uuid "f99d580d-c307-40c2-9b4d-19dd190a1942")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "#PWR052")
 					(unit 1)
@@ -9778,7 +9629,7 @@
 			(uuid "7b2dd7c1-654f-46b1-b9ff-029a14ddbf5a")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C32")
 					(unit 1)
@@ -9881,7 +9732,7 @@
 			(uuid "3d826d91-d308-44da-a880-2f1923f91e03")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C34")
 					(unit 1)
@@ -9986,7 +9837,7 @@
 			(uuid "6721eeac-851c-4f7c-901d-e946b6390a90")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "U6")
 					(unit 1)
@@ -10087,7 +9938,7 @@
 			(uuid "53bf6ce8-5374-4c8c-b3c7-0d6f2f38066b")
 		)
 		(instances
-			(project "pcb_control_unit_ethernet"
+			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "C84")
 					(unit 1)

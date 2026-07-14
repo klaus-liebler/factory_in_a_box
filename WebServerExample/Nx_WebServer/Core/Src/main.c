@@ -123,6 +123,11 @@ int main(void)
   MX_ICACHE_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+  // ADC1 runs in continuous conversion mode (ContinuousConvMode = ENABLE
+  // above) -- started once here, it free-runs in the background from then on;
+  // io_thread_entry() (Core/Src/app.cpp) just reads whatever's currently in
+  // the data register via HAL_ADC_GetValue(), no per-iteration Start/Stop/Poll.
+  HAL_ADC_Start(&hadc1);
   tx_kernel_enter();
   /* USER CODE END 2 */
 
@@ -374,7 +379,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;

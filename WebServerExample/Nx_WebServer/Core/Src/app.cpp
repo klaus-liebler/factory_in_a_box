@@ -145,39 +145,13 @@ static void modbus_server_thread_entry(ULONG thread_input)
 // fordert selbstaendig 5V an, siehe PDSink::onSourceCapabilities()).
 // ============================================================================
 
-static void print_usb_pd_capabilities() {
-    // Alles in einer einzigen log_info()-Zeile statt einer je Capability, damit
-    // die Tabelle nicht durch andere Log-Zeilen (z.B. aus anderen Threads)
-    // auseinandergerissen werden kann. log_log()'s eigenes Praefix (Zeitstempel,
-    // Level, Datei:Zeile) ist genau 25 sichtbare Zeichen breit -- Folgezeilen
-    // werden daher mit 25 Leerzeichen eingerueckt, damit die Tabelle darunter
-    // buendig ausgerichtet ist.
-    char buf[640];
-    size_t pos = 0;
-
-    int n = snprintf(buf, sizeof(buf), "USB-PD: %d source capabilit%s:",
-                      PowerSink.numSourceCapabilities,
-                      PowerSink.numSourceCapabilities == 1 ? "y" : "ies");
-    pos = (n > 0 && (size_t)n < sizeof(buf)) ? (size_t)n : sizeof(buf) - 1;
-
-    for (int i = 0; i < PowerSink.numSourceCapabilities && pos < sizeof(buf); i++) {
-        const PDSourceCapability& cap = PowerSink.sourceCapabilities[i];
-        n = snprintf(buf + pos, sizeof(buf) - pos,
-                      "\r\n%25s[%d] %-8s %6u-%6u mV, max %4u mA",
-                      "", i, PDSourceCapability::supplyTypeName(cap.supplyType),
-                      cap.minVoltage, cap.maxVoltage, cap.maxCurrent);
-        pos += (n > 0) ? (size_t)n : 0;
-        if (pos >= sizeof(buf))
-            pos = sizeof(buf) - 1;
-    }
-
-    log_info("%s", buf);
-}
-
 static void usb_pd_event_callback(PDSinkEventType eventType) {
     switch (eventType) {
         case PDSinkEventType::sourceCapabilitiesChanged:
-            print_usb_pd_capabilities();
+            {
+                std::unique_ptr<char[]> buf = PowerSink.printCapabilitiesToBuf(25);
+                log_info("%s", buf.get());
+            }
             break;
         case PDSinkEventType::voltageChanged:
             log_info("USB-PD: active supply now %d mV / %d mA", PowerSink.activeVoltage, PowerSink.activeCurrent);
@@ -312,14 +286,12 @@ static void io_thread_entry(ULONG arg) {
             server.write_input_register(ModbusRegisters::Input::LIGHTBARRIER1, ls1_active ? 1 : 0);
             server.write_input_register(ModbusRegisters::Input::LIGHTBARRIER2, ls2_active ? 1 : 0);
 
-            // Analoger Drucksensor -- Rohwert, physikalische Skalierung noch offen
-            if (HAL_ADC_Start(&hadc1) == HAL_OK) {
-                if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK) {
-                    uint16_t raw = (uint16_t)HAL_ADC_GetValue(&hadc1);
-                    server.write_input_register(ModbusRegisters::Input::PRESSURE_RAW, raw);
-                }
-                HAL_ADC_Stop(&hadc1);
-            }
+            // Analoger Drucksensor -- Rohwert, physikalische Skalierung noch offen.
+            // ADC1 laeuft im Continuous-Conversion-Modus (einmalig per HAL_ADC_Start()
+            // in main.c gestartet, siehe dort) -- hier also kein Start/Poll/Stop je
+            // Durchlauf mehr, einfach den zuletzt gewandelten Wert abholen.
+            uint16_t raw = (uint16_t)HAL_ADC_GetValue(&hadc1);
+            server.write_input_register(ModbusRegisters::Input::PRESSURE_RAW, raw);
 
             // Pneumatikventile aus Holding-Registern setzen
             bool valve1 = server.read_holding_register(ModbusRegisters::Holding::VALVE1) != 0;

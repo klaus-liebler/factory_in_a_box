@@ -6,11 +6,8 @@ Eine einfache, sichere Modbus-TCP-Server-Implementierung für Azure RTOS (Thread
 
 - **Header-Only** — Keine separaten `.cpp`-Dateien, alles in `modbus_tcp_server.hpp`
 - **ThreadX/NetX Duo Integration** — Nutzt `NX_TCP_SOCKET` und NetX-Packet-Pools direkt
-- **Standard Modbus-Speicher**:
-  - 1024 Holding Registers (Lesen + Schreiben)
-  - 1024 Input Registers (Nur Lesen)
-  - 2048 Coils (Bits, Lesen + Schreiben)
-  - 2048 Discrete Inputs (Bits, Nur Lesen)
+- **Registerspeicher wird injiziert** — Holding- und Input-Register liegen als rohe `uint16_t*` + Anzahl beim Aufrufer (z.B. `AppState`), nicht in der Server-Klasse. Kein Heap noetig, passt zum ThreadX-Byte-Pool-Muster des Projekts.
+- **Optionale Callbacks** — `callback_before_read` (vor FC03/FC04) und `callback_after_write` (nach FC06/FC16), jeweils `(function_code, start_addr, count)`
 - **Unterstützte Funktionscodes**:
   - **03** — Read Holding Registers (bis 125 auf einmal)
   - **04** — Read Input Registers (bis 125 auf einmal)
@@ -28,11 +25,24 @@ Eine einfache, sichere Modbus-TCP-Server-Implementierung für Azure RTOS (Thread
 #include "modbus_tcp_server.hpp"
 ```
 
-### 2. Instanz erstellen und initialisieren:
+### 2. Registerspeicher anlegen und Instanz erstellen:
 
 ```c
-// Globale Instanz
-ModbusTcpServer server(&NetXDuoEthIpInstance, &WebServerPool);
+// Registerspeicher lebt beim Aufrufer (z.B. statisch oder als Member von AppState)
+static uint16_t holding_registers[MODBUS_MAX_REGISTERS] = {0};
+static uint16_t input_registers[MODBUS_MAX_REGISTERS] = {0};
+
+ModbusTcpServer::RegisterModel registers{
+    holding_registers, MODBUS_MAX_REGISTERS,
+    input_registers, MODBUS_MAX_REGISTERS
+};
+
+// Optional: Callback vor Reads / nach Writes registrieren (sonst nullptr)
+void on_write(uint8_t function_code, uint16_t start_addr, size_t count) {
+    printf("FC%u write @%u, count=%zu\n", function_code, start_addr, count);
+}
+
+ModbusTcpServer server(&NetXDuoEthIpInstance, &WebServerPool, registers, on_write);
 
 // Initialisieren (bindet auf Port 502)
 if (server.initialize() != NX_SUCCESS) {
@@ -60,12 +70,10 @@ tx_thread_create(&thread_handle, "Modbus", my_modbus_thread_entry,
 ```c
 // Lesen
 uint16_t value = server.read_holding_register(100);
-bool bit = server.read_coil(50);
 
 // Schreiben
 server.write_holding_register(100, 1234);
 server.write_holding_register(101, 5678);
-server.write_coil(50, true);
 ```
 
 ### 5. Server stoppen:
@@ -79,15 +87,15 @@ tx_thread_suspend(&modbus_thread_handle);
 
 ```
 ModbusTcpServer
-├── Registers (innere Klasse)
-│   ├── holding_registers[1024]   (uint16_t)
-│   ├── input_registers[1024]     (uint16_t)
-│   ├── coils[256]                (uint8_t — Bitfield für 2048 Bits)
-│   └── discrete_inputs[256]      (uint8_t — Bitfeld für 2048 Bits)
+├── RegisterModel (vom Aufrufer injiziert, keine eigene Storage)
+│   ├── holding_registers  (uint16_t*, holding_register_count)
+│   └── input_registers    (uint16_t*, input_register_count)
 │
 ├── NX_TCP_SOCKET m_server_socket  (Server-Listen-Socket)
 ├── NX_IP* m_ip_instance           (NetX IP-Instanz)
 ├── NX_PACKET_POOL* m_packet_pool  (Für Paket-Allokation)
+├── m_callback_before_read         (optional, vor FC03/FC04)
+├── m_callback_after_write         (optional, nach FC06/FC16)
 │
 └── Methoden
     ├── initialize()                (Socket binden auf Port 502)
@@ -95,8 +103,8 @@ ModbusTcpServer
     ├── stop()                      (Socket cleanup)
     ├── read_holding_register(addr) (uint16_t)
     ├── write_holding_register(addr, value)
-    ├── read_coil(addr)             (bool)
-    ├── write_coil(addr, value)
+    ├── read_input_register(addr)   (uint16_t)
+    ├── write_input_register(addr, value)
     └── ...
     [private]
     ├── process_client_requests()   (Client-Kommunikation)
@@ -137,7 +145,6 @@ Um weitere Funktionscodes hinzuzufügen (z.B. FC 01=Read Coils, FC 05=Write Sing
 - **Keine Coil/Discrete-Input-Funktionen (FC 01, 02, 05, 15)** im Grundgerüst — können einfach hinzugefügt werden
 - **Einzelne TCP-Verbindung gleichzeitig** — `nx_tcp_server_socket_accept()` blockiert auf eine neue Verbindung; sequenzielle Clients OK, gleichzeitige brauchen Event-Loop-Refactor
 - **Keine Authentifizierung** — Modbus TCP selbst hat keine; würde bei Bedarf in den Socket-Accept vor `process_client_requests()` hinzugefügt
-- **Kein Timeout auf Coils/Discrete Input-Schreiben** — diese sind hardcoded read-only für Input Registers und Discrete Inputs (absichtlich, lassen sich aber leicht umgestalten)
 
 ## Testing
 

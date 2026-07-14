@@ -60,10 +60,7 @@ def dump_status(client: ModbusTcpClient) -> None:
     print(f"FW_VERSION     : {fw[0]}.{fw[1]}.{fw[2]}")
 
     tick0 = check(client.read_input_registers(INPUT_TIMER_TICK, count=1), "TIMER_TICK").registers[0]
-    time.sleep(0.2)
-    tick1 = check(client.read_input_registers(INPUT_TIMER_TICK, count=1), "TIMER_TICK").registers[0]
-    moving = "laeuft" if tick1 != tick0 else "STEHT (unerwartet!)"
-    print(f"TIMER_TICK     : {tick0} -> {tick1}  ({moving})")
+    print(f"TIMER_TICK     : {tick0}")
 
     eth = check(client.read_input_registers(INPUT_ETH_LINK_STATUS, count=3), "ETH_LINK").registers
     link_up = "up" if eth[0] else "down"

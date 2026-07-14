@@ -181,4 +181,10 @@ namespace Holding {
 
 } // namespace Holding
 
+// Hoechster belegter Index je Register-Bank -- bestimmt die benoetigte Groesse
+// der ModbusTcpServer::RegisterModel-Vektoren (siehe app.cpp). Bei Erweiterung
+// der Register-Map (neue Region ans Ende angehaengt) hier mitziehen.
+constexpr uint16_t INPUT_REGISTER_MAX_INDEX   = Input::STEPPER_STATUS_REGION_END;
+constexpr uint16_t HOLDING_REGISTER_MAX_INDEX = Holding::WS2812_REGION_END;
+
 } // namespace ModbusRegisters

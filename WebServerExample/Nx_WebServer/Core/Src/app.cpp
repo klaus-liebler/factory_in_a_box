@@ -3,17 +3,23 @@
 #include <string.h>
 #include <stdbool.h>
 #include <new>
+#include <vector>
+#include <utility>
 #include "nx_api.h"
 #include "fx_api.h"
 #include "tx_api.h"
 #include "nxd_dhcp_client.h"
 #include "nx_web_http_server.h"
 #include "nx_stm32_eth_driver.h"
+#include "nx_stm32_phy_driver.h"
 #include "fx_stm32_sd_driver.h"
 
 #include "modbus_tcp_server.hpp"
 #include "modbus_register_map.hpp"
 #include "diagnostics.hpp"
+#include "PDSink.h"
+#include "stm32h5xx_ll_ucpd.h"
+#include "log.h"
 
 #include "main.h"
 
@@ -37,6 +43,8 @@ extern "C" ADC_HandleTypeDef hadc1;
 #define DEFAULT_PRIORITY            5
 #define LINK_PRIORITY               11
 #define IO_PRIORITY                 12
+#define USB_PD_PRIORITY             13
+#define USB_PD_THREAD_SLEEP_TICKS   10
 #define IO_THREAD_SLEEP_TICKS       50
 #define NX_APP_THREAD_PRIORITY      10
 #define NX_APP_INSTANCE_PRIORITY    10
@@ -61,7 +69,6 @@ typedef struct {
     NX_WEB_HTTP_SERVER http_server;
     ModbusTcpServer* modbus_server = nullptr;
 
-
     FX_MEDIA sd_media;
 
     ULONG ip_address;
@@ -72,6 +79,7 @@ typedef struct {
     TX_THREAD link_thread;
     TX_THREAD modbus_server_thread;
     TX_THREAD io_thread;
+    TX_THREAD usb_pd_thread;
 } AppState;
 
 static AppState g_app_state = {0};
@@ -85,7 +93,7 @@ static volatile bool blink_led = false;
 do { \
     UINT assure_status_ = (status_expr); \
     if (assure_status_ != NX_SUCCESS) { \
-        printf("Error %s: %s:%d, status: 0x%x\n", message_on_fail, __FILE__, __LINE__, assure_status_); \
+        log_error("Error %s: %s:%d, status: 0x%x", message_on_fail, __FILE__, __LINE__, assure_status_); \
         Error_Handler(); \
     } \
 } while (0)
@@ -100,6 +108,7 @@ static void led_thread_entry(ULONG arg);
 static void link_thread_entry(ULONG arg);
 static void app_main_thread_entry(ULONG arg);
 static void io_thread_entry(ULONG arg);
+static void usb_pd_thread_entry(ULONG arg);
 
 // IP address change callback
 static void ip_address_change_notify_callback(NX_IP *ip_instance, VOID *ptr) {
@@ -109,7 +118,7 @@ static void ip_address_change_notify_callback(NX_IP *ip_instance, VOID *ptr) {
         return;
     }
     if (g_app_state.ip_address != 0) {
-        printf("IP Address: %lu.%lu.%lu.%lu\n",
+        log_info("IP Address: %lu.%lu.%lu.%lu",
                (g_app_state.ip_address >> 24) & 0xff,
                (g_app_state.ip_address >> 16) & 0xff,
                (g_app_state.ip_address >> 8) & 0xff,
@@ -124,9 +133,66 @@ static void modbus_server_thread_entry(ULONG thread_input)
 {
     ModbusTcpServer* server = (ModbusTcpServer*)thread_input;
     if (server) {
-        printf("Modbus TCP Server started on port 502\n");
+        log_info("Modbus TCP Server started on port 502");
         server->run();  // Infinite loop, akzeptiert Clients
-        printf("Modbus TCP Server stopped\n");
+        log_info("Modbus TCP Server stopped");
+    }
+}
+
+// ============================================================================
+// USB-PD Thread -- fuer's Erste nur Ausgabe der vom Netzteil gemeldeten
+// Capabilities auf der Konsole, keine aktive Spannungsanforderung (der Sink
+// fordert selbstaendig 5V an, siehe PDSink::onSourceCapabilities()).
+// ============================================================================
+
+static void print_usb_pd_capabilities() {
+    // Alles in einer einzigen log_info()-Zeile statt einer je Capability, damit
+    // die Tabelle nicht durch andere Log-Zeilen (z.B. aus anderen Threads)
+    // auseinandergerissen werden kann. log_log()'s eigenes Praefix (Zeitstempel,
+    // Level, Datei:Zeile) ist genau 25 sichtbare Zeichen breit -- Folgezeilen
+    // werden daher mit 25 Leerzeichen eingerueckt, damit die Tabelle darunter
+    // buendig ausgerichtet ist.
+    char buf[640];
+    size_t pos = 0;
+
+    int n = snprintf(buf, sizeof(buf), "USB-PD: %d source capabilit%s:",
+                      PowerSink.numSourceCapabilities,
+                      PowerSink.numSourceCapabilities == 1 ? "y" : "ies");
+    pos = (n > 0 && (size_t)n < sizeof(buf)) ? (size_t)n : sizeof(buf) - 1;
+
+    for (int i = 0; i < PowerSink.numSourceCapabilities && pos < sizeof(buf); i++) {
+        const PDSourceCapability& cap = PowerSink.sourceCapabilities[i];
+        n = snprintf(buf + pos, sizeof(buf) - pos,
+                      "\r\n%25s[%d] %-8s %6u-%6u mV, max %4u mA",
+                      "", i, PDSourceCapability::supplyTypeName(cap.supplyType),
+                      cap.minVoltage, cap.maxVoltage, cap.maxCurrent);
+        pos += (n > 0) ? (size_t)n : 0;
+        if (pos >= sizeof(buf))
+            pos = sizeof(buf) - 1;
+    }
+
+    log_info("%s", buf);
+}
+
+static void usb_pd_event_callback(PDSinkEventType eventType) {
+    switch (eventType) {
+        case PDSinkEventType::sourceCapabilitiesChanged:
+            print_usb_pd_capabilities();
+            break;
+        case PDSinkEventType::voltageChanged:
+            log_info("USB-PD: active supply now %d mV / %d mA", PowerSink.activeVoltage, PowerSink.activeCurrent);
+            break;
+        case PDSinkEventType::powerRejected:
+            log_warn("USB-PD: power request rejected by source");
+            break;
+    }
+}
+
+static void usb_pd_thread_entry(ULONG arg) {
+    (void)arg;
+    while (1) {
+        PowerSink.Loop();
+        tx_thread_sleep(USB_PD_THREAD_SLEEP_TICKS);
     }
 }
 
@@ -150,10 +216,47 @@ static void led_thread_entry(ULONG arg) {
 // Link Thread (Ethernet cable detection)
 // ============================================================================
 
+// Schreibt Link-Status + (bei Link-Up) die von der LAN8742-PHY tatsächlich
+// ausgehandelte Speed/Duplex ins Registermodell. Wird nur bei einer erkannten
+// Verbindungsänderung aufgerufen (siehe link_thread_entry), nicht periodisch --
+// die Werte aendern sich nur bei einer neuen Auto-Negotiation.
+static void update_eth_link_registers(bool link_up) {
+    if (!g_app_state.modbus_server) {
+        return;
+    }
+    ModbusTcpServer& server = *g_app_state.modbus_server;
+
+    uint16_t speed = 0;   // 0=10M, 1=100M, 2=1000M
+    uint16_t duplex = 0;  // 0=half, 1=full
+
+    if (link_up) {
+        switch (nx_eth_phy_get_link_state()) {
+            case ETH_PHY_STATUS_100MBITS_FULLDUPLEX:
+                speed = 1; duplex = 1; break;
+            case ETH_PHY_STATUS_100MBITS_HALFDUPLEX:
+                speed = 1; duplex = 0; break;
+            case ETH_PHY_STATUS_10MBITS_FULLDUPLEX:
+                speed = 0; duplex = 1; break;
+            case ETH_PHY_STATUS_10MBITS_HALFDUPLEX:
+            default:
+                speed = 0; duplex = 0; break;
+        }
+    }
+
+    server.write_input_register(ModbusRegisters::Input::ETH_LINK_STATUS, link_up ? 1 : 0);
+    server.write_input_register(ModbusRegisters::Input::ETH_LINK_SPEED, speed);
+    server.write_input_register(ModbusRegisters::Input::ETH_LINK_DUPLEX, duplex);
+}
+
 static void link_thread_entry(ULONG arg) {
     (void)arg;
     ULONG actual_status;
-    int linkdown = 0;
+    // -1 = Zustand beim Boot noch unbekannt -- erzwingt bei der ersten Pruefung
+    // unten einen Durchlauf des passenden Zweigs (verbunden oder getrennt),
+    // egal ob das Kabel beim Start bereits steckt oder nicht. Mit Startwert 0
+    // ("nehmen Verbindung an") wuerde der Up-Zweig nie feuern, wenn das Kabel
+    // schon beim Boot steckt, und update_eth_link_registers(true) bliebe aus.
+    int linkdown = -1;
 
     while (1) {
         UINT status = nx_ip_interface_status_check(&g_app_state.ip_instance, 0,
@@ -161,9 +264,9 @@ static void link_thread_entry(ULONG arg) {
                                                     &actual_status, 10);
 
         if (status == NX_SUCCESS) {
-            if (linkdown == 1) {
+            if (linkdown != 0) {
                 linkdown = 0;
-                printf("Network cable connected\n");
+                log_info("Network cable connected");
                 nx_ip_driver_direct_command(&g_app_state.ip_instance, NX_LINK_ENABLE, &actual_status);
 
                 status = nx_ip_interface_status_check(&g_app_state.ip_instance, 0,
@@ -174,12 +277,16 @@ static void link_thread_entry(ULONG arg) {
                     nx_dhcp_reinitialize(&g_app_state.dhcp_client);
                     nx_dhcp_start(&g_app_state.dhcp_client);
                 }
+
+                update_eth_link_registers(true);
             }
         } else {
-            if (linkdown == 0) {
+            if (linkdown != 1) {
                 linkdown = 1;
-                printf("Network cable disconnected\n");
+                log_info("Network cable disconnected");
                 nx_ip_driver_direct_command(&g_app_state.ip_instance, NX_LINK_DISABLE, &actual_status);
+
+                update_eth_link_registers(false);
             }
         }
 
@@ -222,11 +329,12 @@ static void io_thread_entry(ULONG arg) {
             HAL_GPIO_WritePin(VALVE2_GPIO_Port, VALVE2_Pin, valve2 ? GPIO_PIN_SET : GPIO_PIN_RESET);
             HAL_GPIO_WritePin(VALVE3_GPIO_Port, VALVE3_Pin, valve3 ? GPIO_PIN_SET : GPIO_PIN_RESET);
 
-            // Ethernet-Link-Status + HealthState-Aggregation
+            // HealthState-Aggregation -- ETH_LINK_STATUS/SPEED/DUPLEX selbst werden
+            // von link_thread_entry() edge-getriggert geschrieben (siehe update_eth_link_registers),
+            // hier nur der aktuelle Status fuer die Health-Bit-Berechnung.
             ULONG actual_status;
             bool eth_link_up = (nx_ip_interface_status_check(&g_app_state.ip_instance, 0,
                                                               NX_IP_LINK_ENABLED, &actual_status, 10) == NX_SUCCESS);
-            server.write_input_register(ModbusRegisters::Input::ETH_LINK_STATUS, eth_link_up ? 1 : 0);
             Diagnostics::update_health_state(server, eth_link_up);
             Diagnostics::update_timer_tick(server, tx_time_get());
         }
@@ -252,7 +360,7 @@ static void app_main_thread_entry(ULONG arg) {
                            (VOID *)data_buffer, sizeof(data_buffer)),
                            "FileX media open failed");
 
-    printf("FileX media opened\n");
+    log_info("FileX media opened");
 
     NX_WEB_HTTP_SERVER_MIME_MAP mime_maps[] = {
         {NX_CHAR_LITERAL("css"), NX_CHAR_LITERAL("text/css")},
@@ -263,7 +371,7 @@ static void app_main_thread_entry(ULONG arg) {
     nx_web_http_server_mime_maps_additional_set(&g_app_state.http_server, mime_maps, 4);
 
     ASSURE_SUCCESS(nx_web_http_server_start(&g_app_state.http_server), "HTTP Server start failed");
-    printf("HTTP Server started\n");
+    log_info("HTTP Server started");
 
 
     ASSURE_SUCCESS(nx_ip_address_change_notify(&g_app_state.ip_instance,
@@ -285,6 +393,7 @@ static void app_main_thread_entry(ULONG arg) {
     ASSURE_SUCCESS(tx_thread_resume(&g_app_state.link_thread), "Link Thread resume failed");
     ASSURE_SUCCESS(tx_thread_resume(&g_app_state.modbus_server_thread), "Modbus Server Thread resume failed");
     ASSURE_SUCCESS(tx_thread_resume(&g_app_state.io_thread), "IO Thread resume failed");
+    ASSURE_SUCCESS(tx_thread_resume(&g_app_state.usb_pd_thread), "USB-PD Thread resume failed");
 }
 
 // ============================================================================
@@ -306,11 +415,11 @@ static UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT requ
                  (g_app_state.ip_address >> 8) & 0xff,
                  g_app_state.ip_address & 0xff);
     } else if (strcmp(resource, "/LedOn") == 0) {
-        printf("LED On\n");
+        log_info("LED On");
         blink_led = true;
         sprintf(response_data, "OK");
     } else if (strcmp(resource, "/LedOff") == 0) {
-        printf("LED Off\n");
+        log_info("LED Off");
         blink_led = false;
         HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
         sprintf(response_data, "OK");
@@ -348,8 +457,13 @@ static UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT requ
 // ============================================================================
 // ThreadX Application Entry Point
 // ============================================================================
+extern "C" void malloc_lock_init(void);
+extern "C" int TCPP0203_WakeupForSink(void);
+
 extern "C" void tx_application_define(void *first_unused_memory) {
-    printf("001 Application initialization starting...\n");
+    malloc_lock_init();
+
+    log_info("001 Application initialization starting...");
 
     static UCHAR tx_byte_pool_buffer[TX_APP_MEM_POOL_SIZE] __attribute__((aligned(4)));
     static TX_BYTE_POOL tx_app_byte_pool;
@@ -431,10 +545,14 @@ extern "C" void tx_application_define(void *first_unused_memory) {
     ASSURE_SUCCESS(nx_dhcp_create(&g_app_state.dhcp_client, &g_app_state.ip_instance, NX_CHAR_LITERAL("DHCP Client")), "DHCP Client create failed");
 
         // --- Modbus TCP Server Setup ---
-    // Allocate memory for Modbus server instance
-
-    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, sizeof(ModbusTcpServer), TX_NO_WAIT), "Modbus server allocate failed");
-    g_app_state.modbus_server = new(ptr) ModbusTcpServer(&g_app_state.ip_instance, &g_app_state.packet_pool);
+    // Server-Instanz und Registerspeicher (std::vector) kommen jetzt aus dem
+    // newlib-Heap statt aus dem nx_app_byte_pool -- sicher seit malloc_lock_init()
+    // (siehe Core/Src/malloc_lock.c) in tx_application_define() aufgerufen wird.
+    ModbusTcpServer::RegisterModel modbus_registers{
+        std::vector<uint16_t>(ModbusRegisters::HOLDING_REGISTER_MAX_INDEX + 1, 0),
+        std::vector<uint16_t>(ModbusRegisters::INPUT_REGISTER_MAX_INDEX + 1, 0)
+    };
+    g_app_state.modbus_server = new ModbusTcpServer(&g_app_state.ip_instance, &g_app_state.packet_pool, std::move(modbus_registers));
 
     // initialize() ruft u.a. nx_tcp_server_socket_listen() auf, das NetX nur aus
     // einem laufenden Thread heraus erlaubt (NX_THREADS_ONLY_CALLER_CHECKING) --
@@ -467,5 +585,32 @@ extern "C" void tx_application_define(void *first_unused_memory) {
                      IO_PRIORITY, IO_PRIORITY,
                      TX_NO_TIME_SLICE, TX_DONT_START);
 
-    printf("Application initialization complete\n");
+    // --- USB-PD Sink Setup ---
+    // The TCPP03-M20 port protection IC sitting between UCPD1 and the USB-C
+    // receptacle (STM32H573I-DK) boots into HIBERNATE and won't present CC1/CC2
+    // correctly until woken up over I2C4 -- must happen before PowerSink.start()
+    // touches UCPD1, or the sink will never see anything on the CC lines.
+    if (TCPP0203_WakeupForSink() != 0) {
+        log_warn("TCPP0203_WakeupForSink() failed - USB-PD CC lines may not work");
+    }
+
+    // PowerSink.start() enables the scheduler timer (TIM7) and initializes the UCPD1
+    // PHY (clocks/GPIO/DMA/NVIC) -- plain register-level setup, unlike the NetX calls
+    // above it has no running-thread requirement, so it's safe to call here directly.
+    // Event delivery (printing capabilities) happens from usb_pd_thread_entry() via
+    // PowerSink.Loop(), since the callback must not run from IRQ context.
+    PowerSink.start(usb_pd_event_callback);
+
+    // 4x DEFAULT_MEMORY_SIZE: print_usb_pd_capabilities() builds a 640-byte
+    // snprintf() buffer on this thread's stack (plus vfprintf's own internal
+    // stack usage on top) - the plain DEFAULT_MEMORY_SIZE (1024 bytes) blew
+    // through the Cortex-M33 stack limit (PSPLIM) and hard-faulted with UFSR.STKOF set.
+    ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, 4 * DEFAULT_MEMORY_SIZE, TX_NO_WAIT), "USB-PD Thread stack allocate failed");
+    tx_thread_create(&g_app_state.usb_pd_thread, NX_CHAR_LITERAL("USB-PD Thread"),
+                     usb_pd_thread_entry, 0,
+                     (VOID *)ptr, 4 * DEFAULT_MEMORY_SIZE,
+                     USB_PD_PRIORITY, USB_PD_PRIORITY,
+                     TX_NO_TIME_SLICE, TX_DONT_START);
+
+    log_info("Application initialization complete");
 }

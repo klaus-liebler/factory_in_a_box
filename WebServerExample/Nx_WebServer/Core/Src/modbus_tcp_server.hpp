@@ -4,12 +4,13 @@
 #include "tx_api.h"
 #include <cstring>
 #include <cstdint>
+#include <cstddef>
+#include <vector>
+#include <utility>
 
 constexpr uint16_t MODBUS_TCP_PORT = 502;
 constexpr uint16_t MODBUS_PROTOCOL_ID = 0;
 constexpr uint8_t MAX_MODBUS_CLIENTS = 5;
-constexpr uint16_t MODBUS_MAX_REGISTERS = 1024;
-constexpr uint16_t MODBUS_MAX_COILS = 2048;
 
 // Modbus TCP MBAP Header (7 bytes) + PDU (bis 252 bytes = 259 max)
 constexpr uint16_t MODBUS_MAX_ADU_SIZE = 260;
@@ -44,51 +45,24 @@ struct MbapHeader {
 // Modbus TCP Server als Header-Only Klasse
 class ModbusTcpServer {
 public:
-    // Modbus-Registerspeicher
-    struct Registers {
-        uint16_t holding_registers[MODBUS_MAX_REGISTERS];
-        uint16_t input_registers[MODBUS_MAX_REGISTERS];
-        uint8_t  coils[MODBUS_MAX_COILS / 8];
-        uint8_t  discrete_inputs[MODBUS_MAX_COILS / 8];
-
-        Registers() {
-            std::memset(holding_registers, 0, sizeof(holding_registers));
-            std::memset(input_registers, 0, sizeof(input_registers));
-            std::memset(coils, 0, sizeof(coils));
-            std::memset(discrete_inputs, 0, sizeof(discrete_inputs));
-        }
-
-        // Hilfsfunktionen für Bit-Zugriff
-        bool get_coil(uint16_t addr) const {
-            if (addr >= MODBUS_MAX_COILS) return false;
-            return (coils[addr / 8] >> (addr % 8)) & 1;
-        }
-
-        void set_coil(uint16_t addr, bool value) {
-            if (addr >= MODBUS_MAX_COILS) return;
-            if (value)
-                coils[addr / 8] |= (1 << (addr % 8));
-            else
-                coils[addr / 8] &= ~(1 << (addr % 8));
-        }
-
-        bool get_discrete_input(uint16_t addr) const {
-            if (addr >= MODBUS_MAX_COILS) return false;
-            return (discrete_inputs[addr / 8] >> (addr % 8)) & 1;
-        }
-
-        void set_discrete_input(uint16_t addr, bool value) {
-            if (addr >= MODBUS_MAX_COILS) return;
-            if (value)
-                discrete_inputs[addr / 8] |= (1 << (addr % 8));
-            else
-                discrete_inputs[addr / 8] &= ~(1 << (addr % 8));
-        }
+    // Registerspeicher wird beim Aufbau des Servers per std::vector uebergeben
+    // und lebt danach in m_registers -- Zugriff von aussen (I/O-Thread,
+    // Diagnostik, ...) laeuft ausschliesslich ueber die Mutex-geschuetzten
+    // read_*/write_*-Methoden dieser Klasse.
+    struct RegisterModel {
+        std::vector<uint16_t> holding_registers;
+        std::vector<uint16_t> input_registers;
     };
 
 public:
-    ModbusTcpServer(NX_IP* ip_instance, NX_PACKET_POOL* pool)
-        : m_ip_instance(ip_instance), m_packet_pool(pool),
+    // callback_before_read wird vor dem Zusammenstellen einer FC03/FC04-Antwort
+    // aufgerufen, callback_after_write nach einer FC06/FC16-Schreiboperation --
+    // jeweils mit (function_code, start_addr, count). Optional (nullptr = kein Callback).
+    ModbusTcpServer(NX_IP* ip_instance, NX_PACKET_POOL* pool, RegisterModel registers,
+                    void (*callback_after_write)(uint8_t, uint16_t, size_t) = nullptr,
+                    void (*callback_before_read)(uint8_t, uint16_t, size_t) = nullptr)
+        : m_ip_instance(ip_instance), m_packet_pool(pool), m_registers(std::move(registers)),
+          m_callback_after_write(callback_after_write), m_callback_before_read(callback_before_read),
           m_transaction_id(0), m_is_running(false) {
     }
 
@@ -182,7 +156,7 @@ public:
     // dieselben Arrays anfassen.
     uint16_t read_holding_register(uint16_t addr) const {
         uint16_t value = 0;
-        if (addr < MODBUS_MAX_REGISTERS) {
+        if (addr < m_registers.holding_registers.size()) {
             tx_mutex_get(const_cast<TX_MUTEX*>(&m_register_mutex), TX_WAIT_FOREVER);
             value = m_registers.holding_registers[addr];
             tx_mutex_put(const_cast<TX_MUTEX*>(&m_register_mutex));
@@ -191,7 +165,7 @@ public:
     }
 
     void write_holding_register(uint16_t addr, uint16_t value) {
-        if (addr < MODBUS_MAX_REGISTERS) {
+        if (addr < m_registers.holding_registers.size()) {
             tx_mutex_get(&m_register_mutex, TX_WAIT_FOREVER);
             m_registers.holding_registers[addr] = value;
             tx_mutex_put(&m_register_mutex);
@@ -200,7 +174,7 @@ public:
 
     uint16_t read_input_register(uint16_t addr) const {
         uint16_t value = 0;
-        if (addr < MODBUS_MAX_REGISTERS) {
+        if (addr < m_registers.input_registers.size()) {
             tx_mutex_get(const_cast<TX_MUTEX*>(&m_register_mutex), TX_WAIT_FOREVER);
             value = m_registers.input_registers[addr];
             tx_mutex_put(const_cast<TX_MUTEX*>(&m_register_mutex));
@@ -209,27 +183,11 @@ public:
     }
 
     void write_input_register(uint16_t addr, uint16_t value) {
-        if (addr < MODBUS_MAX_REGISTERS) {
+        if (addr < m_registers.input_registers.size()) {
             tx_mutex_get(&m_register_mutex, TX_WAIT_FOREVER);
             m_registers.input_registers[addr] = value;
             tx_mutex_put(&m_register_mutex);
         }
-    }
-
-    bool read_coil(uint16_t addr) const {
-        return m_registers.get_coil(addr);
-    }
-
-    void write_coil(uint16_t addr, bool value) {
-        m_registers.set_coil(addr, value);
-    }
-
-    bool read_discrete_input(uint16_t addr) const {
-        return m_registers.get_discrete_input(addr);
-    }
-
-    void write_discrete_input(uint16_t addr, bool value) {
-        m_registers.set_discrete_input(addr, value);
     }
 
     void stop() {
@@ -319,9 +277,12 @@ private:
             uint16_t start_addr = ((uint16_t)request[8] << 8) | request[9];
             uint16_t quantity = ((uint16_t)request[10] << 8) | request[11];
 
-            if (quantity > 125 || start_addr + quantity > MODBUS_MAX_REGISTERS) {
+            if (quantity > 125 || start_addr + quantity > m_registers.holding_registers.size()) {
                 return build_exception_response(response, function_code, 0x02);
             }
+
+            if (m_callback_before_read)
+                m_callback_before_read(function_code, start_addr, quantity);
 
             response[7] = function_code;
             response[8] = quantity * 2;  // Byte count
@@ -343,9 +304,12 @@ private:
             uint16_t start_addr = ((uint16_t)request[8] << 8) | request[9];
             uint16_t quantity = ((uint16_t)request[10] << 8) | request[11];
 
-            if (quantity > 125 || start_addr + quantity > MODBUS_MAX_REGISTERS) {
+            if (quantity > 125 || start_addr + quantity > m_registers.input_registers.size()) {
                 return build_exception_response(response, function_code, 0x02);
             }
+
+            if (m_callback_before_read)
+                m_callback_before_read(function_code, start_addr, quantity);
 
             response[7] = function_code;
             response[8] = quantity * 2;
@@ -367,13 +331,16 @@ private:
             uint16_t addr = ((uint16_t)request[8] << 8) | request[9];
             uint16_t value = ((uint16_t)request[10] << 8) | request[11];
 
-            if (addr >= MODBUS_MAX_REGISTERS) {
+            if (addr >= m_registers.holding_registers.size()) {
                 return build_exception_response(response, function_code, 0x02);
             }
 
             tx_mutex_get(&m_register_mutex, TX_WAIT_FOREVER);
             m_registers.holding_registers[addr] = value;
             tx_mutex_put(&m_register_mutex);
+
+            if (m_callback_after_write)
+                m_callback_after_write(function_code, addr, 1);
 
             // Echo request back
             std::memcpy(response + 7, request + 7, 6);
@@ -388,7 +355,7 @@ private:
 
             if (quantity > 123 || byte_count != quantity * 2 ||
                 request_len < 13u + byte_count ||
-                start_addr + quantity > MODBUS_MAX_REGISTERS) {
+                start_addr + quantity > m_registers.holding_registers.size()) {
                 return build_exception_response(response, function_code, 0x02);
             }
 
@@ -400,6 +367,9 @@ private:
                 m_registers.holding_registers[start_addr + i] = value;
             }
             tx_mutex_put(&m_register_mutex);
+
+            if (m_callback_after_write)
+                m_callback_after_write(function_code, start_addr, quantity);
 
             response[7] = function_code;
             response[8] = (start_addr >> 8) & 0xFF;
@@ -475,7 +445,9 @@ private:
     NX_IP* m_ip_instance;
     NX_PACKET_POOL* m_packet_pool;
     NX_TCP_SOCKET m_server_socket;
-    Registers m_registers;
+    RegisterModel m_registers;
+    void (*m_callback_after_write)(uint8_t, uint16_t, size_t);
+    void (*m_callback_before_read)(uint8_t, uint16_t, size_t);
     TX_MUTEX m_register_mutex;
     uint16_t m_transaction_id;
     bool m_is_running;

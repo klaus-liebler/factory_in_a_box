@@ -26,8 +26,17 @@ if(tx_byte_allocate(byte_pool, (VOID **) &pointer, sizeof(ModbusTcpServer), TX_N
     return TX_POOL_ERROR;
 }
 
-// Erstelle Modbus-Server-Instanz (Placement New)
-g_modbus_server = new(pointer) ModbusTcpServer(&NetXDuoEthIpInstance, &WebServerPool);
+// Registerspeicher lebt beim Aufrufer, nicht in der Server-Klasse
+static uint16_t g_modbus_holding_registers[MODBUS_MAX_REGISTERS] = {0};
+static uint16_t g_modbus_input_registers[MODBUS_MAX_REGISTERS] = {0};
+ModbusTcpServer::RegisterModel modbus_registers{
+    g_modbus_holding_registers, MODBUS_MAX_REGISTERS,
+    g_modbus_input_registers, MODBUS_MAX_REGISTERS
+};
+
+// Erstelle Modbus-Server-Instanz (Placement New). Callbacks sind optional
+// (letzte zwei Parameter, Default nullptr).
+g_modbus_server = new(pointer) ModbusTcpServer(&NetXDuoEthIpInstance, &WebServerPool, modbus_registers);
 
 // Initialisiere Modbus Server
 if (g_modbus_server->initialize() != NX_SUCCESS)

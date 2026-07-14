@@ -33,6 +33,7 @@ namespace Input {
     constexpr uint16_t FW_VERSION_MAJOR  = 7;
     constexpr uint16_t FW_VERSION_MINOR  = 8;
     constexpr uint16_t FW_VERSION_PATCH  = 9;
+    constexpr uint16_t TIMER_TICK        = 10; // freilaufender Systick-Zaehler, Ueberlauf nach 65535
     constexpr uint16_t DIAGNOSTICS_REGION_START = 0;
     constexpr uint16_t DIAGNOSTICS_REGION_END   = 49;
 

@@ -81,11 +81,14 @@ static volatile bool blink_led = false;
 // Success Macro
 // ============================================================================
 
-#define ASSURE_SUCCESS(status, message_on_fail) \
-if (status != NX_SUCCESS) { \
-    printf("Error %s: %s:%d, status: 0x%x\n", message_on_fail, __FILE__, __LINE__, status); \
-    Error_Handler(); \
-}
+#define ASSURE_SUCCESS(status_expr, message_on_fail) \
+do { \
+    UINT assure_status_ = (status_expr); \
+    if (assure_status_ != NX_SUCCESS) { \
+        printf("Error %s: %s:%d, status: 0x%x\n", message_on_fail, __FILE__, __LINE__, assure_status_); \
+        Error_Handler(); \
+    } \
+} while (0)
 
 
 
@@ -225,6 +228,7 @@ static void io_thread_entry(ULONG arg) {
                                                               NX_IP_LINK_ENABLED, &actual_status, 10) == NX_SUCCESS);
             server.write_input_register(ModbusRegisters::Input::ETH_LINK_STATUS, eth_link_up ? 1 : 0);
             Diagnostics::update_health_state(server, eth_link_up);
+            Diagnostics::update_timer_tick(server, tx_time_get());
         }
 
         tx_thread_sleep(IO_THREAD_SLEEP_TICKS);
@@ -232,7 +236,10 @@ static void io_thread_entry(ULONG arg) {
 }
 
 // ============================================================================
-// Main App Thread (DHCP/startup)
+// Main App Thread -- einziger Thread mit TX_AUTO_START. Fuehrt alle
+// Initialisierungen durch, die einen laufenden Thread-Kontext brauchen
+// (FileX/HTTP/DHCP/Modbus), und startet danach alle uebrigen (mit
+// TX_DONT_START angelegten) Threads explizit per tx_thread_resume().
 // ============================================================================
 
 static void app_main_thread_entry(ULONG arg) {
@@ -264,6 +271,20 @@ static void app_main_thread_entry(ULONG arg) {
                                       NULL), "IP address change notify failed");
 
     ASSURE_SUCCESS(nx_dhcp_start(&g_app_state.dhcp_client), "DHCP start failed");
+
+    // Modbus-Server-Initialisierung braucht wie der HTTP-Server-Start oben einen
+    // laufenden Thread-Kontext (nx_tcp_server_socket_listen() lehnt Aufrufe aus
+    // tx_application_define() sonst mit NX_CALLER_ERROR ab).
+    ASSURE_SUCCESS(g_app_state.modbus_server->initialize(), "Modbus TCP Server initialization failed");
+    Diagnostics::write_startup_registers(*g_app_state.modbus_server);
+
+    // Alle uebrigen Threads sind mit TX_DONT_START angelegt und werden erst hier,
+    // ganz am Ende der Initialisierung, gestartet -- so haengt die Boot-Reihenfolge
+    // nicht von Thread-Prioritaeten ab, sondern ist explizit festgelegt.
+    ASSURE_SUCCESS(tx_thread_resume(&g_app_state.led_thread), "LED Thread resume failed");
+    ASSURE_SUCCESS(tx_thread_resume(&g_app_state.link_thread), "Link Thread resume failed");
+    ASSURE_SUCCESS(tx_thread_resume(&g_app_state.modbus_server_thread), "Modbus Server Thread resume failed");
+    ASSURE_SUCCESS(tx_thread_resume(&g_app_state.io_thread), "IO Thread resume failed");
 }
 
 // ============================================================================
@@ -385,14 +406,14 @@ extern "C" void tx_application_define(void *first_unused_memory) {
                      led_thread_entry, 0,
                      (VOID *)ptr, DEFAULT_MEMORY_SIZE,
                      TOGGLE_LED_PRIORITY, TOGGLE_LED_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_AUTO_START);
+                     TX_NO_TIME_SLICE, TX_DONT_START);
 
     ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, 2 * DEFAULT_MEMORY_SIZE, TX_NO_WAIT), "Link Thread stack allocate failed");
     tx_thread_create(&g_app_state.link_thread, NX_CHAR_LITERAL("Link Thread"),
                      link_thread_entry, 0,
                      (VOID *)ptr, 2 * DEFAULT_MEMORY_SIZE,
                      LINK_PRIORITY, LINK_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_AUTO_START);
+                     TX_NO_TIME_SLICE, TX_DONT_START);
 
     ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, SERVER_POOL_SIZE, TX_NO_WAIT), "HTTP Server Pool allocate failed");
     NX_PACKET_POOL *server_pool = (NX_PACKET_POOL *)ptr;
@@ -415,16 +436,17 @@ extern "C" void tx_application_define(void *first_unused_memory) {
     ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, sizeof(ModbusTcpServer), TX_NO_WAIT), "Modbus server allocate failed");
     g_app_state.modbus_server = new(ptr) ModbusTcpServer(&g_app_state.ip_instance, &g_app_state.packet_pool);
 
-    // Initialisiere Modbus Server
-    ASSURE_SUCCESS(g_app_state.modbus_server->initialize(), "Modbus TCP Server initialization failed");
-
-    // Diagnostik-Register (Chip-ID, Firmware-Version) einmalig befuellen
-    Diagnostics::write_startup_registers(*g_app_state.modbus_server);
+    // initialize() ruft u.a. nx_tcp_server_socket_listen() auf, das NetX nur aus
+    // einem laufenden Thread heraus erlaubt (NX_THREADS_ONLY_CALLER_CHECKING) --
+    // hier in tx_application_define() laeuft noch kein Thread. Der eigentliche
+    // initialize()-Aufruf passiert daher im app_main_thread_entry() (App Main
+    // Thread), der als einziger Thread mit TX_AUTO_START laeuft und danach alle
+    // anderen (mit TX_DONT_START angelegten) Threads explizit per
+    // tx_thread_resume() startet.
 
     // Allocate the Modbus server thread stack
     ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, 2 * DEFAULT_MEMORY_SIZE, TX_NO_WAIT), "Modbus server thread stack allocate failed");
 
-    // Create the Modbus server thread (but don't start yet)
     ASSURE_SUCCESS(tx_thread_create(
         &g_app_state.modbus_server_thread,
         NX_CHAR_LITERAL("Modbus Server Thread"),
@@ -435,7 +457,7 @@ extern "C" void tx_application_define(void *first_unused_memory) {
         DEFAULT_PRIORITY,
         DEFAULT_PRIORITY,
         TX_NO_TIME_SLICE,
-        TX_AUTO_START
+        TX_DONT_START
     ), "Modbus server thread create failed");
 
     ASSURE_SUCCESS(tx_byte_allocate(&nx_app_byte_pool, (VOID **)&ptr, 2 * DEFAULT_MEMORY_SIZE, TX_NO_WAIT), "IO Thread stack allocate failed");
@@ -443,7 +465,7 @@ extern "C" void tx_application_define(void *first_unused_memory) {
                      io_thread_entry, 0,
                      (VOID *)ptr, 2 * DEFAULT_MEMORY_SIZE,
                      IO_PRIORITY, IO_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_AUTO_START);
+                     TX_NO_TIME_SLICE, TX_DONT_START);
 
     printf("Application initialization complete\n");
 }

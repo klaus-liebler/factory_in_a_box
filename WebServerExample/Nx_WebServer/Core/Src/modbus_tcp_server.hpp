@@ -151,7 +151,20 @@ public:
                 continue;
             }
 
-            // Client-Socket vorbereiten
+            // Client-Verbindung im m_server_socket ist jetzt aktiv
+            // Anfragen empfangen und verarbeiten
+            process_client_requests(&m_server_socket);
+
+            // Verbindung schliessen, ERST danach darf relisten() aufgerufen werden --
+            // relisten() erwartet einen bereits geschlossenen Socket (sonst blockiert
+            // sie bzw. liefert NX_NOT_CLOSED) und versetzt ihn zurueck in den
+            // Listen-Zustand fuer den naechsten Client. unaccept() dazwischen setzt
+            // den Socket in den Zustand direkt nach dem Erstellen zurueck -- ohne das
+            // schlaegt relisten() fehl bzw. der Server nimmt keine weiteren Clients
+            // mehr an (Referenzmuster: Middlewares/ST/netxduo/addons/web/nx_tcpserver.c).
+            nx_tcp_socket_disconnect(&m_server_socket, NX_WAIT_FOREVER);
+            nx_tcp_server_socket_unaccept(&m_server_socket);
+
             status = nx_tcp_server_socket_relisten(
                 m_ip_instance,
                 MODBUS_TCP_PORT,
@@ -161,13 +174,6 @@ public:
             if (status != NX_SUCCESS) {
                 continue;
             }
-
-            // Client-Verbindung im m_server_socket ist jetzt aktiv
-            // Anfragen empfangen und verarbeiten
-            process_client_requests(&m_server_socket);
-
-            // Verbindung schließen
-            nx_tcp_socket_disconnect(&m_server_socket, NX_WAIT_FOREVER);
         }
     }
 

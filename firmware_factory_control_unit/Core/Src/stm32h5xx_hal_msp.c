@@ -257,6 +257,11 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* heth)
     GPIO_InitStruct.Alternate = GPIO_AF11_ETH;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+    /* ETH interrupt Init */
+    HAL_NVIC_SetPriority(ETH_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(ETH_IRQn);
+    HAL_NVIC_SetPriority(ETH_WKUP_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(ETH_WKUP_IRQn);
     /* USER CODE BEGIN ETH_MspInit 1 */
 
     /* USER CODE END ETH_MspInit 1 */
@@ -300,6 +305,9 @@ void HAL_ETH_MspDeInit(ETH_HandleTypeDef* heth)
 
     HAL_GPIO_DeInit(GPIOB, GPIO_PIN_15);
 
+    /* ETH interrupt DeInit */
+    HAL_NVIC_DisableIRQ(ETH_IRQn);
+    HAL_NVIC_DisableIRQ(ETH_WKUP_IRQn);
     /* USER CODE BEGIN ETH_MspDeInit 1 */
 
     /* USER CODE END ETH_MspDeInit 1 */
@@ -743,6 +751,9 @@ void HAL_SD_MspInit(SD_HandleTypeDef* hsd)
     GPIO_InitStruct.Alternate = GPIO_AF12_SDMMC1;
     HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
+    /* SDMMC1 interrupt Init */
+    HAL_NVIC_SetPriority(SDMMC1_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(SDMMC1_IRQn);
     /* USER CODE BEGIN SDMMC1_MspInit 1 */
 
     /* USER CODE END SDMMC1_MspInit 1 */
@@ -778,6 +789,8 @@ void HAL_SD_MspDeInit(SD_HandleTypeDef* hsd)
 
     HAL_GPIO_DeInit(GPIOD, GPIO_PIN_2);
 
+    /* SDMMC1 interrupt DeInit */
+    HAL_NVIC_DisableIRQ(SDMMC1_IRQn);
     /* USER CODE BEGIN SDMMC1_MspDeInit 1 */
 
     /* USER CODE END SDMMC1_MspDeInit 1 */

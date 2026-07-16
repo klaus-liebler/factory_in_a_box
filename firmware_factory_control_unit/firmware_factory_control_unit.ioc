@@ -1,6 +1,7 @@
 #MicroXplorer Configuration settings - do not modify
 ADC1.Channel-0\#ChannelRegularConversion=ADC_CHANNEL_18
-ADC1.IPParameters=Rank-0\#ChannelRegularConversion,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,OffsetNumber-0\#ChannelRegularConversion,MonitoredBy-0\#ChannelRegularConversion,NbrOfConversionFlag,master
+ADC1.ContinuousConvMode=ENABLE
+ADC1.IPParameters=Rank-0\#ChannelRegularConversion,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,OffsetNumber-0\#ChannelRegularConversion,MonitoredBy-0\#ChannelRegularConversion,NbrOfConversionFlag,master,ContinuousConvMode
 ADC1.MonitoredBy-0\#ChannelRegularConversion=__NULL
 ADC1.NbrOfConversionFlag=1
 ADC1.OffsetNumber-0\#ChannelRegularConversion=ADC_OFFSET_NONE
@@ -172,12 +173,15 @@ MxDb.Version=DB.6.0.170
 NRST.Locked=true
 NVIC.BusFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.DebugMonitor_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
+NVIC.ETH_IRQn=true\:0\:0\:false\:false\:true\:true\:true\:true
+NVIC.ETH_WKUP_IRQn=true\:0\:0\:false\:false\:true\:true\:true\:true
 NVIC.ForceEnableDMAVector=true
 NVIC.HardFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.MemoryManagement_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.NonMaskableInt_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.PendSV_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.PriorityGroup=NVIC_PRIORITYGROUP_4
+NVIC.SDMMC1_IRQn=true\:0\:0\:false\:false\:true\:true\:true\:true
 NVIC.SVCall_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.SysTick_IRQn=true\:14\:0\:false\:false\:true\:false\:true\:false
 NVIC.TIM6_IRQn=true\:15\:0\:false\:false\:true\:false\:true\:true

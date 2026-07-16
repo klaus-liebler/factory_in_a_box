@@ -25,7 +25,23 @@ target_compile_options(${BUILD_UNIT_0_NAME} PRIVATE
 
 # USE_FULL_LL_DRIVER: needed because Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_ll_{ucpd,gpio,dma}.c
 # (added below for the stm32_libs usb_pd/UCPD port) are entirely gated behind this macro.
-target_compile_definitions(${BUILD_UNIT_0_NAME} PRIVATE USE_FULL_LL_DRIVER)
+# NX_SECURE_INCLUDE_USER_DEFINE_FILE: pulls in Core/Inc/nx_secure_user.h (NetX Secure config).
+# NX_WEB_HTTPS_ENABLE: activates the #ifdef NX_WEB_HTTPS_ENABLE HTTPS code paths inside the
+# already-vendored Middlewares/ST/netxduo/addons/web/nx_web_http_server.c (nx_web_http_server_secure_configure()
+# etc.) -- without this define those functions don't even exist, plain HTTP-only build.
+# NX_SECURE_ENABLE_ECC_CIPHERSUITE / NX_SECURE_ENABLE_AEAD_CIPHER: ohne ECC bietet der Server
+# nur noch die (nicht forward-secret) TLS_RSA_WITH_AES_*_CBC_SHA256-Ciphersuiten an, die alle
+# gaengigen Browser inzwischen ablehnen (ERR_SSL_VERSION_OR_CIPHER_MISMATCH) -- ECC schaltet
+# TLS_ECDHE_ECDSA_WITH_AES_128_{GCM,CBC}_SHA256 frei (ECDHE-Keyexchange + ECDSA-Auth, passt zum
+# Geraete-Zertifikat, das per tools/provision-certificate.mjs als ECDSA/P-256 statt RSA-2048
+# erzeugt wird -- deutlich billigeres Signing beim ServerKeyExchange auf dem STM32H573).
+target_compile_definitions(${BUILD_UNIT_0_NAME} PRIVATE
+  USE_FULL_LL_DRIVER
+  NX_SECURE_INCLUDE_USER_DEFINE_FILE
+  NX_WEB_HTTPS_ENABLE
+  NX_SECURE_ENABLE_ECC_CIPHERSUITE
+  NX_SECURE_ENABLE_AEAD_CIPHER
+)
 
 # Linker options
 target_link_options(${BUILD_UNIT_0_NAME} PRIVATE 
@@ -35,11 +51,34 @@ target_link_options(${BUILD_UNIT_0_NAME} PRIVATE
 # Add sources to executable/library
 target_sources(${BUILD_UNIT_0_NAME} PRIVATE
   # User defined sources
+  # Generiert von web/scripts/embed-into-firmware.mjs ("npm run embed" in web/) -- eingecheckt,
+  # nicht Teil dieses CMake-Builds selbst (kein Node.js-Bedarf beim Firmware-Bauen).
+  Core/Src/generated/modbus_ui_page.c
+  # Generiert von tools/provision-certificate.mjs ("node tools/provision-certificate.mjs")
+  # -- eingecheckt, ebenfalls kein automatischer Build-Schritt.
+  Core/Src/generated/device_certificate.c
+  Middlewares/ST/netxduo/addons/mdns/nxd_mdns.c
 )
+
+# NetX Secure (TLS) + Crypto -- vendort aus dem lokal gecachten STM32Cube_FW_H5-Paket (siehe
+# Middlewares/ST/netxduo/{nx_secure,crypto_libraries}), wie netxduo/threadx/filex selbst schon
+# vendort sind. Wegen der Dateimenge (~360 Dateien) per GLOB statt Hand-Liste eingebunden.
+file(GLOB_RECURSE NX_SECURE_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/Middlewares/ST/netxduo/nx_secure/src/*.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/Middlewares/ST/netxduo/crypto_libraries/src/*.c
+)
+target_sources(${BUILD_UNIT_0_NAME} PRIVATE ${NX_SECURE_SOURCES})
 
 # Add include directories
 target_include_directories(${BUILD_UNIT_0_NAME} PRIVATE
   # User defined include directories
+  Middlewares/ST/netxduo/nx_secure/inc
+  Middlewares/ST/netxduo/nx_secure/ports
+  Middlewares/ST/netxduo/crypto_libraries/inc
+  # Kein cortex_m33-Port vorhanden; der cortex_m4-Port enthaelt nur reine Typdefinitionen
+  # (nx_crypto_port.h, keine Assembly) und ist unveraendert auf M33 nutzbar.
+  Middlewares/ST/netxduo/crypto_libraries/ports/cortex_m4/gnu/inc
+  Middlewares/ST/netxduo/addons/mdns
 )
 
 # --- stm32_libs (common_stm32/tmc2209/usb_pd) integration ---

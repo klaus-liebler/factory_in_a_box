@@ -5675,7 +5675,17 @@
 		)
 		(uuid "9912c7b3-8061-4be8-80bf-143dd296dcc1")
 	)
-	(text "CAN Comunication"
+	(text "T4C3"
+		(exclude_from_sim no)
+		(at 63.5 143.51 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "08b4501c-348b-48cc-8aff-7b28ed134985")
+	)
+	(text "CAN 1 Comunication"
 		(exclude_from_sim no)
 		(at 65.532 107.95 0)
 		(effects
@@ -5695,6 +5705,16 @@
 		)
 		(uuid "1d30cf1e-e8a3-4f3d-9409-fea9d364d741")
 	)
+	(text "T15C2"
+		(exclude_from_sim no)
+		(at 71.12 78.74 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "27e211fe-baae-4e3b-924f-d1adebc7c759")
+	)
 	(text "debug"
 		(exclude_from_sim no)
 		(at 161.29 74.93 0)
@@ -5704,6 +5724,17 @@
 			)
 		)
 		(uuid "2deb19e7-11d5-4cc0-bb38-63ae43a5160d")
+	)
+	(text "UART7"
+		(exclude_from_sim no)
+		(at 68.58 82.55 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+				(color 0 0 255 1)
+			)
+		)
+		(uuid "381eea8c-6889-4157-b40c-a2a99b0acb64")
 	)
 	(text "MicroSD"
 		(exclude_from_sim no)
@@ -5715,6 +5746,26 @@
 			(justify left bottom)
 		)
 		(uuid "4466b059-6266-418f-b30e-45636d0e275a")
+	)
+	(text "T15C1"
+		(exclude_from_sim no)
+		(at 71.12 76.2 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "4928d605-cd21-4d1e-8523-1744fa12791f")
+	)
+	(text "T2C1"
+		(exclude_from_sim no)
+		(at 168.91 78.74 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "57ffb15e-8bd0-4b88-b7aa-0cd930070a37")
 	)
 	(text "UART5\n"
 		(exclude_from_sim no)
@@ -5737,9 +5788,9 @@
 		)
 		(uuid "7d7b7f50-a27d-4665-b177-1db9be53f58d")
 	)
-	(text "DEBUGGER"
+	(text "UART3"
 		(exclude_from_sim no)
-		(at 64.262 127 0)
+		(at 66.04 128.27 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -5747,6 +5798,17 @@
 			)
 		)
 		(uuid "867ea1a2-3ed5-4c4a-b608-1412e03321b7")
+	)
+	(text "UART12"
+		(exclude_from_sim no)
+		(at 68.58 88.9 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+				(color 0 0 255 1)
+			)
+		)
+		(uuid "93af39a0-55da-4e71-b2e7-5bbeb4b3cf16")
 	)
 	(text "sensor\n"
 		(exclude_from_sim no)
@@ -5757,6 +5819,17 @@
 			)
 		)
 		(uuid "a11a5975-efb0-4f83-983d-7808cae5708d")
+	)
+	(text "ADC1 Input 18"
+		(exclude_from_sim no)
+		(at 173.99 50.8 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+				(color 0 0 255 1)
+			)
+		)
+		(uuid "c40ba5a5-4948-45d7-b9f5-88bdfc3e1f6c")
 	)
 	(text "STM32 Debug"
 		(exclude_from_sim no)
@@ -5798,6 +5871,26 @@
 			)
 		)
 		(uuid "e4540dc1-d7f4-4377-9ec7-3848b8fd3d91")
+	)
+	(text "T4C4"
+		(exclude_from_sim no)
+		(at 63.5 146.05 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "ea56541b-1631-42bc-bc83-850b0b46e6eb")
+	)
+	(text "T3C1"
+		(exclude_from_sim no)
+		(at 170.18 93.98 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "f89ab49b-15ab-47b1-a337-0576443af845")
 	)
 	(text "Extra SPI connection"
 		(exclude_from_sim no)

@@ -1,0 +1,219 @@
+{
+  "$comment": "Single Source of Truth fuer die Modbus-Register-Map der Control-Unit. Generiert daraus: Core/Src/modbus_register_map.hpp und web/src/register-map.ts, via tools/generate-register-map.mjs (node tools/generate-register-map.mjs). Nicht direkt in den generierten Dateien editieren.",
+  "healthBits": [
+    { "name": "OK", "bit": 0 },
+    { "name": "OVERTEMPERATURE", "bit": 1 },
+    { "name": "POWER_FAULT", "bit": 2 },
+    { "name": "CAN_ERROR", "bit": 3 },
+    { "name": "ETH_LINK_DOWN", "bit": 4 },
+    { "name": "I2C_SENSOR_FAULT", "bit": 5 },
+    { "name": "STEPPER_FAULT", "bit": 6 }
+  ],
+  "banks": {
+    "input": {
+      "regions": [
+        {
+          "id": "DIAGNOSTICS",
+          "title": "Diagnostik",
+          "startAddress": 0,
+          "endAddress": 49,
+          "registers": [
+            { "name": "HEALTH_STATE", "address": 0, "description": "Health-Bitfeld (siehe healthBits)" },
+            { "name": "CHIP_ID_W0_HI", "address": 1, "description": "Chip-UID Wort 0, High" },
+            { "name": "CHIP_ID_W0_LO", "address": 2, "description": "Chip-UID Wort 0, Low" },
+            { "name": "CHIP_ID_W1_HI", "address": 3, "description": "Chip-UID Wort 1, High" },
+            { "name": "CHIP_ID_W1_LO", "address": 4, "description": "Chip-UID Wort 1, Low" },
+            { "name": "CHIP_ID_W2_HI", "address": 5, "description": "Chip-UID Wort 2, High" },
+            { "name": "CHIP_ID_W2_LO", "address": 6, "description": "Chip-UID Wort 2, Low" },
+            { "name": "FW_VERSION_MAJOR", "address": 7, "description": "Firmware-Version Major" },
+            { "name": "FW_VERSION_MINOR", "address": 8, "description": "Firmware-Version Minor" },
+            { "name": "FW_VERSION_PATCH", "address": 9, "description": "Firmware-Version Patch" },
+            { "name": "TIMER_TICK", "address": 10, "description": "Freilaufender Systick-Zaehler, Ueberlauf nach 65535", "unit": "ticks" }
+          ]
+        },
+        {
+          "id": "CAN",
+          "title": "CAN-Bus",
+          "startAddress": 50,
+          "endAddress": 79,
+          "registers": [
+            { "name": "CAN_TX_COUNT_HI", "address": 50, "description": "Gesendete CAN-Frames, High" },
+            { "name": "CAN_TX_COUNT_LO", "address": 51, "description": "Gesendete CAN-Frames, Low" },
+            { "name": "CAN_RX_COUNT_HI", "address": 52, "description": "Empfangene CAN-Frames, High" },
+            { "name": "CAN_RX_COUNT_LO", "address": 53, "description": "Empfangene CAN-Frames, Low" },
+            { "name": "CAN_ERROR_COUNT_HI", "address": 54, "description": "CAN-Fehlerzaehler, High" },
+            { "name": "CAN_ERROR_COUNT_LO", "address": 55, "description": "CAN-Fehlerzaehler, Low" },
+            { "name": "CAN_LAST_ERROR", "address": 56, "description": "Letzter CAN-Fehlercode" },
+            { "name": "CAN_BUS_STATE", "address": 57, "description": "CAN-Bus-Zustand" }
+          ]
+        },
+        {
+          "id": "ETH",
+          "title": "Ethernet",
+          "startAddress": 80,
+          "endAddress": 109,
+          "registers": [
+            { "name": "ETH_LINK_STATUS", "address": 80, "description": "0 = down, 1 = up" },
+            { "name": "ETH_LINK_SPEED", "address": 81, "description": "0=10M, 1=100M, 2=1000M" },
+            { "name": "ETH_LINK_DUPLEX", "address": 82, "description": "0=half, 1=full" },
+            { "name": "ETH_TX_COUNT_HI", "address": 83, "description": "Gesendete Ethernet-Frames, High" },
+            { "name": "ETH_TX_COUNT_LO", "address": 84, "description": "Gesendete Ethernet-Frames, Low" },
+            { "name": "ETH_RX_COUNT_HI", "address": 85, "description": "Empfangene Ethernet-Frames, High" },
+            { "name": "ETH_RX_COUNT_LO", "address": 86, "description": "Empfangene Ethernet-Frames, Low" },
+            { "name": "ETH_ERROR_COUNT_HI", "address": 87, "description": "Ethernet-Fehlerzaehler, High" },
+            { "name": "ETH_ERROR_COUNT_LO", "address": 88, "description": "Ethernet-Fehlerzaehler, Low" },
+            { "name": "ETH_LAST_ERROR", "address": 89, "description": "Letzter Ethernet/PHY-Fehlercode" }
+          ]
+        },
+        {
+          "id": "PWR",
+          "title": "Stromversorgung",
+          "startAddress": 110,
+          "endAddress": 139,
+          "registers": [
+            { "name": "PWR_BUS_VOLTAGE_MV", "address": 110, "description": "Busspannung (INA226)", "unit": "mV" },
+            { "name": "PWR_SHUNT_VOLTAGE_UV", "address": 111, "description": "Shunt-Spannung (INA226)", "unit": "uV", "signed": true },
+            { "name": "PWR_CURRENT_MA", "address": 112, "description": "Stromaufnahme (INA226)", "unit": "mA", "signed": true },
+            { "name": "PWR_POWER_MW", "address": 113, "description": "Leistungsaufnahme (INA226)", "unit": "mW" },
+            { "name": "PWR_PD_VOLTAGE_MV", "address": 114, "description": "Aktiv ausgehandelte USB-PD-Spannung, PDSink::activeVoltage", "unit": "mV" },
+            { "name": "PWR_PD_CURRENT_MA", "address": 115, "description": "Aktiv ausgehandelter USB-PD-Maximalstrom, PDSink::activeCurrent", "unit": "mA" },
+            { "name": "PWR_PD_STATUS", "address": 116, "description": "0 = keine Quelle verbunden, 1 = verbunden/Kontrakt aktiv" }
+          ]
+        },
+        {
+          "id": "TOF",
+          "title": "ToF-Sensoren",
+          "startAddress": 140,
+          "endAddress": 159,
+          "registers": [
+            { "name": "TOF1_DISTANCE_MM", "address": 140, "description": "Abstand Sensor 1 (VL53L0X)", "unit": "mm", "i2c": { "bus": "I2C_1", "irqPin": "PC15" } },
+            { "name": "TOF1_STATUS", "address": 141, "description": "Status Sensor 1", "i2c": { "bus": "I2C_1", "irqPin": "PC15" } },
+            { "name": "TOF2_DISTANCE_MM", "address": 142, "description": "Abstand Sensor 2 (VL53L0X)", "unit": "mm", "i2c": { "bus": "I2C_2", "irqPin": "PH1" } },
+            { "name": "TOF2_STATUS", "address": 143, "description": "Status Sensor 2", "i2c": { "bus": "I2C_2", "irqPin": "PH1" } },
+            { "name": "TOF3_DISTANCE_MM", "address": 144, "description": "Abstand Sensor 3 (VL53L0X)", "unit": "mm", "i2c": { "bus": "I2C_4", "irqPin": "PA3" } },
+            { "name": "TOF3_STATUS", "address": 145, "description": "Status Sensor 3", "i2c": { "bus": "I2C_4", "irqPin": "PA3" } }
+          ]
+        },
+        {
+          "id": "COLOR",
+          "title": "Farbsensor",
+          "startAddress": 160,
+          "endAddress": 179,
+          "registers": [
+            { "name": "COLOR_CLEAR", "address": 160, "description": "Farbsensor TCS34725, Clear-Kanal", "i2c": { "bus": "I2C_1", "irqPin": "PH0" } },
+            { "name": "COLOR_RED", "address": 161, "description": "Farbsensor TCS34725, Rot-Kanal", "i2c": { "bus": "I2C_1", "irqPin": "PH0" } },
+            { "name": "COLOR_GREEN", "address": 162, "description": "Farbsensor TCS34725, Gruen-Kanal", "i2c": { "bus": "I2C_1", "irqPin": "PH0" } },
+            { "name": "COLOR_BLUE", "address": 163, "description": "Farbsensor TCS34725, Blau-Kanal", "i2c": { "bus": "I2C_1", "irqPin": "PH0" } }
+          ]
+        },
+        {
+          "id": "LIGHTBARRIER",
+          "title": "Lichtschranken",
+          "startAddress": 180,
+          "endAddress": 199,
+          "registers": [
+            { "name": "LIGHTBARRIER1", "address": 180, "description": "Lichtschranke 1 (NPN, aktiv=LOW)", "gpio": "PC6" },
+            { "name": "LIGHTBARRIER2", "address": 181, "description": "Lichtschranke 2 (NPN, aktiv=LOW)", "gpio": "PC7" },
+            { "name": "LIGHTBARRIER3", "address": 182, "description": "Lichtschranke 3 (NPN, aktiv=LOW) -- nur auf realem Board verdrahtet", "gpio": "PC8" }
+          ]
+        },
+        {
+          "id": "PRESSURE",
+          "title": "Drucksensor",
+          "startAddress": 200,
+          "endAddress": 219,
+          "registers": [
+            { "name": "PRESSURE_RAW", "address": 200, "description": "Analoger Drucksensor, Rohwert (ADC1 CH10)", "gpio": "PA4" }
+          ]
+        },
+        {
+          "id": "SCALE",
+          "title": "Waegezelle",
+          "startAddress": 220,
+          "endAddress": 239,
+          "registers": [
+            { "name": "SCALE_A_WEIGHT_HI", "address": 220, "description": "Gewicht Waegezelle A, High", "signed": true },
+            { "name": "SCALE_A_WEIGHT_LO", "address": 221, "description": "Gewicht Waegezelle A, Low" },
+            { "name": "SCALE_A_STATUS", "address": 222, "description": "Status Waegezelle A" },
+            { "name": "SCALE_B_RAW_HI", "address": 223, "description": "Rohwert Waegezelle B, High (Reserve/Erweiterung)" },
+            { "name": "SCALE_B_RAW_LO", "address": 224, "description": "Rohwert Waegezelle B, Low" },
+            { "name": "SCALE_B_STATUS", "address": 225, "description": "Status Waegezelle B" }
+          ]
+        },
+        {
+          "id": "STEPPER_STATUS",
+          "title": "Stepper-Status",
+          "startAddress": 240,
+          "endAddress": 269,
+          "registers": [
+            { "name": "STEPPER1_POSITION_HI", "address": 240, "description": "Aktuelle Position Stepper 1, High", "signed": true },
+            { "name": "STEPPER1_POSITION_LO", "address": 241, "description": "Aktuelle Position Stepper 1, Low" },
+            { "name": "STEPPER1_STATUS", "address": 242, "description": "Bit0 Enabled, Bit1 Moving, Bit2 Error/StallGuard, Bit3 InPosition" },
+            { "name": "STEPPER2_POSITION_HI", "address": 243, "description": "Aktuelle Position Stepper 2, High", "signed": true },
+            { "name": "STEPPER2_POSITION_LO", "address": 244, "description": "Aktuelle Position Stepper 2, Low" },
+            { "name": "STEPPER2_STATUS", "address": 245, "description": "Bit0 Enabled, Bit1 Moving, Bit2 Error/StallGuard, Bit3 InPosition" }
+          ]
+        }
+      ]
+    },
+    "holding": {
+      "regions": [
+        {
+          "id": "RESERVED_CONFIG",
+          "title": "Reserviert",
+          "startAddress": 0,
+          "endAddress": 19,
+          "registers": []
+        },
+        {
+          "id": "VALVE",
+          "title": "Pneumatikventile",
+          "startAddress": 20,
+          "endAddress": 39,
+          "registers": [
+            { "name": "VALVE1", "address": 20, "description": "Pneumatikventil 1", "gpio": "PD10", "control": "toggle", "min": 0, "max": 1 },
+            { "name": "VALVE2", "address": 21, "description": "Pneumatikventil 2", "gpio": "PD5", "control": "toggle", "min": 0, "max": 1 },
+            { "name": "VALVE3", "address": 22, "description": "Pneumatikventil 3", "gpio": "PD11", "control": "toggle", "min": 0, "max": 1 }
+          ]
+        },
+        {
+          "id": "MOTOR",
+          "title": "Motor-PWM",
+          "startAddress": 40,
+          "endAddress": 59,
+          "registers": [
+            { "name": "CONVEYOR_PWM", "address": 40, "description": "Foerderband-Motor Duty", "unit": "Promille", "gpio": "TIM4_CH3/PD14", "control": "slider", "min": 0, "max": 1000 },
+            { "name": "COMPRESSOR_PWM", "address": 41, "description": "Kompressor-Motor Duty", "unit": "Promille", "gpio": "TIM4_CH4/PD15", "control": "slider", "min": 0, "max": 1000 }
+          ]
+        },
+        {
+          "id": "STEPPER_CTRL",
+          "title": "Stepper-Steuerung",
+          "startAddress": 60,
+          "endAddress": 99,
+          "registers": [
+            { "name": "STEPPER_ENABLE", "address": 60, "description": "Stepper-Treiber global freigeben", "gpio": "PB7", "control": "toggle", "min": 0, "max": 1 },
+            { "name": "STEPPER1_TARGET_HI", "address": 61, "description": "Zielposition Stepper 1, High", "signed": true },
+            { "name": "STEPPER1_TARGET_LO", "address": 62, "description": "Zielposition Stepper 1, Low" },
+            { "name": "STEPPER1_SPEED", "address": 63, "description": "Geschwindigkeit Stepper 1", "unit": "Schritte/s" },
+            { "name": "STEPPER1_ACCEL", "address": 64, "description": "Beschleunigung Stepper 1", "unit": "Schritte/s^2" },
+            { "name": "STEPPER2_TARGET_HI", "address": 65, "description": "Zielposition Stepper 2, High", "signed": true },
+            { "name": "STEPPER2_TARGET_LO", "address": 66, "description": "Zielposition Stepper 2, Low" },
+            { "name": "STEPPER2_SPEED", "address": 67, "description": "Geschwindigkeit Stepper 2", "unit": "Schritte/s" },
+            { "name": "STEPPER2_ACCEL", "address": 68, "description": "Beschleunigung Stepper 2", "unit": "Schritte/s^2" }
+          ]
+        },
+        {
+          "id": "WS2812",
+          "title": "WS2812",
+          "startAddress": 100,
+          "endAddress": 109,
+          "registers": [
+            { "name": "WS2812_CH1_PATTERN", "address": 100, "description": "Index in fest im Code hinterlegte Farbmuster-Tabelle", "gpio": "PE5/TIM15_CH1" },
+            { "name": "WS2812_CH2_PATTERN", "address": 101, "description": "Index in fest im Code hinterlegte Farbmuster-Tabelle", "gpio": "PE6/TIM15_CH2" }
+          ]
+        }
+      ]
+    }
+  }
+}

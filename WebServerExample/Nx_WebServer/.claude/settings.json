@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e 'const d=require\\('\\\\''/c/repos/factory_in_a_box/WebServerExample/Nx_WebServer/register-map.json'\\\\''\\); console.log\\('\\\\''OK, input regions:'\\\\'', d.banks.input.regions.length, '\\\\''holding regions:'\\\\'', d.banks.holding.regions.length\\); *)",
+      "Bash(node -e ' *)",
+      "Bash(cp Core/Src/modbus_register_map.hpp /tmp/modbus_register_map.hpp.orig)",
+      "Bash(cp web/src/register-map.ts /tmp/register-map.ts.orig)",
+      "Bash(node tools/generate-register-map.mjs)",
+      "Read(//tmp/**)",
+      "Bash(echo \"=== EXIT CODE: $? ===\")",
+      "Bash(echo \"EXIT: $?\")"
+    ]
+  }
+}

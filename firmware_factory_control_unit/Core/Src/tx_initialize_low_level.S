@@ -45,7 +45,17 @@
 /**************************************************************************/
 /**************************************************************************/
 
-SYSTEM_CLOCK      =   250000000
+// CRITICAL: muss mit RCC.HCLKFreq_Value aus dem .ioc uebereinstimmen (SysTick zaehlt HCLK-Zyklen).
+// War hier fest auf 250000000 (Referenzwert des STM32H573I-DK-Eval-Boards, von dem dieses
+// Projekt uebernommen wurde) -- auf diesem Board lief SysTick dadurch die ganze Zeit falsch
+// getaktet: bei tatsaechlich 64 MHz (urspruengliche SystemClock_Config) ergab das reale
+// ~25,6 Ticks/s statt der von TX_TIMER_TICKS_PER_SECOND=100 vorgegebenen 100 Ticks/s -- jeder
+// tx_thread_sleep()/Timeout im gesamten Projekt lief seither ca. 3.9x zu langsam. Jetzt auf die
+// tatsaechliche Taktung dieses Boards (160 MHz) korrigiert; bei jeder weiteren
+// SystemClock_Config()-Aenderung (CubeMX) muss dieser Wert von Hand mitgezogen werden -- er
+// laesst sich hier nicht automatisch aus der Clock-Tree-Konfiguration ableiten (reiner
+// Assemble-Zeit-Konstantenwert, kein Zugriff auf den zur Laufzeit berechneten Clock-Tree).
+SYSTEM_CLOCK      =   160000000
 SYSTICK_CYCLES    =   ((SYSTEM_CLOCK / 100) -1)
 
 /**************************************************************************/
@@ -262,7 +272,7 @@ __tx_DBGHandler:
     EXTERN  __vector_table
 ;
 ;
-SYSTEM_CLOCK      EQU   250000000
+SYSTEM_CLOCK      EQU   160000000  ; s. Kommentar bei der GNU-/ARMCC-Fassung oben -- muss mit RCC.HCLKFreq_Value uebereinstimmen
 SYSTICK_CYCLES    EQU   ((SYSTEM_CLOCK / 100) -1)
 ;
 ;
@@ -457,7 +467,17 @@ __tx_DBGHandler:
 /**************************************************************************/
 /**************************************************************************/
 
-SYSTEM_CLOCK      =   250000000
+// CRITICAL: muss mit RCC.HCLKFreq_Value aus dem .ioc uebereinstimmen (SysTick zaehlt HCLK-Zyklen).
+// War hier fest auf 250000000 (Referenzwert des STM32H573I-DK-Eval-Boards, von dem dieses
+// Projekt uebernommen wurde) -- auf diesem Board lief SysTick dadurch die ganze Zeit falsch
+// getaktet: bei tatsaechlich 64 MHz (urspruengliche SystemClock_Config) ergab das reale
+// ~25,6 Ticks/s statt der von TX_TIMER_TICKS_PER_SECOND=100 vorgegebenen 100 Ticks/s -- jeder
+// tx_thread_sleep()/Timeout im gesamten Projekt lief seither ca. 3.9x zu langsam. Jetzt auf die
+// tatsaechliche Taktung dieses Boards (160 MHz) korrigiert; bei jeder weiteren
+// SystemClock_Config()-Aenderung (CubeMX) muss dieser Wert von Hand mitgezogen werden -- er
+// laesst sich hier nicht automatisch aus der Clock-Tree-Konfiguration ableiten (reiner
+// Assemble-Zeit-Konstantenwert, kein Zugriff auf den zur Laufzeit berechneten Clock-Tree).
+SYSTEM_CLOCK      =   160000000
 SYSTICK_CYCLES    =   ((SYSTEM_CLOCK / 100) -1)
 
 /**************************************************************************/

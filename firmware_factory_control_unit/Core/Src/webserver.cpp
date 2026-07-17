@@ -1,0 +1,205 @@
+// ============================================================================
+// Modbus-Register-Weboberflaeche -- liefert die unter web/ gebaute Single-File-UI (gzip,
+// ins Flash einkompiliert, siehe Core/Src/generated/modbus_ui_page.c) unter "/" aus, sowie
+// zwei schlanke Text-Endpunkte zum Lesen/Schreiben aller Register. Bewusst kein JSON auf
+// C++-Seite (weder Parser noch Encoder) -- /api/registers liefert zwei kommagetrennte, fest
+// 5-stellige Zahlenlisten, /api/write-holding ist ein GET mit Query-Parametern statt
+// POST+JSON-Body (erspart nx_web_http_server_content_get()+Parser fuer diese Demo-UI).
+// ============================================================================
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+
+#include "webserver.hpp"
+#include "app_state.hpp"
+#include "modbus_register_map.hpp"
+#include "generated/modbus_ui_page.h"
+
+// Liefert genau 'want' Bytes ab dem aktuellen Zustand von *context nach dest -- wird von
+// send_streamed_response() wiederholt aufgerufen, bis die komplette Antwort geschrieben ist.
+typedef void (*ChunkWriter)(void *context, char *dest, size_t want);
+
+// Sendet eine Antwort bekannter Gesamtlaenge in 512-Byte-Haeppchen: pro Haeppchen ein frisches
+// NX_PACKET allozieren, befuellen, sofort senden -- nie mehr als ein/zwei Pakete gleichzeitig
+// in Arbeit, unabhaengig von total_length. Genau das Muster, mit dem die FileX-GET-Verarbeitung
+// dieser Middleware selbst grosse Dateien haeppchenweise sendet (nx_web_http_server.c,
+// GET-Verarbeitung: Paket allozieren/befuellen/senden/wiederholen) -- braucht daher keinen
+// groesseren Server-Paket-Pool als den bestehenden (SERVER_POOL_SIZE, s. net_setup.cpp).
+static UINT send_streamed_response(NX_WEB_HTTP_SERVER *server_ptr, const char *content_type,
+                                   const char *additional_header, size_t total_length,
+                                   ChunkWriter write_chunk, void *context) {
+    static constexpr size_t CHUNK_SIZE = 512;
+
+    NX_PACKET *packet_ptr;
+    if (nx_web_http_server_callback_generate_response_header(
+            server_ptr, &packet_ptr, NX_CHAR_LITERAL(NX_WEB_HTTP_STATUS_OK),
+            (UINT)total_length, NX_CHAR_LITERAL(content_type),
+            NX_CHAR_LITERAL(additional_header)) != NX_SUCCESS) {
+        return NX_NOT_SUCCESSFUL;
+    }
+
+    char chunk[CHUNK_SIZE];
+    size_t sent = 0;
+    while (sent < total_length) {
+        size_t want = total_length - sent;
+        if (want > CHUNK_SIZE) {
+            want = CHUNK_SIZE;
+        }
+        write_chunk(context, chunk, want);
+
+        if (sent > 0) {
+            // Erstes Haeppchen landet im Header-Paket von oben, jedes weitere braucht ein
+            // frisches Paket -- das vorherige wurde bereits per packet_send() verschickt.
+            // Bewusst nx_web_http_server_response_packet_allocate() statt des rohen
+            // nx_packet_allocate(...,0,...): nur diese Variante reserviert am Paketanfang
+            // den Platz, den der IP/TCP-Stack beim Senden fuer die Header braucht (siehe
+            // _nx_web_http_server_generate_response_header, das dieselbe Funktion fuer das
+            // allererste Paket verwendet). Mit rohem nx_packet_allocate(...,0,...) bekommt
+            // _nx_ip_header_add() beim Senden ein falsch ausgerichtetes nx_packet_prepend_ptr
+            // und loest einen UsageFault (UNALIGNED) aus.
+            if (nx_web_http_server_response_packet_allocate(server_ptr, &packet_ptr,
+                                                            NX_WAIT_FOREVER) != NX_SUCCESS) {
+                return NX_NOT_SUCCESSFUL;
+            }
+        }
+
+        if (nx_packet_data_append(packet_ptr, chunk, (ULONG)want,
+                                  server_ptr->nx_web_http_server_packet_pool_ptr, NX_WAIT_FOREVER) != NX_SUCCESS) {
+            nx_packet_release(packet_ptr);
+            return NX_NOT_SUCCESSFUL;
+        }
+        if (nx_web_http_server_callback_packet_send(server_ptr, packet_ptr) != NX_SUCCESS) {
+            return NX_NOT_SUCCESSFUL;
+        }
+        sent += want;
+    }
+
+    if (total_length == 0) {
+        // Leerer Body: das oben allozierte Header-Paket wurde nie befuellt/gesendet.
+        return (nx_web_http_server_callback_packet_send(server_ptr, packet_ptr) == NX_SUCCESS)
+                   ? NX_SUCCESS : NX_NOT_SUCCESSFUL;
+    }
+    return NX_SUCCESS;
+}
+
+// Quelle fuer send_streamed_response(): der eincompilierte gzip-Blob, context = Cursor (Byte-
+// Offset), der zwischen Aufrufen weiterlaeuft.
+static void write_from_flash_blob(void *context, char *dest, size_t want) {
+    size_t *cursor = (size_t *)context;
+    memcpy(dest, MODBUS_UI_HTML_GZ + *cursor, want);
+    *cursor += want;
+}
+
+// Quelle fuer send_streamed_response(): alle Holding- dann alle Input-Register als fest
+// 6 Byte breite Felder "NNNNN," (5-stellig nullgepolstert + Trennzeichen) -- das letzte
+// Holding-Feld nutzt statt "," ein "|" als Bank-Trenner, alle anderen (auch das letzte
+// Input-Feld) enden auf ",". register-map.ts/api.ts auf der JS-Seite spiegeln dieses Format
+// (splitten auf "|", dann auf ",", leere Tokens durch das feste Format werden ignoriert).
+struct RegisterTextState {
+    ModbusTcpServer *server;
+    uint16_t holding_i = 0;
+    uint16_t input_i = 0;
+    char cell[8] = {0};
+    uint8_t cell_pos = 0;
+    uint8_t cell_len = 0;
+};
+
+static size_t register_text_total_length() {
+    return (size_t)((ModbusRegisters::HOLDING_REGISTER_MAX_INDEX + 1) +
+                    (ModbusRegisters::INPUT_REGISTER_MAX_INDEX + 1)) * 6;
+}
+
+static void refill_register_text_cell(RegisterTextState &st) {
+    uint16_t value;
+    char sep;
+    if (st.holding_i <= ModbusRegisters::HOLDING_REGISTER_MAX_INDEX) {
+        value = st.server->read_holding_register(st.holding_i);
+        sep = (st.holding_i == ModbusRegisters::HOLDING_REGISTER_MAX_INDEX) ? '|' : ',';
+        st.holding_i++;
+    } else {
+        value = st.server->read_input_register(st.input_i);
+        sep = ',';
+        st.input_i++;
+    }
+    st.cell_len = (uint8_t)snprintf(st.cell, sizeof(st.cell), "%05u%c", value, sep);
+    st.cell_pos = 0;
+}
+
+static void write_register_text_chunk(void *context, char *dest, size_t want) {
+    RegisterTextState *st = (RegisterTextState *)context;
+    size_t written = 0;
+    while (written < want) {
+        if (st->cell_pos == st->cell_len) {
+            refill_register_text_cell(*st);
+        }
+        dest[written++] = st->cell[st->cell_pos++];
+    }
+}
+
+UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT request_type,
+                                 CHAR *resource, NX_PACKET *packet_ptr) {
+    (void)request_type;
+
+    if (strcmp(resource, "/") == 0) {
+        size_t cursor = 0;
+        UINT status = send_streamed_response(server_ptr, "text/html", "Content-Encoding: gzip\r\n",
+                                             MODBUS_UI_HTML_GZ_LEN, write_from_flash_blob, &cursor);
+        return (status == NX_SUCCESS) ? NX_WEB_HTTP_CALLBACK_COMPLETED : NX_NOT_SUCCESSFUL;
+    }
+
+    if (strcmp(resource, "/api/registers") == 0) {
+        RegisterTextState state;
+        state.server = g_app_state.modbus_server;
+        UINT status = send_streamed_response(server_ptr, "text/plain", NX_NULL,
+                                             register_text_total_length(), write_register_text_chunk, &state);
+        return (status == NX_SUCCESS) ? NX_WEB_HTTP_CALLBACK_COMPLETED : NX_NOT_SUCCESSFUL;
+    }
+
+    char response_data[512] = {0};
+    char response_type[30] = {0};
+
+    if (strcmp(resource, "/api/write-holding") == 0) {
+        char addr_query[24] = {0};
+        char value_query[24] = {0};
+        UINT addr_query_size, value_query_size;
+        unsigned int address = 0, value = 0;
+
+        if (nx_web_http_server_query_get(packet_ptr, 0, addr_query, &addr_query_size, sizeof(addr_query) - 1) == NX_SUCCESS &&
+            nx_web_http_server_query_get(packet_ptr, 1, value_query, &value_query_size, sizeof(value_query) - 1) == NX_SUCCESS &&
+            sscanf(addr_query, "address=%u", &address) == 1 &&
+            sscanf(value_query, "value=%u", &value) == 1 &&
+            address <= ModbusRegisters::HOLDING_REGISTER_MAX_INDEX && value <= UINT16_MAX) {
+            g_app_state.modbus_server->write_holding_register((uint16_t)address, (uint16_t)value);
+            sprintf(response_data, "OK");
+        } else {
+            sprintf(response_data, "ERROR");
+        }
+    } else {
+        return NX_SUCCESS;
+    }
+
+    UINT string_length;
+    nx_web_http_server_type_get(server_ptr, resource, response_type, &string_length);
+    response_type[string_length] = '\0';
+
+    NX_PACKET *resp_packet;
+    if (nx_web_http_server_callback_generate_response_header(
+            server_ptr, &resp_packet, NX_CHAR_LITERAL(NX_WEB_HTTP_STATUS_OK),
+            strlen(response_data), response_type, NX_NULL) != NX_SUCCESS) {
+        return NX_NOT_SUCCESSFUL;
+    }
+
+    if (nx_packet_data_append(resp_packet, response_data, strlen(response_data),
+                              server_ptr->nx_web_http_server_packet_pool_ptr,
+                              NX_WAIT_FOREVER) != NX_SUCCESS) {
+        nx_packet_release(resp_packet);
+        return NX_NOT_SUCCESSFUL;
+    }
+
+    if (nx_web_http_server_callback_packet_send(server_ptr, resp_packet) != NX_SUCCESS) {
+        nx_packet_release(resp_packet);
+        return NX_NOT_SUCCESSFUL;
+    }
+
+    return NX_WEB_HTTP_CALLBACK_COMPLETED;
+}

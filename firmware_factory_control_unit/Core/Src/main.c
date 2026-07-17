@@ -23,6 +23,16 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tx_api.h"
+
+// Definiert (als extern "C") in Core/Src/io_thread.cpp. Muss hier, nicht per
+// tx_application_define() (app.cpp), aufgerufen werden: io_setup() erreicht u.a.
+// tof_color_control.cpp/stepper_control.cpp, die HAL_Delay()/HAL_I2C_*()/HAL_UART_*() mit
+// endlichem Timeout aufrufen -- die haengen sich in tx_application_define() auf, weil
+// tx_kernel_enter() Interrupts sperrt, solange diese Funktion laeuft (HAL_GetTick() zaehlt
+// dann nie mehr hoch, jeder Timeout-Vergleich wird nie wahr). Vor tx_kernel_enter() sind
+// Interrupts noch normal aktiv (Reset-Default), HAL_Delay()/HAL-Timeouts funktionieren also
+// wie erwartet.
+void io_setup(void);
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,6 +74,8 @@ SD_HandleTypeDef hsd1;
 
 SPI_HandleTypeDef hspi2;
 SPI_HandleTypeDef hspi4;
+DMA_HandleTypeDef handle_GPDMA1_Channel1;
+DMA_HandleTypeDef handle_GPDMA1_Channel0;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
@@ -86,6 +98,7 @@ PCD_HandleTypeDef hpcd_USB_DRD_FS;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_GPDMA1_Init(void);
 static void MX_DCACHE1_Init(void);
 static void MX_ETH_Init(void);
 static void MX_FLASH_Init(void);
@@ -109,8 +122,8 @@ static void MX_TIM17_Init(void);
 static void MX_UART12_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_UART5_Init(void);
-static void MX_USART3_UART_Init(void);
 static void MX_ICACHE_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -149,6 +162,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_GPDMA1_Init();
   MX_DCACHE1_Init();
   MX_ETH_Init();
   MX_FLASH_Init();
@@ -172,14 +186,14 @@ int main(void)
   MX_UART12_Init();
   MX_ADC1_Init();
   MX_UART5_Init();
-  MX_USART3_UART_Init();
   MX_ICACHE_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  // ADC1 runs in continuous conversion mode (ContinuousConvMode = ENABLE
-  // above) -- started once here, it free-runs in the background from then on;
-  // io_thread_entry() (Core/Src/app.cpp) just reads whatever's currently in
-  // the data register via HAL_ADC_GetValue(), no per-iteration Start/Stop/Poll.
-  HAL_ADC_Start(&hadc1);
+  // io_setup() (io_thread.cpp) startet u.a. auch ADC1 (HAL_ADC_Start, laeuft danach im
+  // Continuous-Conversion-Modus frei weiter -- io_thread liest nur noch per
+  // HAL_ADC_GetValue()) -- muss hier vor tx_kernel_enter() laufen, s. Begruendung beim
+  // Prototyp oben (USER CODE BEGIN Includes).
+  io_setup();
   tx_kernel_enter();
   /* USER CODE END 2 */
 
@@ -205,7 +219,7 @@ void SystemClock_Config(void)
 
   /** Configure the main internal regulator output voltage
   */
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
 
@@ -220,7 +234,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLL1_SOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 8;
+  RCC_OscInitStruct.PLL.PLLN = 20;
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
   RCC_OscInitStruct.PLL.PLLR = 2;
@@ -243,14 +257,14 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
     Error_Handler();
   }
 
   /** Configure the programming delay
   */
-  __HAL_FLASH_SET_PROGRAM_DELAY(FLASH_PROGRAMMING_DELAY_1);
+  __HAL_FLASH_SET_PROGRAM_DELAY(FLASH_PROGRAMMING_DELAY_2);
 }
 
 /**
@@ -274,7 +288,7 @@ static void MX_ADC1_Init(void)
   /** Common config
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
@@ -370,7 +384,36 @@ static void MX_ETH_Init(void)
   heth.Init.RxBuffLen = 1524;
 
   /* USER CODE BEGIN MACADDRESS */
+  // Statt der von CubeMX generierten, fuer ALLE Boards identischen MAC (00:80:E1:00:00:00,
+  // s.o.) -- bei mehreren Geraeten im selben Netz sonst ARP-Kollisionen. Stattdessen aus der
+  // 96-Bit-Chip-Unique-ID abgeleitet (HAL_GetUIDw0/1/2), damit jedes Board eine eigene, stabile
+  // (bei jedem Boot gleiche) MAC bekommt.
+  {
+    // UID_BASE liegt im OTP-/System-Speicherbereich, nicht im regulaeren Flash-Adressraum, den
+    // der ICACHE ueberwacht -- ein Read bei aktivem ICACHE erzeugt einen precise BusFault
+    // (gleiches Muster wie in diagnostics.hpp/greeting.cpp). MX_ICACHE_Init() laeuft an dieser
+    // Stelle im Boot noch gar nicht (kommt in main() erst nach MX_ETH_Init()), das
+    // Disable/Enable-Paar schadet trotzdem nicht und macht diesen Codeblock unabhaengig von
+    // der genauen Init-Reihenfolge.
+    HAL_ICACHE_Disable();
+    uint32_t uid0 = HAL_GetUIDw0();
+    uint32_t uid1 = HAL_GetUIDw1();
+    uint32_t uid2 = HAL_GetUIDw2();
+    HAL_ICACHE_Enable();
 
+    // 5 MAC-Bytes aus allen 96 UID-Bits ableiten (XOR-Faltung, damit alle drei Woerter
+    // beitragen -- bei manchen STM32-Chargen teilen sich Chips vom selben Wafer denselben
+    // Wert in einem einzelnen UID-Wort, ein einzelnes Wort allein waere daher keine
+    // verlaessliche Quelle).
+    uint32_t folded = uid0 ^ uid1 ^ uid2;
+    MACAddr[0] = 0x02; // Bit1=1 (locally administered), Bit0=0 (unicast) -- kein
+                        // herstellervergebener OUI-Bereich
+    MACAddr[1] = (uint8_t)(folded >> 24);
+    MACAddr[2] = (uint8_t)(folded >> 16);
+    MACAddr[3] = (uint8_t)(folded >> 8);
+    MACAddr[4] = (uint8_t)folded;
+    MACAddr[5] = (uint8_t)(uid0 >> 8) ^ (uint8_t)(uid1 >> 16) ^ (uint8_t)(uid2 >> 24);
+  }
   /* USER CODE END MACADDRESS */
 
   if (HAL_ETH_Init(&heth) != HAL_OK)
@@ -461,6 +504,36 @@ static void MX_FLASH_Init(void)
 }
 
 /**
+  * @brief GPDMA1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPDMA1_Init(void)
+{
+
+  /* USER CODE BEGIN GPDMA1_Init 0 */
+
+  /* USER CODE END GPDMA1_Init 0 */
+
+  /* Peripheral clock enable */
+  __HAL_RCC_GPDMA1_CLK_ENABLE();
+
+  /* GPDMA1 interrupt Init */
+    HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
+    HAL_NVIC_SetPriority(GPDMA1_Channel1_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(GPDMA1_Channel1_IRQn);
+
+  /* USER CODE BEGIN GPDMA1_Init 1 */
+
+  /* USER CODE END GPDMA1_Init 1 */
+  /* USER CODE BEGIN GPDMA1_Init 2 */
+
+  /* USER CODE END GPDMA1_Init 2 */
+
+}
+
+/**
   * @brief I2C1 Initialization Function
   * @param None
   * @retval None
@@ -476,7 +549,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x10707DBC;
+  hi2c1.Init.Timing = 0x30909DEC;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -524,7 +597,7 @@ static void MX_I2C2_Init(void)
 
   /* USER CODE END I2C2_Init 1 */
   hi2c2.Instance = I2C2;
-  hi2c2.Init.Timing = 0x10707DBC;
+  hi2c2.Init.Timing = 0x30909DEC;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -572,7 +645,7 @@ static void MX_I2C4_Init(void)
 
   /* USER CODE END I2C4_Init 1 */
   hi2c4.Instance = I2C4;
-  hi2c4.Init.Timing = 0x10707DBC;
+  hi2c4.Init.Timing = 0x30909DEC;
   hi2c4.Init.OwnAddress1 = 0;
   hi2c4.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c4.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -694,12 +767,19 @@ static void MX_SDMMC1_SD_Init(void)
   hsd1.Init.BusWide = SDMMC_BUS_WIDE_1B;
   hsd1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
   hsd1.Init.ClockDiv = 0;
-  if (HAL_SD_Init(&hsd1) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN SDMMC1_Init 2 */
-
+  // Absichtlich KEIN Error_Handler() bei HAL_SD_Init()-Fehlschlag: die microSD-Karte ist
+  // optionale Hardware (aktuell nur fuer FileX/den NetX-HTTP-Server reserviert, der die
+  // eigentliche Modbus-UI laengst aus dem Flash statt von der SD-Karte liefert, s.
+  // webserver.cpp) -- eine nicht gesteckte Karte darf den kompletten Boot (Netzwerk/Modbus/
+  // alles) nicht blockieren. HAL_SD_Init() liefert bei fehlender Karte einen begrenzten
+  // Timeout-Fehler zurueck (kein Haenger), hsd1 bleibt dann einfach im nicht initialisierten
+  // Zustand -- fx_media_open() in net_setup.cpp faengt das spaeter ebenfalls nicht-fatal ab.
+  //
+  // Achtung: HAL_SD_Init() ist generierter CubeMX-Code (ausserhalb dieses USER-CODE-Blocks) --
+  // dieser Fixup (Entfernen des urspruenglichen "if(...!= HAL_OK) Error_Handler();") muss nach
+  // jeder CubeMX-Neuerzeugung manuell wiederholt werden.
+  HAL_SD_Init(&hsd1);
   /* USER CODE END SDMMC1_Init 2 */
 
 }
@@ -922,7 +1002,7 @@ static void MX_TIM4_Init(void)
   htim4.Init.Period = 65535;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_OC_Init(&htim4) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -932,15 +1012,15 @@ static void MX_TIM4_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_OC_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OC_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -977,7 +1057,7 @@ static void MX_TIM15_Init(void)
   htim15.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim15.Init.RepetitionCounter = 0;
   htim15.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_OC_Init(&htim15) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim15) != HAL_OK)
   {
     Error_Handler();
   }
@@ -987,18 +1067,18 @@ static void MX_TIM15_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
   sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_OC_ConfigChannel(&htim15, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim15, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OC_ConfigChannel(&htim15, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim15, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
   }

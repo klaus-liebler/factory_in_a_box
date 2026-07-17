@@ -39,6 +39,33 @@ enable_language(C CXX ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
 
+# Git-Versionsinformationen (Commit/Branch/Tag/Dirty-Status) als generated/gitconstants.hh --
+# bei jedem Build neu erzeugt (kein file-basiertes DEPENDS, daher immer "dirty" fuer
+# Ninja/Make), siehe cmake/generate_git_constants.cmake sowie das identische Muster in
+# firmware_stm32_control_unit/CMakeLists.txt. WORKING_DIRECTORY liegt in diesem
+# Projektunterordner, git findet das umschliessende factory_in_a_box-Repo trotzdem (laeuft die
+# Verzeichnisse hoch).
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+find_package(Git QUIET)
+if(GIT_FOUND)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/gitconstants.hh
+        COMMAND ${CMAKE_COMMAND}
+            -D GIT_EXECUTABLE=${GIT_EXECUTABLE}
+            -D OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/generated
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_git_constants.cmake
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Generating git constants header..."
+        VERBATIM
+    )
+    add_custom_target(generate_git_constants ALL
+        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/gitconstants.hh
+    )
+    add_dependencies(${CMAKE_PROJECT_NAME} generate_git_constants)
+else()
+    message(WARNING "Git not found, skipping git constants generation")
+endif()
+
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
@@ -87,6 +114,21 @@ file(GLOB_RECURSE NX_SECURE_SOURCES
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Core/Src/app.cpp
+    Core/Src/greeting.cpp
+    Core/Src/log_setup.cpp
+    Core/Src/net_setup.cpp
+    Core/Src/webserver.cpp
+    Core/Src/led_control.cpp
+    Core/Src/link_control.cpp
+    Core/Src/io_thread.cpp
+    Core/Src/usb_pd_control.cpp
+    Core/Src/scale_control.cpp
+    Core/Src/stepper_control.cpp
+    Core/Src/tof_color_control.cpp
+    Core/Src/can_control.cpp
+    Core/Src/ws2812_control.cpp
+    Core/Src/vl53l0x.cpp
+    Core/Src/tcs34725.cpp
     Core/Src/fx_stm32_sd_driver_adapter.c
     Core/Src/malloc_lock.c
     Core/Src/tx_initialize_low_level.S
@@ -120,6 +162,13 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     libs/ST/netxduo/crypto_libraries/inc
     libs/ST/netxduo/crypto_libraries/ports/cortex_m4/gnu/inc
     Drivers/BSP/Components/lan8742
+    # Header-only stm32_libs (kein eigenes CMake-Target, kein add_subdirectory noetig) --
+    # gpio.hh/log.h/hal_header_selector.h etc. kommen bereits transitiv ueber das Linken gegen
+    # common_stm32 unten.
+    ../stm32_libs/hx711
+    ../stm32_libs/sigmoid_stepper
+    # generated/gitconstants.hh -- s. generate_git_constants-Custom-Target oben.
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
 # Add project symbols (macros)

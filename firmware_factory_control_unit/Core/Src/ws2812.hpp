@@ -1,9 +1,9 @@
 #pragma once
 // Minimaler WS2812(B)-Treiber ueber Timer-PWM + DMA: ein DMA-Puffer mit einem CCR-Wert pro
-// Bit wird per HAL_TIM_PWM_Start_DMA() in das Compare-Register geschoben, wobei die
-// Duty-Cycle-Breite pro Slot ueber T0H/T1H (0-/1-Bit-High-Zeit im 800-kHz-Protokoll)
-// entscheidet -- die eigentliche Bit-Timing-Praezision kommt vom Timer/DMA, nicht von
-// Software-Delays (unabhaengig vom CPU-Takt robust).
+// Bit wird per DMA in das Compare-Register geschoben, wobei die Duty-Cycle-Breite pro Slot
+// ueber T0H/T1H (0-/1-Bit-High-Zeit im 800-kHz-Protokoll) entscheidet -- die eigentliche
+// Bit-Timing-Praezision kommt vom Timer/DMA, nicht von Software-Delays (unabhaengig vom
+// CPU-Takt robust).
 //
 // TimerClockHz ist bewusst ein Template-Parameter statt einer intern berechneten/geratenen
 // Konstante: der tatsaechliche Timer-Kerntakt haengt von der Clock-Tree-Konfiguration des
@@ -12,15 +12,30 @@
 // Chip-/Peripherie-Datenbank ableiten -- exakt dasselbe Prinzip wie bei
 // stm32_libs/common_stm32/timer.hh's PwmOutput<..., TimerClockSourceHz>, siehe dortigen
 // Kommentar. Der Vorteil ggue. einer freistehenden Konstante (wie vorher hier): der Wert steht
-// jetzt direkt an der Instanziierungsstelle (siehe ws2812_thread.cpp) und kann nicht mehr
+// jetzt direkt an der Instanziierungsstelle (siehe ws2812_control.cpp) und kann nicht mehr
 // unbemerkt von der tatsaechlichen SystemClock_Config() abweichen, ohne dass ein
 // static_assert anschlaegt -- genau das ist vorher schon einmal passiert (Konstante blieb auf
 // 64 MHz stehen, nachdem der Systemtakt auf 160 MHz erhoeht wurde).
 //
-// Braucht eine per CubeMX auf den jeweiligen TIM-Kanal (TIM15 CH1 fuer WS2812_1/PE5, CH2 fuer
-// WS2812_2/PE6) verlinkte GPDMA-Instanz (in CubeMX unter TIM15 "DMA Settings" je einen
-// GPDMA-Request fuer TIM15_CH1 und TIM15_CH2 hinzufuegen, dann neu generieren) -- ohne das
-// bleibt Show() wirkungslos (HAL_TIM_PWM_Start_DMA liefert HAL_ERROR).
+// ZWEI DMA-STRATEGIEN, waehlbar per Init()-Parameter use_update_burst:
+//
+// - use_update_burst=false (Default): DMA haengt am kanalspezifischen CCx-Request
+//   (HAL_TIM_PWM_Start_DMA(), CubeMX: TIM "DMA Settings" -> Request fuer TIMx_CHy). Nicht
+//   jeder Timer/Kanal hat dafuer aber ueberhaupt eine eigene DMA-Request-Leitung im Silizium
+//   -- TIM15 CH2 z.B. hat auf STM32H5 KEINE eigene Request-Leitung (weder GPDMA1 noch GPDMA2
+//   bieten "TIM15_CH2" an, nur TIM15_CH1/UP/TRIG/COM, s. stm32h5xx_hal_dma.h) und laesst sich
+//   in CubeMX dafuer folgerichtig auch nicht auswaehlen.
+// - use_update_burst=true: DMA haengt stattdessen am Update-Event (TIM15_UP, auf JEDEM Timer
+//   verfuegbar) und schreibt die Werte per DMA-Burst-Adressierung (TIMx_DMAR/DCR) direkt in
+//   das Compare-Register des gewuenschten Kanals (HAL_TIM_DMABurst_WriteStart(),
+//   BurstLength=1 -- ein Register pro Update-Ereignis, funktional identisch zum
+//   kanalspezifischen Weg). Das ist der einzig moegliche Weg fuer TIM15 CH2.
+//
+// Fuer beide Strategien: braucht eine per CubeMX auf die jeweilige Request-Leitung (TIM15_CH1
+// bzw. TIM15_UP) verlinkte GPDMA-Instanz (CubeMX: TIM15 "DMA Settings"), sonst bleibt Show()
+// wirkungslos (per Software-Check unten abgefangen, s. dort -- die HAL selbst wuerde bei
+// HAL_TIM_PWM_Start_DMA() ohne verlinktes DMA sogar hardfaulten statt HAL_ERROR zu liefern,
+// siehe Kommentar in Show()).
 #include <cstdint>
 #include <algorithm>
 #include "main.h"
@@ -48,9 +63,12 @@ public:
         "(zu niedriger oder zu hoher Takt) -- TimerClockHz pruefen (tatsaechlicher Timer-Takt, "
         "nicht zwingend der CPU-Kerntakt, siehe Klassenkommentar).");
 
-    void Init(TIM_HandleTypeDef *htim, uint32_t channel) {
+    // use_update_burst: s. Klassenkommentar oben -- auf true setzen, wenn der gewaehlte Kanal
+    // (z.B. TIM15 CH2) keine eigene DMA-Request-Leitung hat.
+    void Init(TIM_HandleTypeDef *htim, uint32_t channel, bool use_update_burst = false) {
         htim_ = htim;
         channel_ = channel;
+        use_update_burst_ = use_update_burst;
         configure_pwm_channel(htim_, channel_);
         __HAL_TIM_SET_AUTORELOAD(htim_, ARR);
     }
@@ -64,18 +82,20 @@ public:
             return;
         }
 
-        // HAL_TIM_PWM_Start_DMA() dereferenziert htim->hdma[dma_id] ungeprueft (siehe
-        // stm32h5xx_hal_tim.c, TIM_DMADelayPulseCplt-Zuweisung direkt am Funktionsanfang) --
-        // ohne eine per CubeMX auf diesen Kanal verlinkte GPDMA-Instanz (__HAL_LINKDMA in
-        // HAL_TIM_PWM_MspInit(), s. Klassenkommentar oben) ist dieser Zeiger NULL und die HAL
-        // faellt nicht etwa mit HAL_ERROR zurueck, sondern hardfaultet direkt. Deshalb hier
-        // selbst geprueft, statt blind auf den HAL-Rueckgabewert zu vertrauen -- fehlende
-        // WS2812-Ansteuerung soll nie den ganzen io_thread mitreissen.
-        uint32_t dma_id = (channel_ / 4U) + 1U; // TIM_CHANNEL_1..4 (0,4,8,12) -> TIM_DMA_ID_CC1..4 (1..4)
+        // Beide HAL-Einstiegspunkte unten dereferenzieren ein per CubeMX/__HAL_LINKDMA
+        // verlinktes DMA-Handle -- HAL_TIM_PWM_Start_DMA() ungeprueft (siehe
+        // stm32h5xx_hal_tim.c, TIM_DMADelayPulseCplt-Zuweisung direkt am Funktionsanfang:
+        // fehlt die Verlinkung, ist das ein Nullpointer-Zugriff -> HardFault statt
+        // HAL_ERROR!). HAL_TIM_DMABurst_WriteStart() prueft zwar selbst auf NULL, liefert
+        // dann aber HAL_OK zurueck, OHNE irgendetwas zu konfigurieren -- ein rueckgabewert-
+        // basierter Check waere hier also ebenfalls irrefuehrend. Deshalb in beiden Faellen
+        // hier selbst geprueft, statt der HAL zu vertrauen -- fehlende WS2812-Ansteuerung
+        // soll nie den ganzen io_thread mitreissen.
+        uint16_t dma_id = use_update_burst_ ? TIM_DMA_ID_UPDATE : (uint16_t)((channel_ / 4U) + 1U);
         if (htim_->hdma[dma_id] == nullptr) {
-            log_warn("ws2812::Driver::Show(): kein GPDMA fuer TIM-Kanal %lu verlinkt (CubeMX: TIM15 DMA "
-                     "Settings, Request fuer diesen Kanal hinzufuegen) - LED-Ausgabe uebersprungen",
-                     (unsigned long)channel_);
+            log_warn("ws2812::Driver::Show(): kein GPDMA fuer TIM-Kanal %lu (Request-Quelle %s) "
+                     "verlinkt (CubeMX: TIM15 DMA Settings) - LED-Ausgabe uebersprungen",
+                     (unsigned long)channel_, use_update_burst_ ? "Update" : "Kanal-Compare");
             return;
         }
 
@@ -93,15 +113,28 @@ public:
         }
         buffer_[idx++] = 0; // Reset-Slot: Leitung nach dem letzten Bit auf Low
 
-        HAL_TIM_PWM_Stop_DMA(htim_, channel_);
-        HAL_TIM_PWM_Start_DMA(htim_, channel_, buffer_, idx);
+        if (use_update_burst_) {
+            // BurstLength=1TRANSFER: ein Register (das CCRx des Zielkanals) pro Update-
+            // Ereignis beschrieben -- funktional identisch zu einem kanaleigenen CCx-DMA-
+            // Request, nur ueber die immer vorhandene TIMx_UP-Request-Leitung.
+            uint32_t burst_base = TIM_DMABASE_CCR1 + (channel_ / 4U);
+            HAL_TIM_DMABurst_WriteStop(htim_, TIM_DMA_UPDATE);
+            HAL_TIM_DMABurst_WriteStart(htim_, burst_base, TIM_DMA_UPDATE, buffer_,
+                                         TIM_DMABURSTLENGTH_1TRANSFER);
+        } else {
+            HAL_TIM_PWM_Stop_DMA(htim_, channel_);
+            HAL_TIM_PWM_Start_DMA(htim_, channel_, buffer_, idx);
+        }
     }
 
 private:
     // MX_TIM15_Init() (main.c, CubeMX-generiert) konfiguriert CH1/CH2 im reinen Output-Compare-
     // "Timing"-Modus (kein Ausgang) -- fuer PWM-per-DMA muss das auf echten PWM-Modus 1
     // umgestellt werden, gleiches Muster wie bei TIM4 CH3/CH4 in io_thread.cpp (dort auch die
-    // Begruendung, warum das hier statt in main.c passiert).
+    // Begruendung, warum das hier statt in main.c passiert). Noetig unabhaengig von der
+    // DMA-Strategie: die DMA-Burst-Adressierung fuellt nur den CCRx-Registerwert, die
+    // eigentliche PWM-Wellenform (Vergleich CNT vs. CCRx, Pin-Ausgabe) braucht trotzdem den
+    // normalen PWM1-Modus auf diesem Kanal.
     static void configure_pwm_channel(TIM_HandleTypeDef *htim, uint32_t channel) {
         TIM_OC_InitTypeDef sConfigOC = {0};
         sConfigOC.OCMode = TIM_OCMODE_PWM1;
@@ -113,6 +146,7 @@ private:
 
     TIM_HandleTypeDef *htim_ = nullptr;
     uint32_t channel_ = 0;
+    bool use_update_burst_ = false;
     // +1 Reset-Slot: haelt die Leitung nach dem letzten Bit auf Low (CCR=0), bis Stop_DMA()
     // aufgerufen wird -- WS2812 braucht danach ohnehin >50us Low fuer den Reset/Latch, den der
     // Aufrufer per tx_thread_sleep() zwischen zwei Show()-Aufrufen sicherstellt.

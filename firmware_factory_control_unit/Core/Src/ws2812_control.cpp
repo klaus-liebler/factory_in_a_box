@@ -36,7 +36,13 @@ constexpr uint16_t PALETTE_SIZE = sizeof(PALETTE) / sizeof(PALETTE[0]);
 
 void ws2812_setup() {
     ch1_driver.Init(&htim15, TIM_CHANNEL_1);
-    ch2_driver.Init(&htim15, TIM_CHANNEL_2);
+    // use_update_burst=true: TIM15 hat auf STM32H5 keine eigene DMA-Request-Leitung fuer CH2
+    // (weder GPDMA1 noch GPDMA2 bieten "TIM15_CH2" an, nur CH1/UP/TRIG/COM -- deshalb in
+    // CubeMX fuer CH2 auch nicht auswaehlbar) -- CH2 laeuft daher ueber die TIM15_UP-Leitung
+    // per DMA-Burst-Adressierung auf CCR2, s. ws2812.hpp fuer Details. In CubeMX braucht CH2
+    // dafuer einen GPDMA-Request auf "TIM15_UP" (nicht "TIM15_CH2"!) statt auf einen
+    // Kanal-Request.
+    ch2_driver.Init(&htim15, TIM_CHANNEL_2, /*use_update_burst=*/true);
 }
 
 void ws2812_update() {

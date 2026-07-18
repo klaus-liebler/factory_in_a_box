@@ -28,9 +28,35 @@ const assetsDir = path.join(rootDir, "assets");
 const generatedDir = path.join(rootDir, "Core", "Src", "generated");
 
 function readUniqueId() {
-	const output = execFileSync(stm32ProgrammerCli(), ["-c", "port=SWD", "-r32", uidAddress(), "12"], {
-		encoding: "utf8"
-	});
+	const cliPath = stm32ProgrammerCli();
+	let output;
+	try {
+		output = execFileSync(cliPath, ["-c", "port=SWD", "-r32", uidAddress(), "12"], {
+			encoding: "utf8"
+		});
+	} catch (err) {
+		// execFileSync wirft bei ENOENT/nicht-0-Exit ein Node-internes Error-Objekt mit
+		// zirkulaerer Referenz (result.error) -- console.error/uncaught darauf dumpt eine
+		// fuerchterliche, fuer Menschen kaum lesbare Stack-/Objekt-Ausgabe. Hier stattdessen
+		// gezielt die zwei haeufigsten Ursachen erkennen und eine kurze, umsetzbare Meldung
+		// ausgeben.
+		if (err.code === "ENOENT") {
+			throw new Error(
+				`STM32_Programmer_CLI.exe nicht gefunden unter:\n  ${cliPath}\n` +
+					`Pruefe die STM32CubeProgrammer-Installation bzw. die Umgebungsvariable STM32_PRG_PATH ` +
+					`(darf auf die .exe selbst oder deren bin/-Ordner zeigen).`
+			);
+		}
+		const details = (err.stderr || err.stdout || err.message || "").toString().trim();
+		throw new Error(
+			`STM32_Programmer_CLI konnte das Board nicht auslesen (Exit-Code ${err.status ?? "?"}).\n` +
+				`Moegliche Ursachen: ST-LINK nicht angeschlossen/nicht mit Strom versorgt, oder bereits von ` +
+				`einer anderen Anwendung belegt (z.B. eine laufende Debug-Sitzung in STM32CubeIDE -- die ` +
+				`beenden und erneut versuchen).\n` +
+				(details ? `Ausgabe des Tools:\n${details}` : "")
+		);
+	}
+
 	const match = output.match(new RegExp(`${uidAddress()}\\s*:\\s*([0-9A-Fa-f]{8})\\s+([0-9A-Fa-f]{8})\\s+([0-9A-Fa-f]{8})`));
 	if (!match) {
 		throw new Error(`Konnte Unique-ID nicht aus STM32_Programmer_CLI-Ausgabe lesen:\n${output}`);
@@ -141,4 +167,9 @@ function main() {
 	console.log(`Geschrieben: ${path.join(assetsDir, "device_certificate.der")} (Cert ${certDer.length} B, Key ${keyDer.length} B)`);
 }
 
-main();
+try {
+	main();
+} catch (err) {
+	console.error(`\nFehler: ${err.message}`);
+	process.exit(1);
+}

@@ -12,5 +12,9 @@ firmware_stm32_control_unit/test/.ninja_deps
 /firmware_factory_control_unit/web/dist
 /firmware_factory_control_unit/web/node_modules
 firmware_factory_control_unit/tools/environment-config.mjs
-/firmware_factory_control_unit/assets
-/firmware_factory_control_unit/Core/Src/generated
+# Geraetezertifikat + privater Schluessel (per tools/provision-certificate.mjs erzeugt) --
+# personenbezogen/geheim, nicht committen. Der Rest von assets/ (z.B. index.html.br) sowie
+# Core/Src/generated/*.inc + device_hostname.hh SIND eingecheckt (siehe die generierenden
+# Tools/Kommentare dort) -- ohne sie baut ein frischer Checkout nicht.
+/firmware_factory_control_unit/assets/device_certificate.der
+/firmware_factory_control_unit/assets/device_key.der

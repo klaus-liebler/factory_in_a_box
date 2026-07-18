@@ -63,10 +63,6 @@ public:
     ModbusTcpServer* modbus_server = nullptr;
     Io* io = nullptr;
     USBPDControl* usb_pd_control = nullptr;
-    // Frueh angelegt (SetupBeforeThreadX(), vor tx_kernel_enter()) statt von Io besessen --
-    // StepperSetupAndLoop::SetupEarly() braucht bare-metal-Timing fuer die TMC2209-UART-Reads,
-    // s. dortigen Klassenkommentar. Io haelt nur eine Referenz darauf (s. io.hpp).
-    StepperSetupAndLoop* stepper = nullptr;
 
     FX_MEDIA sd_media;
 

@@ -120,15 +120,13 @@ void App::AppThread() {
         TX_AUTO_START
     ), "Modbus server thread create failed");
 
-    this->io = new Io(*this->register_model, this->ip_instance, this->dhcp_client, *this->usb_pd_control, *this->stepper);
-    // io->Setup() (registerlevel-Init der restlichen Subsysteme: ADC-Start, PWM-Modus-Fixups,
-    // I2C-Sensor-Init, FDCAN-Filter, WS2812/LED-Init) laeuft im IO-Thread selbst
+    this->io = new Io(*this->register_model, this->ip_instance, this->dhcp_client, *this->usb_pd_control);
+    // io->Setup() (registerlevel-Init aller Subsysteme: ADC-Start, PWM-Modus-Fixups, TMC2209-
+    // UART-Init, I2C-Sensor-Init, FDCAN-Filter, WS2812/LED-Init) laeuft im IO-Thread selbst
     // (App::IOThread()), NICHT hier -- mehrere der darin aufgerufenen Setup()-Funktionen
     // brauchen funktionierende HAL-Timeouts (HAL_Delay()/HAL_I2C_*), die waehrend
     // tx_application_define() nicht funktionieren (Interrupts gesperrt, solange
-    // tx_kernel_enter() laeuft). TMC2209-UART-Init ist davon ausgenommen und laeuft bereits
-    // frueher in SetupBeforeThreadX() (s. dort, StepperSetupAndLoop::SetupEarly()) -- genau
-    // dieses HAL_UART_*_IT()-basierte Timing war aus dem ThreadX-Kontext unzuverlaessig.
+    // tx_kernel_enter() laeuft).
     XASSERT(tx_byte_allocate(&this->byte_pool, &ptr, IO_THREAD_STACK_SIZE, TX_NO_WAIT), "IO Thread stack allocate failed");
     XASSERT(tx_thread_create(&this->io_thread, _C("IO Thread"),
                      App::IOThreadStatic, (ULONG)this,
@@ -198,11 +196,6 @@ void App::SetupBeforeThreadX() {
     // Blockieren, bis Spannung=20V
     this->usb_pd_control = new USBPDControl(this->register_model);
     this->usb_pd_control->EarlySetup(20000);
-
-    // TMC2209-UART-Init laeuft bewusst hier (bare-metal, vor tx_kernel_enter()) statt aus dem
-    // IO-Thread -- s. StepperSetupAndLoop::SetupEarly()/Klassenkommentar in stepper.hh.
-    this->stepper = new StepperSetupAndLoop(*this->register_model);
-    this->stepper->SetupEarly();
 
     HAL_ICACHE_Disable();
     this->chip_uid[0] = HAL_GetUIDw0();

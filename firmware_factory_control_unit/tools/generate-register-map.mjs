@@ -43,11 +43,27 @@ function regCommentParts(reg) {
 // Klammern) -- die umschliessenden namespace Input {}/Holding {} stehen in
 // Core/Src/modbus_register_model.hh.
 
+// Ein Eintrag in region.registers ist entweder ein normales Register (hat "name") oder eine
+// combine-Gruppe (hat "combine", darin ein "registers"-Array mit den zugrundeliegenden
+// Einzelregistern -- s. register-map.json, z.B. CHIP_ID/CAN_TX_COUNT). Fuer die C++-Ausgabe
+// spielt die Gruppierung keine Rolle, nur die zugrundeliegenden Einzelregister zaehlen.
+function flattenRegisters(registers) {
+	const result = [];
+	for (const entry of registers) {
+		if (entry.combine) {
+			result.push(...entry.combine.registers);
+		} else {
+			result.push(entry);
+		}
+	}
+	return result;
+}
+
 function genFlatBank(bank) {
 	let out = "";
 	for (const region of bank.regions) {
 		out += `// ${region.title} (Region-Start ${region.startAddress}, Reserve bis ${region.endAddress})\n`;
-		for (const reg of region.registers) {
+		for (const reg of flattenRegisters(region.registers)) {
 			const comment = regCommentParts(reg).join(" -- ");
 			out += `constexpr uint16_t ${reg.name} = ${reg.address};${comment ? " // " + comment : ""}\n`;
 		}
@@ -111,7 +127,26 @@ function tsStringLiteral(s) {
 	return JSON.stringify(s);
 }
 
-function genTsRegister(reg, bank) {
+// entry ist entweder ein normales Register (hat "name") oder eine combine-Gruppe (hat
+// "combine", darin "registers": [...] mit den zugrundeliegenden Einzelregistern -- s.
+// register-map.json). Erzeugt in beiden Faellen GENAU einen RegisterDef-Eintrag; die
+// combine-Gruppe nutzt ihre eigenen label/description/display-Angaben statt derer des ersten
+// zugrundeliegenden Registers.
+function genTsRegister(entry, bank) {
+	if (entry.combine) {
+		const group = entry.combine;
+		const first = group.registers[0];
+		const fields = [`name: ${tsStringLiteral(group.label)}`, `address: ${first.address}`, `bank: ${tsStringLiteral(bank)}`];
+		const description = group.description ?? first.description;
+		if (description) fields.push(`description: ${tsStringLiteral(description)}`);
+		if (first.unit) fields.push(`unit: ${tsStringLiteral(first.unit)}`);
+		if (group.signed) fields.push(`signed: true`);
+		fields.push(`display: ${tsStringLiteral(group.display ?? "decimal")}`);
+		fields.push(`combine: { count: ${group.registers.length} }`);
+		return `{ ${fields.join(", ")} }`;
+	}
+
+	const reg = entry;
 	const fields = [`name: ${tsStringLiteral(reg.name)}`, `address: ${reg.address}`, `bank: ${tsStringLiteral(bank)}`];
 	if (reg.description) fields.push(`description: ${tsStringLiteral(reg.description)}`);
 	if (reg.unit) fields.push(`unit: ${tsStringLiteral(reg.unit)}`);
@@ -122,13 +157,12 @@ function genTsRegister(reg, bank) {
 		if (reg.i2c.irqPin) i2cFields.push(`irqPin: ${tsStringLiteral(reg.i2c.irqPin)}`);
 		fields.push(`i2c: { ${i2cFields.join(", ")} }`);
 	}
-	if (bank === "holding") {
-		fields.push(`control: ${tsStringLiteral(reg.control ?? "number")}`);
-		if (reg.min !== undefined) fields.push(`min: ${reg.min}`);
-		if (reg.max !== undefined) fields.push(`max: ${reg.max}`);
-	} else {
-		fields.push(`control: "readonly"`);
-	}
+	if (reg.min !== undefined) fields.push(`min: ${reg.min}`);
+	if (reg.max !== undefined) fields.push(`max: ${reg.max}`);
+	// display ist die EINE Darstellungsform fuer Lesen (Zahl/Hex/Binaer/Bool-Badge) UND
+	// Schreiben (Toggle fuer "bool", Slider fuer "range") -- s. register-panel.ts. "decimal"
+	// ist der Default (generisches Zahlenfeld zum Schreiben bei Holding-Registern).
+	fields.push(`display: ${tsStringLiteral(reg.display ?? "decimal")}`);
 	return `{ ${fields.join(", ")} }`;
 }
 
@@ -145,7 +179,9 @@ function generateTs() {
 
 	const regionsSource = orderedByOriginalLayout
 		.map((region) => {
-			const regsSource = region.registers.map((reg) => "\t\t\t" + genTsRegister(reg, region.bank)).join(",\n");
+			const regsSource = region.registers
+				.map((entry) => "\t\t\t" + genTsRegister(entry, region.bank))
+				.join(",\n");
 			return `\t{\n\t\ttitle: ${tsStringLiteral(region.title)},\n\t\tregisters: [\n${regsSource}\n\t\t]\n\t}`;
 		})
 		.join(",\n");
@@ -158,13 +194,19 @@ function generateTs() {
 // "node tools/generate-register-map.mjs" erneut ausfuehren.
 
 export type RegisterBank = "input" | "holding";
-export type RegisterControl = "readonly" | "toggle" | "slider" | "number";
+// Eine Darstellungsform fuers Lesen UND Schreiben (s. register-panel.ts):
+//   - "decimal" (Default): Zahl; bei Holding-Registern generisches Zahlenfeld + Schreiben-Button.
+//   - "hex" / "binary": Zahl als 0x.../0b...-String; Schreiben wie "decimal".
+//   - "bool": bei Input-Registern grau/gruen eingefaerbtes Badge (0/1), bei Holding-Registern
+//     zusaetzlich ein Toggle-Switch zum Schreiben.
+//   - "range": Slider (braucht min/max); nur fuer Holding-Register sinnvoll.
+export type RegisterDisplay = "decimal" | "hex" | "binary" | "bool" | "range";
 
 export interface RegisterDef {
 	name: string;
 	address: number;
 	bank: RegisterBank;
-	control: RegisterControl;
+	display: RegisterDisplay;
 	description?: string;
 	unit?: string;
 	signed?: boolean;
@@ -172,6 +214,10 @@ export interface RegisterDef {
 	i2c?: { bus: string; irqPin?: string };
 	min?: number;
 	max?: number;
+	// Fasst "count" aufeinanderfolgende Register (ab "address", MSB zuerst) zu einem
+	// gemeinsamen Anzeigewert zusammen (z.B. 6 Register -> eine 96-Bit Chip-ID als Hex-String,
+	// oder 2 Register -> ein 32-Bit-Zaehlerstand). Nur lesend, nur sinnvoll bei Input-Registern.
+	combine?: { count: number };
 }
 
 export interface RegisterRegion {

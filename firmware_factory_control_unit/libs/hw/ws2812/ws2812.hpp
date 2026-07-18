@@ -40,6 +40,7 @@
 #include <algorithm>
 #include "main.h"
 #include "log.h"
+#include "hw_config_assert.hh"
 
 namespace ws2812 {
 
@@ -71,6 +72,13 @@ public:
         use_update_burst_ = use_update_burst;
         configure_pwm_channel(htim_, channel_);
         __HAL_TIM_SET_AUTORELOAD(htim_, ARR);
+
+        // Dieselbe Bedingung, die ShowEach() bei jedem Aufruf leise abfaengt (s. dort) -- hier
+        // zusaetzlich einmalig laut beim Bringup, statt erst beim ersten Show()-Aufruf per
+        // log_warn() zu bemerken, dass CubeMX die DMA-Verlinkung fuer diesen Kanal nie bekommen hat.
+        uint16_t dma_id = use_update_burst_ ? TIM_DMA_ID_UPDATE : (uint16_t)((channel_ / 4U) + 1U);
+        HW_CONFIG_ASSERT(htim_->hdma[dma_id] != nullptr,
+                          "Kein GPDMA fuer diesen TIM-Kanal verlinkt (CubeMX: TIM15 -> DMA Settings)");
 
         // HAL_TIM_PWM_Start_DMA() (Show()/ShowEach()'s Nicht-Burst-Pfad) aktiviert Kanal, MOE
         // und den Timer-Zaehler automatisch mit -- HAL_TIM_DMABurst_MultiWriteStart() (Burst-

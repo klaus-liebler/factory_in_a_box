@@ -30,10 +30,7 @@ class Io {
     CanSetupAndLoop can_setup_and_loop;
     EthLink eth_link;
     ScaleSetupAndLoop scale_;
-    // Referenz statt eigenem Member: App legt StepperSetupAndLoop frueh an (SetupBeforeThreadX(),
-    // vor tx_kernel_enter()) und ruft SetupEarly() selbst auf -- s. Klassenkommentar in
-    // setup_and_loops/stepper.hh. Io ruft hier nur noch Setup() (No-Op)/Loop() auf.
-    StepperSetupAndLoop& stepper_;
+    StepperSetupAndLoop stepper_;
     TofColorSetupAndLoop tof_color_;
     Ws2812SetupAndLoop ws2812_;
 
@@ -42,15 +39,14 @@ class Io {
     void updateOutputs(uint32_t now);
 
     public:
-    Io(Modbus::IModbusRegisterModel& register_model, NX_IP& ip_instance, NX_DHCP& dhcp_client,
-       USBPDControl& usb_pd_control, StepperSetupAndLoop& stepper)
+    Io(Modbus::IModbusRegisterModel& register_model, NX_IP& ip_instance, NX_DHCP& dhcp_client, USBPDControl& usb_pd_control)
         : register_model(register_model), ip_instance(ip_instance), dhcp_client(dhcp_client), usb_pd_control(usb_pd_control),
           info_led(gpio::Pin::PE15),
           heartbeat_pattern_(50, 50),
           can_setup_and_loop(register_model),
           eth_link(register_model, ip_instance, dhcp_client),
           scale_(register_model),
-          stepper_(stepper),
+          stepper_(register_model),
           tof_color_(register_model),
           ws2812_(register_model) {}
 

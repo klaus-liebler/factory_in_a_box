@@ -10,20 +10,17 @@
 // Timer erzeugt die Step-Pulse per Update-Interrupt, unabhaengig vom io_thread-Zyklus) --
 // STEPPER1 nutzt TIM17, STEPPER2 TIM16 (beide bereits per CubeMX als Basic-Timer
 // konfiguriert, aber ohne NVIC-Interrupt-Freigabe; die wird hier manuell nachgeholt, s.
-// SetupEarly()). Die TIM16/TIM17-IRQ-Handler sind freie extern-"C"-Funktionen (von HAL/dem
+// Setup()). Die TIM16/TIM17-IRQ-Handler sind freie extern-"C"-Funktionen (von HAL/dem
 // Vektortable so vorgegeben) und erreichen die Motion-Objekte ueber einen statischen
 // Selbstzeiger (instance_) -- es gibt ohnehin nur eine StepperSetupAndLoop-Instanz (angelegt
-// einmalig in App::SetupBeforeThreadX(), s. app.cc).
+// einmalig in Io, s. io.hpp).
 //
-// SetupEarly() (TMC2209-UART-Init, IHOLD_IRUN, Timer-Init, NVIC-Freigabe) laeuft bewusst NICHT
-// aus dem IO-Thread, sondern schon in App::SetupBeforeThreadX() -- also bare-metal vor
-// tx_kernel_enter(), noch ohne ThreadX-Scheduler/-Tick. Die interruptgetriebenen UART-Reads in
-// tmc2209.cpp (HAL_UART_Transmit_IT/Receive_IT + Busy-Wait auf gState/RxState) liefen aus dem
-// ThreadX-IO-Thread heraus unzuverlaessig (erster Read ok, alle folgenden liefen in TX/RX-
-// Timeouts) -- vor tx_kernel_enter() nicht. Analog zu USBPDControl::EarlySetup(), s. app.cc.
-// Deshalb konstruiert App dieses Objekt selbst (nicht Io) und reicht es Io nur per Referenz
-// durch (s. io.hpp) -- Setup() (die ISetupAndLoop-Schnittstelle, aus dem IO-Thread aufgerufen)
-// ist hier bewusst ein No-Op.
+// Setup() laeuft regulaer aus dem IO-Thread (ISetupAndLoop-Schnittstelle) -- die
+// interruptgetriebenen TMC2209-UART-Reads waren dort zwischenzeitlich unzuverlaessig
+// (TX/RX-Timeouts unter ThreadX-Scheduling), was sich als deaktiviertes UART5-FIFO
+// herausstellte (nur 1-Byte-Schieberegister statt 8 Byte Puffer, s. main.c/
+// MX_UART5_Init()-Kommentar) -- seit dessen Behebung wieder wie gewohnt hier statt separat
+// vor tx_kernel_enter().
 //
 // profile_100_1000_5_160mhz wurde per stm32_libs/sigmoid_stepper/sigmoid_approximation.py
 // --cpu-freq 160e6 fuer den tatsaechlichen TIM16/TIM17-Takt dieses Boards erzeugt (APB2 x2
@@ -52,6 +49,7 @@
 #include "modbus_register_model.hh"
 #include "log.h"
 #include "main.h"
+#include "hw_config_assert.hh"
 
 #include "tmc2209.hpp"
 #include "sigmoid_stepper.hh"
@@ -136,9 +134,15 @@ class StepperSetupAndLoop : public ISetupAndLoop {
     void HandleTim17UpdateInterrupt() { stepper1_motion.Handle_update_interrupt_(); }
     void HandleTim16UpdateInterrupt() { stepper2_motion.Handle_update_interrupt_(); }
 
-    // Laeuft bewusst frueh (App::SetupBeforeThreadX(), vor tx_kernel_enter()), nicht als
-    // ISetupAndLoop::Setup() aus dem IO-Thread -- s. Klassenkommentar oben.
-    void SetupEarly() {
+    void Setup() override {
+        // CubeMX vergisst UART5's NVIC-Interrupt-Freigabe leicht (kein "NVIC Settings"-Hin bei
+        // reinem TX/RX-Modus in der .ioc) -- ohne ihn haengen tmc2209.cpp's
+        // HAL_UART_Transmit_IT()/Receive_IT()-Aufrufe zuverlaessig im TX/RX-Timeout, ohne
+        // erkennbaren Fehler (genau das Symptom, das diesen Umbau ausgeloest hat). Frueh und
+        // laut pruefen statt erst nach dem ersten ratlosen Timeout-Log.
+        HW_CONFIG_ASSERT(NVIC_GetEnableIRQ(UART5_IRQn) != 0,
+                          "UART5 NVIC-Interrupt nicht aktiviert (CubeMX: UART5 -> NVIC Settings -> Global Interrupt)");
+
         // Reihenfolge zu Diagnosezwecken umgedreht (stepper2 zuerst): stepper2 hatte vor dem
         // Umbau auf setup_and_loops funktioniert, seitdem schlagen seine UART-Reads konsistent
         // fehl. Falls das an einer Bus-/Timing-Abhaengigkeit von der Initialisierungsreihenfolge
@@ -170,13 +174,12 @@ class StepperSetupAndLoop : public ISetupAndLoop {
         NVIC_EnableIRQ(TIM17_IRQn);
         NVIC_SetPriority(TIM16_IRQn, 5);
         NVIC_EnableIRQ(TIM16_IRQn);
-    }
 
-    // No-Op: die eigentliche Initialisierung laeuft bereits in SetupEarly() (vor
-    // tx_kernel_enter(), s. Klassenkommentar oben) -- dennoch als leere Override noetig, um das
-    // ISetupAndLoop-Interface zu erfuellen (Io ruft Setup()/Loop() einheitlich fuer alle
-    // Mitglieder auf).
-    void Setup() override {}
+        // Selbstkonsistenz-Check: faengt z.B. eine falsche Priority-Grouping-Konfiguration ab,
+        // bei der NVIC_EnableIRQ() die Freigabe still nicht wirksam werden laesst.
+        HW_CONFIG_ASSERT(NVIC_GetEnableIRQ(TIM17_IRQn) != 0, "TIM17 NVIC-Interrupt nach NVIC_EnableIRQ() nicht aktiv");
+        HW_CONFIG_ASSERT(NVIC_GetEnableIRQ(TIM16_IRQn) != 0, "TIM16 NVIC-Interrupt nach NVIC_EnableIRQ() nicht aktiv");
+    }
 
     void Loop(uint32_t now) override {
         (void)now;

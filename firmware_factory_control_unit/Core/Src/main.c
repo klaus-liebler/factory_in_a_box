@@ -1215,11 +1215,21 @@ static void MX_UART5_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_UARTEx_DisableFifoMode(&huart5) != HAL_OK)
+  if (HAL_UARTEx_EnableFifoMode(&huart5) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN UART5_Init 2 */
+  // FIFO bewusst aktiviert (CubeMX-Default fuer dieses Board war deaktiviert, s. History) --
+  // ohne FIFO hat UART5 nur ein 1-Byte-Schieberegister: bei 115200 Baud muss die RXNE-ISR
+  // dann JEDES Byte innerhalb von ~87us bedienen, sonst ueberschreibt das naechste Byte
+  // (Overrun) unbemerkt das vorherige. Aus dem bare-metal main() (vor tx_kernel_enter()) war
+  // das nie ein Problem, aus dem ThreadX-IO-Thread heraus (TMC2209-UART-Reads waehrend des
+  // Homings, s. stepper.hh) schon: dort konkurriert die ISR-Bedienung mit Ethernet/TIM6/
+  // TIM16/TIM17 & Co., und gelegentliche Jitter > 87us reichten fuer stille Frame-Korruption
+  // (TX/RX-Timeout ohne erkennbaren Fehler). Der 8-Byte-FIFO gibt dafuer deutlich mehr Puffer.
+  // WICHTIG: in CubeMX (.ioc) muss UART5 -> Advanced Parameters -> FIFO Mode ebenfalls auf
+  // "Enable" gesetzt werden, sonst geht diese Aenderung beim naechsten "Generate Code" verloren.
   /* USER CODE END UART5_Init 2 */
 
 }

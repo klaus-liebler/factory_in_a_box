@@ -7,8 +7,10 @@
 // ("Reserve/Erweiterung" laut register-map.json) -- dafuer wird hier nichts angesteuert, die
 // Register bleiben auf 0.
 //
-// HAL_SPI_TransmitReceive_DMA() (siehe HX711::loop()) braucht eine per CubeMX auf SPI2 TX/RX
-// verlinkte GPDMA-Instanz.
+// HX711::loop() nutzt bewusst einen blockierenden HAL_SPI_TransmitReceive() statt
+// HAL_SPI_TransmitReceive_DMA() -- die DMA-Variante blieb auf diesem Board zuverlaessig in
+// HAL_SPI_STATE_BUSY_TX_RX haengen (s. Kommentar in hx711.hh, loop()), daher keine
+// CubeMX-DMA-Verlinkung fuer SPI2 mehr noetig.
 // ============================================================================
 #include "interfaces.hh"
 #include "modbus_register_model.hh"

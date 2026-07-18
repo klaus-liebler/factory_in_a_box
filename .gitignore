@@ -1,7 +1,3 @@
-licheerv_nano_base/fp-info-cache
-/licheerv_nano_base/jlcpcb/gerber
-/licheerv_nano_base/licheerv_nano_base-backups
-/licheerv_nano_base/jlcpcb/production
 /firmware_stm32_control_unit/build
 /radxa_zero_3e_control_unit/radxa_zero_3e_control_unit-backups
 /firmware_stm32_control_unit/test/CMakeFiles
@@ -10,18 +6,11 @@ firmware_stm32_control_unit/test/sigmoid_test.exe
 firmware_stm32_control_unit/test/.ninja_log
 firmware_stm32_control_unit/test/build.ninja
 firmware_stm32_control_unit/test/.ninja_deps
-/pcb_control_unit_ethernet/pcb_control_unit_ethernet-backups
 /firmware_stm32_devboard/build
-pcb_control_unit_ethernet/fp-info-cache
-/pcb_control_unit_ethernet-2026-04-30_133407/pcb_control_unit_ethernet-backups
-/firmware_control_unit_ethercat/build
-/pcb_control_unit_ethercat/.history
-pcb_control_unit_ethernet-2026-04-30_133407/.history/
-pcb_control_unit_ethernet-2026-04-30_133407/.history_trim/
-/pcb_factory_control_unit/pcb_control_unit_ethernet-backups
 /pcb_factory_control_unit/pcb_factory_control_unit-backups
 /WebServerExample/Nx_WebServer/web/node_modules
 /firmware_factory_control_unit/web/dist
 /firmware_factory_control_unit/web/node_modules
+firmware_factory_control_unit/tools/environment-config.mjs
 /firmware_factory_control_unit/assets
 /firmware_factory_control_unit/Core/Src/generated

@@ -9,8 +9,7 @@
 //     TX_AUTO_START), startet FileX/TLS/HTTP/DHCP tatsaechlich.
 #include "tx_api.h"
 
-constexpr ULONG NX_APP_THREAD_STACK_SIZE = 8 * 1024;
-constexpr UINT NX_APP_THREAD_PRIORITY = 10;
+class App;
 
-void net_setup_create(TX_BYTE_POOL *nx_app_byte_pool);
-void net_setup_start();
+void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool);
+void net_setup_start(App *app);

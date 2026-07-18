@@ -24,15 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "tx_api.h"
 
-// Definiert (als extern "C") in Core/Src/io_thread.cpp. Muss hier, nicht per
-// tx_application_define() (app.cpp), aufgerufen werden: io_setup() erreicht u.a.
-// tof_color_control.cpp/stepper_control.cpp, die HAL_Delay()/HAL_I2C_*()/HAL_UART_*() mit
-// endlichem Timeout aufrufen -- die haengen sich in tx_application_define() auf, weil
-// tx_kernel_enter() Interrupts sperrt, solange diese Funktion laeuft (HAL_GetTick() zaehlt
-// dann nie mehr hoch, jeder Timeout-Vergleich wird nie wahr). Vor tx_kernel_enter() sind
-// Interrupts noch normal aktiv (Reset-Default), HAL_Delay()/HAL-Timeouts funktionieren also
-// wie erwartet.
-void io_setup(void);
+void AppSetupBeforeThreadX(void);
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -102,6 +94,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_GPDMA1_Init(void);
 static void MX_DCACHE1_Init(void);
+static void MX_USART3_UART_Init(void);
 static void MX_ETH_Init(void);
 static void MX_FLASH_Init(void);
 static void MX_I2C1_Init(void);
@@ -125,7 +118,6 @@ static void MX_UART12_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_UART5_Init(void);
 static void MX_ICACHE_Init(void);
-static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -166,6 +158,7 @@ int main(void)
   MX_GPIO_Init();
   MX_GPDMA1_Init();
   MX_DCACHE1_Init();
+  MX_USART3_UART_Init();
   MX_ETH_Init();
   MX_FLASH_Init();
   MX_I2C1_Init();
@@ -189,13 +182,8 @@ int main(void)
   MX_ADC1_Init();
   MX_UART5_Init();
   MX_ICACHE_Init();
-  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  // io_setup() (io_thread.cpp) startet u.a. auch ADC1 (HAL_ADC_Start, laeuft danach im
-  // Continuous-Conversion-Modus frei weiter -- io_thread liest nur noch per
-  // HAL_ADC_GetValue()) -- muss hier vor tx_kernel_enter() laufen, s. Begruendung beim
-  // Prototyp oben (USER CODE BEGIN Includes).
-  io_setup();
+  AppSetupBeforeThreadX();
   tx_kernel_enter();
   /* USER CODE END 2 */
 
@@ -761,7 +749,14 @@ static void MX_SDMMC1_SD_Init(void)
 {
 
   /* USER CODE BEGIN SDMMC1_Init 0 */
-
+  hsd1.Instance = SDMMC1;
+  hsd1.Init.ClockEdge = SDMMC_CLOCK_EDGE_RISING;
+  hsd1.Init.ClockPowerSave = SDMMC_CLOCK_POWER_SAVE_DISABLE;
+  hsd1.Init.BusWide = SDMMC_BUS_WIDE_1B;
+  hsd1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
+  hsd1.Init.ClockDiv = 0;
+  HAL_SD_Init(&hsd1);
+  return; // siehe USER CODE BEGIN SDMMC1_Init 2 unten
   /* USER CODE END SDMMC1_Init 0 */
 
   /* USER CODE BEGIN SDMMC1_Init 1 */
@@ -813,11 +808,11 @@ static void MX_SPI2_Init(void)
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -837,7 +832,14 @@ static void MX_SPI2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN SPI2_Init 2 */
-
+  // In CubeMX ist fuer SPI2 kein NVIC-Interrupt angehakt, CubeMX generiert daher weder diesen
+  // Aufruf noch den SPI2_IRQHandler (s. stm32h5xx_it.c, USER CODE BEGIN 1). hx711.hh braucht
+  // ihn zwingend: HAL_SPI_TransmitReceive_DMA() schliesst die Transaktion erst ueber das
+  // SPI-eigene EOT-Interrupt ab, nicht schon ueber die DMA-Completion-IRQs allein. TODO: in
+  // CubeMX dauerhaft nachpflegen (SPI2 -> NVIC Settings -> Global Interrupt), sonst geht das
+  // beim naechsten "Generate Code" wieder verloren.
+  HAL_NVIC_SetPriority(SPI2_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(SPI2_IRQn);
   /* USER CODE END SPI2_Init 2 */
 
 }
@@ -1218,7 +1220,6 @@ static void MX_UART5_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN UART5_Init 2 */
-
   /* USER CODE END UART5_Init 2 */
 
 }
@@ -1584,6 +1585,7 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
+  HAL_UART_Transmit(&huart3, (uint8_t *)"\r\nError: HAL error occurred\r\n", (uint16_t)strlen("\r\nError: HAL error occurred\r\n"), HAL_MAX_DELAY);
   while (1)
   {
   }

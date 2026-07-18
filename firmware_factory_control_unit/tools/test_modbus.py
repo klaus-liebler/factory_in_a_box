@@ -17,7 +17,7 @@ from pymodbus.client import ModbusTcpClient
 
 MODBUS_PORT = 502
 
-# Register-Adressen, siehe Core/Src/modbus_register_map.hpp
+# Register-Adressen, siehe Core/Src/generated/modbus_register_model.hh
 INPUT_HEALTH_STATE = 0
 INPUT_CHIP_ID_W0_HI = 1
 INPUT_FW_VERSION_MAJOR = 7

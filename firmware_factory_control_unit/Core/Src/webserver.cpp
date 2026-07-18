@@ -1,19 +1,23 @@
 // ============================================================================
-// Modbus-Register-Weboberflaeche -- liefert die unter web/ gebaute Single-File-UI (gzip,
-// ins Flash einkompiliert, siehe Core/Src/generated/modbus_ui_page.c) unter "/" aus, sowie
-// zwei schlanke Text-Endpunkte zum Lesen/Schreiben aller Register. Bewusst kein JSON auf
-// C++-Seite (weder Parser noch Encoder) -- /api/registers liefert zwei kommagetrennte, fest
-// 5-stellige Zahlenlisten, /api/write-holding ist ein GET mit Query-Parametern statt
-// POST+JSON-Body (erspart nx_web_http_server_content_get()+Parser fuer diese Demo-UI).
+// Modbus-Register-Weboberflaeche -- liefert die unter web/ gebaute, minifizierte und Brotli-
+// komprimierte Single-File-UI (per objcopy ins Flash einkompiliert, siehe assets/index.html.br
+// und CMakeLists.txt BINARY_ASSETS) unter "/" aus, sowie zwei schlanke Text-Endpunkte zum
+// Lesen/Schreiben aller Register. Bewusst kein JSON auf C++-Seite (weder Parser noch Encoder)
+// -- /api/registers liefert zwei kommagetrennte, fest 5-stellige Zahlenlisten,
+// /api/write-holding ist ein GET mit Query-Parametern statt POST+JSON-Body (erspart
+// nx_web_http_server_content_get()+Parser fuer diese Demo-UI).
 // ============================================================================
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 
 #include "webserver.hpp"
-#include "app_state.hpp"
-#include "modbus_register_map.hpp"
-#include "generated/modbus_ui_page.h"
+#include "app.hh"
+#include "modbus_register_model.hh"
+#include "assets.h"
+// Per objcopy eingebettetes Binary (assets/index.html.br, s. CMakeLists.txt BINARY_ASSETS/
+// generated/assets.h) -- Laenge per Zeigerdifferenz Start/Ende statt eines separaten
+// LEN-Symbols (objcopy liefert nur _start/_end).
 
 // Liefert genau 'want' Bytes ab dem aktuellen Zustand von *context nach dest -- wird von
 // send_streamed_response() wiederholt aufgerufen, bis die komplette Antwort geschrieben ist.
@@ -32,9 +36,9 @@ static UINT send_streamed_response(NX_WEB_HTTP_SERVER *server_ptr, const char *c
 
     NX_PACKET *packet_ptr;
     if (nx_web_http_server_callback_generate_response_header(
-            server_ptr, &packet_ptr, NX_CHAR_LITERAL(NX_WEB_HTTP_STATUS_OK),
-            (UINT)total_length, NX_CHAR_LITERAL(content_type),
-            NX_CHAR_LITERAL(additional_header)) != NX_SUCCESS) {
+            server_ptr, &packet_ptr, _C(NX_WEB_HTTP_STATUS_OK),
+            (UINT)total_length, _C(content_type),
+            _C(additional_header)) != NX_SUCCESS) {
         return NX_NOT_SUCCESSFUL;
     }
 
@@ -82,11 +86,11 @@ static UINT send_streamed_response(NX_WEB_HTTP_SERVER *server_ptr, const char *c
     return NX_SUCCESS;
 }
 
-// Quelle fuer send_streamed_response(): der eincompilierte gzip-Blob, context = Cursor (Byte-
+// Quelle fuer send_streamed_response(): der eincompilierte Brotli-Blob, context = Cursor (Byte-
 // Offset), der zwischen Aufrufen weiterlaeuft.
 static void write_from_flash_blob(void *context, char *dest, size_t want) {
     size_t *cursor = (size_t *)context;
-    memcpy(dest, MODBUS_UI_HTML_GZ + *cursor, want);
+    memcpy(dest, _binary_index_html_br_start + *cursor, want);
     *cursor += want;
 }
 
@@ -96,7 +100,7 @@ static void write_from_flash_blob(void *context, char *dest, size_t want) {
 // Input-Feld) enden auf ",". register-map.ts/api.ts auf der JS-Seite spiegeln dieses Format
 // (splitten auf "|", dann auf ",", leere Tokens durch das feste Format werden ignoriert).
 struct RegisterTextState {
-    ModbusTcpServer *server;
+    Modbus::IModbusRegisterModel *register_model;
     uint16_t holding_i = 0;
     uint16_t input_i = 0;
     char cell[8] = {0};
@@ -113,11 +117,11 @@ static void refill_register_text_cell(RegisterTextState &st) {
     uint16_t value;
     char sep;
     if (st.holding_i <= ModbusRegisters::HOLDING_REGISTER_MAX_INDEX) {
-        value = st.server->read_holding_register(st.holding_i);
+        value = st.register_model->GetHoldingRegister(st.holding_i);
         sep = (st.holding_i == ModbusRegisters::HOLDING_REGISTER_MAX_INDEX) ? '|' : ',';
         st.holding_i++;
     } else {
-        value = st.server->read_input_register(st.input_i);
+        value = st.register_model->GetInputRegister(st.input_i);
         sep = ',';
         st.input_i++;
     }
@@ -142,14 +146,15 @@ UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT request_typ
 
     if (strcmp(resource, "/") == 0) {
         size_t cursor = 0;
-        UINT status = send_streamed_response(server_ptr, "text/html", "Content-Encoding: gzip\r\n",
-                                             MODBUS_UI_HTML_GZ_LEN, write_from_flash_blob, &cursor);
+        size_t html_br_len = (size_t)(_binary_index_html_br_end - _binary_index_html_br_start);
+        UINT status = send_streamed_response(server_ptr, "text/html", "Content-Encoding: br\r\n",
+                                             html_br_len, write_from_flash_blob, &cursor);
         return (status == NX_SUCCESS) ? NX_WEB_HTTP_CALLBACK_COMPLETED : NX_NOT_SUCCESSFUL;
     }
 
     if (strcmp(resource, "/api/registers") == 0) {
         RegisterTextState state;
-        state.server = g_app_state.modbus_server;
+        state.register_model = App::Instance().register_model;
         UINT status = send_streamed_response(server_ptr, "text/plain", NX_NULL,
                                              register_text_total_length(), write_register_text_chunk, &state);
         return (status == NX_SUCCESS) ? NX_WEB_HTTP_CALLBACK_COMPLETED : NX_NOT_SUCCESSFUL;
@@ -169,7 +174,7 @@ UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT request_typ
             sscanf(addr_query, "address=%u", &address) == 1 &&
             sscanf(value_query, "value=%u", &value) == 1 &&
             address <= ModbusRegisters::HOLDING_REGISTER_MAX_INDEX && value <= UINT16_MAX) {
-            g_app_state.modbus_server->write_holding_register((uint16_t)address, (uint16_t)value);
+            App::Instance().register_model->SetHoldingRegister((uint16_t)address, (uint16_t)value);
             sprintf(response_data, "OK");
         } else {
             sprintf(response_data, "ERROR");
@@ -184,7 +189,7 @@ UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT request_typ
 
     NX_PACKET *resp_packet;
     if (nx_web_http_server_callback_generate_response_header(
-            server_ptr, &resp_packet, NX_CHAR_LITERAL(NX_WEB_HTTP_STATUS_OK),
+            server_ptr, &resp_packet, _C(NX_WEB_HTTP_STATUS_OK),
             strlen(response_data), response_type, NX_NULL) != NX_SUCCESS) {
         return NX_NOT_SUCCESSFUL;
     }

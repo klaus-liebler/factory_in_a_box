@@ -1,5 +1,5 @@
 {
-  "$comment": "Single Source of Truth fuer die Modbus-Register-Map der Control-Unit. Generiert daraus: Core/Src/modbus_register_map.hpp und web/src/register-map.ts, via tools/generate-register-map.mjs (node tools/generate-register-map.mjs). Nicht direkt in den generierten Dateien editieren.",
+  "$comment": "Single Source of Truth fuer die Modbus-Register-Map der Control-Unit. Generiert daraus: Core/Src/generated/modbus_register_model.hh und web/src/register-map.ts, via tools/generate-register-map.mjs (node tools/generate-register-map.mjs). Nicht direkt in den generierten Dateien editieren.",
   "healthBits": [
     { "name": "OK", "bit": 0 },
     { "name": "OVERTEMPERATURE", "bit": 1 },
@@ -200,7 +200,9 @@
             { "name": "STEPPER2_TARGET_HI", "address": 65, "description": "Zielposition Stepper 2, High", "signed": true },
             { "name": "STEPPER2_TARGET_LO", "address": 66, "description": "Zielposition Stepper 2, Low" },
             { "name": "STEPPER2_SPEED", "address": 67, "description": "Geschwindigkeit Stepper 2", "unit": "Schritte/s" },
-            { "name": "STEPPER2_ACCEL", "address": 68, "description": "Beschleunigung Stepper 2", "unit": "Schritte/s^2" }
+            { "name": "STEPPER2_ACCEL", "address": 68, "description": "Beschleunigung Stepper 2", "unit": "Schritte/s^2" },
+            { "name": "STEPPER1_START_HOMING", "address": 69, "description": "1=Homing starten (stoppt Stepper1, sensorloses Homing per StallGuard), 0=erfolgreich beendet, >1=Fehlercode", "control": "number", "min": 0, "max": 255 },
+            { "name": "STEPPER2_START_HOMING", "address": 70, "description": "1=Homing starten (stoppt Stepper2, sensorloses Homing per StallGuard), 0=erfolgreich beendet, >1=Fehlercode", "control": "number", "min": 0, "max": 255 }
           ]
         },
         {

@@ -1,9 +1,16 @@
 #!/usr/bin/env node
-// Generiert Core/Src/modbus_register_map.hpp (C++) und web/src/register-map.ts (TypeScript)
-// aus der programmiersprachen-neutralen Quelle register-map.json. Manuell aufrufen bei
+// Generiert drei reine Konstanten-Fragmente (Core/Src/generated/register_input.inc,
+// register_holding.inc, register_maxindex.inc) und web/src/register-map.ts (TypeScript) aus
+// der programmiersprachen-neutralen Quelle register-map.json. Manuell aufrufen bei
 // Aenderungen an register-map.json:
 //   node tools/generate-register-map.mjs
-// Beide Ausgabedateien werden eingecheckt (wie stm32_libs/common_stm32/gpio/generated/*.inc
+//
+// Die .inc-Fragmente enthalten bewusst NUR constexpr-Zeilen -- keine namespace-Deklaration,
+// keine geschweiften Klammern. Die umschliessenden Namespaces (ModbusRegisters::Input/::Holding)
+// stehen fest in Core/Src/modbus_register_model.hh (von Hand gepflegt, bindet die drei
+// Fragmente per #include ein, gleiches Muster wie stm32_libs/common_stm32/gpio/generated/*.inc).
+//
+// Alle Ausgabedateien werden eingecheckt (wie stm32_libs/common_stm32/gpio/generated/*.inc
 // und Core/Src/generated/modbus_ui_page.c) -- kein Build-Schritt haengt automatisch daran.
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -11,7 +18,10 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const schemaPath = path.join(rootDir, "register-map.json");
-const hppPath = path.join(rootDir, "Core", "Src", "modbus_register_map.hpp");
+const generatedDir = path.join(rootDir, "Core", "Src", "generated");
+const inputIncPath = path.join(generatedDir, "register_input.inc");
+const holdingIncPath = path.join(generatedDir, "register_holding.inc");
+const maxIndexIncPath = path.join(generatedDir, "register_maxindex.inc");
 const tsPath = path.join(rootDir, "web", "src", "register-map.ts");
 
 const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
@@ -27,67 +37,69 @@ function regCommentParts(reg) {
 }
 
 // ---------------------------------------------------------------------------
-// C++: Core/Src/modbus_register_map.hpp
+// C++: Core/Src/generated/register_input.inc / register_holding.inc / register_maxindex.inc
 // ---------------------------------------------------------------------------
+// Jede Datei enthaelt NUR constexpr-Zeilen (keine namespace-Deklaration, keine geschweiften
+// Klammern) -- die umschliessenden namespace Input {}/Holding {} stehen in
+// Core/Src/modbus_register_model.hh.
 
-function genCppBank(bank, namespaceLabel) {
-	let out = `namespace ${namespaceLabel} {\n\n`;
+function genFlatBank(bank) {
+	let out = "";
 	for (const region of bank.regions) {
-		out += `    // ${region.title} (Region-Start ${region.startAddress}, Reserve bis ${region.endAddress})\n`;
+		out += `// ${region.title} (Region-Start ${region.startAddress}, Reserve bis ${region.endAddress})\n`;
 		for (const reg of region.registers) {
 			const comment = regCommentParts(reg).join(" -- ");
-			out += `    constexpr uint16_t ${reg.name} = ${reg.address};${comment ? " // " + comment : ""}\n`;
+			out += `constexpr uint16_t ${reg.name} = ${reg.address};${comment ? " // " + comment : ""}\n`;
 		}
-		out += `    constexpr uint16_t ${region.id}_REGION_START = ${region.startAddress};\n`;
-		out += `    constexpr uint16_t ${region.id}_REGION_END   = ${region.endAddress};\n\n`;
+		out += `constexpr uint16_t ${region.id}_REGION_START = ${region.startAddress};\n`;
+		out += `constexpr uint16_t ${region.id}_REGION_END   = ${region.endAddress};\n\n`;
 	}
-	out += `} // namespace ${namespaceLabel}\n`;
 	return out;
 }
 
-function generateHpp() {
-	const lastInputRegion = schema.banks.input.regions.at(-1);
-	const lastHoldingRegion = schema.banks.holding.regions.at(-1);
-
-	let healthBits = "namespace HealthBit {\n";
-	for (const bit of schema.healthBits) {
-		healthBits += `    constexpr uint16_t ${bit.name} = ${bit.bit};\n`;
-	}
-	healthBits += "}\n";
-
-	return `#pragma once
-// GENERIERT von tools/generate-register-map.mjs aus register-map.json -- nicht von Hand
+const incFileHeader = `// GENERIERT von tools/generate-register-map.mjs aus register-map.json -- nicht von Hand
 // editieren. Aenderungen an der Register-Map gehoeren in register-map.json, anschliessend
 // "node tools/generate-register-map.mjs" erneut ausfuehren.
 //
-// Adressen sind Offsets in ModbusTcpServer::m_registers.{input,holding}_registers.
+// Nur per #include aus Core/Src/modbus_register_model.hh eingebunden (innerhalb des dort
+// bereits geoeffneten namespace-Blocks), nicht eigenstaendig uebersetzbar -- enthaelt bewusst
+// nur constexpr-Zeilen, keine eigene namespace-Deklaration/Klammern.
+`;
+
+function generateInputInc() {
+	let healthBits = "// HealthState-Bitfeld (Input::HEALTH_STATE), s. register-map.json healthBits\n";
+	for (const bit of schema.healthBits) {
+		healthBits += `constexpr uint16_t HEALTH_BIT_${bit.name} = ${bit.bit};\n`;
+	}
+
+	return `${incFileHeader}//
+// Adressen sind Offsets in ModbusRegisterModel::input_registers_.
 // 32-Bit-Werte belegen zwei Register (High-Word zuerst), siehe MbapHeader::serialize.
 // Block-Markierungen heissen *_REGION_START/*_REGION_END statt *_BASE/*_END, da z.B.
 // ETH_BASE/PWR_BASE bereits als CMSIS-Peripherie-Basisadressen vergeben sind.
 
-#include <cstdint>
+${genFlatBank(schema.banks.input)}${healthBits}`;
+}
 
-namespace ModbusRegisters {
+function generateHoldingInc() {
+	return `${incFileHeader}//
+// Adressen sind Offsets in ModbusRegisterModel::holding_registers_.
+// 32-Bit-Werte belegen zwei Register (High-Word zuerst), siehe MbapHeader::serialize.
 
-// ---------------------------------------------------------------------------
-// Input-Register (FC04, read-only)
-// ---------------------------------------------------------------------------
+${genFlatBank(schema.banks.holding)}`;
+}
 
-${genCppBank(schema.banks.input, "Input")}
-// HealthState Bitfeld (Input::HEALTH_STATE)
-${healthBits}
-// ---------------------------------------------------------------------------
-// Holding-Register (FC03/06/16, read/write)
-// ---------------------------------------------------------------------------
+function generateMaxIndexInc() {
+	const lastInputRegion = schema.banks.input.regions.at(-1);
+	const lastHoldingRegion = schema.banks.holding.regions.at(-1);
 
-${genCppBank(schema.banks.holding, "Holding")}
-// Hoechster belegter Index je Register-Bank -- bestimmt die benoetigte Groesse
-// der ModbusTcpServer::RegisterModel-Vektoren (siehe app.cpp). Bei Erweiterung
-// der Register-Map (neue Region ans Ende angehaengt) hier mitziehen.
+	return `${incFileHeader}//
+// Hoechster belegter Index je Register-Bank -- bestimmt die Groesse der
+// ModbusRegisterModel-Arrays (s. modbus_register_model.hh). Bei Erweiterung der Register-Map
+// (neue Region ans Ende angehaengt) hier mitziehen. Referenziert Input::/Holding::, die im
+// umschliessenden modbus_register_model.hh bereits vor dieser #include definiert sind.
 constexpr uint16_t INPUT_REGISTER_MAX_INDEX   = Input::${lastInputRegion.id}_REGION_END;
 constexpr uint16_t HOLDING_REGISTER_MAX_INDEX = Holding::${lastHoldingRegion.id}_REGION_END;
-
-} // namespace ModbusRegisters
 `;
 }
 
@@ -172,14 +184,18 @@ ${regionsSource}
 ];
 
 // Muss mit ModbusRegisters::INPUT_REGISTER_MAX_INDEX / HOLDING_REGISTER_MAX_INDEX
-// (modbus_register_map.hpp) uebereinstimmen -- bestimmt, wie viele Werte /api/registers
-// liefert.
+// (generated/modbus_register_map.inc) uebereinstimmen -- bestimmt, wie viele Werte
+// /api/registers liefert.
 export const INPUT_REGISTER_COUNT = ${lastInputRegion.endAddress + 1}; // Index 0..${lastInputRegion.endAddress}
 export const HOLDING_REGISTER_COUNT = ${lastHoldingRegion.endAddress + 1}; // Index 0..${lastHoldingRegion.endAddress}
 `;
 }
 
-writeFileSync(hppPath, generateHpp());
+writeFileSync(inputIncPath, generateInputInc());
+writeFileSync(holdingIncPath, generateHoldingInc());
+writeFileSync(maxIndexIncPath, generateMaxIndexInc());
 writeFileSync(tsPath, generateTs());
-console.log(`${schemaPath} -> ${hppPath}`);
+console.log(`${schemaPath} -> ${inputIncPath}`);
+console.log(`${schemaPath} -> ${holdingIncPath}`);
+console.log(`${schemaPath} -> ${maxIndexIncPath}`);
 console.log(`${schemaPath} -> ${tsPath}`);

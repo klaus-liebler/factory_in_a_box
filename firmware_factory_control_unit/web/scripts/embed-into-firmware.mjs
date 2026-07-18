@@ -1,52 +1,30 @@
-// Gzip-komprimiert dist/index.html (Ergebnis von "vite build") und schreibt es als C-Array
-// nach ../Core/Src/generated/modbus_ui_page.{c,h}. Wird manuell aufgerufen (npm run embed),
-// nicht automatisch vom STM32-CMake-Build -- die generierten Dateien werden eingecheckt,
-// analog zu stm32_libs/common_stm32/gpio/generated/*.inc.
-import { gzipSync } from "node:zlib";
+// Brotli-komprimiert dist/index.html (Ergebnis von "vite build": viteSingleFile() inlined
+// JS+CSS, inlineSingleFileMinifyPlugin() entfernt zusaetzliche Leerzeichen, siehe
+// vite.config.ts) und schreibt das Ergebnis als rohes Binary nach ../assets/index.html.br.
+// Wird manuell aufgerufen (npm run embed), nicht automatisch vom STM32-CMake-Build.
+//
+// Die .br-Datei wird eingecheckt (wie assets/device_certificate.der/device_key.der) und beim
+// Firmware-Build per objcopy in die .flash_assets-Linker-Section eingebunden (siehe
+// CMakeLists.txt) -- kein generiertes C-Array mehr noetig.
+import { brotliCompressSync, constants as zlibConstants } from "node:zlib";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const webDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const distFile = path.join(webDir, "dist", "index.html");
-const outDir = path.join(webDir, "..", "Core", "Src", "generated");
-const outC = path.join(outDir, "modbus_ui_page.c");
-const outH = path.join(outDir, "modbus_ui_page.h");
+const assetsDir = path.join(webDir, "..", "assets");
+const outFile = path.join(assetsDir, "index.html.br");
 
 const html = readFileSync(distFile);
-const gzipped = gzipSync(html, { level: 9 });
+const compressed = brotliCompressSync(html, {
+	params: {
+		[zlibConstants.BROTLI_PARAM_QUALITY]: zlibConstants.BROTLI_MAX_QUALITY,
+		[zlibConstants.BROTLI_PARAM_SIZE_HINT]: html.length
+	}
+});
 
-const BYTES_PER_LINE = 20;
-const bodyLines = [];
-for (let i = 0; i < gzipped.length; i += BYTES_PER_LINE) {
-	const chunk = gzipped.subarray(i, i + BYTES_PER_LINE);
-	bodyLines.push("    " + Array.from(chunk).map((b) => `0x${b.toString(16).padStart(2, "0")}`).join(", ") + ",");
-}
+mkdirSync(assetsDir, { recursive: true });
+writeFileSync(outFile, compressed);
 
-const header = `#pragma once
-// Generiert von web/scripts/embed-into-firmware.mjs aus web/dist/index.html (vite build).
-// NICHT von Hand editieren -- bei UI-Aenderungen "npm run embed" im web/-Verzeichnis erneut
-// ausfuehren und diese generierten Dateien miteinchecken (siehe web/scripts/embed-into-firmware.mjs).
-#include <stddef.h>
-
-extern const unsigned char MODBUS_UI_HTML_GZ[];
-extern const size_t MODBUS_UI_HTML_GZ_LEN;
-`;
-
-const source = `// Generiert von web/scripts/embed-into-firmware.mjs aus web/dist/index.html (vite build).
-// Quelle: ${html.length} Bytes unkomprimiert, ${gzipped.length} Bytes gzip.
-// NICHT von Hand editieren.
-#include "modbus_ui_page.h"
-
-const unsigned char MODBUS_UI_HTML_GZ[] = {
-${bodyLines.join("\n")}
-};
-
-const size_t MODBUS_UI_HTML_GZ_LEN = sizeof(MODBUS_UI_HTML_GZ);
-`;
-
-mkdirSync(outDir, { recursive: true });
-writeFileSync(outH, header);
-writeFileSync(outC, source);
-
-console.log(`${distFile} (${html.length} B) -> gzip ${gzipped.length} B -> ${outC}`);
+console.log(`${distFile} (${html.length} B) -> brotli ${compressed.length} B -> ${outFile}`);

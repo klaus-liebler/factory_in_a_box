@@ -9,9 +9,10 @@
 //      Zertifikat mit CN=Hostname (factory-box-<letzte 6 Hex-Ziffern der Chip-ID>) und
 //      speichert es dauerhaft in stm32_boards/<id>/ (Wiederverwendung bei kuenftigen
 //      Neu-Provisionierungen desselben Boards).
-//   4) Konvertiert Zertifikat+Key nach DER und schreibt
-//      Core/Src/generated/device_certificate.c/.h (wie modbus_ui_page.c: generiert,
-//      aber eingecheckt -- kein Build-Schritt haengt automatisch daran).
+//   4) Konvertiert Zertifikat+Key nach DER und schreibt assets/device_certificate.der /
+//      assets/device_key.der (rohe Binaerdateien, eingecheckt -- kein Build-Schritt haengt
+//      automatisch daran) sowie Core/Src/generated/device_hostname.hh (kleiner String-
+//      Konstante, kein Binary -- dafuer lohnt sich objcopy/Linker-Section nicht).
 //
 // Aufruf manuell (einmal pro Board, vor dem ersten Firmware-Build fuer dieses Board):
 //   node tools/provision-certificate.mjs
@@ -20,25 +21,17 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
+import { stm32ProgrammerCli, uidAddress, boardsDir, caCert, caKey, subjectPrefix, certDays } from "./environment-config.mjs";
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const outDir = path.join(rootDir, "Core", "Src", "generated");
-
-const STM32_PROGRAMMER_CLI =
-	"C:\\Program Files\\STMicroelectronics\\STM32Cube\\STM32CubeProgrammer\\bin\\STM32_Programmer_CLI.exe";
-const UID_ADDRESS = "0x08FFF800"; // UID_BASE, siehe stm32h573xx.h
-const BOARDS_DIR = "C:\\Users\\mail\\OneDrive - HSOS\\stm32_boards";
-const CERTS_DIR = "C:\\Users\\mail\\OneDrive - HSOS\\certificates";
-const CA_CERT = path.join(CERTS_DIR, "rootCA.pem.crt");
-const CA_KEY = path.join(CERTS_DIR, "rootCA.pem.key");
-const SUBJECT_PREFIX = "/C=DE/ST=NRW/L=Greven/O=Klaus Lieber personal";
-const CERT_DAYS = "3000";
+const assetsDir = path.join(rootDir, "assets");
+const generatedDir = path.join(rootDir, "Core", "Src", "generated");
 
 function readUniqueId() {
-	const output = execFileSync(STM32_PROGRAMMER_CLI, ["-c", "port=SWD", "-r32", UID_ADDRESS, "12"], {
+	const output = execFileSync(stm32ProgrammerCli(), ["-c", "port=SWD", "-r32", uidAddress(), "12"], {
 		encoding: "utf8"
 	});
-	const match = output.match(new RegExp(`${UID_ADDRESS}\\s*:\\s*([0-9A-Fa-f]{8})\\s+([0-9A-Fa-f]{8})\\s+([0-9A-Fa-f]{8})`));
+	const match = output.match(new RegExp(`${uidAddress()}\\s*:\\s*([0-9A-Fa-f]{8})\\s+([0-9A-Fa-f]{8})\\s+([0-9A-Fa-f]{8})`));
 	if (!match) {
 		throw new Error(`Konnte Unique-ID nicht aus STM32_Programmer_CLI-Ausgabe lesen:\n${output}`);
 	}
@@ -57,7 +50,7 @@ function opensslCreateCertificate(hostname, boardDir) {
 	execFileSync("openssl", ["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", keyPath]);
 	execFileSync("openssl", [
 		"req", "-new", "-key", keyPath, "-out", csrPath,
-		"-subj", `${SUBJECT_PREFIX}/CN=${hostname}`
+		"-subj", `${subjectPrefix()}/CN=${hostname}`
 	]);
 
 	// Eigene, pro-Board generierte ext-Datei statt der geteilten certificates/openssl.cnf zu
@@ -80,8 +73,8 @@ function opensslCreateCertificate(hostname, boardDir) {
 
 	execFileSync("openssl", [
 		"x509", "-req", "-in", csrPath,
-		"-CA", CA_CERT, "-CAkey", CA_KEY, "-CAcreateserial",
-		"-out", crtPath, "-days", CERT_DAYS, "-sha256", "-extfile", extPath
+		"-CA", caCert(), "-CAkey", caKey(), "-CAcreateserial",
+		"-out", crtPath, "-days", certDays(), "-sha256", "-extfile", extPath
 	]);
 
 	return { keyPath, crtPath };
@@ -100,48 +93,23 @@ function pemToDer(pemPath, kind) {
 	return execFileSync("openssl", args, { maxBuffer: 1024 * 1024 });
 }
 
-function writeCArraySource(hostname, certDer, keyDer) {
-	const toCBytes = (buf) => {
-		const lines = [];
-		for (let i = 0; i < buf.length; i += 20) {
-			const chunk = buf.subarray(i, i + 20);
-			lines.push("    " + Array.from(chunk).map((b) => `0x${b.toString(16).padStart(2, "0")}`).join(", ") + ",");
-		}
-		return lines.join("\n");
-	};
+function writeAssets(hostname, certDer, keyDer) {
+	mkdirSync(assetsDir, { recursive: true });
+	writeFileSync(path.join(assetsDir, "device_certificate.der"), certDer);
+	writeFileSync(path.join(assetsDir, "device_key.der"), keyDer);
 
-	const header = `#pragma once
+	mkdirSync(generatedDir, { recursive: true });
+	writeFileSync(
+		path.join(generatedDir, "device_hostname.hh"),
+		`#pragma once
 // Generiert von tools/provision-certificate.mjs -- nicht von Hand editieren. Neu erzeugen
 // per "node tools/provision-certificate.mjs" (liest/erzeugt das Zertifikat fuer das aktuell
-// am ST-Link angeschlossene Board).
-#include <stddef.h>
-
-extern const unsigned char DEVICE_CERT_DER[];
-extern const size_t DEVICE_CERT_DER_LEN;
-extern const unsigned char DEVICE_KEY_DER[];
-extern const size_t DEVICE_KEY_DER_LEN;
-extern const char DEVICE_HOSTNAME[];
-`;
-
-	const source = `// Generiert von tools/provision-certificate.mjs -- nicht von Hand editieren.
-#include "device_certificate.h"
-
-const unsigned char DEVICE_CERT_DER[] = {
-${toCBytes(certDer)}
-};
-const size_t DEVICE_CERT_DER_LEN = sizeof(DEVICE_CERT_DER);
-
-const unsigned char DEVICE_KEY_DER[] = {
-${toCBytes(keyDer)}
-};
-const size_t DEVICE_KEY_DER_LEN = sizeof(DEVICE_KEY_DER);
-
-const char DEVICE_HOSTNAME[] = "${hostname}";
-`;
-
-	mkdirSync(outDir, { recursive: true });
-	writeFileSync(path.join(outDir, "device_certificate.h"), header);
-	writeFileSync(path.join(outDir, "device_certificate.c"), source);
+// am ST-Link angeschlossene Board). Nur eine kurze String-Konstante -- anders als
+// Zertifikat/privater Schluessel (assets/device_certificate.der/device_key.der) kein
+// Binary, deshalb hier als gewoehnliche C++-Konstante statt per objcopy/Linker-Section.
+constexpr char DEVICE_HOSTNAME[] = "${hostname}";
+`
+	);
 }
 
 function main() {
@@ -151,7 +119,7 @@ function main() {
 	const hostname = `factory-box-${shortId}`;
 	console.log(`Chip-ID: ${uid} -> Hostname: ${hostname}`);
 
-	const boardDir = path.join(BOARDS_DIR, `${shortId}_${uid.toLowerCase()}`);
+	const boardDir = path.join(boardsDir(), `${shortId}_${uid.toLowerCase()}`);
 	const existingKey = path.join(boardDir, `${hostname}.pem.key`);
 	const existingCrt = path.join(boardDir, `${hostname}.pem.crt`);
 
@@ -168,9 +136,9 @@ function main() {
 
 	const certDer = pemToDer(crtPath, "cert");
 	const keyDer = pemToDer(keyPath, "key");
-	writeCArraySource(hostname, certDer, keyDer);
+	writeAssets(hostname, certDer, keyDer);
 
-	console.log(`Geschrieben: ${path.join(outDir, "device_certificate.c")} (Cert ${certDer.length} B, Key ${keyDer.length} B)`);
+	console.log(`Geschrieben: ${path.join(assetsDir, "device_certificate.der")} (Cert ${certDer.length} B, Key ${keyDer.length} B)`);
 }
 
 main();

@@ -71,13 +71,36 @@ public:
         use_update_burst_ = use_update_burst;
         configure_pwm_channel(htim_, channel_);
         __HAL_TIM_SET_AUTORELOAD(htim_, ARR);
+
+        // HAL_TIM_PWM_Start_DMA() (Show()/ShowEach()'s Nicht-Burst-Pfad) aktiviert Kanal, MOE
+        // und den Timer-Zaehler automatisch mit -- HAL_TIM_DMABurst_MultiWriteStart() (Burst-
+        // Pfad) tut das NICHT, verlaesst sich also stillschweigend darauf, dass irgendein
+        // anderer Kanal auf demselben Timer (CH1/CH2 teilen sich TIM15's Zaehler) den Zaehler
+        // bereits gestartet hat. Ohne laufenden Zaehler entstehen aber gar keine Update-Events,
+        // also auch keine TIM15_UP-DMA-Requests -- ein reiner Burst-Kanal ohne begleitenden
+        // Nicht-Burst-Kanal haette so nie funktioniert. Deshalb hier explizit gestartet, statt
+        // sich auf die Aufrufreihenfolge in ws2812_control.cpp zu verlassen.
+        if (use_update_burst_) {
+            HAL_TIM_PWM_Start(htim_, channel_);
+        }
     }
 
     // color_rgb: 0xRRGGBB, wird auf alle LedCount LEDs dieses Kanals angewendet.
     // Blockiert bis die DMA-Uebertragung angestossen ist (nicht bis sie fertig ist) --
-    // Aufrufer muss vor dem naechsten Show() auf demselben Kanal warten, bis die vorherige
-    // Uebertragung sicher abgeschlossen ist.
+    // Aufrufer muss vor dem naechsten Show()/ShowEach() auf demselben Kanal warten, bis die
+    // vorherige Uebertragung sicher abgeschlossen ist.
     void Show(uint32_t color_rgb) {
+        uint32_t colors_rgb[LedCount];
+        for (uint32_t led = 0; led < LedCount; ++led) {
+            colors_rgb[led] = color_rgb;
+        }
+        ShowEach(colors_rgb);
+    }
+
+    // Wie Show(), aber mit einer individuellen Farbe pro LED (colors_rgb[0] = erste LED in der
+    // Kette usw.) -- fuer Ketten mit LedCount > 1, bei denen nicht alle LEDs dieselbe Farbe
+    // zeigen sollen (z.B. abwechselnde Muster).
+    void ShowEach(const uint32_t (&colors_rgb)[LedCount]) {
         if (htim_ == nullptr) {
             return;
         }
@@ -93,37 +116,50 @@ public:
         // soll nie den ganzen io_thread mitreissen.
         uint16_t dma_id = use_update_burst_ ? TIM_DMA_ID_UPDATE : (uint16_t)((channel_ / 4U) + 1U);
         if (htim_->hdma[dma_id] == nullptr) {
-            log_warn("ws2812::Driver::Show(): kein GPDMA fuer TIM-Kanal %lu (Request-Quelle %s) "
+            log_warn("ws2812::Driver::ShowEach(): kein GPDMA fuer TIM-Kanal %lu (Request-Quelle %s) "
                      "verlinkt (CubeMX: TIM15 DMA Settings) - LED-Ausgabe uebersprungen",
                      (unsigned long)channel_, use_update_burst_ ? "Update" : "Kanal-Compare");
             return;
         }
 
-        // WS2812 erwartet GRB-Bitreihenfolge, MSB zuerst.
-        const uint8_t g = (uint8_t)(color_rgb >> 8);
-        const uint8_t r = (uint8_t)(color_rgb >> 16);
-        const uint8_t b = (uint8_t)color_rgb;
-        const uint32_t grb = ((uint32_t)g << 16) | ((uint32_t)r << 8) | b;
-
         uint32_t idx = 0;
         for (uint32_t led = 0; led < LedCount; ++led) {
+            // WS2812 erwartet GRB-Bitreihenfolge, MSB zuerst.
+            const uint8_t g = (uint8_t)(colors_rgb[led] >> 8);
+            const uint8_t r = (uint8_t)(colors_rgb[led] >> 16);
+            const uint8_t b = (uint8_t)colors_rgb[led];
+            const uint32_t grb = ((uint32_t)g << 16) | ((uint32_t)r << 8) | b;
             for (int8_t bit = 23; bit >= 0; --bit) {
                 buffer_[idx++] = (grb & (1u << bit)) ? CCR_BIT1 : CCR_BIT0;
             }
         }
         buffer_[idx++] = 0; // Reset-Slot: Leitung nach dem letzten Bit auf Low
 
+        // GPDMA (STM32H5) erwartet die Transferlaenge grundsaetzlich in BYTES (landet
+        // unveraendert in CBR1.BNDT, s. stm32h5xx_hal_dma.c DMA_SetConfig() -- keine
+        // Skalierung nach konfigurierter Datenbreite irgendwo im Aufrufpfad). buffer_ ist
+        // uint32_t[], "idx" zaehlt aber Elemente -- ohne *4 wuerde nur ein Viertel des
+        // Puffers uebertragen.
+        const uint32_t length_bytes = idx * (uint32_t)sizeof(uint32_t);
+
         if (use_update_burst_) {
-            // BurstLength=1TRANSFER: ein Register (das CCRx des Zielkanals) pro Update-
-            // Ereignis beschrieben -- funktional identisch zu einem kanaleigenen CCx-DMA-
-            // Request, nur ueber die immer vorhandene TIMx_UP-Request-Leitung.
+            // HAL_TIM_DMABurst_WriteStart() (der uebliche Einstiegspunkt) leitet ihre interne
+            // DataLength NUR aus BurstLength (Anzahl gleichzeitig beschriebener Register) und
+            // der konfigurierten DMA-Breite ab -- bei BurstLength=1TRANSFER waeren das nur 4
+            // Bytes (ein Registerschreibzugriff), unabhaengig von der tatsaechlichen
+            // Puffergroesse. Der gesamte Rest von buffer_ würde also nie uebertragen, das
+            // Update-Event-DMA laeuft nach dem allerersten Wert einfach leer (Mode=DMA_NORMAL,
+            // fertig nach einem BNDT=0). Deshalb direkt die tiefere HAL_TIM_DMABurst_
+            // MultiWriteStart() mit selbst berechneter Gesamtlaenge aufgerufen, damit die GPDMA-
+            // Hardware bei jedem weiteren TIM15_UP-Request automatisch den naechsten 32-Bit-Wert
+            // aus buffer_ nachlaedt, bis alle idx Werte durch sind.
             uint32_t burst_base = TIM_DMABASE_CCR1 + (channel_ / 4U);
             HAL_TIM_DMABurst_WriteStop(htim_, TIM_DMA_UPDATE);
-            HAL_TIM_DMABurst_WriteStart(htim_, burst_base, TIM_DMA_UPDATE, buffer_,
-                                         TIM_DMABURSTLENGTH_1TRANSFER);
+            HAL_TIM_DMABurst_MultiWriteStart(htim_, burst_base, TIM_DMA_UPDATE, buffer_,
+                                              TIM_DMABURSTLENGTH_1TRANSFER, length_bytes);
         } else {
             HAL_TIM_PWM_Stop_DMA(htim_, channel_);
-            HAL_TIM_PWM_Start_DMA(htim_, channel_, buffer_, idx);
+            HAL_TIM_PWM_Start_DMA(htim_, channel_, buffer_, (uint16_t)length_bytes);
         }
     }
 

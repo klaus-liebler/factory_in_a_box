@@ -110,31 +110,71 @@ file(GLOB_RECURSE NX_SECURE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/crypto_libraries/src/*.c
 )
 
+# --- Binaer-Assets (Geraetezertifikat/-schluessel + komprimierte Weboberflaeche) ---
+# Statt wie frueher generierter C-Arrays (Core/Src/generated/device_certificate.c,
+# modbus_ui_page.c, beide eingecheckt) werden jetzt die rohen Binaerdateien selbst eingecheckt
+# (assets/*.der von tools/provision-certificate.mjs, assets/index.html.br von
+# web/scripts/embed-into-firmware.mjs) und bei jedem Build per objcopy zu je einem .o
+# konvertiert -- landen in der eigenen .flash_assets-Linker-Section (s.
+# STM32H563xx_FLASH.ld), objcopy liefert dazu automatisch die Symbole
+# _binary_<sanitierter-Dateiname>_start/_end (Laenge per Zeigerdifferenz, s. net_setup.cpp/
+# webserver.cpp).
+set(BINARY_ASSETS
+    "assets/device_certificate.der"
+    "assets/device_key.der"
+    "assets/index.html.br"
+)
+
+set(ASSET_H_FILE "${CMAKE_CURRENT_BINARY_DIR}/generated/assets.h")
+set(ASSET_H_CONTENT "// Automatisch generierte Asset-Deklarationen aus BINARY_ASSETS (s. CMakeLists.txt).\n// Nicht manuell bearbeiten!\n#pragma once\n\n#include <stdint.h>\n\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n")
+
+set(ASSET_OBJ_FILES "")
+foreach(BIN_FILE_PATH ${BINARY_ASSETS})
+    get_filename_component(BIN_NAME ${BIN_FILE_PATH} NAME)
+    set(OBJ_FILE "${CMAKE_CURRENT_BINARY_DIR}/assets/${BIN_NAME}.o")
+    list(APPEND ASSET_OBJ_FILES ${OBJ_FILE})
+
+    string(MAKE_C_IDENTIFIER ${BIN_NAME} C_NAME)
+    set(SYM_START "_binary_${C_NAME}_start")
+    set(SYM_END "_binary_${C_NAME}_end")
+
+    # objcopy backt bei "-I binary" den kompletten (relativen) Eingabepfad in den Symbolnamen
+    # ein, nicht nur den Dateinamen -- WORKING_DIRECTORY sorgt dafuer, dass nur der blanke
+    # Dateiname ("assets/device_certificate.der" -> "device_certificate.der") einfliesst, damit
+    # SYM_START/SYM_END unten tatsaechlich zu den erzeugten Symbolen passen.
+    add_custom_command(
+        OUTPUT ${OBJ_FILE}
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets"
+        COMMAND ${CMAKE_OBJCOPY} -I binary -O elf32-littlearm --rename-section .data=.flash_assets
+                "${BIN_NAME}" "${OBJ_FILE}"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${BIN_FILE_PATH}"
+        COMMENT "Konvertiere ${BIN_NAME} zu Flash-Asset-Objekt..."
+        VERBATIM
+    )
+
+    string(APPEND ASSET_H_CONTENT "extern const uint8_t ${SYM_START}[];\nextern const uint8_t ${SYM_END}[];\n")
+endforeach()
+
+string(APPEND ASSET_H_CONTENT "\n#ifdef __cplusplus\n}\n#endif\n")
+
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(WRITE ${ASSET_H_FILE} "${ASSET_H_CONTENT}")
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-    Core/Src/app.cpp
-    Core/Src/greeting.cpp
-    Core/Src/log_setup.cpp
+    Core/Src/app.cc
     Core/Src/net_setup.cpp
     Core/Src/webserver.cpp
-    Core/Src/led_control.cpp
-    Core/Src/link_control.cpp
-    Core/Src/io_thread.cpp
+    Core/Src/io.cpp
     Core/Src/usb_pd_control.cpp
-    Core/Src/scale_control.cpp
-    Core/Src/stepper_control.cpp
-    Core/Src/tof_color_control.cpp
-    Core/Src/can_control.cpp
-    Core/Src/ws2812_control.cpp
-    Core/Src/vl53l0x.cpp
-    Core/Src/tcs34725.cpp
     Core/Src/fx_stm32_sd_driver_adapter.c
-    Core/Src/malloc_lock.c
     Core/Src/tx_initialize_low_level.S
-    Core/Src/generated/modbus_ui_page.c
-    Core/Src/generated/device_certificate.c
+    libs/hw/vl53l0x/vl53l0x.cpp
+    libs/hw/tcs34725/tcs34725.cpp
     Drivers/BSP/Components/lan8742/lan8742.c
+    ${ASSET_OBJ_FILES}
     ${THREADX_SOURCES}
     ${FILEX_SOURCES}
     ${NETXDUO_SOURCES}
@@ -167,6 +207,10 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # common_stm32 unten.
     ../stm32_libs/hx711
     ../stm32_libs/sigmoid_stepper
+    # Aus Core/Src ausgelagerte Hardware-Treiber (mehrfach verwendbar, kein eigenes CMake-Target).
+    libs/hw/vl53l0x
+    libs/hw/tcs34725
+    libs/hw/ws2812
     # generated/gitconstants.hh -- s. generate_git_constants-Custom-Target oben.
     ${CMAKE_CURRENT_BINARY_DIR}/generated
 )

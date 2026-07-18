@@ -21,3 +21,5 @@ pcb_control_unit_ethernet-2026-04-30_133407/.history_trim/
 /pcb_factory_control_unit/pcb_control_unit_ethernet-backups
 /pcb_factory_control_unit/pcb_factory_control_unit-backups
 /WebServerExample/Nx_WebServer/web/node_modules
+/firmware_factory_control_unit/web/dist
+/firmware_factory_control_unit/web/node_modules

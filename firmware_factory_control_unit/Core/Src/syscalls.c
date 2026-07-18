@@ -29,6 +29,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <sys/times.h>
+#include "main.h"
 
 
 /* Variables */
@@ -77,15 +78,18 @@ __attribute__((weak)) int _read(int file, char *ptr, int len)
   return len;
 }
 
+extern UART_HandleTypeDef huart3;
+
+int __io_putchar(int ch) {
+    uint8_t c = (uint8_t)ch;
+    HAL_UART_Transmit(&huart3, &c, 1, HAL_MAX_DELAY);
+    return ch;
+}
+
 __attribute__((weak)) int _write(int file, char *ptr, int len)
 {
   (void)file;
-  int DataIdx;
-
-  for (DataIdx = 0; DataIdx < len; DataIdx++)
-  {
-    __io_putchar(*ptr++);
-  }
+  HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, HAL_MAX_DELAY);
   return len;
 }
 

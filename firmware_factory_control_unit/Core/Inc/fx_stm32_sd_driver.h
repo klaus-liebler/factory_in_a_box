@@ -37,7 +37,18 @@ extern TX_SEMAPHORE sd_rx_semaphore;
 
 /* USER CODE END EC */
 /* Default timeout used to wait for fx operations */
-#define FX_STM32_SD_DEFAULT_TIMEOUT                           (10 * TX_TIMER_TICKS_PER_SECOND)
+// War 10s -- das ist genau die Verzoegerung, die beim fehlenden microSD-Kartenlesen im Boot-Log
+// sichtbar war: check_sd_status() (fx_stm32_sd_driver.c) wartet damit, bis
+// fx_stm32_sd_get_status() "bereit" meldet, was ohne gesteckte Karte (hsd1 erreicht nie
+// HAL_SD_CARD_TRANSFER, s. fx_stm32_sd_driver_adapter.c) nie eintritt -- die volle Zeitspanne
+// wird also bei jedem Boot ohne Karte verbraten. Dieselbe Konstante gilt auch fuer die
+// DMA-Completion-Semaphoren bei echten Sektor-Lese-/Schreibzugriffen (s. FX_STM32_SD_RX/TX_
+// Makros weiter unten) -- 1s ist dafuer immer noch grosszuegig (eine einzelne Blockuebertragung
+// braucht typischerweise wenige Millisekunden), reduziert die Kein-Karte-Wartezeit im Boot aber
+// von 10s auf 1s.
+// Achtung: liegt ausserhalb eines USER-CODE-Blocks, CubeMX-FileX-Regenerierung kann das
+// zuruecksetzen.
+#define FX_STM32_SD_DEFAULT_TIMEOUT                           (1 * TX_TIMER_TICKS_PER_SECOND)
 
 /* let the filex low-level driver initialize the SD driver */
 #define FX_STM32_SD_INIT                                      0

@@ -86,6 +86,15 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
+  /* Per objcopy eingebettete Binaer-Assets (Geraetezertifikat/-schluessel, komprimierte
+     Weboberflaeche) -- s. CMakeLists.txt (BINARY_ASSETS/.flash_assets-Rename). */
+  .flash_assets :
+  {
+    . = ALIGN(4);
+    *(.flash_assets)
+    . = ALIGN(4);
+  } >FLASH
+
   .ARM.extab (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     . = ALIGN(4);

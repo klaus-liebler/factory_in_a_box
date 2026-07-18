@@ -2,13 +2,17 @@
 #include <new>
 
 #include "net_setup.hpp"
-#include "app_state.hpp"
+#include "app.hh"
 #include "webserver.hpp"
 #include "log.h"
 
 #include "nx_stm32_eth_driver.h"
 #include "fx_stm32_sd_driver.h"
-#include "generated/device_certificate.h"
+#include "generated/device_hostname.hh"
+#include "assets.h"
+// Per objcopy eingebettete Binaerdaten (assets/device_certificate.der, assets/device_key.der,
+// s. CMakeLists.txt BINARY_ASSETS/generated/assets.h) -- Laenge per Zeigerdifferenz Start/Ende
+// statt eines separaten LEN-Symbols (objcopy liefert nur _start/_end).
 
 #include "nx_crypto.h"
 #include "nx_secure_tls_api.h"
@@ -61,13 +65,14 @@ static NX_SECURE_X509_CERT g_device_certificate;
 
 // IP address change callback
 static void ip_address_change_notify_callback(NX_IP *ip_instance, VOID *ptr) {
-    (void)ptr;
+    App* app = static_cast<App*>(ptr);
     // nx_ip_address_get() kann hier nicht fehlschlagen: ip_instance ist bereits eine gueltige,
     // erzeugte IP-Instanz (der Callback haengt an ihr), und die Zielpointer sind statische
     // Globals - NX_PTR_ERROR/NX_CALLER_ERROR (siehe _nxe_ip_address_get) sind damit ausgeschlossen.
-    nx_ip_address_get(ip_instance, &g_app_state.ip_address, &g_app_state.net_mask);
-    if (g_app_state.ip_address != 0) {
-        log_info("IP Address: " IP_ADDR_FMT, IP_ADDR_FMT_ARGS(g_app_state.ip_address));
+    nx_ip_address_get(ip_instance, &app->ip_address, &app->net_mask);
+    if (app->ip_address != 0) {
+        log_info("Das Geraet ist jetzt unter %s.local oder " IP_ADDR_FMT " erreichbar",
+                 DEVICE_HOSTNAME, IP_ADDR_FMT_ARGS(app->ip_address));
     }
 }
 
@@ -78,36 +83,36 @@ static void mdns_probing_notify(NX_MDNS *mdns_ptr, UCHAR *name, UINT state) {
     log_info("mDNS: %s probing state=%u", name, state);
 }
 
-void net_setup_create(TX_BYTE_POOL *nx_app_byte_pool) {
+void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     void *ptr = 0;
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, (VOID **)&ptr, NX_APP_PACKET_POOL_SIZE, TX_NO_WAIT), "NetXDuo App Pool allocate failed");
-    XASSERT(nx_packet_pool_create(&g_app_state.packet_pool, NX_CHAR_LITERAL("NetXDuo App Pool"),
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, NX_APP_PACKET_POOL_SIZE, TX_NO_WAIT), "NetXDuo App Pool allocate failed");
+    XASSERT(nx_packet_pool_create(&app->packet_pool, _C("NetXDuo App Pool"),
                                 DEFAULT_PAYLOAD_SIZE, ptr, NX_APP_PACKET_POOL_SIZE), "NetXDuo App Pool create failed");
 
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, (VOID **)&ptr, Nx_IP_INSTANCE_THREAD_SIZE, TX_NO_WAIT), "IP instance memory allocate failed");
-    XASSERT(nx_ip_create(&g_app_state.ip_instance, NX_CHAR_LITERAL("NetX IP"),
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, Nx_IP_INSTANCE_THREAD_SIZE, TX_NO_WAIT), "IP instance memory allocate failed");
+    XASSERT(nx_ip_create(&app->ip_instance, _C("NetX IP"),
                        NX_APP_DEFAULT_IP_ADDRESS, NX_APP_DEFAULT_NET_MASK,
-                       &g_app_state.packet_pool, nx_stm32_eth_driver,
+                       &app->packet_pool, nx_stm32_eth_driver,
                        (UCHAR *)ptr, Nx_IP_INSTANCE_THREAD_SIZE,
                        NX_APP_INSTANCE_PRIORITY), "IP create failed");
 
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, (VOID **)&ptr, DEFAULT_ARP_CACHE_SIZE, TX_NO_WAIT), "ARP cache allocate failed");
-    XASSERT(nx_arp_enable(&g_app_state.ip_instance, (VOID *)ptr, DEFAULT_ARP_CACHE_SIZE), "ARP enable failed");
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, DEFAULT_ARP_CACHE_SIZE, TX_NO_WAIT), "ARP cache allocate failed");
+    XASSERT(nx_arp_enable(&app->ip_instance, ptr, DEFAULT_ARP_CACHE_SIZE), "ARP enable failed");
 
-    XASSERT(nx_icmp_enable(&g_app_state.ip_instance), "ICMP enable failed");
-    XASSERT(nx_tcp_enable(&g_app_state.ip_instance), "TCP enable failed");
-    XASSERT(nx_udp_enable(&g_app_state.ip_instance), "UDP enable failed");
+    XASSERT(nx_icmp_enable(&app->ip_instance), "ICMP enable failed");
+    XASSERT(nx_tcp_enable(&app->ip_instance), "TCP enable failed");
+    XASSERT(nx_udp_enable(&app->ip_instance), "UDP enable failed");
 
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, (VOID **)&ptr, SERVER_POOL_SIZE, TX_NO_WAIT), "HTTP Server Pool allocate failed");
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, SERVER_POOL_SIZE, TX_NO_WAIT), "HTTP Server Pool allocate failed");
     NX_PACKET_POOL *server_pool = (NX_PACKET_POOL *)ptr;
-    XASSERT(nx_packet_pool_create(server_pool, NX_CHAR_LITERAL("HTTP Server Pool"),
+    XASSERT(nx_packet_pool_create(server_pool, _C("HTTP Server Pool"),
                                 SERVER_PACKET_SIZE, (VOID *)(server_pool + 1),
                                 SERVER_POOL_SIZE - sizeof(NX_PACKET_POOL)), "HTTP Server Pool create failed");
 
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, (VOID **)&ptr, SERVER_STACK, TX_NO_WAIT), "HTTP Server stack allocate failed");
-    XASSERT(nx_web_http_server_create(&g_app_state.http_server, NX_CHAR_LITERAL("HTTP Server"),
-                                    &g_app_state.ip_instance, HTTPS_PORT,
-                                    &g_app_state.sd_media, (VOID *)ptr, SERVER_STACK,
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, SERVER_STACK, TX_NO_WAIT), "HTTP Server stack allocate failed");
+    XASSERT(nx_web_http_server_create(&app->http_server, _C("HTTP Server"),
+                                    &app->ip_instance, HTTPS_PORT,
+                                    nullptr, (VOID *)ptr, SERVER_STACK,
                                     server_pool, NX_NULL,
                                     webserver_request_callback), "HTTP Server create failed");
 
@@ -122,25 +127,25 @@ void net_setup_create(TX_BYTE_POOL *nx_app_byte_pool) {
     // als "<hostname>.local" im lokalen Netz. DEVICE_HOSTNAME besteht nur aus
     // Buchstaben/Ziffern/Bindestrich ("factory-box-<6 Hex-Ziffern>"), erfuellt also bereits
     // die von nx_mdns_create() erzwungenen RFC-1035-Zeichenregeln direkt.
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, (VOID **)&ptr, MDNS_STACK_SIZE, TX_NO_WAIT), "mDNS stack allocate failed");
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, MDNS_STACK_SIZE, TX_NO_WAIT), "mDNS stack allocate failed");
     VOID *mdns_stack = ptr;
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, (VOID **)&ptr, MDNS_LOCAL_CACHE_SIZE, TX_NO_WAIT), "mDNS local cache allocate failed");
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, MDNS_LOCAL_CACHE_SIZE, TX_NO_WAIT), "mDNS local cache allocate failed");
     VOID *mdns_local_cache = ptr;
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, (VOID **)&ptr, MDNS_PEER_CACHE_SIZE, TX_NO_WAIT), "mDNS peer cache allocate failed");
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, MDNS_PEER_CACHE_SIZE, TX_NO_WAIT), "mDNS peer cache allocate failed");
     VOID *mdns_peer_cache = ptr;
 
-    XASSERT(nx_mdns_create(&g_app_state.mdns, &g_app_state.ip_instance, &g_app_state.packet_pool,
+    XASSERT(nx_mdns_create(&app->mdns, &app->ip_instance, &app->packet_pool,
                                   MDNS_THREAD_PRIORITY, mdns_stack, MDNS_STACK_SIZE,
                                   (UCHAR *)DEVICE_HOSTNAME,
                                   mdns_local_cache, MDNS_LOCAL_CACHE_SIZE,
                                   mdns_peer_cache, MDNS_PEER_CACHE_SIZE,
                                   mdns_probing_notify), "mDNS create failed");
-    XASSERT(nx_mdns_enable(&g_app_state.mdns, 0), "mDNS enable failed");
+    XASSERT(nx_mdns_enable(&app->mdns, 0), "mDNS enable failed");
 
-    XASSERT(nx_dhcp_create(&g_app_state.dhcp_client, &g_app_state.ip_instance, NX_CHAR_LITERAL("DHCP Client")), "DHCP Client create failed");
+    XASSERT(nx_dhcp_create(&app->dhcp_client, &app->ip_instance, _C("DHCP Client")), "DHCP Client create failed");
 }
 
-void net_setup_start() {
+void net_setup_start(App *app) {
     // static: FileX haelt diesen Zeiger als Sektor-Cache fuer die gesamte Lebensdauer des
     // geoeffneten Mediums, nicht nur waehrend fx_media_open() selbst -- als einfache lokale
     // Stack-Variable waere der Speicher ab dem Return aus dieser Funktion (net_setup_start()
@@ -157,7 +162,7 @@ void net_setup_start() {
     // faellt fuer alle von webserver_request_callback() nicht selbst beantworteten URLs auf
     // NetX Duo's eigene FileX-basierte Dateiauslieferung zurueck, die ein nicht geoeffnetes
     // Medium ihrerseits mit einem HTTP-Fehler statt eines Absturzes quittiert.
-    UINT sd_status = fx_media_open(&g_app_state.sd_media, NX_CHAR_LITERAL("STM32_SDIO_DISK"),
+    UINT sd_status = fx_media_open(&app->sd_media, _C("STM32_SDIO_DISK"),
                                     fx_stm32_sd_driver, 0,
                                     (VOID *)sd_media_sector_cache, sizeof(sd_media_sector_cache));
     if (sd_status == FX_SUCCESS) {
@@ -178,9 +183,11 @@ void net_setup_start() {
     // vom Heap (new[]) statt aus nx_app_byte_pool: dieser Pool ist als lokale Variable auf
     // tx_application_define() beschraenkt, waehrend der Heap seit malloc_lock_init() (s.
     // dort) threadsicher ist -- selbes Muster wie beim ModbusTcpServer.
+    const USHORT device_cert_der_len = (USHORT)(_binary_device_certificate_der_end - _binary_device_certificate_der_start);
+    const USHORT device_key_der_len = (USHORT)(_binary_device_key_der_end - _binary_device_key_der_start);
     XASSERT(nx_secure_x509_certificate_initialize(
-        &g_device_certificate, (UCHAR *)DEVICE_CERT_DER, (USHORT)DEVICE_CERT_DER_LEN,
-        NX_NULL, 0, (UCHAR *)DEVICE_KEY_DER, (USHORT)DEVICE_KEY_DER_LEN,
+        &g_device_certificate, (UCHAR *)_binary_device_certificate_der_start, device_cert_der_len,
+        NX_NULL, 0, (UCHAR *)_binary_device_key_der_start, device_key_der_len,
         NX_SECURE_X509_KEY_TYPE_EC_DER), "Device certificate initialize failed");
 
     // nx_secure_x509_not_before/_not_after sind die rohen ASN.1-UTCTime/GeneralizedTime-Bytes
@@ -201,7 +208,7 @@ void net_setup_start() {
     UCHAR *tls_packet_buffer = new UCHAR[TLS_PACKET_BUFFER_SIZE];
 
     XASSERT(nx_web_http_server_secure_configure(
-        &g_app_state.http_server, &nx_crypto_tls_ciphers_ecc,
+        &app->http_server, &nx_crypto_tls_ciphers_ecc,
         tls_metadata, tls_metadata_size * NX_WEB_HTTP_SERVER_SESSION_MAX,
         tls_packet_buffer, TLS_PACKET_BUFFER_SIZE,
         &g_device_certificate, NX_NULL, 0, NX_NULL, 0, NX_NULL, 0), "HTTPS TLS configure failed");
@@ -210,23 +217,23 @@ void net_setup_start() {
     // nx_crypto_ecc_curves) -- ohne diesen Aufruf schlaegt der Handshake fehl, sobald der
     // Client eine ECDHE-Ciphersuite waehlt.
     XASSERT(nx_web_http_server_secure_ecc_configure(
-        &g_app_state.http_server, nx_crypto_ecc_supported_groups,
+        &app->http_server, nx_crypto_ecc_supported_groups,
         (USHORT)nx_crypto_ecc_supported_groups_size, nx_crypto_ecc_curves), "HTTPS ECC configure failed");
 
     NX_WEB_HTTP_SERVER_MIME_MAP mime_maps[] = {
-        {NX_CHAR_LITERAL("css"), NX_CHAR_LITERAL("text/css")},
-        {NX_CHAR_LITERAL("svg"), NX_CHAR_LITERAL("image/svg+xml")},
-        {NX_CHAR_LITERAL("png"), NX_CHAR_LITERAL("image/png")},
-        {NX_CHAR_LITERAL("jpg"), NX_CHAR_LITERAL("image/jpg")}
+        {_C("css"), _C("text/css")},
+        {_C("svg"), _C("image/svg+xml")},
+        {_C("png"), _C("image/png")},
+        {_C("jpg"), _C("image/jpg")}
     };
-    nx_web_http_server_mime_maps_additional_set(&g_app_state.http_server, mime_maps, 4);
+    nx_web_http_server_mime_maps_additional_set(&app->http_server, mime_maps, 4);
 
-    XASSERT(nx_web_http_server_start(&g_app_state.http_server), "HTTP Server start failed");
+    XASSERT(nx_web_http_server_start(&app->http_server), "HTTP Server start failed");
     log_info("HTTP Server started");
 
-    XASSERT(nx_ip_address_change_notify(&g_app_state.ip_instance,
+    XASSERT(nx_ip_address_change_notify(&app->ip_instance,
                                       ip_address_change_notify_callback,
-                                      NULL), "IP address change notify failed");
+                                      app), "IP address change notify failed");
 
-    XASSERT(nx_dhcp_start(&g_app_state.dhcp_client), "DHCP start failed");
+    XASSERT(nx_dhcp_start(&app->dhcp_client), "DHCP start failed");
 }

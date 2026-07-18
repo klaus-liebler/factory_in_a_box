@@ -163,7 +163,9 @@ export const REGIONS: RegisterRegion[] = [
 			{ name: "STEPPER2_TARGET_HI", address: 65, bank: "holding", description: "Zielposition Stepper 2, High", signed: true, control: "number" },
 			{ name: "STEPPER2_TARGET_LO", address: 66, bank: "holding", description: "Zielposition Stepper 2, Low", control: "number" },
 			{ name: "STEPPER2_SPEED", address: 67, bank: "holding", description: "Geschwindigkeit Stepper 2", unit: "Schritte/s", control: "number" },
-			{ name: "STEPPER2_ACCEL", address: 68, bank: "holding", description: "Beschleunigung Stepper 2", unit: "Schritte/s^2", control: "number" }
+			{ name: "STEPPER2_ACCEL", address: 68, bank: "holding", description: "Beschleunigung Stepper 2", unit: "Schritte/s^2", control: "number" },
+			{ name: "STEPPER1_START_HOMING", address: 69, bank: "holding", description: "1=Homing starten (stoppt Stepper1, sensorloses Homing per StallGuard), 0=erfolgreich beendet, >1=Fehlercode", control: "number", min: 0, max: 255 },
+			{ name: "STEPPER2_START_HOMING", address: 70, bank: "holding", description: "1=Homing starten (stoppt Stepper2, sensorloses Homing per StallGuard), 0=erfolgreich beendet, >1=Fehlercode", control: "number", min: 0, max: 255 }
 		]
 	},
 	{
@@ -176,7 +178,7 @@ export const REGIONS: RegisterRegion[] = [
 ];
 
 // Muss mit ModbusRegisters::INPUT_REGISTER_MAX_INDEX / HOLDING_REGISTER_MAX_INDEX
-// (modbus_register_map.hpp) uebereinstimmen -- bestimmt, wie viele Werte /api/registers
-// liefert.
+// (generated/modbus_register_map.inc) uebereinstimmen -- bestimmt, wie viele Werte
+// /api/registers liefert.
 export const INPUT_REGISTER_COUNT = 270; // Index 0..269
 export const HOLDING_REGISTER_COUNT = 110; // Index 0..109

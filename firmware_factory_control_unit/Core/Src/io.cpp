@@ -31,6 +31,15 @@ static void set_pwm_duty_permille(TIM_HandleTypeDef *htim, uint32_t channel, uin
     }
     uint32_t arr = __HAL_TIM_GET_AUTORELOAD(htim);
     uint32_t ccr = ((uint64_t)(arr + 1) * permille) / 1000;
+    if (ccr > arr) {
+        // permille==1000 ergibt rechnerisch ccr=arr+1 -- bei TIM4 (ARR=0xFFFF, volle 16-Bit-
+        // Periode) passt das nicht mehr ins 16-Bit-CCR-Register, der Schreibzugriff ueberlaeuft
+        // auf 0 und der Kanal bleibt bei "Vollgas" komplett AUS statt AN (PWM-Mode-1: CCR=0 ->
+        // Ausgang dauerhaft LOW). Auf "arr" geklemmt bleibt der Ausgang fuer maximal einen von
+        // 65536 Zaehlerstaenden kurz LOW (~99.9985% Duty) -- fuer einen Motor nicht von echten
+        // 100% zu unterscheiden.
+        ccr = arr;
+    }
     __HAL_TIM_SET_COMPARE(htim, channel, ccr);
 }
 
@@ -113,6 +122,14 @@ void Io::Setup() {
     tof_color_.Setup();
     power_.Setup();
     ws2812_.Setup();
+
+    // MX_TIM4_Init() (main.c) konfiguriert TIM4_CH3/CH4 nur (PWM-Modus, Polaritaet) -- startet
+    // den Kanal-Ausgang selbst aber nicht (CCER-Enable-Bit bleibt aus). Ohne diesen Aufruf
+    // aendert set_pwm_duty_permille() zwar CCR3/CCR4 (updateOutputs() unten), das Pin bleibt aber
+    // dauerhaft Low: Foerderband-/Kompressor-Motor drehen dann nie, unabhaengig vom Holding-
+    // Register-Wert.
+    HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
+    HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
 }
 
 void Io::Loop() {

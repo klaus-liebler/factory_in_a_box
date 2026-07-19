@@ -197,10 +197,15 @@ export type RegisterBank = "input" | "holding";
 // Eine Darstellungsform fuers Lesen UND Schreiben (s. register-panel.ts):
 //   - "decimal" (Default): Zahl; bei Holding-Registern generisches Zahlenfeld + Schreiben-Button.
 //   - "hex" / "binary": Zahl als 0x.../0b...-String; Schreiben wie "decimal".
-//   - "bool": bei Input-Registern grau/gruen eingefaerbtes Badge (0/1), bei Holding-Registern
-//     zusaetzlich ein Toggle-Switch zum Schreiben.
+//   - "bool": bei Input-Registern grau/gruen eingefaerbtes Badge (0=aus/1=an), bei
+//     Holding-Registern zusaetzlich ein Toggle-Switch zum Schreiben.
+//   - "bool-error": wie "bool", aber grau/rot statt grau/gruen -- fuer Register, bei denen 1
+//     einen Fehler-/Alarmzustand meldet statt eines neutralen "an" (z.B. PWR_ALERT).
+//   - "status": Fehlercode-Konvention (0 = ok, ungleich 0 = Fehler) -- 0 grau/neutral, jeder
+//     andere Wert rot MIT der tatsaechlichen Zahl (nicht nur "1"), fuer *_STATUS-Register, die
+//     kuenftig auch verschiedene Fehlercodes tragen koennten (aktuell ueberall nur 0/1).
 //   - "range": Slider (braucht min/max); nur fuer Holding-Register sinnvoll.
-export type RegisterDisplay = "decimal" | "hex" | "binary" | "bool" | "range";
+export type RegisterDisplay = "decimal" | "hex" | "binary" | "bool" | "bool-error" | "status" | "range";
 
 export interface RegisterDef {
 	name: string;

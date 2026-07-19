@@ -85,3 +85,23 @@ void *_sbrk(ptrdiff_t incr)
   // calls to `sbrk()` are resolved to our `_sbrk()` implementation.
   __strong_reference(_sbrk, sbrk);
 #endif
+
+/**
+ * @brief Fuer Diagnostik-Zwecke (s. FREE_HEAP_KIB-Register): freier Speicher zwischen dem
+ * aktuellen sbrk-Hochwasserstand und der reservierten MSP-Stack-Grenze. newlibs malloc()/free()
+ * geben Speicher nie an sbrk() zurueck (freigegebene Bloecke bleiben in malloc's eigener
+ * Freiliste, ohne den High-Water-Mark zu senken) -- das hier ist also der "nie benutzte" Rest,
+ * eine pessimistische untere Schranke fuer tatsaechlich noch verfuegbaren Speicher (bereits
+ * freigegebene, aber sbrk'te Bloecke zaehlen NICHT mit).
+ *
+ * @return Freier Speicher in Bytes.
+ */
+size_t GetFreeHeapBytes(void)
+{
+  extern uint8_t _end;
+  extern uint8_t _estack;
+  extern uint32_t _Min_Stack_Size;
+  const uint32_t stack_limit = (uint32_t)&_estack - (uint32_t)&_Min_Stack_Size;
+  const uint8_t *current_heap_end = (__sbrk_heap_end != NULL) ? __sbrk_heap_end : &_end;
+  return (size_t)(stack_limit - (uint32_t)current_heap_end);
+}

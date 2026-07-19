@@ -265,9 +265,9 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* heth)
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* ETH interrupt Init */
-    HAL_NVIC_SetPriority(ETH_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(ETH_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(ETH_IRQn);
-    HAL_NVIC_SetPriority(ETH_WKUP_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(ETH_WKUP_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(ETH_WKUP_IRQn);
     /* USER CODE BEGIN ETH_MspInit 1 */
 
@@ -910,7 +910,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     }
 
     /* SPI2 interrupt Init */
-    HAL_NVIC_SetPriority(SPI2_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(SPI2_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(SPI2_IRQn);
     /* USER CODE BEGIN SPI2_MspInit 1 */
 

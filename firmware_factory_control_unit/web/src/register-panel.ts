@@ -110,9 +110,18 @@ export class RegisterPanel extends LitElement {
 	}
 
 	private renderValueCell(reg: RegisterDef, raws: number[]) {
-		if (reg.display === "bool") {
+		if (reg.display === "bool" || reg.display === "bool-error") {
 			const on = (raws[0] ?? 0) !== 0;
-			return html`<span class="bool-badge ${on ? "bool-badge-on" : "bool-badge-off"}">${raws.length ? (on ? 1 : 0) : "–"}</span>`;
+			const onClass = reg.display === "bool-error" ? "bool-badge-error" : "bool-badge-on";
+			return html`<span class="bool-badge ${on ? onClass : "bool-badge-off"}">${raws.length ? (on ? 1 : 0) : "–"}</span>`;
+		}
+		if (reg.display === "status") {
+			// Fehlercode-Konvention: 0 = ok (grau), ungleich 0 = Fehler (rot) -- zeigt den
+			// tatsaechlichen Wert an, nicht nur ein 0/1-Badge, falls kuenftig mehrere
+			// unterschiedliche Fehlercodes vorkommen.
+			const value = raws[0] ?? 0;
+			const ok = value === 0;
+			return html`<span class="bool-badge ${ok ? "bool-badge-off" : "bool-badge-error"}">${raws.length ? value : "–"}</span>`;
 		}
 		return this.formatValue(reg, raws);
 	}
@@ -124,6 +133,7 @@ export class RegisterPanel extends LitElement {
 		}
 		switch (reg.display) {
 			case "bool":
+			case "bool-error":
 				return html`
 					<label class="toggle-switch">
 						<input

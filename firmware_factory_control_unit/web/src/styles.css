@@ -194,6 +194,13 @@ button:active {
 	color: #15803d;
 }
 
+/* "bool-error"-Variante: 0 = kein Fehler (gleiches Grau wie bool-badge-off), 1 = Fehler (rot) --
+   fuer Register wie PWR_ALERT, wo 1 einen Fehlerzustand meldet statt eines neutralen "an". */
+.bool-badge-error {
+	background: #fee2e2;
+	color: #b91c1c;
+}
+
 .register-write-controls {
 	display: flex;
 	gap: 6px;

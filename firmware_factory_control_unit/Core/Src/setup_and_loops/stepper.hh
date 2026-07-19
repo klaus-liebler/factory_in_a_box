@@ -67,11 +67,14 @@ class StepperSetupAndLoop : public ISetupAndLoop {
     Modbus::IModbusRegisterModel& register_model;
 
     // Knotenadressen per MS1/MS2-Bruecken auf dem Board: Stepper1 = 0b10 (2), Stepper2 = 0b00 (0).
-    tmc2209::TMC2209 tmc_stepper1{&huart5, 0b10, gpio::Pin::NO_PIN};
-    tmc2209::TMC2209 tmc_stepper2{&huart5, 0b00, gpio::Pin::NO_PIN};
+    // Namen ("S1 - Sorter"/"S2 - Elevator") beschreiben die tatsaechliche mechanische Funktion
+    // jeder Achse -- erscheinen in allen Log-Ausgaben von TMC2209/SigmoidStepper, damit bei
+    // zwei Instanzen am selben UART-Bus/im selben Log erkennbar bleibt, welche Achse gemeint ist.
+    tmc2209::TMC2209 tmc_stepper1{&huart5, 0b10, gpio::Pin::NO_PIN, "S1 - Sorter"};
+    tmc2209::TMC2209 tmc_stepper2{&huart5, 0b00, gpio::Pin::NO_PIN, "S2 - Elevator"};
 
-    SigmoidStepper<gpio::Peripheral::TIM17_> stepper1_motion{gpio::Pin::PA15, gpio::Pin::PD06, &profile_100_1000_5_160mhz};
-    SigmoidStepper<gpio::Peripheral::TIM16_> stepper2_motion{gpio::Pin::PB04, gpio::Pin::PD07, &profile_100_1000_5_160mhz};
+    SigmoidStepper<gpio::Peripheral::TIM17_> stepper1_motion{gpio::Pin::PA15, gpio::Pin::PD06, &profile_100_1000_5_160mhz, "S1 - Sorter"};
+    SigmoidStepper<gpio::Peripheral::TIM16_> stepper2_motion{gpio::Pin::PB04, gpio::Pin::PD07, &profile_100_1000_5_160mhz, "S2 - Elevator"};
 
     bool homing1_active_ = false;
     bool homing2_active_ = false;
@@ -148,11 +151,11 @@ class StepperSetupAndLoop : public ISetupAndLoop {
         // fehl. Falls das an einer Bus-/Timing-Abhaengigkeit von der Initialisierungsreihenfolge
         // liegt (nicht an der Hardware), sollte sich das hier zeigen.
         if (!tmc_stepper2.InitForNormalSpeedAndUartBasedOperation(false, false, tmc2209::MicroStepResolution::RES16)) {
-            log_warn("TMC2209 stepper2: UART init failed - STEP/DIR pulses will still be generated, "
+            log_warn("S2 - Elevator: UART init failed - STEP/DIR pulses will still be generated, "
                      "but the driver may be running with unconfirmed microstep/current settings");
         }
         if (!tmc_stepper1.InitForNormalSpeedAndUartBasedOperation(false, false, tmc2209::MicroStepResolution::RES16)) {
-            log_warn("TMC2209 stepper1: UART init failed - STEP/DIR pulses will still be generated, "
+            log_warn("S1 - Sorter: UART init failed - STEP/DIR pulses will still be generated, "
                      "but the driver may be running with unconfirmed microstep/current settings");
         }
 

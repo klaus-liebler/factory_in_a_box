@@ -23,6 +23,8 @@ constexpr uint16_t FW_VERSION_MAJOR = 7; // Firmware-Version Major
 constexpr uint16_t FW_VERSION_MINOR = 8; // Firmware-Version Minor
 constexpr uint16_t FW_VERSION_PATCH = 9; // Firmware-Version Patch
 constexpr uint16_t TIMER_TICK = 10; // Freilaufender Systick-Zaehler, Ueberlauf nach 65535 -- [ticks]
+constexpr uint16_t FREE_HEAP_KIB = 11; // Freier newlib-Heap (High-Water-Mark bis zur MSP-Stack-Reserve, s. sysmem.c) -- freigegebene, aber noch sbrk'te Bloecke zaehlen nicht mit, also eine pessimistische untere Schranke -- [KiB]
+constexpr uint16_t CPU_TEMPERATURE_C = 12; // Chip-Temperatur (interner DTS-Sensor, RM0481 Kap. 29, werksseitig je Chip kalibriert) -- [C] -- signed
 constexpr uint16_t DIAGNOSTICS_REGION_START = 0;
 constexpr uint16_t DIAGNOSTICS_REGION_END   = 49;
 
@@ -40,7 +42,7 @@ constexpr uint16_t CAN_REGION_END   = 79;
 
 // Ethernet (Region-Start 80, Reserve bis 109)
 constexpr uint16_t ETH_LINK_STATUS = 80; // 0 = down, 1 = up
-constexpr uint16_t ETH_LINK_SPEED = 81; // 0=10M, 1=100M, 2=1000M
+constexpr uint16_t ETH_LINK_SPEED = 81; // Verbindungsgeschwindigkeit (0 = kein Link) -- [Mbit/s]
 constexpr uint16_t ETH_LINK_DUPLEX = 82; // 0=half, 1=full
 constexpr uint16_t ETH_TX_COUNT_HI = 83; // Gesendete Ethernet-Frames, High
 constexpr uint16_t ETH_TX_COUNT_LO = 84; // Gesendete Ethernet-Frames, Low
@@ -53,23 +55,24 @@ constexpr uint16_t ETH_REGION_START = 80;
 constexpr uint16_t ETH_REGION_END   = 109;
 
 // Stromversorgung (Region-Start 110, Reserve bis 139)
-constexpr uint16_t PWR_BUS_VOLTAGE_MV = 110; // Busspannung (INA226) -- [mV]
-constexpr uint16_t PWR_SHUNT_VOLTAGE_UV = 111; // Shunt-Spannung (INA226) -- [uV] -- signed
-constexpr uint16_t PWR_CURRENT_MA = 112; // Stromaufnahme (INA226) -- [mA] -- signed
-constexpr uint16_t PWR_POWER_MW = 113; // Leistungsaufnahme (INA226) -- [mW]
+constexpr uint16_t PWR_BUS_VOLTAGE_MV = 110; // Busspannung (INA226, 2 mOhm Shunt) -- [mV] -- I2C_4
+constexpr uint16_t PWR_SHUNT_VOLTAGE_UV = 111; // Shunt-Spannung (INA226, 2 mOhm Shunt) -- [uV] -- signed -- I2C_4
+constexpr uint16_t PWR_CURRENT_MA = 112; // Stromaufnahme (INA226, 2 mOhm Shunt) -- [mA] -- signed -- I2C_4
+constexpr uint16_t PWR_POWER_MW = 113; // Leistungsaufnahme (INA226) -- [mW] -- I2C_4
 constexpr uint16_t PWR_PD_VOLTAGE_MV = 114; // Aktiv ausgehandelte USB-PD-Spannung, PDSink::activeVoltage -- [mV]
 constexpr uint16_t PWR_PD_CURRENT_MA = 115; // Aktiv ausgehandelter USB-PD-Maximalstrom, PDSink::activeCurrent -- [mA]
-constexpr uint16_t PWR_PD_STATUS = 116; // 0 = keine Quelle verbunden, 1 = verbunden/Kontrakt aktiv
+constexpr uint16_t PWR_PD_STATUS = 116; // 0 = verbunden und Spannung eingestellt, 1 = verbunden aber Spannung nicht einstellbar, 2 = kein USB-PD-Netzteil erkannt
+constexpr uint16_t PWR_STATUS = 117; // 0 = ok, ungleich 0 = Fehler (aktuell: 1 = INA226 nicht erkannt/Init fehlgeschlagen) -- I2C_4
 constexpr uint16_t PWR_REGION_START = 110;
 constexpr uint16_t PWR_REGION_END   = 139;
 
 // ToF-Sensoren (Region-Start 140, Reserve bis 159)
 constexpr uint16_t TOF1_DISTANCE_MM = 140; // Abstand Sensor 1 (VL53L0X) -- [mm] -- I2C_1, IRQ PC15
-constexpr uint16_t TOF1_STATUS = 141; // Status Sensor 1 -- I2C_1, IRQ PC15
+constexpr uint16_t TOF1_STATUS = 141; // 0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung) -- I2C_1, IRQ PC15
 constexpr uint16_t TOF2_DISTANCE_MM = 142; // Abstand Sensor 2 (VL53L0X) -- [mm] -- I2C_2, IRQ PH1
-constexpr uint16_t TOF2_STATUS = 143; // Status Sensor 2 -- I2C_2, IRQ PH1
+constexpr uint16_t TOF2_STATUS = 143; // 0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung) -- I2C_2, IRQ PH1
 constexpr uint16_t TOF3_DISTANCE_MM = 144; // Abstand Sensor 3 (VL53L0X) -- [mm] -- I2C_4, IRQ PA3
-constexpr uint16_t TOF3_STATUS = 145; // Status Sensor 3 -- I2C_4, IRQ PA3
+constexpr uint16_t TOF3_STATUS = 145; // 0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung) -- I2C_4, IRQ PA3
 constexpr uint16_t TOF_REGION_START = 140;
 constexpr uint16_t TOF_REGION_END   = 159;
 
@@ -96,10 +99,10 @@ constexpr uint16_t PRESSURE_REGION_END   = 219;
 // Waegezelle (Region-Start 220, Reserve bis 239)
 constexpr uint16_t SCALE_A_WEIGHT_HI = 220; // Gewicht Waegezelle A, High -- signed
 constexpr uint16_t SCALE_A_WEIGHT_LO = 221; // Gewicht Waegezelle A, Low
-constexpr uint16_t SCALE_A_STATUS = 222; // Status Waegezelle A
+constexpr uint16_t SCALE_A_STATUS = 222; // 0 = ok, ungleich 0 = Fehler (aktuell: 1 = keine gueltige Messung)
 constexpr uint16_t SCALE_B_RAW_HI = 223; // Rohwert Waegezelle B, High (Reserve/Erweiterung)
 constexpr uint16_t SCALE_B_RAW_LO = 224; // Rohwert Waegezelle B, Low
-constexpr uint16_t SCALE_B_STATUS = 225; // Status Waegezelle B
+constexpr uint16_t SCALE_B_STATUS = 225; // 0 = ok, ungleich 0 = Fehler -- auf dieser Platinen-Revision nicht bestueckt, Register bleibt ungeschrieben (zeigt daher immer 0)
 constexpr uint16_t SCALE_REGION_START = 220;
 constexpr uint16_t SCALE_REGION_END   = 239;
 

@@ -69,6 +69,14 @@ endif()
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+# ST's eigene PCD-Header (stm32h5xx_hal_pcd.h, PCD_GET_EP_*_CNT()-Makros) verwenden
+# "count--" auf volatile-qualifizierten Structmembern -- ab GCC13/-std=c++20 dafuer ein
+# "-Wvolatile"-Deprecation-Warning. Ein #pragma GCC system_header direkt in der Datei wuerde
+# bei jedem CubeMX "Generate Code" wieder verschwinden (wie schon einmal geschehen); hier am
+# INTERFACE-Target "stm32cubemx" (propagiert an alle Consumer, auch die stm32_libs-Unterprojekte)
+# ist die Unterdrueckung stabil, weil dieses Root-CMakeLists.txt nicht von CubeMX ueberschrieben wird.
+target_compile_options(stm32cubemx INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>)
+
 # STM32H5 / STM32H5xx: family macros that the shared stm32_libs (common_stm32/tmc2209/
 # usb_pd, see the add_subdirectory() calls below) branch on, in addition to the
 # chip-specific STM32H563xx that CubeMX's own MX_Defines_Syms already defines
@@ -173,6 +181,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/tx_initialize_low_level.S
     libs/hw/vl53l0x/vl53l0x.cpp
     libs/hw/tcs34725/tcs34725.cpp
+    libs/hw/ina226/ina226.cpp
     Drivers/BSP/Components/lan8742/lan8742.c
     ${ASSET_OBJ_FILES}
     ${THREADX_SOURCES}
@@ -211,6 +220,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     libs/hw/vl53l0x
     libs/hw/tcs34725
     libs/hw/ws2812
+    libs/hw/ina226
     # generated/gitconstants.hh -- s. generate_git_constants-Custom-Target oben.
     ${CMAKE_CURRENT_BINARY_DIR}/generated
 )

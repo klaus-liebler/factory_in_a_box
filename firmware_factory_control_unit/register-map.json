@@ -35,7 +35,9 @@
             { "name": "FW_VERSION_MAJOR", "address": 7, "description": "Firmware-Version Major" },
             { "name": "FW_VERSION_MINOR", "address": 8, "description": "Firmware-Version Minor" },
             { "name": "FW_VERSION_PATCH", "address": 9, "description": "Firmware-Version Patch" },
-            { "name": "TIMER_TICK", "address": 10, "description": "Freilaufender Systick-Zaehler, Ueberlauf nach 65535", "unit": "ticks" }
+            { "name": "TIMER_TICK", "address": 10, "description": "Freilaufender Systick-Zaehler, Ueberlauf nach 65535", "unit": "ticks" },
+            { "name": "FREE_HEAP_KIB", "address": 11, "description": "Freier newlib-Heap (High-Water-Mark bis zur MSP-Stack-Reserve, s. sysmem.c) -- freigegebene, aber noch sbrk'te Bloecke zaehlen nicht mit, also eine pessimistische untere Schranke", "unit": "KiB" },
+            { "name": "CPU_TEMPERATURE_C", "address": 12, "description": "Chip-Temperatur (interner DTS-Sensor, RM0481 Kap. 29, werksseitig je Chip kalibriert)", "unit": "C", "signed": true }
           ]
         },
         {
@@ -79,7 +81,7 @@
           "endAddress": 109,
           "registers": [
             { "name": "ETH_LINK_STATUS", "address": 80, "description": "0 = down, 1 = up", "display": "bool" },
-            { "name": "ETH_LINK_SPEED", "address": 81, "description": "0=10M, 1=100M, 2=1000M" },
+            { "name": "ETH_LINK_SPEED", "address": 81, "description": "Verbindungsgeschwindigkeit (0 = kein Link)", "unit": "Mbit/s" },
             { "name": "ETH_LINK_DUPLEX", "address": 82, "description": "0=half, 1=full", "display": "bool" },
             { "combine": {
                 "label": "ETH_TX_COUNT",
@@ -114,13 +116,14 @@
           "startAddress": 110,
           "endAddress": 139,
           "registers": [
-            { "name": "PWR_BUS_VOLTAGE_MV", "address": 110, "description": "Busspannung (INA226)", "unit": "mV" },
-            { "name": "PWR_SHUNT_VOLTAGE_UV", "address": 111, "description": "Shunt-Spannung (INA226)", "unit": "uV", "signed": true },
-            { "name": "PWR_CURRENT_MA", "address": 112, "description": "Stromaufnahme (INA226)", "unit": "mA", "signed": true },
-            { "name": "PWR_POWER_MW", "address": 113, "description": "Leistungsaufnahme (INA226)", "unit": "mW" },
+            { "name": "PWR_BUS_VOLTAGE_MV", "address": 110, "description": "Busspannung (INA226, 2 mOhm Shunt)", "unit": "mV", "i2c": { "bus": "I2C_4" } },
+            { "name": "PWR_SHUNT_VOLTAGE_UV", "address": 111, "description": "Shunt-Spannung (INA226, 2 mOhm Shunt)", "unit": "uV", "signed": true, "i2c": { "bus": "I2C_4" } },
+            { "name": "PWR_CURRENT_MA", "address": 112, "description": "Stromaufnahme (INA226, 2 mOhm Shunt)", "unit": "mA", "signed": true, "i2c": { "bus": "I2C_4" } },
+            { "name": "PWR_POWER_MW", "address": 113, "description": "Leistungsaufnahme (INA226)", "unit": "mW", "i2c": { "bus": "I2C_4" } },
             { "name": "PWR_PD_VOLTAGE_MV", "address": 114, "description": "Aktiv ausgehandelte USB-PD-Spannung, PDSink::activeVoltage", "unit": "mV" },
             { "name": "PWR_PD_CURRENT_MA", "address": 115, "description": "Aktiv ausgehandelter USB-PD-Maximalstrom, PDSink::activeCurrent", "unit": "mA" },
-            { "name": "PWR_PD_STATUS", "address": 116, "description": "0 = keine Quelle verbunden, 1 = verbunden/Kontrakt aktiv", "display": "bool" }
+            { "name": "PWR_PD_STATUS", "address": 116, "description": "0 = verbunden und Spannung eingestellt, 1 = verbunden aber Spannung nicht einstellbar, 2 = kein USB-PD-Netzteil erkannt", "display": "status" },
+            { "name": "PWR_STATUS", "address": 117, "description": "0 = ok, ungleich 0 = Fehler (aktuell: 1 = INA226 nicht erkannt/Init fehlgeschlagen)", "display": "status", "i2c": { "bus": "I2C_4" } }
           ]
         },
         {
@@ -130,11 +133,11 @@
           "endAddress": 159,
           "registers": [
             { "name": "TOF1_DISTANCE_MM", "address": 140, "description": "Abstand Sensor 1 (VL53L0X)", "unit": "mm", "i2c": { "bus": "I2C_1", "irqPin": "PC15" } },
-            { "name": "TOF1_STATUS", "address": 141, "description": "Status Sensor 1", "i2c": { "bus": "I2C_1", "irqPin": "PC15" }, "display": "bool" },
+            { "name": "TOF1_STATUS", "address": 141, "description": "0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung)", "i2c": { "bus": "I2C_1", "irqPin": "PC15" }, "display": "status" },
             { "name": "TOF2_DISTANCE_MM", "address": 142, "description": "Abstand Sensor 2 (VL53L0X)", "unit": "mm", "i2c": { "bus": "I2C_2", "irqPin": "PH1" } },
-            { "name": "TOF2_STATUS", "address": 143, "description": "Status Sensor 2", "i2c": { "bus": "I2C_2", "irqPin": "PH1" }, "display": "bool" },
+            { "name": "TOF2_STATUS", "address": 143, "description": "0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung)", "i2c": { "bus": "I2C_2", "irqPin": "PH1" }, "display": "status" },
             { "name": "TOF3_DISTANCE_MM", "address": 144, "description": "Abstand Sensor 3 (VL53L0X)", "unit": "mm", "i2c": { "bus": "I2C_4", "irqPin": "PA3" } },
-            { "name": "TOF3_STATUS", "address": 145, "description": "Status Sensor 3", "i2c": { "bus": "I2C_4", "irqPin": "PA3" }, "display": "bool" }
+            { "name": "TOF3_STATUS", "address": 145, "description": "0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung)", "i2c": { "bus": "I2C_4", "irqPin": "PA3" }, "display": "status" }
           ]
         },
         {
@@ -184,7 +187,7 @@
                   { "name": "SCALE_A_WEIGHT_LO", "address": 221, "description": "Gewicht Waegezelle A, Low" }
                 ]
               } },
-            { "name": "SCALE_A_STATUS", "address": 222, "description": "Status Waegezelle A", "display": "bool" },
+            { "name": "SCALE_A_STATUS", "address": 222, "description": "0 = ok, ungleich 0 = Fehler (aktuell: 1 = keine gueltige Messung)", "display": "status" },
             { "combine": {
                 "label": "SCALE_B_RAW",
                 "description": "Rohwert Waegezelle B (Reserve/Erweiterung)",
@@ -193,7 +196,7 @@
                   { "name": "SCALE_B_RAW_LO", "address": 224, "description": "Rohwert Waegezelle B, Low" }
                 ]
               } },
-            { "name": "SCALE_B_STATUS", "address": 225, "description": "Status Waegezelle B", "display": "bool" }
+            { "name": "SCALE_B_STATUS", "address": 225, "description": "0 = ok, ungleich 0 = Fehler -- auf dieser Platinen-Revision nicht bestueckt, Register bleibt ungeschrieben (zeigt daher immer 0)", "display": "status" }
           ]
         },
         {

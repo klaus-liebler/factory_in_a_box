@@ -63,25 +63,28 @@ class TofColorSetupAndLoop : public ISetupAndLoop {
     void Loop(uint32_t now) override {
         (void)now;
         uint16_t mm;
+        // Fehlercode-Konvention (s. register-map.json): 0 = ok, ungleich 0 = Fehler -- aktuell
+        // nur binaer (1 = nicht erkannt/keine gueltige Messung), spaeter ggf. mit
+        // unterschiedlichen Codes je Fehlerursache erweiterbar.
         if (tof1_present_ && tof1.ReadRangeMm(&mm)) {
             register_model.SetInputRegister(ModbusRegisters::Input::TOF1_DISTANCE_MM, mm);
-            register_model.SetInputRegister(ModbusRegisters::Input::TOF1_STATUS, 1);
-        } else {
             register_model.SetInputRegister(ModbusRegisters::Input::TOF1_STATUS, 0);
+        } else {
+            register_model.SetInputRegister(ModbusRegisters::Input::TOF1_STATUS, 1);
         }
 
         if (tof2_present_ && tof2.ReadRangeMm(&mm)) {
             register_model.SetInputRegister(ModbusRegisters::Input::TOF2_DISTANCE_MM, mm);
-            register_model.SetInputRegister(ModbusRegisters::Input::TOF2_STATUS, 1);
-        } else {
             register_model.SetInputRegister(ModbusRegisters::Input::TOF2_STATUS, 0);
+        } else {
+            register_model.SetInputRegister(ModbusRegisters::Input::TOF2_STATUS, 1);
         }
 
         if (tof3_present_ && tof3.ReadRangeMm(&mm)) {
             register_model.SetInputRegister(ModbusRegisters::Input::TOF3_DISTANCE_MM, mm);
-            register_model.SetInputRegister(ModbusRegisters::Input::TOF3_STATUS, 1);
-        } else {
             register_model.SetInputRegister(ModbusRegisters::Input::TOF3_STATUS, 0);
+        } else {
+            register_model.SetInputRegister(ModbusRegisters::Input::TOF3_STATUS, 1);
         }
 
         if (color_present_) {

@@ -5,6 +5,15 @@
 class USBPDControl:public IUsbPdEventHandler {
     private:
     Modbus::IModbusRegisterModel* register_model;
+    // Von EarlySetup() gemerkt, um in UpdatePdStatusRegister() zu erkennen, ob eine spaeter
+    // (Event-getrieben) aktive Spannung tatsaechlich der urspruenglich angeforderten entspricht
+    // (PWR_PD_STATUS-Fehlercode 1 = verbunden, aber Zielspannung nicht erreicht/gehalten).
+    int target_voltage_mv_ = 0;
+
+    // Fehlercode-Konvention (s. register-map.json PWR_PD_STATUS): 0 = ok/Zielspannung aktiv,
+    // 1 = verbunden aber Zielspannung nicht erreicht, 2 = keine PD-Quelle verbunden.
+    void UpdatePdStatusRegister();
+
     public:
     USBPDControl(Modbus::IModbusRegisterModel* register_model) : register_model(register_model) {}
     

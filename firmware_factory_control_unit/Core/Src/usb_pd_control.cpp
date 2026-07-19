@@ -5,6 +5,18 @@
 #include "main.h"
 #include <memory>
 
+void USBPDControl::UpdatePdStatusRegister() {
+    uint16_t status;
+    if (!PowerSink.isConnected()) {
+        status = 2; // keine PD-Quelle verbunden
+    } else if (target_voltage_mv_ > 0 && PowerSink.activeVoltage < target_voltage_mv_) {
+        status = 1; // verbunden, aber Zielspannung nicht erreicht/gehalten
+    } else {
+        status = 0; // verbunden und Zielspannung aktiv
+    }
+    register_model->SetInputRegister(ModbusRegisters::Input::PWR_PD_STATUS, status);
+}
+
 void USBPDControl::HandleUsbPDEvent(PDSinkEventType eventType) {
     switch (eventType) {
         case PDSinkEventType::sourceCapabilitiesChanged:
@@ -20,10 +32,11 @@ void USBPDControl::HandleUsbPDEvent(PDSinkEventType eventType) {
             // -- auch die blockierende 20V-Anforderung dort kann also schon Register schreiben.
             register_model->SetInputRegister(ModbusRegisters::Input::PWR_PD_VOLTAGE_MV, (uint16_t)PowerSink.activeVoltage);
             register_model->SetInputRegister(ModbusRegisters::Input::PWR_PD_CURRENT_MA, (uint16_t)PowerSink.activeCurrent);
-            register_model->SetInputRegister(ModbusRegisters::Input::PWR_PD_STATUS, PowerSink.isConnected() ? 1 : 0);
+            UpdatePdStatusRegister();
             break;
         case PDSinkEventType::powerRejected:
             log_warn("USB-PD: power request rejected by source");
+            UpdatePdStatusRegister();
             break;
     }
 }
@@ -38,6 +51,8 @@ void USBPDControl::HandleUsbPDEvent(PDSinkEventType eventType) {
 constexpr uint32_t PD_SOURCE_DETECT_TIMEOUT_MS = 2000;
 
 void USBPDControl::EarlySetup(int target_voltage_mv) {
+    target_voltage_mv_ = target_voltage_mv;
+
     // PowerSink.start() enables the scheduler timer (TIM7) and initializes the UCPD1
     // PHY (clocks/GPIO/DMA/NVIC) -- plain register-level setup, unlike the NetX calls
     // it has no running-thread requirement, so it's safe to call from tx_application_define().
@@ -57,6 +72,7 @@ void USBPDControl::EarlySetup(int target_voltage_mv) {
     if (!PowerSink.isConnected()) {
         log_info("USB-PD: no source detected within %lums - assuming separate/conventional power supply",
                  (unsigned long)PD_SOURCE_DETECT_TIMEOUT_MS);
+        UpdatePdStatusRegister();
         return;
     }
 
@@ -71,6 +87,7 @@ void USBPDControl::EarlySetup(int target_voltage_mv) {
         HAL_Delay(1);
     }
     log_info("USB-PD: %d mV confirmed active.", PowerSink.activeVoltage);
+    UpdatePdStatusRegister();
 }
 
 void USBPDControl::Loop() {

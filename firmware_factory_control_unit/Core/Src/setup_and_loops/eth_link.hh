@@ -15,20 +15,20 @@ class EthLink : public ISetupAndLoop {
     NX_DHCP& dhcp_client;
 
     void update_eth_link_registers(bool link_up) {
-    uint16_t speed = 0;   // 0=10M, 1=100M, 2=1000M
+    uint16_t speed = 0;   // Mbit/s (0 = kein Link; LAN8742 kann nur 10/100, kein Gigabit)
     uint16_t duplex = 0;  // 0=half, 1=full
 
     if (link_up) {
         switch (nx_eth_phy_get_link_state()) {
             case ETH_PHY_STATUS_100MBITS_FULLDUPLEX:
-                speed = 1; duplex = 1; break;
+                speed = 100; duplex = 1; break;
             case ETH_PHY_STATUS_100MBITS_HALFDUPLEX:
-                speed = 1; duplex = 0; break;
+                speed = 100; duplex = 0; break;
             case ETH_PHY_STATUS_10MBITS_FULLDUPLEX:
-                speed = 0; duplex = 1; break;
+                speed = 10; duplex = 1; break;
             case ETH_PHY_STATUS_10MBITS_HALFDUPLEX:
             default:
-                speed = 0; duplex = 0; break;
+                speed = 10; duplex = 0; break;
         }
     }
 

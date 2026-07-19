@@ -6,10 +6,15 @@ export type RegisterBank = "input" | "holding";
 // Eine Darstellungsform fuers Lesen UND Schreiben (s. register-panel.ts):
 //   - "decimal" (Default): Zahl; bei Holding-Registern generisches Zahlenfeld + Schreiben-Button.
 //   - "hex" / "binary": Zahl als 0x.../0b...-String; Schreiben wie "decimal".
-//   - "bool": bei Input-Registern grau/gruen eingefaerbtes Badge (0/1), bei Holding-Registern
-//     zusaetzlich ein Toggle-Switch zum Schreiben.
+//   - "bool": bei Input-Registern grau/gruen eingefaerbtes Badge (0=aus/1=an), bei
+//     Holding-Registern zusaetzlich ein Toggle-Switch zum Schreiben.
+//   - "bool-error": wie "bool", aber grau/rot statt grau/gruen -- fuer Register, bei denen 1
+//     einen Fehler-/Alarmzustand meldet statt eines neutralen "an" (z.B. PWR_ALERT).
+//   - "status": Fehlercode-Konvention (0 = ok, ungleich 0 = Fehler) -- 0 grau/neutral, jeder
+//     andere Wert rot MIT der tatsaechlichen Zahl (nicht nur "1"), fuer *_STATUS-Register, die
+//     kuenftig auch verschiedene Fehlercodes tragen koennten (aktuell ueberall nur 0/1).
 //   - "range": Slider (braucht min/max); nur fuer Holding-Register sinnvoll.
-export type RegisterDisplay = "decimal" | "hex" | "binary" | "bool" | "range";
+export type RegisterDisplay = "decimal" | "hex" | "binary" | "bool" | "bool-error" | "status" | "range";
 
 export interface RegisterDef {
 	name: string;
@@ -43,7 +48,9 @@ export const REGIONS: RegisterRegion[] = [
 			{ name: "FW_VERSION_MAJOR", address: 7, bank: "input", description: "Firmware-Version Major", display: "decimal" },
 			{ name: "FW_VERSION_MINOR", address: 8, bank: "input", description: "Firmware-Version Minor", display: "decimal" },
 			{ name: "FW_VERSION_PATCH", address: 9, bank: "input", description: "Firmware-Version Patch", display: "decimal" },
-			{ name: "TIMER_TICK", address: 10, bank: "input", description: "Freilaufender Systick-Zaehler, Ueberlauf nach 65535", unit: "ticks", display: "decimal" }
+			{ name: "TIMER_TICK", address: 10, bank: "input", description: "Freilaufender Systick-Zaehler, Ueberlauf nach 65535", unit: "ticks", display: "decimal" },
+			{ name: "FREE_HEAP_KIB", address: 11, bank: "input", description: "Freier newlib-Heap (High-Water-Mark bis zur MSP-Stack-Reserve, s. sysmem.c) -- freigegebene, aber noch sbrk'te Bloecke zaehlen nicht mit, also eine pessimistische untere Schranke", unit: "KiB", display: "decimal" },
+			{ name: "CPU_TEMPERATURE_C", address: 12, bank: "input", description: "Chip-Temperatur (interner DTS-Sensor, RM0481 Kap. 29, werksseitig je Chip kalibriert)", unit: "C", signed: true, display: "decimal" }
 		]
 	},
 	{
@@ -60,7 +67,7 @@ export const REGIONS: RegisterRegion[] = [
 		title: "Ethernet",
 		registers: [
 			{ name: "ETH_LINK_STATUS", address: 80, bank: "input", description: "0 = down, 1 = up", display: "bool" },
-			{ name: "ETH_LINK_SPEED", address: 81, bank: "input", description: "0=10M, 1=100M, 2=1000M", display: "decimal" },
+			{ name: "ETH_LINK_SPEED", address: 81, bank: "input", description: "Verbindungsgeschwindigkeit (0 = kein Link)", unit: "Mbit/s", display: "decimal" },
 			{ name: "ETH_LINK_DUPLEX", address: 82, bank: "input", description: "0=half, 1=full", display: "bool" },
 			{ name: "ETH_TX_COUNT", address: 83, bank: "input", description: "Gesendete Ethernet-Frames", display: "decimal", combine: { count: 2 } },
 			{ name: "ETH_RX_COUNT", address: 85, bank: "input", description: "Empfangene Ethernet-Frames", display: "decimal", combine: { count: 2 } },
@@ -71,24 +78,25 @@ export const REGIONS: RegisterRegion[] = [
 	{
 		title: "Stromversorgung",
 		registers: [
-			{ name: "PWR_BUS_VOLTAGE_MV", address: 110, bank: "input", description: "Busspannung (INA226)", unit: "mV", display: "decimal" },
-			{ name: "PWR_SHUNT_VOLTAGE_UV", address: 111, bank: "input", description: "Shunt-Spannung (INA226)", unit: "uV", signed: true, display: "decimal" },
-			{ name: "PWR_CURRENT_MA", address: 112, bank: "input", description: "Stromaufnahme (INA226)", unit: "mA", signed: true, display: "decimal" },
-			{ name: "PWR_POWER_MW", address: 113, bank: "input", description: "Leistungsaufnahme (INA226)", unit: "mW", display: "decimal" },
+			{ name: "PWR_BUS_VOLTAGE_MV", address: 110, bank: "input", description: "Busspannung (INA226, 2 mOhm Shunt)", unit: "mV", i2c: { bus: "I2C_4" }, display: "decimal" },
+			{ name: "PWR_SHUNT_VOLTAGE_UV", address: 111, bank: "input", description: "Shunt-Spannung (INA226, 2 mOhm Shunt)", unit: "uV", signed: true, i2c: { bus: "I2C_4" }, display: "decimal" },
+			{ name: "PWR_CURRENT_MA", address: 112, bank: "input", description: "Stromaufnahme (INA226, 2 mOhm Shunt)", unit: "mA", signed: true, i2c: { bus: "I2C_4" }, display: "decimal" },
+			{ name: "PWR_POWER_MW", address: 113, bank: "input", description: "Leistungsaufnahme (INA226)", unit: "mW", i2c: { bus: "I2C_4" }, display: "decimal" },
 			{ name: "PWR_PD_VOLTAGE_MV", address: 114, bank: "input", description: "Aktiv ausgehandelte USB-PD-Spannung, PDSink::activeVoltage", unit: "mV", display: "decimal" },
 			{ name: "PWR_PD_CURRENT_MA", address: 115, bank: "input", description: "Aktiv ausgehandelter USB-PD-Maximalstrom, PDSink::activeCurrent", unit: "mA", display: "decimal" },
-			{ name: "PWR_PD_STATUS", address: 116, bank: "input", description: "0 = keine Quelle verbunden, 1 = verbunden/Kontrakt aktiv", display: "bool" }
+			{ name: "PWR_PD_STATUS", address: 116, bank: "input", description: "0 = verbunden und Spannung eingestellt, 1 = verbunden aber Spannung nicht einstellbar, 2 = kein USB-PD-Netzteil erkannt", display: "status" },
+			{ name: "PWR_STATUS", address: 117, bank: "input", description: "0 = ok, ungleich 0 = Fehler (aktuell: 1 = INA226 nicht erkannt/Init fehlgeschlagen)", i2c: { bus: "I2C_4" }, display: "status" }
 		]
 	},
 	{
 		title: "ToF-Sensoren",
 		registers: [
 			{ name: "TOF1_DISTANCE_MM", address: 140, bank: "input", description: "Abstand Sensor 1 (VL53L0X)", unit: "mm", i2c: { bus: "I2C_1", irqPin: "PC15" }, display: "decimal" },
-			{ name: "TOF1_STATUS", address: 141, bank: "input", description: "Status Sensor 1", i2c: { bus: "I2C_1", irqPin: "PC15" }, display: "bool" },
+			{ name: "TOF1_STATUS", address: 141, bank: "input", description: "0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung)", i2c: { bus: "I2C_1", irqPin: "PC15" }, display: "status" },
 			{ name: "TOF2_DISTANCE_MM", address: 142, bank: "input", description: "Abstand Sensor 2 (VL53L0X)", unit: "mm", i2c: { bus: "I2C_2", irqPin: "PH1" }, display: "decimal" },
-			{ name: "TOF2_STATUS", address: 143, bank: "input", description: "Status Sensor 2", i2c: { bus: "I2C_2", irqPin: "PH1" }, display: "bool" },
+			{ name: "TOF2_STATUS", address: 143, bank: "input", description: "0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung)", i2c: { bus: "I2C_2", irqPin: "PH1" }, display: "status" },
 			{ name: "TOF3_DISTANCE_MM", address: 144, bank: "input", description: "Abstand Sensor 3 (VL53L0X)", unit: "mm", i2c: { bus: "I2C_4", irqPin: "PA3" }, display: "decimal" },
-			{ name: "TOF3_STATUS", address: 145, bank: "input", description: "Status Sensor 3", i2c: { bus: "I2C_4", irqPin: "PA3" }, display: "bool" }
+			{ name: "TOF3_STATUS", address: 145, bank: "input", description: "0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung)", i2c: { bus: "I2C_4", irqPin: "PA3" }, display: "status" }
 		]
 	},
 	{
@@ -118,9 +126,9 @@ export const REGIONS: RegisterRegion[] = [
 		title: "Waegezelle",
 		registers: [
 			{ name: "SCALE_A_WEIGHT", address: 220, bank: "input", description: "Gewicht Waegezelle A", signed: true, display: "decimal", combine: { count: 2 } },
-			{ name: "SCALE_A_STATUS", address: 222, bank: "input", description: "Status Waegezelle A", display: "bool" },
+			{ name: "SCALE_A_STATUS", address: 222, bank: "input", description: "0 = ok, ungleich 0 = Fehler (aktuell: 1 = keine gueltige Messung)", display: "status" },
 			{ name: "SCALE_B_RAW", address: 223, bank: "input", description: "Rohwert Waegezelle B (Reserve/Erweiterung)", display: "decimal", combine: { count: 2 } },
-			{ name: "SCALE_B_STATUS", address: 225, bank: "input", description: "Status Waegezelle B", display: "bool" }
+			{ name: "SCALE_B_STATUS", address: 225, bank: "input", description: "0 = ok, ungleich 0 = Fehler -- auf dieser Platinen-Revision nicht bestueckt, Register bleibt ungeschrieben (zeigt daher immer 0)", display: "status" }
 		]
 	},
 	{

@@ -8,7 +8,9 @@
 
 #include "setup_and_loops/interfaces.hh"
 #include "setup_and_loops/can.hh"
+#include "setup_and_loops/cpu_temp.hh"
 #include "setup_and_loops/eth_link.hh"
+#include "setup_and_loops/power.hh"
 #include "setup_and_loops/scale.hh"
 #include "setup_and_loops/stepper.hh"
 #include "setup_and_loops/tof_color.hh"
@@ -28,7 +30,9 @@ class Io {
     single_led::BlinkPattern heartbeat_pattern_;
 
     CanSetupAndLoop can_setup_and_loop;
+    CpuTempSetupAndLoop cpu_temp_;
     EthLink eth_link;
+    PowerSetupAndLoop power_;
     ScaleSetupAndLoop scale_;
     StepperSetupAndLoop stepper_;
     TofColorSetupAndLoop tof_color_;
@@ -44,7 +48,9 @@ class Io {
           info_led(gpio::Pin::PE15),
           heartbeat_pattern_(50, 50),
           can_setup_and_loop(register_model),
+          cpu_temp_(register_model),
           eth_link(register_model, ip_instance, dhcp_client),
+          power_(register_model),
           scale_(register_model),
           stepper_(register_model),
           tof_color_(register_model),

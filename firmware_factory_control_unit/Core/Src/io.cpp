@@ -18,9 +18,11 @@
 // ============================================================================
 #include "io.hpp"
 #include "main.h"
+#include <cstddef>
 
 extern "C" ADC_HandleTypeDef hadc1;
 extern "C" TIM_HandleTypeDef htim4;
+extern "C" size_t GetFreeHeapBytes(void);
 
 // Holding-Register sind 0..1000 Promille Duty -- CCR = (ARR+1) * permille / 1000.
 static void set_pwm_duty_permille(TIM_HandleTypeDef *htim, uint32_t channel, uint16_t permille) {
@@ -53,8 +55,10 @@ void Io::readInputs(uint32_t now) {
 void Io::processMembers(uint32_t now) {
     info_led.Loop(now);
     can_setup_and_loop.Loop(now);
+    cpu_temp_.Loop(now);
     eth_link.Loop(now);
     usb_pd_control.Loop();
+    power_.Loop(now);
     scale_.Loop(now);
     stepper_.Loop(now);
     tof_color_.Loop(now);
@@ -88,6 +92,7 @@ void Io::updateOutputs(uint32_t now) {
     }
     register_model.SetInputRegister(ModbusRegisters::Input::HEALTH_STATE, health);
     register_model.SetInputRegister(ModbusRegisters::Input::TIMER_TICK, (uint16_t)(now & 0xFFFFu));
+    register_model.SetInputRegister(ModbusRegisters::Input::FREE_HEAP_KIB, (uint16_t)(GetFreeHeapBytes() / 1024u));
 }
 
 void Io::Setup() {
@@ -96,9 +101,17 @@ void Io::Setup() {
     info_led.AnimatePixel(now, &heartbeat_pattern_);
     eth_link.Setup();
     can_setup_and_loop.Setup();
+    cpu_temp_.Setup();
     scale_.Setup();
     stepper_.Setup();
+    // tof_color_.Setup() MUSS vor power_.Setup() laufen: TOF3s NACK auf I2C4 (Sensor auf dieser
+    // Platinen-Revision nicht bestueckt) legt den Bus fuer alle folgenden Transaktionen lahm
+    // (bestaetigt per Test). INA226::Probe() erzwingt deshalb einen I2C4-Reclaim (DeInit+Init)
+    // als allerersten Schritt (s. ina226.cpp) -- muss aber NACH TOF3s Setup()-Zugriff laufen,
+    // sonst legt TOF3 den frisch reklamierten Bus gleich wieder lahm. TOF3 fasst I2C4 nach
+    // Setup() nie wieder an, der Bus bleibt danach fuer die restliche Laufzeit sauber.
     tof_color_.Setup();
+    power_.Setup();
     ws2812_.Setup();
 }
 

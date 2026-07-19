@@ -41,9 +41,12 @@ class ScaleSetupAndLoop : public ISetupAndLoop {
             // HX711::getAverageCalibratedWeight() fuer die Umrechnung, sobald verfuegbar).
             register_model.SetInputRegister(ModbusRegisters::Input::SCALE_A_WEIGHT_HI, (uint16_t)((uint32_t)raw_value >> 16));
             register_model.SetInputRegister(ModbusRegisters::Input::SCALE_A_WEIGHT_LO, (uint16_t)((uint32_t)raw_value & 0xFFFF));
-            register_model.SetInputRegister(ModbusRegisters::Input::SCALE_A_STATUS, 1);
-        } else {
             register_model.SetInputRegister(ModbusRegisters::Input::SCALE_A_STATUS, 0);
+        } else {
+            // Fehlercode-Konvention (s. register-map.json): 0 = ok, ungleich 0 = Fehler --
+            // aktuell nur binaer (1 = keine gueltige Messung), spaeter ggf. mit
+            // unterschiedlichen Codes je Fehlerursache erweiterbar.
+            register_model.SetInputRegister(ModbusRegisters::Input::SCALE_A_STATUS, 1);
         }
     }
 };

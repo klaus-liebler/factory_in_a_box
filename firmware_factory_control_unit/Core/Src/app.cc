@@ -12,7 +12,16 @@ constexpr uint32_t DEFAULT_PRIORITY = 5;
 constexpr uint32_t NX_APP_THREAD_STACK_SIZE = 8 * 1024;
 constexpr uint32_t NX_APP_THREAD_PRIORITY = 10;
 constexpr uint32_t IO_THREAD_STACK_SIZE = 6 * 1024;
-constexpr uint32_t IO_THREAD_PRIORITY = 12;
+// War 12 (niedrigere Prioritaet als NetX' eigener IP-Thread, s. net_setup.cpp
+// NX_APP_INSTANCE_PRIORITY=10) -- ThreadX: kleinere Zahl = hoehere Prioritaet. Der IP-Thread
+// verarbeitet ALLE eingehenden Pakete (TCP/HTTP/DHCP/mDNS) und verdraengte den IO-Thread damit
+// bei jedem Webseiten-Reload komplett auf Thread-Ebene (nicht nur kurz per Interrupt), teils
+// hunderte ms am Stueck -- das liess I2C4-/SPI2-Transfers (INA226, HX711) mit Timeout
+// fehlschlagen, selbst nachdem ETH_IRQn/ETH_WKUP_IRQn (NVIC-Ebene, s. stm32h5xx_hal_msp.c)
+// bereits abgesenkt wurden. Jetzt hoeher als der NetX-IP-Thread (10) und die App-Threads: der
+// IO-Thread schlaeft ohnehin ~50ms pro Zyklus (s. io.hpp IO_THREAD_SLEEP_TICKS), gibt dem
+// Netzwerk-Stack also reichlich Gelegenheit, ohne dass der Sensor-Zyklus verdraengt wird.
+constexpr uint32_t IO_THREAD_PRIORITY = 8;
 
 // TX_MUTEX{} zero-initialisiert u.a. tx_mutex_id -- tx_mutex_create() setzt dieses Feld
 // intern auf die magische Konstante TX_MUTEX_ID (ungleich 0, s. tx_mutex.h), daher genuegt ein

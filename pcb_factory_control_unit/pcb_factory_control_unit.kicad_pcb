@@ -6630,6 +6630,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C7467248"
+			(at 0 0 0)
+			(layer "F.SilkS")
+			(hide yes)
+			(uuid "16f8db81-c14d-4ea2-b979-79da5d4908ff")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(property ki_fp_filters "R_*")
 		(path "/ed06edb5-031f-42a3-ad58-55ca73c66f14/bd26982d-d7e8-4d01-9f25-dee126aacfb2")
 		(sheetname "/psu/")

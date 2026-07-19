@@ -32,26 +32,48 @@
 extern "C" ETH_HandleTypeDef heth;
 
 
+// Werte von App::ResetCauseCode() -- ueber /api/system nach aussen gereicht (s. webserver.cpp),
+// da die zugrundeliegenden RCC-Reset-Flags direkt nach dem Auslesen in greeting() geloescht
+// werden (__HAL_RCC_CLEAR_RESET_FLAGS()) und danach nicht mehr abfragbar waeren.
+enum class ResetCause : uint8_t {
+    Unknown = 0,
+    IndependentWatchdog = 1,
+    WindowWatchdog = 2,
+    Software = 3,
+    LowPower = 4,
+    BrownOut = 5,
+    PinOrPowerOn = 6,
+};
+
 class App {
 private:
     App() = default;
     ~App() = default;
+    // Liest die RCC-Reset-Flags aus (nur gueltig VOR __HAL_RCC_CLEAR_RESET_FLAGS() in greeting()),
+    // merkt sich den Code in reset_cause_code_ (fuer /api/system, s. ResetCauseCode()) und gibt
+    // zugleich den Klartext fuers Boot-Log zurueck.
     const char *reset_cause() {
-        if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST)) return "Independent Watchdog";
-        if (__HAL_RCC_GET_FLAG(RCC_FLAG_WWDGRST)) return "Window Watchdog";
-        if (__HAL_RCC_GET_FLAG(RCC_FLAG_SFTRST))  return "Software";
-        if (__HAL_RCC_GET_FLAG(RCC_FLAG_LPWRRST)) return "Low-Power";
-        if (__HAL_RCC_GET_FLAG(RCC_FLAG_BORRST))  return "Brown-Out";
-        if (__HAL_RCC_GET_FLAG(RCC_FLAG_PINRST))  return "Reset Pin / Power-On";
-        return "Unknown";
+        ResetCause code = ResetCause::Unknown;
+        const char *text = "Unknown";
+        if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST)) { code = ResetCause::IndependentWatchdog; text = "Independent Watchdog"; }
+        else if (__HAL_RCC_GET_FLAG(RCC_FLAG_WWDGRST)) { code = ResetCause::WindowWatchdog; text = "Window Watchdog"; }
+        else if (__HAL_RCC_GET_FLAG(RCC_FLAG_SFTRST))  { code = ResetCause::Software; text = "Software"; }
+        else if (__HAL_RCC_GET_FLAG(RCC_FLAG_LPWRRST)) { code = ResetCause::LowPower; text = "Low-Power"; }
+        else if (__HAL_RCC_GET_FLAG(RCC_FLAG_BORRST))  { code = ResetCause::BrownOut; text = "Brown-Out"; }
+        else if (__HAL_RCC_GET_FLAG(RCC_FLAG_PINRST))  { code = ResetCause::PinOrPowerOn; text = "Reset Pin / Power-On"; }
+        reset_cause_code_ = static_cast<uint8_t>(code);
+        return text;
     }
     void greeting();
     void fillRegistersWithInitialValues();
+    uint8_t reset_cause_code_ = 0;
 public:
     static App& Instance() {
         static App app_instance;
         return app_instance;
     }
+
+    uint8_t ResetCauseCode() const { return reset_cause_code_; }
 
     TX_BYTE_POOL byte_pool;
     NX_PACKET_POOL packet_pool;

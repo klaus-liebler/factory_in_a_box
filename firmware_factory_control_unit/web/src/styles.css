@@ -20,21 +20,241 @@
 	--ui-btn-neutral-active: #e2e8f0;
 }
 
-register-ui {
+html, body {
+	height: 100%;
+	margin: 0;
+}
+
+modbus-register-app,
+power-management-app,
+system-info-app {
 	display: block;
 	font-family: "Segoe UI", Roboto, Arial, sans-serif;
 }
 
-register-ui .container {
+/* Autoren-CSS schlaegt in der Cascade IMMER die User-Agent-Stylesheet-Regel "[hidden] {
+   display: none }", unabhaengig von Spezifitaet -- ohne diese Regel bliebe "display: block"
+   oben auch fuer per element.hidden=true ausgeblendete Apps aktiv (app-shell.ts sync()), alle
+   drei App-Elemente wuerden dauerhaft uebereinander gestapelt sichtbar bleiben. */
+modbus-register-app[hidden],
+power-management-app[hidden],
+system-info-app[hidden] {
+	display: none;
+}
+
+.container {
 	max-width: 1100px;
 	margin: 0 auto;
 	padding: 12px 16px;
 }
 
-register-ui .header-section {
+.header-section {
 	border-bottom: 2px solid var(--ui-color-border);
 	padding-bottom: 12px;
 	margin-bottom: 16px;
+}
+
+/* ==========================================================================
+   Dashboard-Shell (app-shell.ts): Ganzseiten-Flexbox-Layout mit Sidebar auf
+   Desktop, die unterhalb von 760px zu einem Hamburger-Drawer wird.
+   ========================================================================== */
+
+app-shell {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	font-family: "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+.shell-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 4px 16px;
+	background-color: #f3f6f9;
+	background-repeat: repeat;
+	border-bottom: 1px solid var(--ui-color-border);
+	flex: 0 0 auto;
+}
+
+.shell-logo {
+	display: flex;
+	align-items: center;
+	height: 96px;
+}
+
+.shell-logo svg {
+	display: block;
+	height: 100%;
+	width: auto;
+}
+
+.shell-hamburger {
+	display: none;
+	height: 34px;
+	width: 34px;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--ui-color-border-input);
+	border-radius: var(--ui-radius-md);
+	background: var(--ui-btn-neutral-inactive);
+	color: var(--ui-color-text-primary);
+	font-size: 18px;
+	line-height: 1;
+	cursor: pointer;
+	padding: 0;
+}
+
+.shell-hamburger:hover {
+	background: var(--ui-btn-neutral-hover);
+}
+
+.shell-body {
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.shell-nav {
+	flex: 0 0 220px;
+	border-right: 1px solid var(--ui-color-border);
+	background: var(--ui-color-bg-subtle);
+	overflow-y: auto;
+}
+
+.shell-nav ul {
+	list-style: none;
+	margin: 0;
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.shell-nav a {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 12px;
+	border-radius: var(--ui-radius-md);
+	color: var(--ui-color-text-secondary);
+	text-decoration: none;
+	font-size: var(--ui-font-size-md);
+	font-weight: 500;
+}
+
+.shell-nav a:hover {
+	background: var(--ui-btn-neutral-hover);
+}
+
+.shell-nav a.shell-nav-active {
+	background: #dbeafe;
+	color: #1e40af;
+	font-weight: 700;
+}
+
+.shell-nav-icon {
+	font-size: 16px;
+	width: 1.4em;
+	text-align: center;
+}
+
+.shell-nav-scrim {
+	display: none;
+}
+
+.app-shell-content {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow-y: auto;
+	background: var(--ui-color-bg-subtle);
+}
+
+@media (max-width: 760px) {
+	.shell-hamburger {
+		display: inline-flex;
+	}
+
+	.shell-nav {
+		position: fixed;
+		top: 105px;
+		left: 0;
+		bottom: 0;
+		width: 240px;
+		transform: translateX(-100%);
+		transition: transform 0.2s ease;
+		z-index: 20;
+		box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+	}
+
+	.shell-nav.shell-nav-open {
+		transform: translateX(0);
+	}
+
+	.shell-nav-scrim {
+		display: block;
+		position: fixed;
+		inset: 105px 0 0 0;
+		background: rgba(0, 0, 0, 0.3);
+		z-index: 10;
+	}
+}
+
+/* ==========================================================================
+   Power-Management-App: Zeitfenster-Auswahl + Canvas-Zeitreihen-Diagramme
+   (Zeichnen selbst in apps/line-chart.ts, keine Chart-Bibliothek).
+   ========================================================================== */
+
+.power-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.duration-buttons {
+	display: flex;
+	gap: 6px;
+}
+
+.duration-btn {
+	height: 30px;
+	padding: 0 12px;
+}
+
+.duration-btn-active {
+	background: #dbeafe;
+	color: #1e40af;
+	border-color: #93c5fd;
+}
+
+.power-chart-grid {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.power-chart-card {
+	min-height: 220px;
+}
+
+.power-chart-canvas {
+	width: 100%;
+	height: 180px;
+	display: block;
+}
+
+.power-readout {
+	float: right;
+	font-variant-numeric: tabular-nums;
+	color: var(--ui-color-text-secondary);
+}
+
+.system-refresh-btn {
+	float: right;
+	height: 28px;
+	padding: 0 10px;
+	font-size: 12px;
 }
 
 .app-panel {

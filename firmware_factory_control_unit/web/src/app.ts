@@ -1,98 +1,18 @@
-import { LitElement, html } from "lit";
-import { customElement, state } from "lit/decorators.js";
-import "./styles.css";
-import "./register-panel.js";
-import { REGIONS } from "./register-map.js";
-import { fetchRegisters, writeHolding, type RegisterValues } from "./api.js";
+// Entry-Point: baut die Dashboard-Shell auf und haengt die drei Apps ein (Reihenfolge der
+// RegisterApp()-Aufrufe bestimmt die Reihenfolge in der Sidebar). Kein Websocket, kein Login --
+// jede App spricht bei Bedarf direkt schlankes HTTP/Fetch (s. api.ts).
+import "./shell/app-shell.js";
+import "./apps/modbus-register-app.js";
+import "./apps/power-management-app.js";
+import "./apps/system-info-app.js";
+import type { AppShell } from "./shell/app-shell.js";
 
-const POLL_INTERVAL_MS = 1000;
+document.addEventListener("DOMContentLoaded", () => {
+	const shell = document.querySelector("app-shell") as AppShell;
 
-@customElement("register-ui")
-export class RegisterUi extends LitElement {
-	protected createRenderRoot() {
-		return this;
-	}
+	shell.RegisterApp("/", "Modbus-Register", "🔧", document.createElement("modbus-register-app"));
+	shell.RegisterApp("/power", "Power Management", "⚡", document.createElement("power-management-app"));
+	shell.RegisterApp("/system", "System", "🖥️", document.createElement("system-info-app"));
 
-	@state() private values: RegisterValues = { holding: [], input: [] };
-	@state() private statusMessage = "Lade Register...";
-	@state() private statusVariant: "warning" | "success" | "error" = "warning";
-
-	private pollTimeoutHandle?: ReturnType<typeof setTimeout>;
-	private stopped = false;
-
-	connectedCallback() {
-		super.connectedCallback();
-		this.stopped = false;
-		this.scheduleNextPoll(0);
-	}
-
-	disconnectedCallback() {
-		super.disconnectedCallback();
-		this.stopped = true;
-		if (this.pollTimeoutHandle) {
-			clearTimeout(this.pollTimeoutHandle);
-		}
-	}
-
-	private scheduleNextPoll(delayMs: number) {
-		if (this.stopped) {
-			return;
-		}
-		this.pollTimeoutHandle = setTimeout(() => {
-			void this.poll().finally(() => this.scheduleNextPoll(POLL_INTERVAL_MS));
-		}, delayMs);
-	}
-
-	// Bewusst NIE ueberlappend: der naechste Poll wird erst geplant, NACHDEM dieser
-	// abgeschlossen ist (siehe scheduleNextPoll), statt per setInterval fest im Takt zu
-	// feuern -- der kleine 4-Paket-Server-Pool und der einzelne HTTP-Server-Thread der
-	// Firmware koennen sonst von mehreren gleichzeitig laufenden Mehr-Paket-Antworten
-	// leergefegt werden und haengen bleiben.
-	private async poll() {
-		try {
-			this.values = await fetchRegisters();
-			const now = new Date().toLocaleTimeString("de-DE");
-			this.statusMessage = `Verbunden -- zuletzt aktualisiert ${now}`;
-			this.statusVariant = "success";
-		} catch (error) {
-			console.error("Register-Abfrage fehlgeschlagen", error);
-			this.statusMessage = "Verbindungsproblem zur Control-Unit";
-			this.statusVariant = "error";
-		}
-	}
-
-	private async handleWriteRegister(ev: Event) {
-		const { address, value } = (ev as CustomEvent<{ address: number; value: number }>).detail;
-		try {
-			await writeHolding(address, value);
-			await this.poll();
-		} catch (error) {
-			console.error("Schreiben fehlgeschlagen", error);
-			this.statusMessage = "Schreiben fehlgeschlagen";
-			this.statusVariant = "error";
-		}
-	}
-
-	render() {
-		return html`
-			<div class="container">
-				<section class="header-section app-panel">
-					<div class="panel-label">Modbus Register Console</div>
-					<div class="status-text status-${this.statusVariant}">${this.statusMessage}</div>
-				</section>
-
-				<div class="region-grid" @write-register=${this.handleWriteRegister}>
-					${REGIONS.map(
-						(region) => html`
-							<register-panel
-								.region=${region}
-								.holdingValues=${this.values.holding}
-								.inputValues=${this.values.input}
-							></register-panel>
-						`
-					)}
-				</div>
-			</div>
-		`;
-	}
-}
+	shell.Start();
+});

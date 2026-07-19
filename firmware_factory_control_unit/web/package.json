@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "embed": "vite build && node scripts/embed-into-firmware.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "generate:build-info": "node ../tools/generate-build-info.mjs"
   },
   "dependencies": {
     "lit": "^3.3.2"

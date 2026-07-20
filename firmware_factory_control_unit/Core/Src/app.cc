@@ -22,6 +22,14 @@ constexpr uint32_t IO_THREAD_STACK_SIZE = 6 * 1024;
 // IO-Thread schlaeft ohnehin ~50ms pro Zyklus (s. io.hpp IO_THREAD_SLEEP_TICKS), gibt dem
 // Netzwerk-Stack also reichlich Gelegenheit, ohne dass der Sensor-Zyklus verdraengt wird.
 constexpr uint32_t IO_THREAD_PRIORITY = 8;
+constexpr uint32_t USBD_DEVICE_THREAD_STACK_SIZE = 4 * 1024;
+// Zwischen Modbus (5, zeitkritischste TCP-Antworten) und io_thread (8) angesiedelt -- s.
+// Begruendung in app.hh (USB-Full-Speed-Timing vertraegt keinen 50ms-Zyklus).
+constexpr uint32_t USBD_DEVICE_THREAD_PRIORITY = 6;
+constexpr uint32_t HEARTBEAT_THREAD_STACK_SIZE = 2 * 1024;
+// Niedrigste Prioritaet aller App-Threads (grosse Zahl) -- reine Diagnose, darf nirgendwo
+// dazwischenfunken, schlaeft ohnehin 3s pro Zyklus.
+constexpr uint32_t HEARTBEAT_THREAD_PRIORITY = 12;
 
 // TX_MUTEX{} zero-initialisiert u.a. tx_mutex_id -- tx_mutex_create() setzt dieses Feld
 // intern auf die magische Konstante TX_MUTEX_ID (ungleich 0, s. tx_mutex.h), daher genuegt ein
@@ -97,6 +105,14 @@ void App::IOThreadStatic(ULONG arg) {
     reinterpret_cast<App*>(arg)->IOThread();
 }
 
+void App::UsbdDeviceThreadStatic(ULONG arg) {
+    reinterpret_cast<App*>(arg)->UsbdDeviceThread();
+}
+
+void App::HeartbeatThreadStatic(ULONG arg) {
+    reinterpret_cast<App*>(arg)->HeartbeatThread();
+}
+
 void App::ModbusServerThread(){
     this->modbus_server->initialize();
     log_info("Modbus TCP Server started on port 502");
@@ -107,6 +123,65 @@ void App::IOThread() {
     this->io->Setup();
     log_info("I/O Thread started");
     this->io->Loop();
+}
+
+[[noreturn]] void App::UsbdDeviceThread() {
+    usbd_device_setup(this->chip_uid[0], this->chip_uid[1], this->chip_uid[2]);
+    log_info("USB Device Thread started");
+    usbd_device_loop();
+}
+
+// Rein diagnostisch: liest ausschliesslich bereits vom io_thread periodisch aktualisierte
+// Register (CPU_TEMPERATURE_C/FREE_HEAP_KIB/PWR_*, s. cpu_temp.hh/power.hh/io.cpp) -- kein
+// eigener Zugriff auf DTS/I2C4, daher unkritisch bzgl. Peripherie-Besitz/Timing des io_threads.
+// PWR_STATUS==0 bedeutet "INA226 erkannt und Read() erfolgreich" (s. power.hh); ohne das faellt
+// die Zeile auf einen "n/a"-Hinweis zurueck statt eine Spannung/Strom von 0 vorzutaeuschen.
+[[noreturn]] void App::HeartbeatThread() {
+    log_info("Heartbeat Thread started");
+    while (true) {
+        int16_t cpu_temp_c = (int16_t)this->register_model->GetInputRegister(ModbusRegisters::Input::CPU_TEMPERATURE_C);
+        uint16_t free_heap_kib = this->register_model->GetInputRegister(ModbusRegisters::Input::FREE_HEAP_KIB);
+        bool power_ok = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_STATUS) == 0;
+
+        // usbd_device_get_isr_count(): reine Diagnose fuer den USB-Enumerations-Haenger (s.
+        // Debugging-Sitzung) -- waechst der Zaehler zwischen zwei Heartbeats stark, deutet das
+        // auf einen Interrupt-Storm hin.
+        uint32_t usb_isr_count = usbd_device_get_isr_count();
+
+        // Diagnose (Debugging-Sitzung, Heartbeat-Intervall stimmt nicht): tx_time_get() (ThreadX/
+        // SysTick) neben HAL_GetTick() (TIM6, unabhaengige Uhr, treibt die Log-Zeitstempel selbst)
+        // -- falls beide Uhren nicht mehr im erwarteten 1:10-Verhaeltnis (TX_TIMER_TICKS_PER_SECOND
+        // =100 -> 10ms/Tick) zueinander stehen, laeuft eine von beiden falsch getaktet (s.
+        // historischer Kommentar in tx_initialize_low_level.S zu genau dieser Art Bug).
+        ULONG tx_ticks_now = tx_time_get();
+        uint32_t hal_ms_now = HAL_GetTick();
+        // Dritte, von SysTick/TIM6 komplett unabhaengige Uhr: DWT-Zykluszaehler (zaehlt
+        // CPU-Takte bei HCLK=160MHz, von _tx_initialize_low_level() bereits per CYCCNTENA-Bit
+        // aktiviert) -- liefert die Grundwahrheit, welche der beiden anderen Uhren falsch tickt.
+        uint32_t dwt_cycles_now = DWT->CYCCNT;
+
+        if (power_ok) {
+            uint16_t bus_mv = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_BUS_VOLTAGE_MV);
+            int16_t current_ma = (int16_t)this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_CURRENT_MA);
+            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Bus=%u mV, Current=%d mA, USB-ISRs=%lu, txTicks=%lu, halMs=%lu, dwtCycles=%lu",
+                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned)bus_mv, (int)current_ma,
+                     (unsigned long)usb_isr_count, (unsigned long)tx_ticks_now, (unsigned long)hal_ms_now,
+                     (unsigned long)dwt_cycles_now);
+        } else {
+            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Power=n/a (INA226 nicht erkannt), USB-ISRs=%lu, txTicks=%lu, halMs=%lu, dwtCycles=%lu",
+                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned long)usb_isr_count,
+                     (unsigned long)tx_ticks_now, (unsigned long)hal_ms_now, (unsigned long)dwt_cycles_now);
+        }
+
+        // Bis zur naechsten durch 3 teilbaren Sekunde schlafen (statt starr 3s ab jetzt) --
+        // Ausgaben landen dadurch auf einem festen 0/3/6/9...-Sekundenraster seit Boot, statt
+        // mit der Zeit zu "wandern" (die Laufzeit des Schleifenkoerpers selbst wuerde sich sonst
+        // von Durchlauf zu Durchlauf aufsummieren).
+        ULONG now_seconds = tx_ticks_now / TX_TIMER_TICKS_PER_SECOND;
+        ULONG next_seconds = ((now_seconds / 3) + 1) * 3;
+        ULONG target_ticks = next_seconds * TX_TIMER_TICKS_PER_SECOND;
+        tx_thread_sleep(target_ticks - tx_ticks_now);
+    }
 }
 
 void App::AppThread() {
@@ -142,6 +217,23 @@ void App::AppThread() {
                      ptr, IO_THREAD_STACK_SIZE,
                      IO_THREAD_PRIORITY, IO_THREAD_PRIORITY,
                      TX_NO_TIME_SLICE, TX_AUTO_START), "IO thread create failed");
+
+    // Reaktionsschnell (s. Begruendung in app.hh): niedrigere Prioritaetszahl = hoehere
+    // Prioritaet als io_thread, damit USB-Enumeration/Bulk-Transfers nicht durch den
+    // 50ms-Sensor-/Aktor-Zyklus ausgebremst werden.
+    XASSERT(tx_byte_allocate(&this->byte_pool, &ptr, USBD_DEVICE_THREAD_STACK_SIZE, TX_NO_WAIT), "USB Device Thread stack allocate failed");
+    XASSERT(tx_thread_create(&this->usbd_device_thread, _C("USB Device Thread"),
+                     App::UsbdDeviceThreadStatic, (ULONG)this,
+                     ptr, USBD_DEVICE_THREAD_STACK_SIZE,
+                     USBD_DEVICE_THREAD_PRIORITY, USBD_DEVICE_THREAD_PRIORITY,
+                     TX_NO_TIME_SLICE, TX_AUTO_START), "USB Device thread create failed");
+
+    XASSERT(tx_byte_allocate(&this->byte_pool, &ptr, HEARTBEAT_THREAD_STACK_SIZE, TX_NO_WAIT), "Heartbeat Thread stack allocate failed");
+    XASSERT(tx_thread_create(&this->heartbeat_thread, _C("Heartbeat Thread"),
+                     App::HeartbeatThreadStatic, (ULONG)this,
+                     ptr, HEARTBEAT_THREAD_STACK_SIZE,
+                     HEARTBEAT_THREAD_PRIORITY, HEARTBEAT_THREAD_PRIORITY,
+                     TX_NO_TIME_SLICE, TX_AUTO_START), "Heartbeat thread create failed");
 }
 
 void App::fillRegistersWithInitialValues() {

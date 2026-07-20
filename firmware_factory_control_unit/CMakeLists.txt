@@ -177,6 +177,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/webserver.cpp
     Core/Src/io.cpp
     Core/Src/usb_pd_control.cpp
+    Core/Src/usbd_device.c
     Core/Src/fx_stm32_sd_driver_adapter.c
     Core/Src/tx_initialize_low_level.S
     libs/hw/vl53l0x/vl53l0x.cpp
@@ -261,6 +262,29 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 add_subdirectory(../stm32_libs/common_stm32 ${CMAKE_BINARY_DIR}/stm32_libs/common_stm32)
 add_subdirectory(../stm32_libs/tmc2209 ${CMAKE_BINARY_DIR}/stm32_libs/tmc2209)
 add_subdirectory(../stm32_libs/usb_pd ${CMAKE_BINARY_DIR}/stm32_libs/usb_pd)
+add_subdirectory(../stm32_libs/tinyusb_port ${CMAKE_BINARY_DIR}/stm32_libs/tinyusb_port)
+# tusb_config.h ist projektspezifisch und liegt hier (nicht im wiederverwendbaren
+# tinyusb_port-Target selbst, s. dortige CMakeLists.txt) -- TinyUSBs eigene Quellen brauchen ihn
+# beim Kompilieren ebenso wie unser eigener Code weiter unten. osal_threadx.h (CFG_TUSB_OS=
+# OPT_OS_THREADX) braucht zusaetzlich tx_api.h -- dieselben ThreadX-Include-Pfade wie unten fuer
+# das Hauptexecutable.
+target_include_directories(tinyusb_port PRIVATE
+    Core/Inc
+    libs/ST/threadx/common/inc
+    libs/ST/threadx/ports/cortex_m33/gnu/inc
+)
+# KRITISCH fuer ABI-Konsistenz: ohne TX_INCLUDE_USER_DEFINE_FILE sieht tinyusb_port
+# Core/Inc/tx_user.h nie -- dort ist u.a. TX_DISABLE_NOTIFY_CALLBACKS aktiv gesetzt, was
+# TX_QUEUE (und andere ThreadX-Structs) um ein Funktionszeiger-Feld verkleinert (s. tx_api.h).
+# Ohne dieses Define kompiliert tinyusb_port gegen ein GROESSERES TX_QUEUE als der Rest der
+# Firmware -- osal_threadx.h's osal_queue_create() uebergibt dann ein falsches sizeof(TX_QUEUE)
+# an _txe_queue_create(), deren eigene Kontrollblockgroessen-Pruefung das als Fehler erkennt und
+# tud_rhport_init() daran bei jedem tusb_init()-Aufruf deterministisch scheitern laesst (TU_ASSERT
+# bei der Queue-Erstellung in usbd.c) -- ohne angeschlossenen Debugger unbemerkt, da
+# TU_BREAKPOINT() auf Cortex-M nur bei aktivem Debug-Session tatsaechlich anhaelt.
+target_compile_definitions(tinyusb_port PRIVATE
+    TX_INCLUDE_USER_DEFINE_FILE
+)
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
@@ -268,6 +292,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     common_stm32
     tmc2209
     usb_pd
+    tinyusb_port
 
     # Add user defined libraries
 )

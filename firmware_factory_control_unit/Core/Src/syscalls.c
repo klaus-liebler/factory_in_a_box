@@ -30,6 +30,7 @@
 #include <sys/time.h>
 #include <sys/times.h>
 #include "main.h"
+#include "tusb.h"
 
 
 /* Variables */
@@ -80,9 +81,33 @@ __attribute__((weak)) int _read(int file, char *ptr, int len)
 
 extern UART_HandleTypeDef huart3;
 
+// Spiegelung auf die virtuelle "FactoryControl Debug"-CDC-Schnittstelle (Interface 0) --
+// best-effort/nicht blockierend: tud_cdc_n_write() kopiert nur in den internen Ringpuffer
+// (verwirft ueberschuessige Bytes bei vollem Puffer statt zu blockieren). tud_mounted() (Host
+// hat SET_CONFIGURATION abgeschlossen) statt tud_cdc_n_connected() als Gate -- Letzteres
+// spiegelt nur die DTR-Leitung wider, die laengst nicht jedes Terminal-Programm beim Verbinden
+// setzt. tud_inited() ist auch vor tusb_init() gefahrlos aufrufbar (liefert dann false).
+//
+// In BEIDEN moeglichen stdio-Pfaden aufgerufen (Debugging-Sitzung: welcher davon tatsaechlich
+// aktiv ist, haengt von der verlinkten C-Bibliothek ab -- Picolibcs FDEV_SETUP_STREAM ruft
+// __io_putchar() zeichenweise auf, waehrend Standard-Newlib stattdessen ueber den
+// dateideskriptor-basierten _write()-Mechanismus laeuft; nur einer von beiden wird von printf/
+// log_log() tatsaechlich durchlaufen, je nachdem was gerade verlinkt ist). Ungefaehrliches
+// Duplizieren: der jeweils inaktive Pfad wird schlicht nie aufgerufen.
+static void usbd_cdc_debug_mirror(uint8_t const *buf, int len) {
+    if (!(tud_inited() && tud_mounted())) {
+        return;
+    }
+    tud_cdc_n_write(0, buf, (uint32_t)len);
+    if (len > 0 && buf[len - 1] == (uint8_t)'\n') {
+        tud_cdc_n_write_flush(0);
+    }
+}
+
 int __io_putchar(int ch) {
     uint8_t c = (uint8_t)ch;
     HAL_UART_Transmit(&huart3, &c, 1, HAL_MAX_DELAY);
+    usbd_cdc_debug_mirror(&c, 1);
     return ch;
 }
 
@@ -90,6 +115,7 @@ __attribute__((weak)) int _write(int file, char *ptr, int len)
 {
   (void)file;
   HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, HAL_MAX_DELAY);
+  usbd_cdc_debug_mirror((uint8_t const *)ptr, len);
   return len;
 }
 

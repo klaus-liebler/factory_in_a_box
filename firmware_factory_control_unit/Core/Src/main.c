@@ -151,7 +151,16 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  // BUG-Fix (Debugging-Sitzung, Heartbeat-Zeitstempel liefen ~11.5x zu langsam): HAL_Init()
+  // (oben) ruft HAL_InitTick() auf, bevor SystemClock_Config() den finalen 160MHz-Takt setzt --
+  // TIM6 (HAL-Timebase, s. stm32h5xx_hal_timebase_tim.c) wird dabei anhand des zu diesem
+  // Zeitpunkt noch aktiven Boot-Default-Takts kalibriert. HAL_RCC_ClockConfig() (von
+  // SystemClock_Config() aufgerufen) ruft HAL_InitTick() NICHT automatisch erneut auf (das tut
+  // nur HAL_RCC_DeInit(), ein unabhaengiger Pfad) -- TIM6 blieb dadurch dauerhaft auf dem
+  // falschen (viel niedrigeren) Takt kalibriert, HAL_GetTick()/HAL_Delay() liefen seither zu
+  // langsam. Erneuter Aufruf hier (nach dem Takt-Umschalten) kalibriert TIM6 mit der dann
+  // korrekt per HAL_RCC_GetPCLK1Freq() ausgelesenen finalen Taktung neu.
+  HAL_InitTick(TICK_INT_PRIORITY);
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -1445,7 +1454,14 @@ static void MX_USB_PCD_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USB_Init 2 */
-
+  // Der USB_DRD_FS-Interrupt (NVIC-Freischaltung, Prioritaet, ISR) wird bewusst NICHT von
+  // CubeMX verwaltet (im .ioc kein NVIC-Haekchen fuer USB_DRD_FS_IRQn) -- TinyUSBs
+  // dcd_stm32_fsdev-Treiber besitzt die Peripherie exklusiv und regelt Freischaltung/Sperrung
+  // selbst (dcd_int_enable()/dcd_int_disable(), aufgerufen aus tusb_init()/tud_deinit()).
+  // Haette CubeMX hier zusaetzlich HAL_NVIC_EnableIRQ() aufgerufen, koennte der Interrupt schon
+  // vor tusb_init() feuern (z.B. wenn beim Boot bereits ein Host/5V an PC0/USB_VSENSE anliegt)
+  // und dabei RAM korrumpieren, da TinyUSBs interner Zustand (Queue/Mutex) dann noch nicht
+  // existiert. Handler-Funktion, Prioritaet und Lifecycle liegen vollstaendig in usbd_device.c.
   /* USER CODE END USB_Init 2 */
 
 }
@@ -1499,10 +1515,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : ETHERCAT_IRQ_Pin TOF1_IRQ_Pin LIGHTBARRIER1_Pin LIGHTBARRIER2_Pin
-                           LIGHTBARRIER3_Pin PC11 */
-  GPIO_InitStruct.Pin = ETHERCAT_IRQ_Pin|TOF1_IRQ_Pin|LIGHTBARRIER1_Pin|LIGHTBARRIER2_Pin
-                          |LIGHTBARRIER3_Pin|GPIO_PIN_11;
+  /*Configure GPIO pins : ETHERCAT_IRQ_Pin TOF1_IRQ_Pin USB_VSENSE_Pin LIGHTBARRIER1_Pin
+                           LIGHTBARRIER2_Pin LIGHTBARRIER3_Pin PC11 */
+  GPIO_InitStruct.Pin = ETHERCAT_IRQ_Pin|TOF1_IRQ_Pin|USB_VSENSE_Pin|LIGHTBARRIER1_Pin
+                          |LIGHTBARRIER2_Pin|LIGHTBARRIER3_Pin|GPIO_PIN_11;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);

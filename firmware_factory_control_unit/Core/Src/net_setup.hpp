@@ -13,3 +13,10 @@ class App;
 
 void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool);
 void net_setup_start(App *app);
+
+// Oeffnet (bzw. re-oeffnet) das FileX-Medium der microSD-Karte auf app->sd_media. Card optional:
+// gibt bei fehlender/defekter Karte false zurueck, statt zu blockieren/abzustuerzen -- Aufrufer
+// laesst app->sd_media in diesem Fall einfach ungenutzt. Wiederverwendet von net_setup_start()
+// (initiales Oeffnen beim Boot) und vom SD/USB-Arbiter (Rueckgabe der Karte an die Firmware nach
+// einem USB-MSC-Zugriffsfenster, s. sd_usb_arbiter.hh).
+bool sd_media_try_open(App *app);

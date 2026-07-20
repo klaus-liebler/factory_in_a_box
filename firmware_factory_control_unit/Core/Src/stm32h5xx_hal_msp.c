@@ -110,17 +110,10 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     /* Peripheral clock enable */
     __HAL_RCC_ADC_CLK_ENABLE();
 
-    __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**ADC1 GPIO Configuration
-    PC0     ------> ADC1_INP10
     PA4     ------> ADC1_INP18
     */
-    GPIO_InitStruct.Pin = USB_VSENSE_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(USB_VSENSE_GPIO_Port, &GPIO_InitStruct);
-
     GPIO_InitStruct.Pin = PRESSURESENSOR_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -151,11 +144,8 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     __HAL_RCC_ADC_CLK_DISABLE();
 
     /**ADC1 GPIO Configuration
-    PC0     ------> ADC1_INP10
     PA4     ------> ADC1_INP18
     */
-    HAL_GPIO_DeInit(USB_VSENSE_GPIO_Port, USB_VSENSE_Pin);
-
     HAL_GPIO_DeInit(PRESSURESENSOR_GPIO_Port, PRESSURESENSOR_Pin);
 
     /* USER CODE BEGIN ADC1_MspDeInit 1 */

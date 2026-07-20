@@ -103,15 +103,9 @@ bool INA226::Init() {
         return false;
     }
 
-    // Kalibrierung zurücklesen und loggen -- der CURRENT-/POWER-Register-ALU des Chips liefert
-    // ohne (oder mit versehentlich 0 geschriebener) Kalibrierung IMMER 0 zurueck, auch wenn
-    // Shunt-/Busspannung genuin korrekt gemessen werden. Diese Zeile macht sichtbar, ob genau
-    // das der Grund fuer eine dauerhaft 0 mA anzeigende Strommessung ist.
-    uint16_t cal_readback = 0xFFFF;
-    readReg16(reg::CALIBRATION, &cal_readback);
-    log_info("INA226: Init OK, current_lsb=%ld.%03ld mA/bit, CAL geschrieben=%u zurueckgelesen=%u",
+    log_info("INA226: Init OK, current_lsb=%ld.%03ld mA/bit, CAL geschrieben=%u",
              (long)current_lsb_ma_, (long)((current_lsb_ma_ - (long)current_lsb_ma_) * 1000),
-             (unsigned int)cal, (unsigned int)cal_readback);
+             (unsigned int)cal);
     return true;
 }
 

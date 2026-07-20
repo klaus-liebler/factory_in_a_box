@@ -1,12 +1,21 @@
 // ============================================================================
 // ThreadX Application Wiring -- erzeugt alle Pools/Threads (tx_application_define(), laeuft
 // vor dem Scheduler) und orchestriert danach den Boot-Ablauf (App::AppThread(), der einzige
-// Thread mit TX_AUTO_START). Nur drei ThreadX-Threads insgesamt:
+// Thread mit TX_AUTO_START). Vier ThreadX-Threads insgesamt (bewusst nicht mehr nur drei, s.
+// usbd_device_thread unten):
 //   - app_main_thread: einmaliger Boot-Orchestrator (FileX/TLS/HTTP/DHCP/Modbus-Setup, dann
-//     Start der beiden anderen Threads)
+//     Start der uebrigen Threads)
 //   - modbus_server_thread: blockierender TCP-Accept-Loop (ModbusTcpServer::run())
 //   - io_thread: EIN gemeinsamer Thread fuer alle Sensoren/Aktoren (s. io.cpp fuer die
 //     Begruendung, warum das zusammengefasst werden konnte)
+//   - usbd_device_thread: TinyUSB tud_task()-Loop (s. usbd_device.cc). Bewusst NICHT in
+//     io_thread mit-erledigt (wie z.B. usb_pd_control.Loop()) -- USB Full-Speed braucht
+//     reaktionsschnelle Bedienung (~1ms-Frames), waehrend io_thread einen 50ms-Zyklus faehrt;
+//     ein Mischen wuerde Enumeration/Bulk-Durchsatz sichtbar ausbremsen.
+//   - heartbeat_thread: reine Diagnose (Log-Zeile alle 3s: CPU-Temperatur/freier Heap/
+//     Bus-Spannung/Strom). Bewusst NICHT im io_thread (koennte durch dessen Sensor-/Aktor-
+//     Zyklus verzoegert werden) -- liest nur bereits von io_thread periodisch aktualisierte
+//     Register (kein eigener I2C/DTS-Zugriff, keine Konkurrenz zu deren Peripherie-Besitz).
 // ============================================================================
 #pragma once
 #include <cstdint>
@@ -14,6 +23,7 @@
 #include "net_setup.hpp"
 #include "io.hpp"
 #include "usb_pd_control.hpp"
+#include "usbd_device.h"
 
 #include "modbus_register_model.hh"
 #include "modbus_tcp_server.hpp"
@@ -94,6 +104,8 @@ public:
     TX_THREAD app_main_thread;
     TX_THREAD modbus_server_thread;
     TX_THREAD io_thread;
+    TX_THREAD usbd_device_thread;
+    TX_THREAD heartbeat_thread;
     uint32_t chip_uid[3];
     ModbusRegisterModel* register_model = nullptr;
 
@@ -101,7 +113,11 @@ public:
     void AppThread();
     void ModbusServerThread();
     void IOThread();
+    [[noreturn]] void UsbdDeviceThread();
+    [[noreturn]] void HeartbeatThread();
     static void AppThreadStatic(ULONG arg);
     static void ModbusServerThreadStatic(ULONG arg);
     static void IOThreadStatic(ULONG arg);
+    static void UsbdDeviceThreadStatic(ULONG arg);
+    static void HeartbeatThreadStatic(ULONG arg);
 };

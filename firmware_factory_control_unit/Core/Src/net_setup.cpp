@@ -63,6 +63,13 @@ constexpr uint32_t MDNS_PEER_CACHE_SIZE = 1024;
 // intern einen Pointer darauf), daher statisch statt lokal in net_setup_start().
 static NX_SECURE_X509_CERT g_device_certificate;
 
+// FileX haelt diesen Zeiger als Sektor-Cache fuer die gesamte Lebensdauer des geoeffneten
+// Mediums, nicht nur waehrend fx_media_open() selbst -- muss deshalb Dateiscope-static statt
+// lokale Variable in sd_media_try_open() sein (sonst stille Speicherkorruption des FileX-Caches
+// nach Verlassen der Funktion). Wird sowohl vom initialen Oeffnen in net_setup_start() als auch
+// vom SD/USB-Arbiter beim Zurueckgeben der Karte an die Firmware wiederverwendet.
+static uint32_t sd_media_sector_cache[512];
+
 // IP address change callback
 static void ip_address_change_notify_callback(NX_IP *ip_instance, VOID *ptr) {
     App* app = static_cast<App*>(ptr);
@@ -145,31 +152,28 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     XASSERT(nx_dhcp_create(&app->dhcp_client, &app->ip_instance, _C("DHCP Client")), "DHCP Client create failed");
 }
 
-void net_setup_start(App *app) {
-    // static: FileX haelt diesen Zeiger als Sektor-Cache fuer die gesamte Lebensdauer des
-    // geoeffneten Mediums, nicht nur waehrend fx_media_open() selbst -- als einfache lokale
-    // Stack-Variable waere der Speicher ab dem Return aus dieser Funktion (net_setup_start()
-    // ist kein Thread-Entry-Point mehr, der nie zurueckkehrt, sondern eine normale, aus
-    // app_main_thread_entry() aufgerufene Funktion) sofort wieder ueberschrieben worden --
-    // stille Speicherkorruption des FileX-Caches bei jedem weiteren Funktionsaufruf danach.
-    static uint32_t sd_media_sector_cache[512];
-
-    // Karte optional: keine gesteckte/funktionierende microSD darf den Rest des Boots
-    // (Netzwerk/Modbus/alles) nicht blockieren -- HAL_SD_Init() in main.c haelt bei
-    // fehlender Karte inzwischen ebenfalls nicht mehr an (s. dortiger Kommentar). Ohne
-    // erfolgreich geoeffnetes Medium bleibt g_app_state.sd_media einfach ungenutzt; der
-    // HTTP-Server wurde bereits mit dem (dann inhaltsleeren) FX_MEDIA-Zeiger erstellt und
-    // faellt fuer alle von webserver_request_callback() nicht selbst beantworteten URLs auf
-    // NetX Duo's eigene FileX-basierte Dateiauslieferung zurueck, die ein nicht geoeffnetes
-    // Medium ihrerseits mit einem HTTP-Fehler statt eines Absturzes quittiert.
+// Karte optional: keine gesteckte/funktionierende microSD darf den Rest des Boots
+// (Netzwerk/Modbus/alles) nicht blockieren -- HAL_SD_Init() in main.c haelt bei
+// fehlender Karte inzwischen ebenfalls nicht mehr an (s. dortiger Kommentar). Ohne
+// erfolgreich geoeffnetes Medium bleibt app->sd_media einfach ungenutzt; der
+// HTTP-Server wurde bereits mit dem (dann inhaltsleeren) FX_MEDIA-Zeiger erstellt und
+// faellt fuer alle von webserver_request_callback() nicht selbst beantworteten URLs auf
+// NetX Duo's eigene FileX-basierte Dateiauslieferung zurueck, die ein nicht geoeffnetes
+// Medium ihrerseits mit einem HTTP-Fehler statt eines Absturzes quittiert.
+bool sd_media_try_open(App *app) {
     UINT sd_status = fx_media_open(&app->sd_media, _C("STM32_SDIO_DISK"),
                                     fx_stm32_sd_driver, 0,
                                     (VOID *)sd_media_sector_cache, sizeof(sd_media_sector_cache));
     if (sd_status == FX_SUCCESS) {
         log_info("FileX media opened");
-    } else {
-        log_warn("FileX media open failed (status=0x%x) - continuing without microSD card", sd_status);
+        return true;
     }
+    log_warn("FileX media open failed (status=0x%x) - continuing without microSD card", sd_status);
+    return false;
+}
+
+void net_setup_start(App *app) {
+    sd_media_try_open(app);
 
     // --- HTTPS (NetX Secure TLS) Setup ---
     // Zertifikat + privater Schluessel kommen aus dem generierten device_certificate.c

@@ -24,6 +24,7 @@
 #include "io.hpp"
 #include "usb_pd_control.hpp"
 #include "usbd_device.h"
+#include "hal_tick_threadx.h"
 
 #include "modbus_register_model.hh"
 #include "modbus_tcp_server.hpp"

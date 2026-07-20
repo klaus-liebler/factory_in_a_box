@@ -69,6 +69,16 @@ endif()
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+# TIM6 wieder freigegeben: die .ioc-Zeitbasis wurde (ueber die CubeMX-GUI, nicht per Text-Edit --
+# ein Blind-Edit dieser Einstellung erwies sich zuvor als zu fragil, mehrere verzahnte
+# .ioc-Schluessel wie ein VP_SYS_VS_*-virtueller Pin haengen daran) von TIM6 auf SysTick
+# umgestellt. CubeMX generiert stm32h5xx_hal_timebase_tim.c dadurch gar nicht mehr -- kein
+# CMake-seitiger Ausschluss mehr noetig, TIM6 ist regenerationssicher frei. HAL_InitTick/
+# HAL_GetTick/HAL_Delay/HAL_SuspendTick/HAL_ResumeTick sind trotzdem weiterhin in
+# Core/Src/hal_tick_threadx.c stark neu definiert (ThreadX tx_time_get()/tx_thread_sleep(), mit
+# DWT-Zykluszaehler-Fallback vor Scheduler-Start bzw. aus einer ISR heraus) -- CubeMX wuerde sonst
+# nur auf den (von ThreadX exklusiv beanspruchten) SysTick zurueckfallen.
+
 # ST's eigene PCD-Header (stm32h5xx_hal_pcd.h, PCD_GET_EP_*_CNT()-Makros) verwenden
 # "count--" auf volatile-qualifizierten Structmembern -- ab GCC13/-std=c++20 dafuer ein
 # "-Wvolatile"-Deprecation-Warning. Ein #pragma GCC system_header direkt in der Datei wuerde
@@ -178,6 +188,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/io.cpp
     Core/Src/usb_pd_control.cpp
     Core/Src/usbd_device.c
+    Core/Src/hal_tick_threadx.c
     Core/Src/fx_stm32_sd_driver_adapter.c
     Core/Src/tx_initialize_low_level.S
     libs/hw/vl53l0x/vl53l0x.cpp

@@ -142,35 +142,16 @@ void App::IOThread() {
         int16_t cpu_temp_c = (int16_t)this->register_model->GetInputRegister(ModbusRegisters::Input::CPU_TEMPERATURE_C);
         uint16_t free_heap_kib = this->register_model->GetInputRegister(ModbusRegisters::Input::FREE_HEAP_KIB);
         bool power_ok = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_STATUS) == 0;
-
-        // usbd_device_get_isr_count(): reine Diagnose fuer den USB-Enumerations-Haenger (s.
-        // Debugging-Sitzung) -- waechst der Zaehler zwischen zwei Heartbeats stark, deutet das
-        // auf einen Interrupt-Storm hin.
-        uint32_t usb_isr_count = usbd_device_get_isr_count();
-
-        // Diagnose (Debugging-Sitzung, Heartbeat-Intervall stimmt nicht): tx_time_get() (ThreadX/
-        // SysTick) neben HAL_GetTick() (TIM6, unabhaengige Uhr, treibt die Log-Zeitstempel selbst)
-        // -- falls beide Uhren nicht mehr im erwarteten 1:10-Verhaeltnis (TX_TIMER_TICKS_PER_SECOND
-        // =100 -> 10ms/Tick) zueinander stehen, laeuft eine von beiden falsch getaktet (s.
-        // historischer Kommentar in tx_initialize_low_level.S zu genau dieser Art Bug).
         ULONG tx_ticks_now = tx_time_get();
-        uint32_t hal_ms_now = HAL_GetTick();
-        // Dritte, von SysTick/TIM6 komplett unabhaengige Uhr: DWT-Zykluszaehler (zaehlt
-        // CPU-Takte bei HCLK=160MHz, von _tx_initialize_low_level() bereits per CYCCNTENA-Bit
-        // aktiviert) -- liefert die Grundwahrheit, welche der beiden anderen Uhren falsch tickt.
-        uint32_t dwt_cycles_now = DWT->CYCCNT;
 
         if (power_ok) {
             uint16_t bus_mv = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_BUS_VOLTAGE_MV);
             int16_t current_ma = (int16_t)this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_CURRENT_MA);
-            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Bus=%u mV, Current=%d mA, USB-ISRs=%lu, txTicks=%lu, halMs=%lu, dwtCycles=%lu",
-                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned)bus_mv, (int)current_ma,
-                     (unsigned long)usb_isr_count, (unsigned long)tx_ticks_now, (unsigned long)hal_ms_now,
-                     (unsigned long)dwt_cycles_now);
+            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Bus=%u mV, Current=%d mA",
+                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned)bus_mv, (int)current_ma);
         } else {
-            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Power=n/a (INA226 nicht erkannt), USB-ISRs=%lu, txTicks=%lu, halMs=%lu, dwtCycles=%lu",
-                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned long)usb_isr_count,
-                     (unsigned long)tx_ticks_now, (unsigned long)hal_ms_now, (unsigned long)dwt_cycles_now);
+            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Power=n/a (INA226 nicht erkannt)",
+                     (int)cpu_temp_c, (unsigned)free_heap_kib);
         }
 
         // Bis zur naechsten durch 3 teilbaren Sekunde schlafen (statt starr 3s ab jetzt) --
@@ -180,12 +161,24 @@ void App::IOThread() {
         ULONG now_seconds = tx_ticks_now / TX_TIMER_TICKS_PER_SECOND;
         ULONG next_seconds = ((now_seconds / 3) + 1) * 3;
         ULONG target_ticks = next_seconds * TX_TIMER_TICKS_PER_SECOND;
-        tx_thread_sleep(target_ticks - tx_ticks_now);
+        // -1: tx_thread_sleep(N) garantiert nur "mindestens N Ticks" -- in der Praxis wacht der
+        // Thread erst nach N+1 Ticks auf (er wartet den aktuell schon angebrochenen Tick noch
+        // vollstaendig ab, s. Debugging-Sitzung: txTicks landete deshalb immer auf .../...01
+        // statt .../...00). Ein Tick weniger anfordern kompensiert das, sodass wir tatsaechlich
+        // exakt auf target_ticks aufwachen. sleep_ticks bleibt dabei immer >=1 (target liegt per
+        // Konstruktion mindestens 1 Tick, hoechstens 300 Ticks in der Zukunft).
+        ULONG sleep_ticks = target_ticks - tx_ticks_now - 1;
+        tx_thread_sleep(sleep_ticks);
     }
 }
 
 void App::AppThread() {
     void *ptr = nullptr;
+
+    // Muss die allererste Zeile sein: ab hier laeuft echter ThreadX-Thread-Kontext (dieser
+    // Thread ist der einzige mit TX_AUTO_START), tx_thread_sleep() ist somit ab jetzt ueberall
+    // im Programm zulaessig -- s. hal_tick_threadx.c/HAL_Delay().
+    hal_tick_threadx_mark_running();
 
     net_setup_start(this);
 

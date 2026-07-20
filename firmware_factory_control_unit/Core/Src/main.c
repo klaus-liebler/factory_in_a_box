@@ -135,7 +135,15 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  // DWT-Zykluszaehler ganz am Anfang aktivieren (nicht erst in _tx_initialize_low_level(), das
+  // erst mit tx_kernel_enter() weit unten laeuft) -- hal_tick_threadx.c braucht ihn schon fuer
+  // HAL_Delay()/HAL_GetTick()-Aufrufe, die VOR dem ThreadX-Kernelstart passieren (z.B.
+  // App::SetupBeforeThreadX()'s ETH-PHY-Reset). Dieselben zwei Register wie in
+  // tx_initialize_low_level.S, hier nur redundant vorgezogen -- doppeltes Setzen von
+  // CYCCNTENA/TRCENA ist harmlos.
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -151,16 +159,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-  // BUG-Fix (Debugging-Sitzung, Heartbeat-Zeitstempel liefen ~11.5x zu langsam): HAL_Init()
-  // (oben) ruft HAL_InitTick() auf, bevor SystemClock_Config() den finalen 160MHz-Takt setzt --
-  // TIM6 (HAL-Timebase, s. stm32h5xx_hal_timebase_tim.c) wird dabei anhand des zu diesem
-  // Zeitpunkt noch aktiven Boot-Default-Takts kalibriert. HAL_RCC_ClockConfig() (von
-  // SystemClock_Config() aufgerufen) ruft HAL_InitTick() NICHT automatisch erneut auf (das tut
-  // nur HAL_RCC_DeInit(), ein unabhaengiger Pfad) -- TIM6 blieb dadurch dauerhaft auf dem
-  // falschen (viel niedrigeren) Takt kalibriert, HAL_GetTick()/HAL_Delay() liefen seither zu
-  // langsam. Erneuter Aufruf hier (nach dem Takt-Umschalten) kalibriert TIM6 mit der dann
-  // korrekt per HAL_RCC_GetPCLK1Freq() ausgelesenen finalen Taktung neu.
-  HAL_InitTick(TICK_INT_PRIORITY);
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -1579,28 +1578,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
-/**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM6 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  /* USER CODE BEGIN Callback 0 */
-
-  /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM6)
-  {
-    HAL_IncTick();
-  }
-  /* USER CODE BEGIN Callback 1 */
-
-  /* USER CODE END Callback 1 */
-}
 
 /**
   * @brief  This function is executed in case of error occurrence.

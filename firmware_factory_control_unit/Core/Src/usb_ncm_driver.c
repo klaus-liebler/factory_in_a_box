@@ -37,6 +37,16 @@ static volatile UCHAR g_driver_state;
 // ncm_driver_packet_send() (NetX-IP-Thread) und usb_ncm_driver_poll() (usbd_device_thread).
 static NX_PACKET *volatile g_tx_pending;
 
+// Vorlaeufige Diagnosezaehler (Hardware-Debugging DHCP-ueber-USB-NCM, s. usb_ncm_driver_poll()) --
+// zeigen, ob ueberhaupt Datagramme ankommen/rausgehen bzw. wo sie verworfen werden. Kandidat zum
+// Entfernen, sobald der DHCP-Handshake ueber USB-NCM nachweislich funktioniert.
+static volatile uint32_t g_diag_rx_count;
+static volatile uint32_t g_diag_rx_dropped;
+static volatile uint32_t g_diag_tx_count;
+static volatile uint32_t g_diag_tx_dropped;
+static volatile uint32_t g_diag_tx_sent;
+static void usb_ncm_driver_log_diagnostics(void);
+
 void usb_ncm_driver_init(NX_IP *ip_ptr, NX_PACKET_POOL *pool_ptr, const uint8_t mac[6]) {
     g_ip_ptr = ip_ptr;
     g_pool_ptr = pool_ptr;
@@ -106,8 +116,10 @@ static void ncm_driver_disable(NX_IP_DRIVER *driver_req_ptr) {
 
 static void ncm_driver_packet_send(NX_IP_DRIVER *driver_req_ptr) {
     NX_PACKET *packet_ptr = driver_req_ptr->nx_ip_driver_packet;
+    g_diag_tx_count++;
 
     if (g_driver_state != NCM_DRIVER_STATE_LINK_ENABLED) {
+        g_diag_tx_dropped++;
         nx_packet_transmit_release(packet_ptr);
         driver_req_ptr->nx_ip_driver_status = NX_NOT_SUCCESSFUL;
         return;
@@ -157,6 +169,7 @@ static void ncm_driver_packet_send(NX_IP_DRIVER *driver_req_ptr) {
     TX_RESTORE
 
     if (dropped) {
+        g_diag_tx_dropped++;
         nx_packet_transmit_release(packet_ptr);
         driver_req_ptr->nx_ip_driver_status = NX_NOT_SUCCESSFUL;
         return;
@@ -214,7 +227,10 @@ void nx_usb_ncm_driver(NX_IP_DRIVER *driver_req_ptr) {
 // fuer den Aufruf aus einem beliebigen Thread-Kontext ausgelegt (sie queuen das Paket nur fuer
 // den eigentlichen NetX-IP-Thread), muessen also NICHT selbst schon im IP-Thread laufen.
 bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
+    g_diag_rx_count++;
+
     if (g_driver_state != NCM_DRIVER_STATE_LINK_ENABLED || size < NCM_ETHERNET_HEADER_SIZE) {
+        g_diag_rx_dropped++;
         tud_network_recv_renew();
         return true;
     }
@@ -223,11 +239,13 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
     if (nx_packet_allocate(g_pool_ptr, &packet_ptr, NX_RECEIVE_PACKET, NX_NO_WAIT) != NX_SUCCESS) {
         // Pool momentan erschoepft -- Datagramm verwerfen statt zu blockieren (wuerde
         // usbd_device_thread und damit auch die anderen USB-Funktionen mit anhalten).
+        g_diag_rx_dropped++;
         tud_network_recv_renew();
         return true;
     }
 
     if (nx_packet_data_append(packet_ptr, (void *)src, size, g_pool_ptr, NX_NO_WAIT) != NX_SUCCESS) {
+        g_diag_rx_dropped++;
         nx_packet_release(packet_ptr);
         tud_network_recv_renew();
         return true;
@@ -266,6 +284,16 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg) {
 }
 
 void usb_ncm_driver_poll(void) {
+    // Vorlaeufig, alle ~3s (s. usb_ncm_driver_log_diagnostics()) -- selbststaendig gedrosselt statt
+    // ueber den Heartbeat-Thread, um dessen bewusst kompakt gehaltenes Log-Format nicht wieder
+    // aufzublaehen (s. Commit-Historie).
+    static ULONG next_diag_tick;
+    ULONG now = tx_time_get();
+    if (now >= next_diag_tick) {
+        usb_ncm_driver_log_diagnostics();
+        next_diag_tick = now + 3 * TX_TIMER_TICKS_PER_SECOND;
+    }
+
     if (!tud_ready()) {
         return;
     }
@@ -285,10 +313,22 @@ void usb_ncm_driver_poll(void) {
     // Synchroner Aufruf: tud_network_xmit() ruft intern sofort tud_network_xmit_cb() auf, die
     // Bytes sind danach bereits kopiert -- das NX_PACKET kann sofort freigegeben werden.
     tud_network_xmit(packet_ptr, 0);
+    g_diag_tx_sent++;
 
     TX_DISABLE
     g_tx_pending = NULL;
     TX_RESTORE
 
     nx_packet_transmit_release(packet_ptr);
+}
+
+// Vorlaeufige, alle ~3s gedruckte Diagnosezeile fuer das aktuelle Hardware-Debugging (DHCP ueber
+// USB-NCM landete bei Windows als APIPA/169.254.x.x statt der vom eigenen DHCP-Server vergebenen
+// 192.168.173.2 -- zeigt, ob ueberhaupt Datagramme ankommen/rausgehen bzw. wo sie haengen
+// bleiben). Kandidat zum Entfernen, sobald der Handshake nachweislich funktioniert.
+static void usb_ncm_driver_log_diagnostics(void) {
+    log_info("USB-NCM diag: rx=%lu rx_dropped=%lu tx=%lu tx_dropped=%lu tx_sent=%lu link_enabled=%d",
+              (unsigned long)g_diag_rx_count, (unsigned long)g_diag_rx_dropped,
+              (unsigned long)g_diag_tx_count, (unsigned long)g_diag_tx_dropped,
+              (unsigned long)g_diag_tx_sent, (int)(g_driver_state == NCM_DRIVER_STATE_LINK_ENABLED));
 }

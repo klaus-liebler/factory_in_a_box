@@ -28,6 +28,7 @@
 
 #include "modbus_register_model.hh"
 #include "modbus_tcp_server.hpp"
+#include "modbus_rtu_server.hpp"
 #include "log.h"
 
 #include "nx_api.h"
@@ -94,6 +95,7 @@ public:
     NX_WEB_HTTP_SERVER http_server;
     NX_MDNS mdns;
     ModbusTcpServer* modbus_server = nullptr;
+    ModbusRtuServer* modbus_rtu_server = nullptr;
     Io* io = nullptr;
     USBPDControl* usb_pd_control = nullptr;
 
@@ -121,4 +123,9 @@ public:
     static void IOThreadStatic(ULONG arg);
     static void UsbdDeviceThreadStatic(ULONG arg);
     static void HeartbeatThreadStatic(ULONG arg);
+    // Wird von usbd_device_loop() (reines C, s. usbd_device.h) nach jedem tud_task()-Durchlauf
+    // aufgerufen -- einziger Weg, aus der C-Schleife heraus regelmaessig C++-Code (hier:
+    // ModbusRtuServer::Poll()) anzustossen, ohne usbd_device.c C++-Wissen beizubringen (s.
+    // dortiger Klassenkommentar zum Grund fuer die strikte C/C++-Trennung).
+    static void UsbdDevicePollHook();
 };

@@ -28,7 +28,12 @@ void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid
 // koppelt (PC0/USB_VSENSE, 10k/10k-Spannungsteiler). tusb_init()/tud_task() muessen laut
 // TinyUSB-Doku im selben Thread-Kontext laufen -- usbd_device_setup() und usbd_device_loop()
 // werden deshalb beide aus App::UsbdDeviceThread() aufgerufen, niemals einzeln.
-_Noreturn void usbd_device_loop(void);
+//
+// poll_hook (optional, NULL erlaubt): wird nach jedem tud_task()-Durchlauf aufgerufen -- der
+// Ort, an dem der C++-Aufrufer (App::UsbdDeviceThread()) z.B. ModbusRtuServer::Poll() anhaengt,
+// ohne dass diese reine-C-Datei selbst irgendetwas C++-Spezifisches wissen muesste (s.
+// Klassenkommentar oben zum Grund fuer die C/C++-Trennung).
+_Noreturn void usbd_device_loop(void (*poll_hook)(void));
 
 // Diagnose (Enumerations-Haenger nach echtem Host-Anschluss, s. Debugging-Sitzung): Anzahl der
 // bisherigen USB_DRD_FS_IRQHandler()-Aufrufe seit Boot. Wird vom Heartbeat-Thread mitgeloggt --
@@ -38,6 +43,16 @@ _Noreturn void usbd_device_loop(void);
 // selbst wird bewusst nicht geloggt (log_info()/HAL_UART_Transmit sind aus Interrupt-Kontext
 // nicht sicher aufrufbar) -- nur ein einfacher Zaehler-Increment.
 uint32_t usbd_device_get_isr_count(void);
+
+// --- Duenne C-Wrapper um die zweite CDC-Instanz ("FactoryControl Modbus", TinyUSB-CDC-Index 1,
+// s. ITF_CDC1_MODBUS_* in usbd_device.c) -- fuer ModbusRtuServer (C++, stm32_libs/modbus/
+// modbus_rtu_server.hpp). Direktes Einbinden von tusb.h in eine C++-Uebersetzungseinheit ist
+// nicht moeglich (s. Klassenkommentar oben zur ThreadX-OSAL-Anbindung), daher dieser schmale
+// extern-"C"-Umweg statt tud_cdc_n_*() direkt aus C++-Code aufzurufen.
+uint32_t usbd_cdc_modbus_available(void);
+uint32_t usbd_cdc_modbus_read(uint8_t* buffer, uint32_t bufsize);
+uint32_t usbd_cdc_modbus_write(const uint8_t* buffer, uint32_t len);
+void usbd_cdc_modbus_write_flush(void);
 
 #ifdef __cplusplus
 }

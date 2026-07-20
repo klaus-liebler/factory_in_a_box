@@ -23,11 +23,13 @@ enum {
     STRIDX_PRODUCT,
     STRIDX_SERIAL,
     STRIDX_CDC0_DEBUG,
+    STRIDX_CDC1_MODBUS,
 };
 
 static char const* const STRING_MANUFACTURER = "Klaus Liebler";
 static char const* const STRING_PRODUCT = "FactoryControl Unit";
 static char const* const STRING_CDC0_DEBUG = "FactoryControl Debug";
+static char const* const STRING_CDC1_MODBUS = "FactoryControl Modbus";
 
 // Vom App-Chip-UID gebildet (s. usbd_device_setup()) -- 24 Hex-Ziffern (3x uint32_t) +
 // Nullterminator.
@@ -56,31 +58,42 @@ static tusb_desc_device_t const g_device_descriptor = {
 };
 
 // --- Konfigurations-Deskriptor -----------------------------------------------------------
-// Stufe 1 (s. Implementierungsplan): nur die Debug-CDC-Funktion. Modbus-CDC/NCM/MSC kommen in
-// ihren jeweiligen Implementierungsstufen dazu -- Endpunkt-Nummern werden dabei von Hand
-// vergeben (s. Kommentar unten), damit am Ende alle vier Funktionen exakt in die 8 verfuegbaren
+// Stufe 2 (s. Implementierungsplan): Debug- + Modbus-CDC-Funktion. NCM/MSC kommen in ihren
+// jeweiligen Implementierungsstufen dazu -- Endpunkt-Nummern werden dabei von Hand vergeben (s.
+// Kommentar unten), damit am Ende alle vier Funktionen exakt in die 8 verfuegbaren
 // Hardware-Endpunkte (EP0 + 7) passen.
 enum {
     ITF_CDC0_DEBUG_CONTROL = 0,
     ITF_CDC0_DEBUG_DATA,
+    ITF_CDC1_MODBUS_CONTROL,
+    ITF_CDC1_MODBUS_DATA,
     ITF_COUNT,
 };
 
 // Endpunkt-Adressen: CDC0 belegt EP1 (Notification, IN-only) + EP2 (Bulk-Datenpaar, IN+OUT auf
 // derselben Nummer -- der USB_DRD_FS-Block kann pro Endpunkt-Nummer unabhaengige IN/OUT-Puffer
-// fuehren, s. Endpoint-Budget-Analyse). Kuenftige Funktionen setzen ab EP3 fort.
+// fuehren, s. Endpoint-Budget-Analyse). CDC1 (Modbus) setzt mit EP3/EP4 fort. Kuenftige
+// Funktionen (NCM/MSC) setzen ab EP5 fort.
 #define EP_CDC0_NOTIF 0x81u
 #define EP_CDC0_OUT 0x02u
 #define EP_CDC0_IN 0x82u
 #define EP_CDC0_NOTIF_SIZE 8u
 #define EP_CDC0_DATA_SIZE 64u
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN)
+#define EP_CDC1_NOTIF 0x83u
+#define EP_CDC1_OUT 0x04u
+#define EP_CDC1_IN 0x84u
+#define EP_CDC1_NOTIF_SIZE 8u
+#define EP_CDC1_DATA_SIZE 64u
+
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + 2 * TUD_CDC_DESC_LEN)
 
 static uint8_t const g_config_descriptor[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_SELF_POWERED, 100),
     TUD_CDC_DESCRIPTOR(ITF_CDC0_DEBUG_CONTROL, STRIDX_CDC0_DEBUG,
                        EP_CDC0_NOTIF, EP_CDC0_NOTIF_SIZE, EP_CDC0_OUT, EP_CDC0_IN, EP_CDC0_DATA_SIZE),
+    TUD_CDC_DESCRIPTOR(ITF_CDC1_MODBUS_CONTROL, STRIDX_CDC1_MODBUS,
+                       EP_CDC1_NOTIF, EP_CDC1_NOTIF_SIZE, EP_CDC1_OUT, EP_CDC1_IN, EP_CDC1_DATA_SIZE),
 };
 
 _Static_assert(sizeof(g_config_descriptor) == CONFIG_TOTAL_LEN, "Config descriptor length mismatch");
@@ -108,6 +121,27 @@ void USB_DRD_FS_IRQHandler(void) {
 
 uint32_t usbd_device_get_isr_count(void) {
     return g_usb_isr_count;
+}
+
+// --- CDC-Wrapper fuer ModbusRtuServer (s. usbd_device.h) -- ITF_CDC1_MODBUS_DATA ist die zweite
+// TUD_CDC_DESCRIPTOR()-Instanz oben (g_config_descriptor), TinyUSB zaehlt CDC-Instanzen in der
+// Reihenfolge ihres Auftretens im Konfigurations-Deskriptor: Index 0 = Debug, Index 1 = Modbus.
+#define CDC_ITF_MODBUS 1u
+
+uint32_t usbd_cdc_modbus_available(void) {
+    return tud_cdc_n_available(CDC_ITF_MODBUS);
+}
+
+uint32_t usbd_cdc_modbus_read(uint8_t* buffer, uint32_t bufsize) {
+    return tud_cdc_n_read(CDC_ITF_MODBUS, buffer, bufsize);
+}
+
+uint32_t usbd_cdc_modbus_write(const uint8_t* buffer, uint32_t len) {
+    return tud_cdc_n_write(CDC_ITF_MODBUS, buffer, len);
+}
+
+void usbd_cdc_modbus_write_flush(void) {
+    tud_cdc_n_write_flush(CDC_ITF_MODBUS);
 }
 
 // --- TinyUSB-Lifecycle-Callbacks (laufen aus tud_task()-Kontext, also im usbd_device_thread --
@@ -164,7 +198,7 @@ void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid
     }
 }
 
-_Noreturn void usbd_device_loop(void) {
+_Noreturn void usbd_device_loop(void (*poll_hook)(void)) {
     bool vsense_last = (HAL_GPIO_ReadPin(USB_VSENSE_GPIO_Port, USB_VSENSE_Pin) == GPIO_PIN_SET);
 
     while (1) {
@@ -190,8 +224,13 @@ _Noreturn void usbd_device_loop(void) {
 
         if (tud_inited()) {
             // Blockiert intern sauber (tx_queue_receive(..., TX_WAIT_FOREVER)), solange kein
-            // USB-Event ansteht -- gibt die CPU also von selbst ab, kein Sleep noetig.
+            // USB-Event ansteht -- gibt die CPU also von selbst ab, kein Sleep noetig. TinyUSB
+            // liefert dank SOF-Interrupts (alle 1ms bei Full-Speed) trotzdem regelmaessig einen
+            // Rueckkehrpunkt, an dem poll_hook() (Modbus-RTU, s. usbd_device.h) zum Zuge kommt.
             tud_task();
+            if (poll_hook) {
+                poll_hook();
+            }
         } else {
             // BUG-Fix (Debugging-Sitzung): ohne dieses Sleep dreht diese Schleife bei fehlendem
             // Kabel (tud_inited()==false, tud_task() wird uebersprungen) ungebremst -- eine
@@ -232,6 +271,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
         case STRIDX_PRODUCT:      str = STRING_PRODUCT; break;
         case STRIDX_SERIAL:       str = g_serial_string; break;
         case STRIDX_CDC0_DEBUG:   str = STRING_CDC0_DEBUG; break;
+        case STRIDX_CDC1_MODBUS:  str = STRING_CDC1_MODBUS; break;
         default: return NULL;
     }
 

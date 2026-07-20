@@ -228,6 +228,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # common_stm32 unten.
     ../stm32_libs/hx711
     ../stm32_libs/sigmoid_stepper
+    ../stm32_libs/modbus
     # Aus Core/Src ausgelagerte Hardware-Treiber (mehrfach verwendbar, kein eigenes CMake-Target).
     libs/hw/vl53l0x
     libs/hw/tcs34725

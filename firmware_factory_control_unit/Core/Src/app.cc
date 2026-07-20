@@ -128,7 +128,14 @@ void App::IOThread() {
 [[noreturn]] void App::UsbdDeviceThread() {
     usbd_device_setup(this->chip_uid[0], this->chip_uid[1], this->chip_uid[2]);
     log_info("USB Device Thread started");
-    usbd_device_loop();
+    usbd_device_loop(App::UsbdDevicePollHook);
+}
+
+// cdc_itf=1: zweite CDC-Deskriptorinstanz in usbd_device.c (ITF_CDC1_MODBUS_*), Instanz 0 ist
+// "FactoryControl Debug". slave_id=1 (Modbus-Standard-Default, ueber Modbus-Register aktuell
+// nicht konfigurierbar -- bei Bedarf spaeter aus einem Holding-Register lesen).
+void App::UsbdDevicePollHook() {
+    App::Instance().modbus_rtu_server->Poll();
 }
 
 // Rein diagnostisch: liest ausschliesslich bereits vom io_thread periodisch aktualisierte
@@ -183,6 +190,12 @@ void App::AppThread() {
     net_setup_start(this);
 
     this->modbus_server = new ModbusTcpServer(&this->ip_instance, &this->packet_pool, *this->register_model);
+
+    // Braucht keinen eigenen Thread (im Gegensatz zu ModbusTcpServer::run(), die blockierend auf
+    // einen TCP-Accept wartet): Poll() wird nicht-blockierend aus dem usbd_device_thread heraus
+    // angestossen (s. App::UsbdDevicePollHook()).
+    this->modbus_rtu_server = new ModbusRtuServer(1, *this->register_model);
+
     XASSERT(tx_byte_allocate(&this->byte_pool, &ptr, 2 * DEFAULT_MEMORY_SIZE, TX_NO_WAIT), "Modbus server thread stack allocate failed");
     XASSERT(tx_thread_create(
         &this->modbus_server_thread,

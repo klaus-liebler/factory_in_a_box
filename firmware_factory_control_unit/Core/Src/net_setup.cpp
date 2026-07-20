@@ -60,9 +60,11 @@ constexpr uint32_t MDNS_LOCAL_CACHE_SIZE = 1024;
 constexpr uint32_t MDNS_PEER_CACHE_SIZE = 1024;
 
 // --- USB-CDC-NCM: virtuelle NIC (192.168.173.1) + DHCP-Server (vergibt 192.168.173.2 an den
-// Host) + zweite mDNS-Instanz fuer den festen Namen "factory-box.local" (Stufe 3, s.
-// Implementierungsplan). Alles nur auf dem per nx_ip_interface_attach() angehaengten zweiten
-// Interface aktiv -- Interface 0 bleibt der bestehende Ethernet-Port unveraendert.
+// Host) + bestehende mDNS-Instanz zusaetzlich auf diesem Interface aktiviert (Stufe 3, s.
+// Implementierungsplan -- der urspruenglich vorgesehene feste Name "factory-box.local" ueber
+// eine zweite NX_MDNS-Instanz scheiterte an NX_PORT_UNAVAILABLE, s. Kommentar bei
+// nx_mdns_enable() weiter unten). Alles nur auf dem per nx_ip_interface_attach() angehaengten
+// zweiten Interface aktiv -- Interface 0 bleibt der bestehende Ethernet-Port unveraendert.
 //
 // nx_ip_interface_attach() sucht sich den ersten freien Interface-Slot selbst (nicht von aussen
 // waehlbar) -- da Interface 0 bereits durch nx_ip_create() belegt ist (s. net_setup_create()
@@ -75,7 +77,6 @@ constexpr ULONG USB_NCM_IP_ADDRESS = IP_ADDRESS(192, 168, 173, 1);
 constexpr ULONG USB_NCM_NET_MASK = IP_ADDRESS(255, 255, 255, 0);
 constexpr ULONG USB_NCM_DHCP_LEASE_ADDRESS = IP_ADDRESS(192, 168, 173, 2);
 constexpr uint32_t USB_NCM_DHCP_SERVER_STACK_SIZE = 2 * 1024;
-constexpr char const* USB_MDNS_HOSTNAME = "factory-box";
 
 // Muss fuer die Lebensdauer des HTTPS-Servers bestehen bleiben (die TLS-Schicht haelt
 // intern einen Pointer darauf), daher statisch statt lokal in net_setup_start().
@@ -219,25 +220,17 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
                                                       usb_ncm_committed_ip),
             "DHCP Server network parameters set failed");
 
-    // Zweite mDNS-Instanz mit fest codiertem Namen (statt des Board-eindeutigen DEVICE_HOSTNAME
-    // wie bei "mdns" oben) -- ausschliesslich auf dem USB-NCM-Interface aktiviert, s.
-    // Implementierungsplan ("https://factory-box.local/" soll unabhaengig vom jeweiligen Board
-    // erreichbar sein, im Gegensatz zum board-spezifischen "factory-box-<hex>.local" auf dem
-    // Ethernet-Port).
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, MDNS_STACK_SIZE, TX_NO_WAIT), "mDNS (USB) stack allocate failed");
-    VOID *mdns_usb_stack = ptr;
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, MDNS_LOCAL_CACHE_SIZE, TX_NO_WAIT), "mDNS (USB) local cache allocate failed");
-    VOID *mdns_usb_local_cache = ptr;
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, MDNS_PEER_CACHE_SIZE, TX_NO_WAIT), "mDNS (USB) peer cache allocate failed");
-    VOID *mdns_usb_peer_cache = ptr;
-
-    XASSERT(nx_mdns_create(&app->mdns_usb, &app->ip_instance, &app->packet_pool,
-                                  MDNS_THREAD_PRIORITY, mdns_usb_stack, MDNS_STACK_SIZE,
-                                  (UCHAR *)USB_MDNS_HOSTNAME,
-                                  mdns_usb_local_cache, MDNS_LOCAL_CACHE_SIZE,
-                                  mdns_usb_peer_cache, MDNS_PEER_CACHE_SIZE,
-                                  mdns_probing_notify), "mDNS (USB) create failed");
-    XASSERT(nx_mdns_enable(&app->mdns_usb, USB_NCM_INTERFACE_INDEX), "mDNS (USB) enable failed");
+    // Fallback statt einer zweiten NX_MDNS-Instanz (s. Implementierungsplan): ein zweiter
+    // nx_mdns_create() auf derselben NX_IP schlug hardwareseitig mit NX_PORT_UNAVAILABLE (0x23)
+    // fehl -- beide Instanzen binden intern denselben UDP-Port 5353 auf derselben IP-Instanz,
+    // eine zweite Bindung ist also grundsaetzlich nicht moeglich. Stattdessen wird die bereits
+    // bestehende Instanz "mdns" (oben, Interface 0) zusaetzlich auf dem USB-NCM-Interface
+    // aktiviert -- der Host loest ueber USB denselben board-spezifischen
+    // "factory-box-<hex>.local"-Namen auf wie ueber Ethernet, NICHT den im Implementierungsplan
+    // urspruenglich vorgesehenen festen "factory-box.local"-Namen (dafuer waere eine eigene,
+    // multiplexfaehige mDNS-Implementierung noetig, die mehrere Hostnamen auf einem UDP-Socket
+    // bedient -- ausserhalb des Scopes dieser Aenderung).
+    XASSERT(nx_mdns_enable(&app->mdns, USB_NCM_INTERFACE_INDEX), "mDNS (USB) enable failed");
 }
 
 // Karte optional: keine gesteckte/funktionierende microSD darf den Rest des Boots

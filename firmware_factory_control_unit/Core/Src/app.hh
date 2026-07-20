@@ -95,11 +95,11 @@ public:
     NX_IP ip_instance;
     NX_DHCP dhcp_client;
     NX_WEB_HTTP_SERVER http_server;
+    // Zusaetzlich auf dem USB-NCM-Interface aktiviert (s. net_setup.cpp) -- eine zweite
+    // NX_MDNS-Instanz fuer einen eigenen festen Namen scheiterte an NX_PORT_UNAVAILABLE (beide
+    // haetten denselben UDP-Port 5353 auf derselben NX_IP gebunden), daher weiterhin nur diese
+    // eine Instanz, jetzt auf beiden Interfaces.
     NX_MDNS mdns;
-    // Zweite mDNS-Instanz, nur auf dem USB-NCM-Interface aktiv (s. net_setup.cpp) -- publiziert
-    // den festen Namen "factory-box.local" (im Gegensatz zu "mdns" oben, das den
-    // Board-eindeutigen "factory-box-<hex>.local"-Namen auf dem Ethernet-Interface traegt).
-    NX_MDNS mdns_usb;
     // DHCP-Server fuer die virtuelle NCM-NIC (vergibt 192.168.173.2 an den per USB verbundenen
     // Host) -- Gegenstueck zu dhcp_client oben, der stattdessen als DHCP-Client auf dem
     // Ethernet-Interface laeuft.

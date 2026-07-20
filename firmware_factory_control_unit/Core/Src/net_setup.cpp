@@ -203,14 +203,20 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     XASSERT(nx_dhcp_create_server_ip_address_list(&app->dhcp_server, USB_NCM_INTERFACE_INDEX,
                                                    USB_NCM_DHCP_LEASE_ADDRESS, USB_NCM_DHCP_LEASE_ADDRESS,
                                                    &dhcp_addresses_added), "DHCP Server IP address list create failed");
-    // Kein eigener DNS-Server in dieser Firmware (nur mDNS) -- 0 unterdrueckt die
-    // DNS-Server-Option in den DHCP-Antworten, statt eine nicht existierende Adresse anzubieten.
+    // Kein eigener DNS-Server in dieser Firmware (nur mDNS) -- die Fehlerpruefung von
+    // nx_dhcp_set_interface_network_parameters() (_nxe_dhcp_set_interface_network_parameters)
+    // lehnt dns_server_address==0 aber explizit als "invalid non pointer input" ab
+    // (NX_DHCP_INVALID_NETWORK_PARAMETERS, 0xA3 -- das war der eigentliche Fehler, NICHT die
+    // Subnetz-Konsistenzpruefung weiter unten in der Funktion, die nie erreicht wurde). Da echte
+    // DNS-Aufloesung ohnehin nicht angeboten wird, hier ersatzweise die eigene Adresse eintragen
+    // -- unkritisch, der Host bekaeme auf eine echte DNS-Anfrage dorthin einfach keine Antwort.
     // Gateway/Subnetzmaske bewusst aus usb_ncm_committed_ip/_mask (s. oben) statt erneut aus
     // USB_NCM_IP_ADDRESS/_NET_MASK -- muss exakt zu dem passen, was
     // nx_dhcp_create_server_ip_address_list() intern bereits aus dem Interface uebernommen hat
     // (dessen eigene Pruefung liest ebenfalls live vom Interface, nicht die Konstanten).
     XASSERT(nx_dhcp_set_interface_network_parameters(&app->dhcp_server, USB_NCM_INTERFACE_INDEX,
-                                                      usb_ncm_committed_mask, usb_ncm_committed_ip, 0),
+                                                      usb_ncm_committed_mask, usb_ncm_committed_ip,
+                                                      usb_ncm_committed_ip),
             "DHCP Server network parameters set failed");
 
     // Zweite mDNS-Instanz mit fest codiertem Namen (statt des Board-eindeutigen DEVICE_HOSTNAME

@@ -21,7 +21,9 @@ extern "C" {
 // Modbus-Register und den Hostnamen verwendet wird (s. App::chip_uid). Muss aus einem
 // laufenden ThreadX-Thread heraus aufgerufen werden, NICHT vor tx_kernel_enter() (die
 // ThreadX-OSAL-Anbindung von TinyUSB braucht den laufenden Scheduler).
-void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2);
+// ncm_mac: 6 Bytes fuer den MAC-Adress-String-Deskriptor der virtuellen NCM-NIC -- von
+// App::ComputeNcmMac() berechnet, dieselben Bytes gehen auch an usb_ncm_driver_init() (s. dort).
+void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2, uint8_t const ncm_mac[6]);
 
 // Endlosschleife (kehrt nie zurueck): ruft tud_task() sowie die USB_VSENSE-Ueberwachung, die
 // den Stack per tud_connect()/tud_disconnect() an die tatsaechliche 5V-Praesenz am USB-Port

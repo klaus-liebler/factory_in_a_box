@@ -59,6 +59,24 @@ constexpr uint32_t MDNS_STACK_SIZE = 2 * 1024;
 constexpr uint32_t MDNS_LOCAL_CACHE_SIZE = 1024;
 constexpr uint32_t MDNS_PEER_CACHE_SIZE = 1024;
 
+// --- USB-CDC-NCM: virtuelle NIC (192.168.173.1) + DHCP-Server (vergibt 192.168.173.2 an den
+// Host) + zweite mDNS-Instanz fuer den festen Namen "factory-box.local" (Stufe 3, s.
+// Implementierungsplan). Alles nur auf dem per nx_ip_interface_attach() angehaengten zweiten
+// Interface aktiv -- Interface 0 bleibt der bestehende Ethernet-Port unveraendert.
+//
+// nx_ip_interface_attach() sucht sich den ersten freien Interface-Slot selbst (nicht von aussen
+// waehlbar) -- da Interface 0 bereits durch nx_ip_create() belegt ist (s. net_setup_create()
+// oben) und dies der einzige weitere attach()-Aufruf im ganzen Projekt ist, ist der resultierende
+// Index deterministisch 1. usb_ncm_driver.c ermittelt den tatsaechlichen Index zwar ohnehin
+// selbst dynamisch (s. dortiger NX_LINK_INTERFACE_ATTACH-Handler), aber die DHCP-Server-/
+// mDNS-Konfigurationsaufrufe unten verlangen den Index explizit als Parameter.
+constexpr UINT USB_NCM_INTERFACE_INDEX = 1;
+constexpr ULONG USB_NCM_IP_ADDRESS = IP_ADDRESS(192, 168, 173, 1);
+constexpr ULONG USB_NCM_NET_MASK = IP_ADDRESS(255, 255, 255, 0);
+constexpr ULONG USB_NCM_DHCP_LEASE_ADDRESS = IP_ADDRESS(192, 168, 173, 2);
+constexpr uint32_t USB_NCM_DHCP_SERVER_STACK_SIZE = 2 * 1024;
+constexpr char const* USB_MDNS_HOSTNAME = "factory-box";
+
 // Muss fuer die Lebensdauer des HTTPS-Servers bestehen bleiben (die TLS-Schicht haelt
 // intern einen Pointer darauf), daher statisch statt lokal in net_setup_start().
 static NX_SECURE_X509_CERT g_device_certificate;
@@ -150,6 +168,52 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     XASSERT(nx_mdns_enable(&app->mdns, 0), "mDNS enable failed");
 
     XASSERT(nx_dhcp_create(&app->dhcp_client, &app->ip_instance, _C("DHCP Client")), "DHCP Client create failed");
+
+    // --- USB-CDC-NCM: virtuelle NIC + DHCP-Server + zweite mDNS-Instanz ---
+    uint8_t ncm_mac[6];
+    App::ComputeNcmMac(app->chip_uid, ncm_mac);
+    usb_ncm_driver_init(&app->ip_instance, &app->packet_pool, ncm_mac);
+    // nx_ip_interface_attach() (anders als die x509/TLS-Aufrufe oben) ist HIER, in
+    // tx_application_define(), zulaessig: wird vor Start des IP-Threads aufgerufen, holt die
+    // eigentliche Treiber-Initialisierung/-Freischaltung automatisch waehrend dessen eigenem
+    // Boot-Vorgang nach (s. _nx_ip_interface_attach()-Doku).
+    XASSERT(nx_ip_interface_attach(&app->ip_instance, _C("USB-NCM"), USB_NCM_IP_ADDRESS,
+                                    USB_NCM_NET_MASK, nx_usb_ncm_driver), "USB-NCM interface attach failed");
+
+    UINT dhcp_addresses_added = 0;
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, USB_NCM_DHCP_SERVER_STACK_SIZE, TX_NO_WAIT), "DHCP server stack allocate failed");
+    XASSERT(nx_dhcp_server_create(&app->dhcp_server, &app->ip_instance, ptr, USB_NCM_DHCP_SERVER_STACK_SIZE,
+                                   _C("DHCP Server"), &app->packet_pool), "DHCP Server create failed");
+    // Minimaler Einzel-Lease-Pool: nur die eine Adresse, die der per USB verbundene Host bekommen
+    // soll (s. Implementierungsplan) -- start==end.
+    XASSERT(nx_dhcp_create_server_ip_address_list(&app->dhcp_server, USB_NCM_INTERFACE_INDEX,
+                                                   USB_NCM_DHCP_LEASE_ADDRESS, USB_NCM_DHCP_LEASE_ADDRESS,
+                                                   &dhcp_addresses_added), "DHCP Server IP address list create failed");
+    // Kein eigener DNS-Server in dieser Firmware (nur mDNS) -- 0 unterdrueckt die
+    // DNS-Server-Option in den DHCP-Antworten, statt eine nicht existierende Adresse anzubieten.
+    XASSERT(nx_dhcp_set_interface_network_parameters(&app->dhcp_server, USB_NCM_INTERFACE_INDEX,
+                                                      USB_NCM_NET_MASK, USB_NCM_IP_ADDRESS, 0),
+            "DHCP Server network parameters set failed");
+
+    // Zweite mDNS-Instanz mit fest codiertem Namen (statt des Board-eindeutigen DEVICE_HOSTNAME
+    // wie bei "mdns" oben) -- ausschliesslich auf dem USB-NCM-Interface aktiviert, s.
+    // Implementierungsplan ("https://factory-box.local/" soll unabhaengig vom jeweiligen Board
+    // erreichbar sein, im Gegensatz zum board-spezifischen "factory-box-<hex>.local" auf dem
+    // Ethernet-Port).
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, MDNS_STACK_SIZE, TX_NO_WAIT), "mDNS (USB) stack allocate failed");
+    VOID *mdns_usb_stack = ptr;
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, MDNS_LOCAL_CACHE_SIZE, TX_NO_WAIT), "mDNS (USB) local cache allocate failed");
+    VOID *mdns_usb_local_cache = ptr;
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, MDNS_PEER_CACHE_SIZE, TX_NO_WAIT), "mDNS (USB) peer cache allocate failed");
+    VOID *mdns_usb_peer_cache = ptr;
+
+    XASSERT(nx_mdns_create(&app->mdns_usb, &app->ip_instance, &app->packet_pool,
+                                  MDNS_THREAD_PRIORITY, mdns_usb_stack, MDNS_STACK_SIZE,
+                                  (UCHAR *)USB_MDNS_HOSTNAME,
+                                  mdns_usb_local_cache, MDNS_LOCAL_CACHE_SIZE,
+                                  mdns_usb_peer_cache, MDNS_PEER_CACHE_SIZE,
+                                  mdns_probing_notify), "mDNS (USB) create failed");
+    XASSERT(nx_mdns_enable(&app->mdns_usb, USB_NCM_INTERFACE_INDEX), "mDNS (USB) enable failed");
 }
 
 // Karte optional: keine gesteckte/funktionierende microSD darf den Rest des Boots
@@ -240,4 +304,6 @@ void net_setup_start(App *app) {
                                       app), "IP address change notify failed");
 
     XASSERT(nx_dhcp_start(&app->dhcp_client), "DHCP start failed");
+
+    XASSERT(nx_dhcp_server_start(&app->dhcp_server), "DHCP Server start failed");
 }

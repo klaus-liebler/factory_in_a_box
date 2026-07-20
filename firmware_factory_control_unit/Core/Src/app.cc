@@ -126,7 +126,9 @@ void App::IOThread() {
 }
 
 [[noreturn]] void App::UsbdDeviceThread() {
-    usbd_device_setup(this->chip_uid[0], this->chip_uid[1], this->chip_uid[2]);
+    uint8_t ncm_mac[6];
+    App::ComputeNcmMac(this->chip_uid, ncm_mac);
+    usbd_device_setup(this->chip_uid[0], this->chip_uid[1], this->chip_uid[2], ncm_mac);
     log_info("USB Device Thread started");
     usbd_device_loop(App::UsbdDevicePollHook);
 }
@@ -136,6 +138,16 @@ void App::IOThread() {
 // nicht konfigurierbar -- bei Bedarf spaeter aus einem Holding-Register lesen).
 void App::UsbdDevicePollHook() {
     App::Instance().modbus_rtu_server->Poll();
+    usb_ncm_driver_poll();
+}
+
+void App::ComputeNcmMac(const uint32_t chip_uid[3], uint8_t mac[6]) {
+    mac[0] = 0x02;
+    mac[1] = (uint8_t)(chip_uid[0] >> 24);
+    mac[2] = (uint8_t)(chip_uid[0]);
+    mac[3] = (uint8_t)(chip_uid[1] >> 24);
+    mac[4] = (uint8_t)(chip_uid[1]);
+    mac[5] = (uint8_t)(chip_uid[2]);
 }
 
 // Rein diagnostisch: liest ausschliesslich bereits vom io_thread periodisch aktualisierte

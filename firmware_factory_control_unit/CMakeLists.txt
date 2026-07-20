@@ -188,6 +188,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/io.cpp
     Core/Src/usb_pd_control.cpp
     Core/Src/usbd_device.c
+    Core/Src/usb_ncm_driver.c
     Core/Src/hal_tick_threadx.c
     Core/Src/fx_stm32_sd_driver_adapter.c
     Core/Src/tx_initialize_low_level.S

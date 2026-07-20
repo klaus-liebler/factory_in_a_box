@@ -79,9 +79,12 @@
    present to NetX Duo IP layer.  Physical interface does not include
    loopback interface. By default there is at least one physical interface
    in the system. */
-/*
-#define NX_MAX_PHYSICAL_INTERFACES              1
-*/
+/* Stufe 3 (USB-Composite-Device, s. usb_ncm_driver.c): zwei physische Interfaces -- Interface 0
+   ist der bestehende Ethernet-Port (nx_stm32_eth_driver, s. net_setup.cpp), Interface 1 die
+   virtuelle NCM-NIC ueber USB (192.168.173.1, per nx_ip_interface_attach() in
+   net_setup_create() angehaengt). Ohne diese Erhoehung schlaegt nx_ip_interface_attach() mit
+   NX_NO_MORE_ENTRIES fehl (Default ist 1 physisches Interface). */
+#define NX_MAX_PHYSICAL_INTERFACES              2
 
 /* If defined, the link driver is able to specify extra capability, such as
    checksum offloading features. */

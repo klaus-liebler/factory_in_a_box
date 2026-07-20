@@ -81,10 +81,14 @@ function opensslCreateCertificate(hostname, boardDir) {
 
 	// Eigene, pro-Board generierte ext-Datei statt der geteilten certificates/openssl.cnf zu
 	// mutieren -- die traegt das subjectAltName sonst fest fuer nur EIN Board.
-	// Zwei SAN-Eintraege: der Browser prueft den Hostnamen so, wie er eingegeben wurde --
+	// Drei SAN-Eintraege: der Browser prueft den Hostnamen so, wie er eingegeben wurde --
 	// "<hostname>.local" (mDNS-Aufloesung ueber unseren nx_mdns-Responder) ist ein anderer
 	// String als "<hostname>" und muss deshalb separat als DNS-SAN gelistet sein, sonst
-	// schlaegt die Zertifikatspruefung fuer die .local-Variante fehl.
+	// schlaegt die Zertifikatspruefung fuer die .local-Variante fehl. "factory-box.local" (fest,
+	// ohne Board-eindeutigen Hex-Suffix) kommt zusaetzlich dazu, weil der HTTPS-Webserver ueber
+	// die virtuelle USB-CDC-NCM-NIC unter genau diesem Namen erreichbar ist (s. net_setup.cpp,
+	// zweite mDNS-Instanz "mdns_usb") -- Boards, die vor dieser Aenderung provisioniert wurden,
+	// brauchen dafuer ein erneutes Ausfuehren dieses Skripts.
 	writeFileSync(
 		extPath,
 		"authorityKeyIdentifier=keyid,issuer\n" +
@@ -94,7 +98,8 @@ function opensslCreateCertificate(hostname, boardDir) {
 			"subjectAltName = @alt_names\n\n" +
 			"[alt_names]\n" +
 			`DNS.1 = ${hostname}\n` +
-			`DNS.2 = ${hostname}.local\n`
+			`DNS.2 = ${hostname}.local\n` +
+			`DNS.3 = factory-box.local\n`
 	);
 
 	execFileSync("openssl", [

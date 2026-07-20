@@ -24,16 +24,24 @@ enum {
     STRIDX_SERIAL,
     STRIDX_CDC0_DEBUG,
     STRIDX_CDC1_MODBUS,
+    STRIDX_NCM,
+    STRIDX_NCM_MAC,
 };
 
 static char const* const STRING_MANUFACTURER = "Klaus Liebler";
 static char const* const STRING_PRODUCT = "FactoryControl Unit";
 static char const* const STRING_CDC0_DEBUG = "FactoryControl Debug";
 static char const* const STRING_CDC1_MODBUS = "FactoryControl Modbus";
+static char const* const STRING_NCM = "FactoryControl Network";
 
 // Vom App-Chip-UID gebildet (s. usbd_device_setup()) -- 24 Hex-Ziffern (3x uint32_t) +
 // Nullterminator.
 static char g_serial_string[25] = "000000000000000000000000";
+
+// MAC-Adress-String der virtuellen NCM-NIC -- CDC-NCM-Spezifikation verlangt 12 GROSSGESCHRIEBENE
+// Hex-Ziffern ohne Trennzeichen (Format "AABBCCDDEEFF"). Inhalt kommt von usbd_device_setup()
+// (dieselben 6 Bytes wie die Quelladresse im Ethernet-Header, s. App::ComputeNcmMac()).
+static char g_ncm_mac_string[13] = "000000000000";
 
 // --- Device-Deskriptor -----------------------------------------------------------------
 // bDeviceClass=0xEF/bDeviceSubClass=0x02/bDeviceProtocol=0x01 (Interface Association Descriptor)
@@ -58,22 +66,23 @@ static tusb_desc_device_t const g_device_descriptor = {
 };
 
 // --- Konfigurations-Deskriptor -----------------------------------------------------------
-// Stufe 2 (s. Implementierungsplan): Debug- + Modbus-CDC-Funktion. NCM/MSC kommen in ihren
-// jeweiligen Implementierungsstufen dazu -- Endpunkt-Nummern werden dabei von Hand vergeben (s.
-// Kommentar unten), damit am Ende alle vier Funktionen exakt in die 8 verfuegbaren
-// Hardware-Endpunkte (EP0 + 7) passen.
+// Stufe 3 (s. Implementierungsplan): Debug-CDC + Modbus-CDC + CDC-NCM. MSC kommt in Stufe 4 dazu
+// -- Endpunkt-Nummern werden dabei von Hand vergeben (s. Kommentar unten), damit am Ende alle
+// vier Funktionen exakt in die 8 verfuegbaren Hardware-Endpunkte (EP0 + 7) passen.
 enum {
     ITF_CDC0_DEBUG_CONTROL = 0,
     ITF_CDC0_DEBUG_DATA,
     ITF_CDC1_MODBUS_CONTROL,
     ITF_CDC1_MODBUS_DATA,
+    ITF_NCM_CONTROL,
+    ITF_NCM_DATA,
     ITF_COUNT,
 };
 
 // Endpunkt-Adressen: CDC0 belegt EP1 (Notification, IN-only) + EP2 (Bulk-Datenpaar, IN+OUT auf
 // derselben Nummer -- der USB_DRD_FS-Block kann pro Endpunkt-Nummer unabhaengige IN/OUT-Puffer
-// fuehren, s. Endpoint-Budget-Analyse). CDC1 (Modbus) setzt mit EP3/EP4 fort. Kuenftige
-// Funktionen (NCM/MSC) setzen ab EP5 fort.
+// fuehren, s. Endpoint-Budget-Analyse). CDC1 (Modbus) setzt mit EP3/EP4 fort, NCM mit EP5/EP6.
+// MSC (Stufe 4) setzt mit EP7 fort -- damit sind alle 8 Hardware-Endpunkte (inkl. EP0) belegt.
 #define EP_CDC0_NOTIF 0x81u
 #define EP_CDC0_OUT 0x02u
 #define EP_CDC0_IN 0x82u
@@ -86,7 +95,16 @@ enum {
 #define EP_CDC1_NOTIF_SIZE 8u
 #define EP_CDC1_DATA_SIZE 64u
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + 2 * TUD_CDC_DESC_LEN)
+#define EP_NCM_NOTIF 0x85u
+#define EP_NCM_OUT 0x06u
+#define EP_NCM_IN 0x86u
+#define EP_NCM_NOTIF_SIZE 16u
+#define EP_NCM_DATA_SIZE 64u
+// CDC-NCM 1.0 Tabelle 6-4: Mindestgroesse 2048 -- muss zum tusb_config.h-Wert passen (dort per
+// _Static_assert unten geprueft, s. weiter unten).
+#define NCM_MAX_SEGMENT_SIZE CFG_TUD_NCM_IN_NTB_MAX_SIZE
+
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + 2 * TUD_CDC_DESC_LEN + TUD_CDC_NCM_DESC_LEN)
 
 static uint8_t const g_config_descriptor[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_SELF_POWERED, 100),
@@ -94,6 +112,9 @@ static uint8_t const g_config_descriptor[] = {
                        EP_CDC0_NOTIF, EP_CDC0_NOTIF_SIZE, EP_CDC0_OUT, EP_CDC0_IN, EP_CDC0_DATA_SIZE),
     TUD_CDC_DESCRIPTOR(ITF_CDC1_MODBUS_CONTROL, STRIDX_CDC1_MODBUS,
                        EP_CDC1_NOTIF, EP_CDC1_NOTIF_SIZE, EP_CDC1_OUT, EP_CDC1_IN, EP_CDC1_DATA_SIZE),
+    TUD_CDC_NCM_DESCRIPTOR(ITF_NCM_CONTROL, STRIDX_NCM, STRIDX_NCM_MAC,
+                           EP_NCM_NOTIF, EP_NCM_NOTIF_SIZE, EP_NCM_OUT, EP_NCM_IN, EP_NCM_DATA_SIZE,
+                           NCM_MAX_SEGMENT_SIZE, 8, NCM_NETWORK_CAPS_NONE),
 };
 
 _Static_assert(sizeof(g_config_descriptor) == CONFIG_TOTAL_LEN, "Config descriptor length mismatch");
@@ -165,9 +186,12 @@ void tud_resume_cb(void) {
     log_info("TinyUSB: resume");
 }
 
-void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2) {
+void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2, uint8_t const ncm_mac[6]) {
     snprintf(g_serial_string, sizeof(g_serial_string), "%08lX%08lX%08lX",
              (unsigned long)chip_uid0, (unsigned long)chip_uid1, (unsigned long)chip_uid2);
+
+    snprintf(g_ncm_mac_string, sizeof(g_ncm_mac_string), "%02X%02X%02X%02X%02X%02X",
+             ncm_mac[0], ncm_mac[1], ncm_mac[2], ncm_mac[3], ncm_mac[4], ncm_mac[5]);
 
     // Prioritaet einmalig setzen, bevor der Interrupt ueberhaupt zum ersten Mal freigeschaltet
     // werden kann (per tusb_init() unten oder spaeter in usbd_device_loop()) -- TinyUSBs
@@ -272,6 +296,8 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
         case STRIDX_SERIAL:       str = g_serial_string; break;
         case STRIDX_CDC0_DEBUG:   str = STRING_CDC0_DEBUG; break;
         case STRIDX_CDC1_MODBUS:  str = STRING_CDC1_MODBUS; break;
+        case STRIDX_NCM:          str = STRING_NCM; break;
+        case STRIDX_NCM_MAC:      str = g_ncm_mac_string; break;
         default: return NULL;
     }
 

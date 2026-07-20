@@ -24,6 +24,7 @@
 #include "io.hpp"
 #include "usb_pd_control.hpp"
 #include "usbd_device.h"
+#include "usb_ncm_driver.h"
 #include "hal_tick_threadx.h"
 
 #include "modbus_register_model.hh"
@@ -35,6 +36,7 @@
 #include "fx_api.h"
 #include "tx_api.h"
 #include "nxd_dhcp_client.h"
+#include "nxd_dhcp_server.h"
 #include "nx_web_http_server.h"
 #include "nxd_mdns.h"
 #include "common_macros.hh"
@@ -94,6 +96,14 @@ public:
     NX_DHCP dhcp_client;
     NX_WEB_HTTP_SERVER http_server;
     NX_MDNS mdns;
+    // Zweite mDNS-Instanz, nur auf dem USB-NCM-Interface aktiv (s. net_setup.cpp) -- publiziert
+    // den festen Namen "factory-box.local" (im Gegensatz zu "mdns" oben, das den
+    // Board-eindeutigen "factory-box-<hex>.local"-Namen auf dem Ethernet-Interface traegt).
+    NX_MDNS mdns_usb;
+    // DHCP-Server fuer die virtuelle NCM-NIC (vergibt 192.168.173.2 an den per USB verbundenen
+    // Host) -- Gegenstueck zu dhcp_client oben, der stattdessen als DHCP-Client auf dem
+    // Ethernet-Interface laeuft.
+    NX_DHCP_SERVER dhcp_server;
     ModbusTcpServer* modbus_server = nullptr;
     ModbusRtuServer* modbus_rtu_server = nullptr;
     Io* io = nullptr;
@@ -125,7 +135,16 @@ public:
     static void HeartbeatThreadStatic(ULONG arg);
     // Wird von usbd_device_loop() (reines C, s. usbd_device.h) nach jedem tud_task()-Durchlauf
     // aufgerufen -- einziger Weg, aus der C-Schleife heraus regelmaessig C++-Code (hier:
-    // ModbusRtuServer::Poll()) anzustossen, ohne usbd_device.c C++-Wissen beizubringen (s.
-    // dortiger Klassenkommentar zum Grund fuer die strikte C/C++-Trennung).
+    // ModbusRtuServer::Poll() und usb_ncm_driver_poll()) anzustossen, ohne usbd_device.c
+    // C++-Wissen beizubringen (s. dortiger Klassenkommentar zum Grund fuer die strikte
+    // C/C++-Trennung).
     static void UsbdDevicePollHook();
+
+    // Locally-administered, aus der Board-UID abgeleitete MAC-Adresse fuer die virtuelle
+    // NCM-NIC (Byte 0 = 0x02, s. IEEE 802-2014 Tabelle 8-1 "locally administered unicast").
+    // An genau dieser einen Stelle berechnet und sowohl an usbd_device_setup() (MAC-Adress-
+    // String-Deskriptor) als auch an usb_ncm_driver_init() (Quelladresse im Ethernet-Header)
+    // weitergereicht (aus zwei verschiedenen Uebersetzungseinheiten, s. app.cc/net_setup.cpp),
+    // damit garantiert beide dieselbe Adresse verwenden.
+    static void ComputeNcmMac(const uint32_t chip_uid[3], uint8_t mac[6]);
 };

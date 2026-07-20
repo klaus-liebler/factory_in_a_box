@@ -65,6 +65,13 @@ else()
     set(GIT_DIRTY "false")
 endif()
 
+# GIT_COMMIT_MESSAGE landet unten roh in einem C++-String-Literal -- Backslashes und
+# doppelte Anfuehrungszeichen im Commit-Titel (z.B. Zitate wie "...") muessen deshalb
+# escaped werden, sonst bricht das generierte gitconstants.hh (s. Backslash zuerst, damit
+# die selbst eingefuegten Escape-Backslashes nicht ein zweites Mal escaped werden).
+string(REPLACE "\\" "\\\\" GIT_COMMIT_MESSAGE "${GIT_COMMIT_MESSAGE}")
+string(REPLACE "\"" "\\\"" GIT_COMMIT_MESSAGE "${GIT_COMMIT_MESSAGE}")
+
 string(TIMESTAMP BUILD_TIMESTAMP "%Y-%m-%d %H:%M:%S")
 
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")

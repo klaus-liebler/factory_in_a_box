@@ -2759,7 +2759,7 @@ ULONG           offset;
 #ifdef EL_PRINTF_ENABLE
         EL_PRINTF("DHCPserv: No interface found for DHCP packet\n");
 #endif
-                                      
+
         /* Release the original packet. */
         nx_packet_release(packet_ptr);
 

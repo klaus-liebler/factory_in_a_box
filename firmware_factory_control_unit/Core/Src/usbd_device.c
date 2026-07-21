@@ -247,11 +247,17 @@ _Noreturn void usbd_device_loop(void (*poll_hook)(void)) {
         }
 
         if (tud_inited()) {
-            // Blockiert intern sauber (tx_queue_receive(..., TX_WAIT_FOREVER)), solange kein
-            // USB-Event ansteht -- gibt die CPU also von selbst ab, kein Sleep noetig. TinyUSB
-            // liefert dank SOF-Interrupts (alle 1ms bei Full-Speed) trotzdem regelmaessig einen
-            // Rueckkehrpunkt, an dem poll_hook() (Modbus-RTU, s. usbd_device.h) zum Zuge kommt.
-            tud_task();
+            // tud_task() ist nur tud_task_ext(UINT32_MAX, false) -- blockiert unbegrenzt, bis ein
+            // ECHTES USB-Transfer-Ereignis eintrifft. Ohne per tud_sof_cb_enable() aktivierten
+            // SOF-Callback (hier NICHT aktiv) gibt es KEINEN periodischen 1ms-Rueckkehrpunkt, wie
+            // ein frueherer Kommentar hier faelschlich annahm. Das fuehrte beim Hardware-Test der
+            // USB-NCM-Schnittstelle zu Ping-Antwortzeiten von teils >2s: ein bereits fertig in
+            // usb_ncm_driver.c's TX_QUEUE liegendes Antwortpaket (z.B. eine ICMP-Echo-Antwort)
+            // wurde erst verschickt, wenn zufaellig das NAECHSTE, komplett unabhaengige
+            // USB-Ereignis tud_task() aufweckte. tud_task_ext() mit einem 1ms-Timeout erzwingt
+            // stattdessen einen garantierten Rueckkehrpunkt fuer poll_hook() (ModbusRtuServer::Poll(),
+            // usb_ncm_driver_poll()) alle 1ms, unabhaengig von echter Busaktivitaet.
+            tud_task_ext(1, false);
             if (poll_hook) {
                 poll_hook();
             }

@@ -173,7 +173,7 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     // --- USB-CDC-NCM: virtuelle NIC + DHCP-Server + zweite mDNS-Instanz ---
     uint8_t ncm_mac[6];
     App::ComputeNcmMac(app->chip_uid, ncm_mac);
-    usb_ncm_driver_init(&app->ip_instance, &app->packet_pool, ncm_mac);
+    XASSERT(usb_ncm_driver_init(&app->ip_instance, &app->packet_pool, ncm_mac), "USB-NCM driver init failed");
     // nx_ip_interface_attach() (anders als die x509/TLS-Aufrufe oben) ist HIER, in
     // tx_application_define(), zulaessig: wird vor Start des IP-Threads aufgerufen, holt die
     // eigentliche Treiber-Initialisierung/-Freischaltung automatisch waehrend dessen eigenem

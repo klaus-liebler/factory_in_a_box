@@ -18,19 +18,21 @@ extern "C" {
 // Einmalig aus net_setup_create() aufzurufen, BEVOR nx_ip_interface_attach() mit
 // nx_usb_ncm_driver() als Treiberfunktion aufgerufen wird -- hinterlegt IP-Instanz/Paket-Pool
 // sowie die MAC-Adresse der virtuellen NIC (dieselben 6 Bytes, die auch usbd_device_setup() fuer
-// den MAC-Adress-String-Deskriptor bekommt, s. App::ComputeNcmMac() in app.hh/.cc).
-void usb_ncm_driver_init(NX_IP *ip_ptr, NX_PACKET_POOL *pool_ptr, const uint8_t mac[6]);
+// den MAC-Adress-String-Deskriptor bekommt, s. App::ComputeNcmMac() in app.hh/.cc). Erzeugt dabei
+// auch die interne TX_QUEUE fuer ausgehende Pakete -- Rueckgabewert pruefen (ThreadX-Objekterzeugung
+// kann wie ueberall im Projekt per XASSERT abgesichert werden).
+UINT usb_ncm_driver_init(NX_IP *ip_ptr, NX_PACKET_POOL *pool_ptr, const uint8_t mac[6]);
 
 // Die eigentliche NetX-Duo-Treiberfunktion, an nx_ip_interface_attach() zu uebergeben.
 void nx_usb_ncm_driver(NX_IP_DRIVER *driver_req_ptr);
 
 // Muss regelmaessig aus dem usbd_device_thread heraus aufgerufen werden (s.
-// App::UsbdDevicePollHook(), analog zu ModbusRtuServer::Poll()) -- sendet ein ggf. von der
-// NetX-IP-Thread-Seite zwischengepuffertes ausgehendes Paket, sobald TinyUSB dafuer bereit ist.
+// App::UsbdDevicePollHook(), analog zu ModbusRtuServer::Poll()) -- sendet von der NetX-IP-Thread-
+// Seite zwischengepufferte ausgehende Pakete, sobald TinyUSB dafuer bereit ist.
 // tud_network_xmit()/tud_network_can_xmit() duerfen NUR aus demselben Thread-Kontext wie
 // tud_task() aufgerufen werden (TinyUSBs Geraete-Stack ist nicht thread-safe) -- der eigentliche
-// NX_LINK_PACKET_SEND-Aufruf laeuft dagegen im NetX-IP-Thread, deshalb dieser Umweg ueber ein
-// Einzelplatz-Mailbox-Paket statt direktem Aufruf aus dem Treiber heraus.
+// NX_LINK_PACKET_SEND-Aufruf laeuft dagegen im NetX-IP-Thread, deshalb dieser Umweg ueber eine
+// TX_QUEUE statt direktem Aufruf aus dem Treiber heraus.
 void usb_ncm_driver_poll(void);
 
 #ifdef __cplusplus

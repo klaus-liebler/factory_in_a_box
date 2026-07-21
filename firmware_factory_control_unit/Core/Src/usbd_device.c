@@ -222,7 +222,7 @@ void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid
     }
 }
 
-_Noreturn void usbd_device_loop(void (*poll_hook)(void)) {
+_Noreturn void usbd_device_loop(void (*poll_hook)(void), uint32_t (*get_task_timeout_ms)(void)) {
     bool vsense_last = (HAL_GPIO_ReadPin(USB_VSENSE_GPIO_Port, USB_VSENSE_Pin) == GPIO_PIN_SET);
 
     while (1) {
@@ -248,16 +248,13 @@ _Noreturn void usbd_device_loop(void (*poll_hook)(void)) {
 
         if (tud_inited()) {
             // tud_task() ist nur tud_task_ext(UINT32_MAX, false) -- blockiert unbegrenzt, bis ein
-            // ECHTES USB-Transfer-Ereignis eintrifft. Ohne per tud_sof_cb_enable() aktivierten
-            // SOF-Callback (hier NICHT aktiv) gibt es KEINEN periodischen 1ms-Rueckkehrpunkt, wie
-            // ein frueherer Kommentar hier faelschlich annahm. Das fuehrte beim Hardware-Test der
-            // USB-NCM-Schnittstelle zu Ping-Antwortzeiten von teils >2s: ein bereits fertig in
-            // usb_ncm_driver.c's TX_QUEUE liegendes Antwortpaket (z.B. eine ICMP-Echo-Antwort)
-            // wurde erst verschickt, wenn zufaellig das NAECHSTE, komplett unabhaengige
-            // USB-Ereignis tud_task() aufweckte. tud_task_ext() mit einem 1ms-Timeout erzwingt
-            // stattdessen einen garantierten Rueckkehrpunkt fuer poll_hook() (ModbusRtuServer::Poll(),
-            // usb_ncm_driver_poll()) alle 1ms, unabhaengig von echter Busaktivitaet.
-            tud_task_ext(1, false);
+            // ECHTES USB-Transfer-Ereignis eintrifft (kein SOF-Callback aktiv, also kein
+            // periodischer Rueckkehrpunkt von Haus aus). get_task_timeout_ms() (s. usbd_device.h)
+            // liefert nur dann ein kurzes Timeout, wenn tatsaechlich ein Antwortpaket wartet --
+            // sonst UINT32_MAX, damit dieser Thread (Prioritaet 6, hoeher als io_thread mit 8) im
+            // USB-Leerlauf nicht unnoetig oft dazwischenfunkt.
+            uint32_t timeout_ms = get_task_timeout_ms ? get_task_timeout_ms() : UINT32_MAX;
+            tud_task_ext(timeout_ms, false);
             if (poll_hook) {
                 poll_hook();
             }

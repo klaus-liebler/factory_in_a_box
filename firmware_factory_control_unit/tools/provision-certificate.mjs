@@ -81,14 +81,16 @@ function opensslCreateCertificate(hostname, boardDir) {
 
 	// Eigene, pro-Board generierte ext-Datei statt der geteilten certificates/openssl.cnf zu
 	// mutieren -- die traegt das subjectAltName sonst fest fuer nur EIN Board.
-	// Drei SAN-Eintraege: der Browser prueft den Hostnamen so, wie er eingegeben wurde --
+	// Zwei DNS-SAN-Eintraege: der Browser prueft den Hostnamen so, wie er eingegeben wurde --
 	// "<hostname>.local" (mDNS-Aufloesung ueber unseren nx_mdns-Responder) ist ein anderer
 	// String als "<hostname>" und muss deshalb separat als DNS-SAN gelistet sein, sonst
-	// schlaegt die Zertifikatspruefung fuer die .local-Variante fehl. "factory-box.local" (fest,
-	// ohne Board-eindeutigen Hex-Suffix) kommt zusaetzlich dazu, weil der HTTPS-Webserver ueber
-	// die virtuelle USB-CDC-NCM-NIC unter genau diesem Namen erreichbar ist (s. net_setup.cpp,
-	// zweite mDNS-Instanz "mdns_usb") -- Boards, die vor dieser Aenderung provisioniert wurden,
-	// brauchen dafuer ein erneutes Ausfuehren dieses Skripts.
+	// schlaegt die Zertifikatspruefung fuer die .local-Variante fehl. Zusaetzlich ein IP-SAN fuer
+	// 192.168.173.1 -- die virtuelle USB-CDC-NCM-NIC (s. net_setup.cpp, USB_NCM_IP_ADDRESS) hat
+	// eine feste IP OHNE eigenen mDNS-Namen (eine zweite NX_MDNS-Instanz scheiterte an
+	// NX_PORT_UNAVAILABLE, s. Commit-Historie), daher ist https://192.168.173.1/ dort nur per
+	// direkter IP erreichbar; ohne IP-SAN wuerde der Browser trotz gueltiger Kette eine
+	// Zertifikatswarnung zeigen. Boards, die vor dieser Aenderung provisioniert wurden, brauchen
+	// dafuer ein erneutes Ausfuehren dieses Skripts.
 	writeFileSync(
 		extPath,
 		"authorityKeyIdentifier=keyid,issuer\n" +
@@ -99,7 +101,7 @@ function opensslCreateCertificate(hostname, boardDir) {
 			"[alt_names]\n" +
 			`DNS.1 = ${hostname}\n` +
 			`DNS.2 = ${hostname}.local\n` +
-			`DNS.3 = factory-box.local\n`
+			`IP.1 = 192.168.173.1\n`
 	);
 
 	execFileSync("openssl", [

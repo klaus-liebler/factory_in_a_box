@@ -285,7 +285,6 @@ void usb_ncm_driver_poll(void) {
     }
 
     // Bis zu USB_NCM_TX_QUEUE_DEPTH Pakete pro Poll-Durchlauf abarbeiten, damit ein Schwung
-    // gleichzeitig anfallender Pakete (z.B. TLS-Handshake-Segmente) nicht Paket fuer Paket auf
     // den naechsten tud_task()-Durchlauf warten muss (s. Kommentar bei g_tx_queue).
     NX_PACKET *packet_ptr = g_tx_retry;
     g_tx_retry = NULL;
@@ -311,4 +310,13 @@ void usb_ncm_driver_poll(void) {
         nx_packet_transmit_release(packet_ptr);
         packet_ptr = NULL;
     }
+}
+
+bool usb_ncm_driver_has_pending_tx(void) {
+    if (g_tx_retry != NULL) {
+        return true;
+    }
+    ULONG enqueued = 0;
+    tx_queue_info_get(&g_tx_queue, TX_NULL, &enqueued, TX_NULL, TX_NULL, TX_NULL, TX_NULL);
+    return enqueued > 0;
 }

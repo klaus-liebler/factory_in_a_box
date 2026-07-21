@@ -31,11 +31,24 @@ void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid
 // TinyUSB-Doku im selben Thread-Kontext laufen -- usbd_device_setup() und usbd_device_loop()
 // werden deshalb beide aus App::UsbdDeviceThread() aufgerufen, niemals einzeln.
 //
-// poll_hook (optional, NULL erlaubt): wird nach jedem tud_task()-Durchlauf aufgerufen -- der
+// poll_hook (optional, NULL erlaubt): wird nach jedem tud_task_ext()-Durchlauf aufgerufen -- der
 // Ort, an dem der C++-Aufrufer (App::UsbdDeviceThread()) z.B. ModbusRtuServer::Poll() anhaengt,
 // ohne dass diese reine-C-Datei selbst irgendetwas C++-Spezifisches wissen muesste (s.
 // Klassenkommentar oben zum Grund fuer die C/C++-Trennung).
-_Noreturn void usbd_device_loop(void (*poll_hook)(void));
+//
+// get_task_timeout_ms (optional, NULL erlaubt -> unbegrenzt warten): vor JEDEM tud_task_ext()-
+// Aufruf befragt, um das Timeout fuer genau diesen Durchlauf zu bestimmen. tud_task() selbst ist
+// nur tud_task_ext(UINT32_MAX, false) -- wartet unbegrenzt und kehrt nur bei einem ECHTEN
+// USB-Transferereignis zurueck (kein periodischer SOF-Wecker aktiv). Ein bereits fertiges,
+// ausgehendes Paket (z.B. usb_ncm_driver.c's TX_QUEUE) koennte dadurch beliebig lange auf den
+// naechsten UNABHAENGIGEN USB-Event warten, bevor poll_hook() es verschicken kann -- sichtbar als
+// mehrsekuendige Ping-Latenz beim Hardware-Test. Ein FEST verdrahtetes kurzes Timeout (z.B. 1ms)
+// behebt das, weckt den mit hoeherer Prioritaet als io_thread laufenden usbd_device_thread damit
+// aber auch dann jede Millisekunde, wenn gar nichts zu tun ist -- das verdraengte io_thread beim
+// Hardware-Test so oft, dass zeitkritische Busy-Waits (DTS-CPU-Temperatursensor) in Timeouts
+// liefen. Der Rueckruf macht das Timeout deshalb adaptiv: kurz NUR, wenn tatsaechlich etwas
+// wartet (s. App::UsbdDeviceGetTaskTimeoutMs()), sonst wieder unbegrenzt wie zuvor.
+_Noreturn void usbd_device_loop(void (*poll_hook)(void), uint32_t (*get_task_timeout_ms)(void));
 
 // Diagnose (Enumerations-Haenger nach echtem Host-Anschluss, s. Debugging-Sitzung): Anzahl der
 // bisherigen USB_DRD_FS_IRQHandler()-Aufrufe seit Boot. Wird vom Heartbeat-Thread mitgeloggt --

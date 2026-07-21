@@ -9,6 +9,7 @@
 // Klassenkommentar in usbd_device.h). nx_api.h selbst ist reines C und daher hier in diesem, von
 // C++-Aufrufern (net_setup.cpp) inkludierten Header unproblematisch.
 #include <stdint.h>
+#include <stdbool.h>
 #include "nx_api.h"
 
 #ifdef __cplusplus
@@ -34,6 +35,16 @@ void nx_usb_ncm_driver(NX_IP_DRIVER *driver_req_ptr);
 // NX_LINK_PACKET_SEND-Aufruf laeuft dagegen im NetX-IP-Thread, deshalb dieser Umweg ueber eine
 // TX_QUEUE statt direktem Aufruf aus dem Treiber heraus.
 void usb_ncm_driver_poll(void);
+
+// Liefert true, solange noch mindestens ein Paket in der TX-Warteschlange (oder im
+// Retry-Einzelplatz) auf den Versand wartet -- s. App::UsbdDeviceGetTaskTimeoutMs() in app.cc:
+// nur WENN hier true zurueckkommt, lohnt sich ein kurzes tud_task_ext()-Timeout, um dieses Paket
+// zuegig zu versenden. Ohne diese Bedingung wuerde usbd_device_loop() staendig (auch im
+// USB-Leerlauf) alle 1ms aufwachen und den hoeher priorisierten usbd_device_thread unnoetig oft
+// vor niedriger priorisierte Threads (z.B. io_thread) draengen -- das brachte beim
+// Hardware-Test zeitkritische Busy-Waits wie den DTS-CPU-Temperatursensor
+// (Core/Src/setup_and_loops/cpu_temp.hh) zum Timeout.
+bool usb_ncm_driver_has_pending_tx(void);
 
 #ifdef __cplusplus
 }

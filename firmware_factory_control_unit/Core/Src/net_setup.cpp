@@ -220,17 +220,17 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
                                                       usb_ncm_committed_ip),
             "DHCP Server network parameters set failed");
 
-    // Fallback statt einer zweiten NX_MDNS-Instanz (s. Implementierungsplan): ein zweiter
-    // nx_mdns_create() auf derselben NX_IP schlug hardwareseitig mit NX_PORT_UNAVAILABLE (0x23)
-    // fehl -- beide Instanzen binden intern denselben UDP-Port 5353 auf derselben IP-Instanz,
-    // eine zweite Bindung ist also grundsaetzlich nicht moeglich. Stattdessen wird die bereits
-    // bestehende Instanz "mdns" (oben, Interface 0) zusaetzlich auf dem USB-NCM-Interface
-    // aktiviert -- der Host loest ueber USB denselben board-spezifischen
-    // "factory-box-<hex>.local"-Namen auf wie ueber Ethernet, NICHT den im Implementierungsplan
-    // urspruenglich vorgesehenen festen "factory-box.local"-Namen (dafuer waere eine eigene,
-    // multiplexfaehige mDNS-Implementierung noetig, die mehrere Hostnamen auf einem UDP-Socket
-    // bedient -- ausserhalb des Scopes dieser Aenderung).
-    XASSERT(nx_mdns_enable(&app->mdns, USB_NCM_INTERFACE_INDEX), "mDNS (USB) enable failed");
+    // Kein mDNS auf dem USB-NCM-Interface (bewusst NICHT nx_mdns_enable(&app->mdns,
+    // USB_NCM_INTERFACE_INDEX) wie in einer frueheren Version dieser Datei): eine zweite
+    // NX_MDNS-Instanz scheiterte an NX_PORT_UNAVAILABLE (0x23, s. Commit-Historie -- zwei
+    // Instanzen koennen nicht beide UDP-Port 5353 auf derselben NX_IP binden), und die
+    // bestehende Instanz zusaetzlich auf Interface 1 zu aktivieren loeste denselben
+    // board-spezifischen "factory-box-<hex>.local"-Namen auf wie auf dem Ethernet-Interface --
+    // je nachdem, welches Interface der Host gerade tatsaechlich erreichen kann, fuehrte das zu
+    // nicht erreichbaren Adressen. Die IP dieses Interfaces ist ohnehin fest (192.168.173.1,
+    // s. USB_NCM_IP_ADDRESS), daher stattdessen einfach per direkter IP erreichbar --
+    // tools/provision-certificate.mjs traegt diese Adresse zusaetzlich als IP-SAN ins
+    // Geraetezertifikat ein, damit https://192.168.173.1/ ohne Zertifikatsfehler funktioniert.
 }
 
 // Karte optional: keine gesteckte/funktionierende microSD darf den Rest des Boots

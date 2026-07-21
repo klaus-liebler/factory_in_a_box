@@ -133,12 +133,21 @@ public:
     static void IOThreadStatic(ULONG arg);
     static void UsbdDeviceThreadStatic(ULONG arg);
     static void HeartbeatThreadStatic(ULONG arg);
-    // Wird von usbd_device_loop() (reines C, s. usbd_device.h) nach jedem tud_task()-Durchlauf
-    // aufgerufen -- einziger Weg, aus der C-Schleife heraus regelmaessig C++-Code (hier:
-    // ModbusRtuServer::Poll() und usb_ncm_driver_poll()) anzustossen, ohne usbd_device.c
+    // Wird von usbd_device_loop() (reines C, s. usbd_device.h) nach jedem tud_task_ext()-
+    // Durchlauf aufgerufen -- einziger Weg, aus der C-Schleife heraus regelmaessig C++-Code
+    // (hier: ModbusRtuServer::Poll() und usb_ncm_driver_poll()) anzustossen, ohne usbd_device.c
     // C++-Wissen beizubringen (s. dortiger Klassenkommentar zum Grund fuer die strikte
     // C/C++-Trennung).
     static void UsbdDevicePollHook();
+
+    // Legt vor JEDEM tud_task_ext()-Aufruf das Timeout fuer genau diesen Durchlauf fest (s.
+    // usbd_device.h fuer die ausfuehrliche Begruendung): kurz (1ms) NUR, wenn
+    // usb_ncm_driver_has_pending_tx() ein wartendes Paket meldet, sonst UINT32_MAX (unbegrenzt,
+    // wie vor der urspruenglichen Latenz-Behebung) -- verhindert, dass der hoeher priorisierte
+    // usbd_device_thread im USB-Leerlauf staendig alle 1ms den niedriger priorisierten io_thread
+    // verdraengt (fuehrte beim Hardware-Test zu Timeouts im DTS-CPU-Temperatursensor-Busy-Wait,
+    // s. Core/Src/setup_and_loops/cpu_temp.hh).
+    static uint32_t UsbdDeviceGetTaskTimeoutMs();
 
     // Locally-administered, aus der Board-UID abgeleitete MAC-Adresse fuer die virtuelle
     // NCM-NIC (Byte 0 = 0x02, s. IEEE 802-2014 Tabelle 8-1 "locally administered unicast").

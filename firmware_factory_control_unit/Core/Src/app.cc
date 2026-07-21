@@ -130,7 +130,7 @@ void App::IOThread() {
     App::ComputeNcmMac(this->chip_uid, ncm_mac);
     usbd_device_setup(this->chip_uid[0], this->chip_uid[1], this->chip_uid[2], ncm_mac);
     log_info("USB Device Thread started");
-    usbd_device_loop(App::UsbdDevicePollHook);
+    usbd_device_loop(App::UsbdDevicePollHook, App::UsbdDeviceGetTaskTimeoutMs);
 }
 
 // cdc_itf=1: zweite CDC-Deskriptorinstanz in usbd_device.c (ITF_CDC1_MODBUS_*), Instanz 0 ist
@@ -139,6 +139,10 @@ void App::IOThread() {
 void App::UsbdDevicePollHook() {
     App::Instance().modbus_rtu_server->Poll();
     usb_ncm_driver_poll();
+}
+
+uint32_t App::UsbdDeviceGetTaskTimeoutMs() {
+    return usb_ncm_driver_has_pending_tx() ? 1u : UINT32_MAX;
 }
 
 void App::ComputeNcmMac(const uint32_t chip_uid[3], uint8_t mac[6]) {

@@ -128,6 +128,19 @@ file(GLOB_RECURSE NX_SECURE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/crypto_libraries/src/*.c
 )
 
+# USBX (vendort aus STMicroelectronics/stm32-mw-usbx, ST's Fork von eclipse-threadx/usbx --
+# upstream fehlt der STM32-Geraetetreiber usbx_stm32_device_controllers komplett). Nur
+# Device-Seite (kein usbx_host_classes/usbx_host_controllers/ux_hcd_sim_host/ux_dcd_sim_slave/
+# dpump-Demoklasse -- dieses Geraet ist nie USB-Host, s. UX_DEVICE_SIDE_ONLY in ux_user.h) und
+# nur die zwei tatsaechlich genutzten Geraeteklassen (cdc_acm, cdc_ecm) statt aller
+# usbx_device_classes/* (analog zur Kuration bei tinyusb_port/den NetX-Duo-Addons oben).
+file(GLOB USBX_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/usbx/common/core/src/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/usbx/common/usbx_device_classes/src/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/usbx/common/usbx_network/src/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/usbx/common/usbx_stm32_device_controllers/*.c
+)
+
 # --- Binaer-Assets (Geraetezertifikat/-schluessel + komprimierte Weboberflaeche) ---
 # Statt wie frueher generierter C-Arrays (Core/Src/generated/device_certificate.c,
 # modbus_ui_page.c, beide eingecheckt) werden jetzt die rohen Binaerdateien selbst eingecheckt
@@ -188,7 +201,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/io.cpp
     Core/Src/usb_pd_control.cpp
     Core/Src/usbd_device.c
-    Core/Src/usb_ncm_driver.c
     Core/Src/hal_tick_threadx.c
     Core/Src/fx_stm32_sd_driver_adapter.c
     Core/Src/tx_initialize_low_level.S
@@ -201,6 +213,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${FILEX_SOURCES}
     ${NETXDUO_SOURCES}
     ${NX_SECURE_SOURCES}
+    ${USBX_SOURCES}
 )
 
 # Add include paths
@@ -223,6 +236,11 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     libs/ST/netxduo/nx_secure/ports
     libs/ST/netxduo/crypto_libraries/inc
     libs/ST/netxduo/crypto_libraries/ports/cortex_m4/gnu/inc
+    libs/ST/usbx/common/core/inc
+    libs/ST/usbx/common/usbx_device_classes/inc
+    libs/ST/usbx/common/usbx_network/inc
+    libs/ST/usbx/common/usbx_stm32_device_controllers
+    libs/ST/usbx/ports/generic/inc
     Drivers/BSP/Components/lan8742
     # Header-only stm32_libs (kein eigenes CMake-Target, kein add_subdirectory noetig) --
     # gpio.hh/log.h/hal_header_selector.h etc. kommen bereits transitiv ueber das Linken gegen
@@ -248,6 +266,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     FX_INCLUDE_USER_DEFINE_FILE
     NX_INCLUDE_USER_DEFINE_FILE
     TX_INCLUDE_USER_DEFINE_FILE
+    UX_INCLUDE_USER_DEFINE_FILE
     # TrustZone: this core runs the CORTEX_M33_NS (non-secure) image only, no
     # Secure/Non-secure ThreadX handoff -- matches Nx_WebServer's build (STM32H573I-DK
     # is TrustZone-disabled there for the same reason).
@@ -275,29 +294,9 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 add_subdirectory(../stm32_libs/common_stm32 ${CMAKE_BINARY_DIR}/stm32_libs/common_stm32)
 add_subdirectory(../stm32_libs/tmc2209 ${CMAKE_BINARY_DIR}/stm32_libs/tmc2209)
 add_subdirectory(../stm32_libs/usb_pd ${CMAKE_BINARY_DIR}/stm32_libs/usb_pd)
-add_subdirectory(../stm32_libs/tinyusb_port ${CMAKE_BINARY_DIR}/stm32_libs/tinyusb_port)
-# tusb_config.h ist projektspezifisch und liegt hier (nicht im wiederverwendbaren
-# tinyusb_port-Target selbst, s. dortige CMakeLists.txt) -- TinyUSBs eigene Quellen brauchen ihn
-# beim Kompilieren ebenso wie unser eigener Code weiter unten. osal_threadx.h (CFG_TUSB_OS=
-# OPT_OS_THREADX) braucht zusaetzlich tx_api.h -- dieselben ThreadX-Include-Pfade wie unten fuer
-# das Hauptexecutable.
-target_include_directories(tinyusb_port PRIVATE
-    Core/Inc
-    libs/ST/threadx/common/inc
-    libs/ST/threadx/ports/cortex_m33/gnu/inc
-)
-# KRITISCH fuer ABI-Konsistenz: ohne TX_INCLUDE_USER_DEFINE_FILE sieht tinyusb_port
-# Core/Inc/tx_user.h nie -- dort ist u.a. TX_DISABLE_NOTIFY_CALLBACKS aktiv gesetzt, was
-# TX_QUEUE (und andere ThreadX-Structs) um ein Funktionszeiger-Feld verkleinert (s. tx_api.h).
-# Ohne dieses Define kompiliert tinyusb_port gegen ein GROESSERES TX_QUEUE als der Rest der
-# Firmware -- osal_threadx.h's osal_queue_create() uebergibt dann ein falsches sizeof(TX_QUEUE)
-# an _txe_queue_create(), deren eigene Kontrollblockgroessen-Pruefung das als Fehler erkennt und
-# tud_rhport_init() daran bei jedem tusb_init()-Aufruf deterministisch scheitern laesst (TU_ASSERT
-# bei der Queue-Erstellung in usbd.c) -- ohne angeschlossenen Debugger unbemerkt, da
-# TU_BREAKPOINT() auf Cortex-M nur bei aktivem Debug-Session tatsaechlich anhaelt.
-target_compile_definitions(tinyusb_port PRIVATE
-    TX_INCLUDE_USER_DEFINE_FILE
-)
+# USBX (anders als TinyUSB) wird nicht als eigenes stm32_libs-Wrapper-Target eingebunden,
+# sondern direkt als GLOB in target_sources()/target_include_directories() oben, analog zu
+# ThreadX/FileX/NetX Duo -- s. USBX_SOURCES-Kommentar weiter oben zur Begruendung.
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
@@ -305,7 +304,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     common_stm32
     tmc2209
     usb_pd
-    tinyusb_port
 
     # Add user defined libraries
 )

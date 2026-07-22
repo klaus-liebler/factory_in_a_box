@@ -1454,13 +1454,18 @@ static void MX_USB_PCD_Init(void)
   }
   /* USER CODE BEGIN USB_Init 2 */
   // Der USB_DRD_FS-Interrupt (NVIC-Freischaltung, Prioritaet, ISR) wird bewusst NICHT von
-  // CubeMX verwaltet (im .ioc kein NVIC-Haekchen fuer USB_DRD_FS_IRQn) -- TinyUSBs
-  // dcd_stm32_fsdev-Treiber besitzt die Peripherie exklusiv und regelt Freischaltung/Sperrung
-  // selbst (dcd_int_enable()/dcd_int_disable(), aufgerufen aus tusb_init()/tud_deinit()).
-  // Haette CubeMX hier zusaetzlich HAL_NVIC_EnableIRQ() aufgerufen, koennte der Interrupt schon
-  // vor tusb_init() feuern (z.B. wenn beim Boot bereits ein Host/5V an PC0/USB_VSENSE anliegt)
-  // und dabei RAM korrumpieren, da TinyUSBs interner Zustand (Queue/Mutex) dann noch nicht
-  // existiert. Handler-Funktion, Prioritaet und Lifecycle liegen vollstaendig in usbd_device.c.
+  // CubeMX verwaltet (im .ioc kein NVIC-Haekchen fuer USB_DRD_FS_IRQn) -- diesmal NICHT, weil
+  // USBX' ux_dcd_stm32-Treiber die Peripherie exklusiv besaesse (im Gegenteil: er ist
+  // HAL_PCD-basiert und erwartet den STANDARD HAL_PCD_IRQHandler()-Ablauf, s.
+  // USB_DRD_FS_IRQHandler() in usbd_device.c), sondern damit die Freischaltung garantiert erst
+  // NACH ux_dcd_stm32_initialize()/der USBX-Klassen-Registrierung passiert (s.
+  // usbd_device_setup()) -- vorher koennte ein Interrupt auf noch nicht initialisierten
+  // USBX-Systemzustand treffen. HAL_PCD_Init() hier (oben) laeuft dagegen unbedingt und lange
+  // vor usbd_device_setup() (das erst aus einem ThreadX-Thread heraus laufen kann) -- unkritisch,
+  // da HAL_PCD_Init() selbst laut Kommentar in ux_dcd_stm32_initialize.c keine Interrupts ausloest,
+  // solange die NVIC-Freischaltung (s.o.) noch aussteht. Handler-Funktion, Prioritaet und
+  // Lifecycle (HAL_PCD_Start()/_Stop() statt TinyUSBs tud_connect()/_disconnect()) liegen
+  // vollstaendig in usbd_device.c.
   /* USER CODE END USB_Init 2 */
 
 }

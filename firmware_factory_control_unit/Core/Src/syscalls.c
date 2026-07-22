@@ -30,7 +30,7 @@
 #include <sys/time.h>
 #include <sys/times.h>
 #include "main.h"
-#include "tusb.h"
+#include "usbd_device.h"
 
 
 /* Variables */
@@ -81,12 +81,12 @@ __attribute__((weak)) int _read(int file, char *ptr, int len)
 
 extern UART_HandleTypeDef huart3;
 
-// Spiegelung auf die virtuelle "FactoryControl Debug"-CDC-Schnittstelle (Interface 0) --
-// best-effort/nicht blockierend: tud_cdc_n_write() kopiert nur in den internen Ringpuffer
-// (verwirft ueberschuessige Bytes bei vollem Puffer statt zu blockieren). tud_mounted() (Host
-// hat SET_CONFIGURATION abgeschlossen) statt tud_cdc_n_connected() als Gate -- Letzteres
-// spiegelt nur die DTR-Leitung wider, die laengst nicht jedes Terminal-Programm beim Verbinden
-// setzt. tud_inited() ist auch vor tusb_init() gefahrlos aufrufbar (liefert dann false).
+// Spiegelung auf die virtuelle "FactoryControl Debug"-CDC-ACM-Schnittstelle (Interface 0) --
+// best-effort/nicht blockierend: usbd_debug_cdc_write() (s. usbd_device.c) liefert 0 (und
+// verwirft die Ausgabe stillschweigend), solange kein Host verbunden ist oder eine vorherige
+// Uebertragung noch nicht abgeschlossen wurde -- kein eigenes Gate hier noetig (anders als bei
+// TinyUSBs tud_inited()/tud_mounted()-Kombination, deren Zweck usbd_debug_cdc_write() intern
+// bereits abdeckt, s. dortiger Kommentar).
 //
 // In BEIDEN moeglichen stdio-Pfaden aufgerufen (Debugging-Sitzung: welcher davon tatsaechlich
 // aktiv ist, haengt von der verlinkten C-Bibliothek ab -- Picolibcs FDEV_SETUP_STREAM ruft
@@ -95,13 +95,7 @@ extern UART_HandleTypeDef huart3;
 // log_log() tatsaechlich durchlaufen, je nachdem was gerade verlinkt ist). Ungefaehrliches
 // Duplizieren: der jeweils inaktive Pfad wird schlicht nie aufgerufen.
 static void usbd_cdc_debug_mirror(uint8_t const *buf, int len) {
-    if (!(tud_inited() && tud_mounted())) {
-        return;
-    }
-    tud_cdc_n_write(0, buf, (uint32_t)len);
-    if (len > 0 && buf[len - 1] == (uint8_t)'\n') {
-        tud_cdc_n_write_flush(0);
-    }
+    usbd_debug_cdc_write(buf, (uint32_t)len);
 }
 
 int __io_putchar(int ch) {

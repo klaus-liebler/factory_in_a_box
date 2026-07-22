@@ -18,3 +18,4 @@ firmware_factory_control_unit/tools/environment-config.mjs
 # Tools/Kommentare dort) -- ohne sie baut ein frischer Checkout nicht.
 /firmware_factory_control_unit/assets/device_certificate.der
 /firmware_factory_control_unit/assets/device_key.der
+/pcb_factory_control_unit/.history

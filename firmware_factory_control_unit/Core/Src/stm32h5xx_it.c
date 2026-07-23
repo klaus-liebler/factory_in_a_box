@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -98,19 +99,91 @@ void NMI_Handler(void)
   /* USER CODE END NonMaskableInt_IRQn 1 */
 }
 
+/* USER CODE BEGIN HardFault_Handler_C */
+// Rohes, HAL-freies Polling-Transmit fuer den Fault-Handler: HAL_UART_Transmit() (wie es sonst
+// ueberall in diesem Projekt genutzt wird, s. syscalls.c::_write()) haengt __HAL_LOCK()/
+// __HAL_UNLOCK() um sich herum -- traf der Fault WAEHREND eine vorherige HAL_UART_Transmit()
+// noch lief (huart3->Lock also noch HAL_LOCKED, weil deren regulaerer Rueckweg nie erreicht
+// wurde), liefert ein erneuter HAL_UART_Transmit()-Aufruf sofort HAL_BUSY zurueck OHNE ein
+// einziges Byte zu senden -- exakt das beobachtete "Handler gibt nichts aus". Direkter
+// Registerzugriff auf USART3 ignoriert diesen Software-Lock komplett (Standardmuster fuer
+// Fault-Handler: der Hardware-Zustand ist das einzig Verlaessliche, sobald die Ausnahme
+// eingetreten ist).
+static void hardfault_uart_puts(char const *s) {
+    while (*s) {
+        while ((USART3->ISR & USART_ISR_TXE_TXFNF) == 0) {
+        }
+        USART3->TDR = (uint8_t)*s;
+        s++;
+    }
+    while ((USART3->ISR & USART_ISR_TC) == 0) {
+    }
+}
+
+// Diagnose-Erweiterung (Klaus Liebler, USBX-Bringup): der urspruengliche Handler gab nur eine
+// statische Meldung aus, ohne Faultort/-ursache -- bei einem HardFault waehrend eines
+// mehrpaketigen EP0-IN-Transfers (grosser GET_DESCRIPTOR(CONFIGURATION)-Response, 211 Byte > ein
+// 64-Byte-Paket) ist das ohne angehaengten Debugger nutzlos. HardFault_Handler unten ist deshalb
+// ein "naked" Trampolin (kein Prolog/Epilog, damit LR beim Eintritt noch den EXC_RETURN-Wert
+// traegt), das anhand Bit 2 von EXC_RETURN erkennt, ob MSP oder PSP den Stackframe zum Zeitpunkt
+// des Faults haelt, und diesen Stackpointer an HardFault_Handler_C uebergibt -- Standardmuster
+// fuer Cortex-M-HardFault-Diagnose ohne Debugger, unveraendert gueltig auf M33 (CFSR/HFSR/MMFAR/
+// BFAR liegen an denselben SCB-RegisterOffsets).
+void HardFault_Handler_C(uint32_t *stacked_regs)
+{
+    // Stackframe-Layout, das die CPU beim Exception-Entry automatisch ablegt (Cortex-M
+    // Architecture Reference Manual, B1.5.6): r0,r1,r2,r3,r12,lr,pc,xpsr.
+    uint32_t stacked_r0 = stacked_regs[0];
+    uint32_t stacked_r1 = stacked_regs[1];
+    uint32_t stacked_r2 = stacked_regs[2];
+    uint32_t stacked_r3 = stacked_regs[3];
+    uint32_t stacked_r12 = stacked_regs[4];
+    uint32_t stacked_lr = stacked_regs[5];
+    uint32_t stacked_pc = stacked_regs[6];
+    uint32_t stacked_psr = stacked_regs[7];
+    uint32_t cfsr = SCB->CFSR;
+    uint32_t hfsr = SCB->HFSR;
+    uint32_t mmfar = SCB->MMFAR;
+    uint32_t bfar = SCB->BFAR;
+
+    char buf[320];
+    int len = snprintf(buf, sizeof(buf),
+        "\r\n!!! HardFault_Handler !!!\r\n"
+        "PC=0x%08lX LR=0x%08lX PSR=0x%08lX SP=0x%08lX\r\n"
+        "R0=0x%08lX R1=0x%08lX R2=0x%08lX R3=0x%08lX R12=0x%08lX\r\n"
+        "CFSR=0x%08lX (MMFSR=0x%02lX BFSR=0x%02lX UFSR=0x%04lX) HFSR=0x%08lX MMFAR=0x%08lX BFAR=0x%08lX\r\n",
+        (unsigned long)stacked_pc, (unsigned long)stacked_lr, (unsigned long)stacked_psr, (unsigned long)(uintptr_t)stacked_regs,
+        (unsigned long)stacked_r0, (unsigned long)stacked_r1, (unsigned long)stacked_r2, (unsigned long)stacked_r3, (unsigned long)stacked_r12,
+        (unsigned long)cfsr, (unsigned long)(cfsr & 0xFFu), (unsigned long)((cfsr >> 8) & 0xFFu), (unsigned long)((cfsr >> 16) & 0xFFFFu),
+        (unsigned long)hfsr, (unsigned long)mmfar, (unsigned long)bfar);
+    if (len > 0) {
+        hardfault_uart_puts(buf);
+    }
+    while (1)
+    {
+    }
+}
+/* USER CODE END HardFault_Handler_C */
+
 /**
   * @brief This function handles Hard fault interrupt.
   */
-void HardFault_Handler(void)
+__attribute__((naked)) void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-  HAL_UART_Transmit(&huart3, (uint8_t *)"\r\n!!! HardFault_Handler !!!\r\n", (uint16_t)strlen("\r\n!!! HardFault_Handler !!!\r\n"), HAL_MAX_DELAY);
+  __asm volatile(
+    "movs r0, #4        \n"
+    "mov  r1, lr        \n"
+    "tst  r0, r1        \n"
+    "beq  1f            \n"
+    "mrs  r0, psp       \n"
+    "b    2f            \n"
+    "1:                 \n"
+    "mrs  r0, msp       \n"
+    "2:                 \n"
+    "b    HardFault_Handler_C \n"
+  );
   /* USER CODE END HardFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-    /* USER CODE END W1_HardFault_IRQn 0 */
-  }
 }
 
 /**

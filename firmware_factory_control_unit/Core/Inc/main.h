@@ -171,6 +171,16 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
+#ifdef BOARD_NUCLEO_H563ZI
+// Test-Rig STM32H5 Nucleo-144 (NUCLEO-H563ZI, UM3115): Board-Taste B1 (default PC13, aktiv Low,
+// Board hat eigenen Pull-up -- Tabelle "SB54, SB59" in UM3115) simuliert LIGHTBARRIER1, Board-LED
+// LD1 (default PB0, High-aktiv -- Tabelle "SB43, SB51") simuliert CONVEYOR, s. io.cpp.
+#define USERBUTTON_Pin GPIO_PIN_13
+#define USERBUTTON_GPIO_Port GPIOC
+#define USERLED_Pin GPIO_PIN_0
+#define USERLED_GPIO_Port GPIOB
+#endif
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

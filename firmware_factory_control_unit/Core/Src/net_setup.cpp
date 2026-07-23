@@ -11,12 +11,12 @@
 #include "generated/device_hostname.hh"
 #include "assets.h"
 // _ux_network_driver_entry: USBX' eigener, generischer NX_IP_DRIVER (libs/ST/usbx/common/
-// usbx_network/inc/ux_network_driver.h) -- ersetzt den vormals projekteigenen, ca. 320 Zeilen
-// umfassenden nx_usb_ncm_driver (usb_ncm_driver.c, geloescht) komplett: die CDC-ECM-
-// Geraeteklasse (s. usbd_device.c) bindet sich darueber selbststaendig an NetX Duo an (eigene
-// Ethernet-Framing-/Warteschlangen-/Thread-Logik), kein projektspezifischer Treiber-Code mehr
-// noetig. Kompatibel zu dieser C++-Uebersetzungseinheit (extern "C"-gekapselt, zieht nur
-// tx_api.h/nx_api.h nach -- beide hier ohnehin schon eingebunden).
+// usbx_network/inc/ux_network_driver.h) -- unsere eigene CDC-NCM-Geraeteklasse (s. usbd_ncm.h/.c)
+// bindet sich darueber selbststaendig an NetX Duo an (eigene Ethernet-Framing-/Warteschlangen-/
+// Thread-Logik, s. dortiger Klassenkommentar), exakt wie USBX' eigene CDC-ECM/RNDIS-Klassen --
+// kein projekteigener Treiber-Code mehr noetig. Kompatibel zu dieser C++-Uebersetzungseinheit
+// (extern "C"-gekapselt, zieht nur tx_api.h/nx_api.h nach -- beide hier ohnehin schon
+// eingebunden).
 #include "ux_network_driver.h"
 // Per objcopy eingebettete Binaerdaten (assets/device_certificate.der, assets/device_key.der,
 // s. CMakeLists.txt BINARY_ASSETS/generated/assets.h) -- Laenge per Zeigerdifferenz Start/Ende
@@ -67,25 +67,24 @@ constexpr uint32_t MDNS_STACK_SIZE = 2 * 1024;
 constexpr uint32_t MDNS_LOCAL_CACHE_SIZE = 1024;
 constexpr uint32_t MDNS_PEER_CACHE_SIZE = 1024;
 
-// --- USB-CDC-ECM: virtuelle NIC (192.168.173.1) + DHCP-Server (vergibt 192.168.173.2 an den
-// Host) + bestehende mDNS-Instanz zusaetzlich auf diesem Interface aktiviert. Urspruenglich
-// (TinyUSB) CDC-NCM -- USBX kennt keine NCM-Geraeteklasse, daher der Umstieg auf CDC-ECM (s.
-// Commit-Nachricht der USBX-Migration). Der urspruenglich vorgesehene feste Name
-// "factory-box.local" ueber eine zweite NX_MDNS-Instanz scheiterte an NX_PORT_UNAVAILABLE, s.
-// Kommentar bei nx_mdns_enable() weiter unten. Alles nur auf dem per nx_ip_interface_attach()
-// angehaengten zweiten Interface aktiv -- Interface 0 bleibt der bestehende Ethernet-Port
-// unveraendert.
+// --- USB-CDC-NCM: virtuelle NIC (192.168.173.1) + DHCP-Server (vergibt 192.168.173.2 an den
+// Host) + bestehende mDNS-Instanz zusaetzlich auf diesem Interface aktiviert. NCM statt des
+// zwischenzeitlich versuchten RNDIS (Windows-Bluescreen, s. Commit-Historie) bzw. CDC-ECM (kein
+// freier Windows-Treiber) -- der urspruenglich vorgesehene feste Name "factory-box.local" ueber
+// eine zweite NX_MDNS-Instanz scheiterte an NX_PORT_UNAVAILABLE, s. Kommentar bei
+// nx_mdns_enable() weiter unten. Alles nur auf dem per nx_ip_interface_attach() angehaengten
+// zweiten Interface aktiv -- Interface 0 bleibt der bestehende Ethernet-Port unveraendert.
 //
 // nx_ip_interface_attach() sucht sich den ersten freien Interface-Slot selbst (nicht von aussen
 // waehlbar) -- da Interface 0 bereits durch nx_ip_create() belegt ist (s. net_setup_create()
 // oben) und dies der einzige weitere attach()-Aufruf im ganzen Projekt ist, ist der resultierende
 // Index deterministisch 1. Die DHCP-Server-/mDNS-Konfigurationsaufrufe unten verlangen den Index
 // trotzdem explizit als Parameter.
-constexpr UINT USB_ECM_INTERFACE_INDEX = 1;
-constexpr ULONG USB_ECM_IP_ADDRESS = IP_ADDRESS(192, 168, 173, 1);
-constexpr ULONG USB_ECM_NET_MASK = IP_ADDRESS(255, 255, 255, 0);
-constexpr ULONG USB_ECM_DHCP_LEASE_ADDRESS = IP_ADDRESS(192, 168, 173, 2);
-constexpr uint32_t USB_ECM_DHCP_SERVER_STACK_SIZE = 2 * 1024;
+constexpr UINT USB_NCM_INTERFACE_INDEX = 1;
+constexpr ULONG USB_NCM_IP_ADDRESS = IP_ADDRESS(192, 168, 173, 1);
+constexpr ULONG USB_NCM_NET_MASK = IP_ADDRESS(255, 255, 255, 0);
+constexpr ULONG USB_NCM_DHCP_LEASE_ADDRESS = IP_ADDRESS(192, 168, 173, 2);
+constexpr uint32_t USB_NCM_DHCP_SERVER_STACK_SIZE = 2 * 1024;
 
 // Muss fuer die Lebensdauer des HTTPS-Servers bestehen bleiben (die TLS-Schicht haelt
 // intern einen Pointer darauf), daher statisch statt lokal in net_setup_start().
@@ -119,6 +118,28 @@ static void mdns_probing_notify(NX_MDNS *mdns_ptr, UCHAR *name, UINT state) {
 }
 
 void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
+    // MUSS vor dem nx_ip_interface_attach()-Aufruf weiter unten laufen: dieser ruft synchron
+    // (noch hier in tx_application_define(), also VOR Scheduler-Start) den generischen
+    // ux_network_driver mit NX_LINK_INTERFACE_ATTACH/_INITIALIZE/_ENABLE auf, die dessen internes
+    // usb_network_devices[]-Tabellenfeld (ip_instance/interface_ptr) befuellen. usbd_device_setup()
+    // (in usbd_device.c) ruft ux_network_driver_init() ebenfalls auf -- aber ERST spaeter aus
+    // UsbdDeviceThread heraus, einem Thread, der erst NACH Scheduler-Start laeuft. Waere
+    // ux_network_driver_init() nicht bereits hier (idempotent, s. dortige Guard-Variable)
+    // vorab aufgerufen worden, wuerde der SPAETERE Aufruf die gesamte Tabelle -- inklusive des
+    // von ATTACH bereits befuellten Eintrags -- auf 0 zuruecksetzen (memset), OHNE dass ATTACH
+    // je erneut liefe, um ip_instance/interface_ptr nachzutragen: das Netzwerk-Interface haette
+    // dauerhaft einen NULL-IP-Instanz-Zeiger (der Paket-Pool liesse sich nie aufloesen, s.
+    // Debugging-Sitzung -- DHCP lief nie durch, NTBs wurden empfangen, aber jedes Datagramm
+    // verworfen) und ausserdem _ux_network_driver_link_up()s "if (interface_ptr)"-Zweig
+    // still ueberspringen (Link-Status bliebe fuer immer FALSE).
+    // _ux_network_driver_init() statt des sonst ueblichen ux_network_driver_init()-Alias-Makros:
+    // letzteres steckt in ux_api.h (s. usbd_device.c, das ohnehin schon "ux_api.h" einbindet),
+    // diese Uebersetzungseinheit bindet aber bewusst nur das schlanke ux_network_driver.h ein,
+    // das dieses Alias-Makro nicht mitbringt -- der zugrunde liegende Funktionsname ist trotz
+    // des fuehrenden Unterstrichs eine ganz normale, in ux_network_driver.h deklarierte
+    // extern-Funktion.
+    XASSERT(_ux_network_driver_init(), "USBX network driver init failed");
+
     void *ptr = 0;
     XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, NX_APP_PACKET_POOL_SIZE, TX_NO_WAIT), "NetXDuo App Pool allocate failed");
     XASSERT(nx_packet_pool_create(&app->packet_pool, _C("NetXDuo App Pool"),
@@ -179,46 +200,46 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
 
     XASSERT(nx_dhcp_create(&app->dhcp_client, &app->ip_instance, _C("DHCP Client")), "DHCP Client create failed");
 
-    // --- USB-CDC-ECM: virtuelle NIC + DHCP-Server + zweite mDNS-Instanz ---
-    // Kein projekteigener Treiber-Init-Aufruf mehr noetig (anders als vormals
-    // usb_ncm_driver_init() bei TinyUSB/CDC-NCM): die CDC-ECM-Geraeteklasse (s. usbd_device.c,
-    // ux_device_stack_class_register() dort) verwaltet ihre NetX-Duo-Anbindung -- inkl. eigenem
-    // Paket-Pool -- vollstaendig selbst; das hier verwendete app->ip_instance/app->packet_pool
-    // ist ausschliesslich fuer Interface 0 (echtes Ethernet) sowie diesen DHCP-Server relevant.
-    uint8_t ecm_mac[6];
-    App::ComputeEcmMac(app->chip_uid, ecm_mac);
+    // --- USB-CDC-NCM: virtuelle NIC + DHCP-Server + zweite mDNS-Instanz ---
+    // Kein projekteigener Treiber-Init-Aufruf mehr noetig: die CDC-NCM-Geraeteklasse (s.
+    // usbd_ncm.c, ux_device_stack_class_register() dort) verwaltet ihre NetX-Duo-Anbindung ueber
+    // USBX' eigenen generischen ux_network_driver komplett selbst (inkl. Paket-Pool-Aufloesung
+    // aus der NX_IP-Instanz) -- das hier verwendete app->ip_instance/app->packet_pool ist
+    // ausschliesslich fuer Interface 0 (echtes Ethernet) sowie den DHCP-Server unten relevant.
+
     // nx_ip_interface_attach() (anders als die x509/TLS-Aufrufe oben) ist HIER, in
     // tx_application_define(), zulaessig: wird vor Start des IP-Threads aufgerufen, holt die
     // eigentliche Treiber-Initialisierung/-Freischaltung automatisch waehrend dessen eigenem
     // Boot-Vorgang nach (s. _nx_ip_interface_attach()-Doku). _ux_network_driver_entry (s.
     // ux_network_driver.h-Include oben) ist USBX' eigener, generischer NX_IP_DRIVER -- dieselbe
-    // Funktion wird spaeter von der CDC-ECM-Klasse intern wiederverwendet, um sich an genau
-    // dieses Interface zu binden (ueber deren Activate-Callback, s. usbd_device.c).
-    XASSERT(nx_ip_interface_attach(&app->ip_instance, _C("USB-ECM"), USB_ECM_IP_ADDRESS,
-                                    USB_ECM_NET_MASK, _ux_network_driver_entry), "USB-ECM interface attach failed");
+    // Funktion wird spaeter von der CDC-NCM-Klasse intern wiederverwendet, um sich an genau
+    // dieses Interface zu binden (ueber deren ncm_activate()/_ux_network_driver_activate(),
+    // s. usbd_ncm.c).
+    XASSERT(nx_ip_interface_attach(&app->ip_instance, _C("USB-NCM"), USB_NCM_IP_ADDRESS,
+                                    USB_NCM_NET_MASK, _ux_network_driver_entry), "USB-NCM interface attach failed");
 
-    // Zur Diagnose/Absicherung: nicht blind auf USB_ECM_IP_ADDRESS/_NET_MASK vertrauen, sondern
+    // Zur Diagnose/Absicherung: nicht blind auf USB_NCM_IP_ADDRESS/_NET_MASK vertrauen, sondern
     // das tatsaechlich im NX_IP-Interface hinterlegte Adress-/Masken-Paar zurueckholen und fuer
     // die DHCP-Server-Konfiguration unten verwenden -- falls nx_ip_interface_attach() (z.B. durch
     // Timing/Interface-Index-Ueberraschungen) etwas anderes committed hat als erwartet, faellt
     // das hier sofort auf statt erst in der spaeteren Subnetz-Pruefung von
     // nx_dhcp_set_interface_network_parameters() mit einem schwer zuzuordnenden Fehlercode.
-    ULONG usb_ecm_committed_ip = 0;
-    ULONG usb_ecm_committed_mask = 0;
-    XASSERT(nx_ip_interface_address_get(&app->ip_instance, USB_ECM_INTERFACE_INDEX,
-                                         &usb_ecm_committed_ip, &usb_ecm_committed_mask),
-            "USB-ECM interface address get failed");
-    log_info("USB-ECM interface: committed ip=" IP_ADDR_FMT " mask=" IP_ADDR_FMT,
-              IP_ADDR_FMT_ARGS(usb_ecm_committed_ip), IP_ADDR_FMT_ARGS(usb_ecm_committed_mask));
+    ULONG usb_ncm_committed_ip = 0;
+    ULONG usb_ncm_committed_mask = 0;
+    XASSERT(nx_ip_interface_address_get(&app->ip_instance, USB_NCM_INTERFACE_INDEX,
+                                         &usb_ncm_committed_ip, &usb_ncm_committed_mask),
+            "USB-NCM interface address get failed");
+    log_info("USB-NCM interface: committed ip=" IP_ADDR_FMT " mask=" IP_ADDR_FMT,
+              IP_ADDR_FMT_ARGS(usb_ncm_committed_ip), IP_ADDR_FMT_ARGS(usb_ncm_committed_mask));
 
     UINT dhcp_addresses_added = 0;
-    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, USB_ECM_DHCP_SERVER_STACK_SIZE, TX_NO_WAIT), "DHCP server stack allocate failed");
-    XASSERT(nx_dhcp_server_create(&app->dhcp_server, &app->ip_instance, ptr, USB_ECM_DHCP_SERVER_STACK_SIZE,
+    XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, USB_NCM_DHCP_SERVER_STACK_SIZE, TX_NO_WAIT), "DHCP server stack allocate failed");
+    XASSERT(nx_dhcp_server_create(&app->dhcp_server, &app->ip_instance, ptr, USB_NCM_DHCP_SERVER_STACK_SIZE,
                                    _C("DHCP Server"), &app->packet_pool), "DHCP Server create failed");
     // Minimaler Einzel-Lease-Pool: nur die eine Adresse, die der per USB verbundene Host bekommen
     // soll (s. Implementierungsplan) -- start==end.
-    XASSERT(nx_dhcp_create_server_ip_address_list(&app->dhcp_server, USB_ECM_INTERFACE_INDEX,
-                                                   USB_ECM_DHCP_LEASE_ADDRESS, USB_ECM_DHCP_LEASE_ADDRESS,
+    XASSERT(nx_dhcp_create_server_ip_address_list(&app->dhcp_server, USB_NCM_INTERFACE_INDEX,
+                                                   USB_NCM_DHCP_LEASE_ADDRESS, USB_NCM_DHCP_LEASE_ADDRESS,
                                                    &dhcp_addresses_added), "DHCP Server IP address list create failed");
     // Kein eigener DNS-Server in dieser Firmware (nur mDNS) -- die Fehlerpruefung von
     // nx_dhcp_set_interface_network_parameters() (_nxe_dhcp_set_interface_network_parameters)
@@ -227,24 +248,24 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     // Subnetz-Konsistenzpruefung weiter unten in der Funktion, die nie erreicht wurde). Da echte
     // DNS-Aufloesung ohnehin nicht angeboten wird, hier ersatzweise die eigene Adresse eintragen
     // -- unkritisch, der Host bekaeme auf eine echte DNS-Anfrage dorthin einfach keine Antwort.
-    // Gateway/Subnetzmaske bewusst aus usb_ecm_committed_ip/_mask (s. oben) statt erneut aus
-    // USB_ECM_IP_ADDRESS/_NET_MASK -- muss exakt zu dem passen, was
+    // Gateway/Subnetzmaske bewusst aus usb_ncm_committed_ip/_mask (s. oben) statt erneut aus
+    // USB_NCM_IP_ADDRESS/_NET_MASK -- muss exakt zu dem passen, was
     // nx_dhcp_create_server_ip_address_list() intern bereits aus dem Interface uebernommen hat
     // (dessen eigene Pruefung liest ebenfalls live vom Interface, nicht die Konstanten).
-    XASSERT(nx_dhcp_set_interface_network_parameters(&app->dhcp_server, USB_ECM_INTERFACE_INDEX,
-                                                      usb_ecm_committed_mask, usb_ecm_committed_ip,
-                                                      usb_ecm_committed_ip),
+    XASSERT(nx_dhcp_set_interface_network_parameters(&app->dhcp_server, USB_NCM_INTERFACE_INDEX,
+                                                      usb_ncm_committed_mask, usb_ncm_committed_ip,
+                                                      usb_ncm_committed_ip),
             "DHCP Server network parameters set failed");
 
-    // Kein mDNS auf dem USB-ECM-Interface (bewusst NICHT nx_mdns_enable(&app->mdns,
-    // USB_ECM_INTERFACE_INDEX) wie in einer frueheren Version dieser Datei): eine zweite
+    // Kein mDNS auf dem USB-NCM-Interface (bewusst NICHT nx_mdns_enable(&app->mdns,
+    // USB_NCM_INTERFACE_INDEX) wie in einer frueheren Version dieser Datei): eine zweite
     // NX_MDNS-Instanz scheiterte an NX_PORT_UNAVAILABLE (0x23, s. Commit-Historie -- zwei
     // Instanzen koennen nicht beide UDP-Port 5353 auf derselben NX_IP binden), und die
     // bestehende Instanz zusaetzlich auf Interface 1 zu aktivieren loeste denselben
     // board-spezifischen "factory-box-<hex>.local"-Namen auf wie auf dem Ethernet-Interface --
     // je nachdem, welches Interface der Host gerade tatsaechlich erreichen kann, fuehrte das zu
     // nicht erreichbaren Adressen. Die IP dieses Interfaces ist ohnehin fest (192.168.173.1,
-    // s. USB_ECM_IP_ADDRESS), daher stattdessen einfach per direkter IP erreichbar --
+    // s. USB_NCM_IP_ADDRESS), daher stattdessen einfach per direkter IP erreichbar --
     // tools/provision-certificate.mjs traegt diese Adresse zusaetzlich als IP-SAN ins
     // Geraetezertifikat ein, damit https://192.168.173.1/ ohne Zertifikatsfehler funktioniert.
 }

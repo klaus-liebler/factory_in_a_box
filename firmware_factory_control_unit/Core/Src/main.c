@@ -1576,7 +1576,22 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(STEPPER_EN_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
+#ifdef BOARD_NUCLEO_H563ZI
+  // Test-Rig-Ersatzsignale (s. main.h) -- GPIOB/GPIOC-Takt ist oben bereits aktiviert.
+  /*Configure GPIO pin : USERBUTTON_Pin (B1) */
+  GPIO_InitStruct.Pin = USERBUTTON_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(USERBUTTON_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : USERLED_Pin (LD1) */
+  HAL_GPIO_WritePin(USERLED_GPIO_Port, USERLED_Pin, GPIO_PIN_RESET);
+  GPIO_InitStruct.Pin = USERLED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(USERLED_GPIO_Port, &GPIO_InitStruct);
+#endif
   /* USER CODE END MX_GPIO_Init_2 */
 }
 

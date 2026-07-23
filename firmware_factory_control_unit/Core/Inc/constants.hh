@@ -3,7 +3,11 @@
 #include <string_view>
 
 //Name & Version
+#ifdef BOARD_NUCLEO_H563ZI
+constexpr std::string_view BOARD_NAME = "Factory Control Unit [TEST RIG: Nucleo-H563ZI] (STM32H563)";
+#else
 constexpr std::string_view BOARD_NAME = "Factory Control Unit (STM32H563)";
+#endif
 constexpr uint16_t FW_VERSION_MAJOR = 0;
 constexpr uint16_t FW_VERSION_MINOR = 1;
 constexpr uint16_t FW_VERSION_PATCH = 0;

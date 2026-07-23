@@ -7,9 +7,9 @@
 #include "ux_api.h"
 #include "ux_device_stack.h"
 #include "ux_device_class_cdc_acm.h"
-#include "ux_device_class_cdc_ecm.h"
-#include "ux_network_driver.h"
 #include "ux_dcd_stm32.h"
+#include "ux_network_driver.h"
+#include "usbd_ncm.h"
 #include "main.h"
 #include "log.h"
 #include "tx_api.h"
@@ -50,65 +50,73 @@ enum {
     STRIDX_SERIAL,
     STRIDX_CDC0_DEBUG,
     STRIDX_CDC1_MODBUS,
-    STRIDX_ECM,
-    STRIDX_ECM_MAC,
+    STRIDX_NCM,
+    STRIDX_NCM_MAC,
 };
 
 static char const* const STRING_MANUFACTURER = "Klaus Liebler";
 static char const* const STRING_PRODUCT = "FactoryControl Unit";
 static char const* const STRING_CDC0_DEBUG = "FactoryControl Debug";
 static char const* const STRING_CDC1_MODBUS = "FactoryControl Modbus";
-static char const* const STRING_ECM = "FactoryControl Network";
+static char const* const STRING_NCM = "FactoryControl Network";
 
 // Vom App-Chip-UID gebildet (s. usbd_device_setup()) -- 24 Hex-Ziffern (3x uint32_t) +
 // Nullterminator.
 static char g_serial_string[25] = "000000000000000000000000";
 
-// MAC-Adress-String der virtuellen CDC-ECM-NIC -- CDC1.2 verlangt 12 GROSSGESCHRIEBENE
-// Hex-Ziffern ohne Trennzeichen (Format "AABBCCDDEEFF"), identisch zum bisherigen NCM-Format.
-// Einzige Stelle, an der die lokale MAC tatsaechlich auf dem USB-Draht landet (s.
-// USBD_DESC_SUBTYPE_ETHERNET-Funktionsdeskriptor unten, iMACAddress-Feld) -- die davon
-// unabhaengige "remote_node_id" (s. cdc_ecm_activate()) geht NIE ueber USB, sondern ist rein
-// intern (s. dortiger Kommentar).
-static char g_ecm_mac_string[13] = "000000000000";
+// CDC1.2 Ethernet Networking Functional Descriptor's iMACAddress-String (s. g_device_framework
+// unten) MUSS laut Spezifikation (5.2.3.4) aus genau 12 Grossbuchstaben-Hexziffern OHNE
+// Trennzeichen bestehen ("network address... in canonical format... hexadecimal digits" --
+// Windows' eingebauter NCM-Treiber (cdcecm.sys/ndismux) parst dieses Feld beim Enumerieren als
+// die MAC-Adresse der virtuellen NIC) -- von net_mac (s. usbd_device_setup()) zur Laufzeit
+// befuellt, analog zu g_serial_string oben.
+static char g_ncm_mac_string[13] = "000000000000";
 
 // --- Interface-/Endpunkt-Layout ----------------------------------------------------------
-// Unveraendert gegenueber der TinyUSB-Fassung: 2x CDC-ACM (Debug, Modbus) + 1x CDC-ECM (statt
-// vormals CDC-NCM -- USBX kennt keine NCM-Geraeteklasse, s. Plan/Commit-Nachricht). Endpunkt-
-// Nummern von Hand vergeben, damit alle drei Funktionen exakt in die 8 verfuegbaren
-// USB_DRD_FS-Hardware-Endpunkte (EP0 + 7) passen -- EP7 bleibt frei (potenzielle spaetere
-// MSC-Stufe, wie schon bei der TinyUSB-Fassung vorgesehen).
+// 1x CDC-NCM (Netzwerk) + 2x CDC-ACM (Debug, Modbus). NCM statt RNDIS: RNDIS lud zwar in
+// Windows' eingebautem Treiber, brachte diesen Rechner aber mit einem Bluescreen
+// (IRQL_NOT_LESS_OR_EQUAL) zum Absturz -- Ursache trotz ausfuehrlicher Codepruefung nicht
+// gefunden, vermutlich eine bekannte Instabilitaet in Windows' Legacy-RNDIS-Treiber (s.
+// Commit-Historie). NCM ist der USB-IF-STANDARD-Nachfolger, den dieses Projekt bereits VOR der
+// USBX-Migration unter TinyUSB hardwareverifiziert (DHCP+HTTPS) einsetzte -- s. usbd_ncm.h/.c
+// (komplette Neuimplementierung als USBX-Geraeteklasse, da USBX selbst keine NCM-Klasse
+// mitbringt) und usb_ncm_driver.c (NetX-Duo-Bruecke, faktisch unveraendert aus der TinyUSB-Aera
+// wiederhergestellt).
+//
+// Anders als RNDIS hat NCM KEINE "muss Interface 0/1 sein"-Eigenart (die betraf ausschliesslich
+// Windows' RNDIS-Composite-Erkennung) -- die Reihenfolge hier ist rein kosmetisch beibehalten
+// (NCM zuerst), keine funktionale Notwendigkeit. Alle drei Funktionen passen weiterhin exakt in
+// die 8 verfuegbaren USB_DRD_FS-Hardware-Endpunkte (EP0 + 7) -- EP7 bleibt frei (potenzielle
+// spaetere MSC-Stufe, wie schon bei der TinyUSB-Fassung vorgesehen).
 enum {
-    ITF_CDC0_DEBUG_CONTROL = 0,
+    ITF_NCM_CONTROL = 0,
+    ITF_NCM_DATA,
+    ITF_CDC0_DEBUG_CONTROL,
     ITF_CDC0_DEBUG_DATA,
     ITF_CDC1_MODBUS_CONTROL,
     ITF_CDC1_MODBUS_DATA,
-    ITF_ECM_CONTROL,
-    ITF_ECM_DATA,
     ITF_COUNT,
 };
 
-#define EP_CDC0_NOTIF 0x81u
-#define EP_CDC0_OUT 0x02u
-#define EP_CDC0_IN 0x82u
+#define EP_NCM_NOTIF 0x81u
+#define EP_NCM_OUT 0x02u
+#define EP_NCM_IN 0x82u
+// Muss >= 8 (NETWORK_CONNECTION, ohne Nutzdaten) UND >= 16 (CONNECTION_SPEED_CHANGE, 8 Byte
+// Header + 8 Byte Nutzdaten) sein, s. ncm_notify_t/ncm_notify_send() in usbd_ncm.c.
+#define EP_NCM_NOTIF_SIZE 16u
+#define EP_NCM_DATA_SIZE 64u
+
+#define EP_CDC0_NOTIF 0x83u
+#define EP_CDC0_OUT 0x04u
+#define EP_CDC0_IN 0x84u
 #define EP_CDC0_NOTIF_SIZE 8u
 #define EP_CDC0_DATA_SIZE 64u
 
-#define EP_CDC1_NOTIF 0x83u
-#define EP_CDC1_OUT 0x04u
-#define EP_CDC1_IN 0x84u
+#define EP_CDC1_NOTIF 0x85u
+#define EP_CDC1_OUT 0x06u
+#define EP_CDC1_IN 0x86u
 #define EP_CDC1_NOTIF_SIZE 8u
 #define EP_CDC1_DATA_SIZE 64u
-
-#define EP_ECM_NOTIF 0x85u
-#define EP_ECM_OUT 0x06u
-#define EP_ECM_IN 0x86u
-// UX_DEVICE_CLASS_CDC_ECM_INTERRUPT_RESPONSE_LENGTH (ux_device_class_cdc_ecm.h): die CDC-ECM-
-// Klasse verschickt NETWORK_CONNECTION-Benachrichtigungen ohne zusaetzliche Nutzdaten (nur der
-// 8-Byte-Notification-Header) -- kleiner als das bisherige NCM-Notification-Endpunkt-Budget
-// (16 Byte), spart aber nichts an physischen Endpunkten (weiterhin EP5).
-#define EP_ECM_NOTIF_SIZE 8u
-#define EP_ECM_DATA_SIZE 64u
 
 // --- USB-Deskriptor-Framework (ein einziges zusammenhaengendes Byte-Array aus Geraete- +
 // Konfigurationsdeskriptor, s. _ux_device_stack_initialize() -- anders als TinyUSBs getrennte
@@ -125,37 +133,55 @@ enum {
 #define CDC_CALL_MGMT_FD_LEN 5u
 #define CDC_ACM_FD_LEN 4u
 #define CDC_UNION_FD_LEN 5u
+#define CDC_ETH_NET_FD_LEN 13u
+#define CDC_NCM_FD_LEN 6u
 #define EP_DESC_LEN 7u
-#define CDC_ECM_FD_LEN 13u
 
-// Ein CDC-ACM-Funktionsblock: IAD + Control-Interface (Header/CallMgmt/ACM/Union-FD +
-// Notification-EP) + Data-Interface (2x Bulk-EP).
-#define CDC_ACM_FUNCTION_LEN (IAD_LEN + ITF_LEN + CDC_HEADER_FD_LEN + CDC_CALL_MGMT_FD_LEN + \
-                              CDC_ACM_FD_LEN + CDC_UNION_FD_LEN + EP_DESC_LEN + \
-                              ITF_LEN + EP_DESC_LEN + EP_DESC_LEN)
-// Ein CDC-ECM-Funktionsblock: IAD + Control-Interface (Header/Ethernet-FD/Union-FD +
-// Notification-EP) + Data-Interface (2x Bulk-EP) -- kein Call-Management-FD (nur fuer ACM
-// vorgeschrieben, s. CDC1.2 Tabelle 5-3/5-4).
-#define CDC_ECM_FUNCTION_LEN (IAD_LEN + ITF_LEN + CDC_HEADER_FD_LEN + CDC_ECM_FD_LEN + \
-                              CDC_UNION_FD_LEN + EP_DESC_LEN + \
-                              ITF_LEN + EP_DESC_LEN + EP_DESC_LEN)
+// Ein CDC-ACM-Funktionsblock (IAD + Control-Interface mit Header/CallMgmt/ACM/Union-FD +
+// Notification-EP + Data-Interface mit 2x Bulk-EP) -- byteidentischer Aufbau fuer beide
+// CDC-ACM-Funktionen (Debug/Modbus).
+#define CDC_FUNCTION_LEN (IAD_LEN + ITF_LEN + CDC_HEADER_FD_LEN + CDC_CALL_MGMT_FD_LEN + \
+                          CDC_ACM_FD_LEN + CDC_UNION_FD_LEN + EP_DESC_LEN + \
+                          ITF_LEN + EP_DESC_LEN + EP_DESC_LEN)
+
+// Der CDC-NCM-Funktionsblock (IAD + Control-Interface mit Header/Union/EthernetNetworking/NCM-FD
+// + Notification-EP + Daten-Interface Alt=0 [0 EP] + Daten-Interface Alt=1 [2 Bulk-EP]) --
+// byteidentisch zu TinyUSBs TUD_CDC_NCM_DESCRIPTOR()-Makro-Expansion (device/usbd.h,
+// TUD_CDC_NCM_DESC_LEN = 8+9+5+5+13+6+7+9+9+7+7 = 85, hier per _Static_assert unten
+// gegengeprueft), s. usbd_ncm.h fuer den Gesamtzusammenhang.
+#define NCM_FUNCTION_LEN (IAD_LEN + ITF_LEN + CDC_HEADER_FD_LEN + CDC_UNION_FD_LEN + \
+                          CDC_ETH_NET_FD_LEN + CDC_NCM_FD_LEN + EP_DESC_LEN + \
+                          ITF_LEN + ITF_LEN + EP_DESC_LEN + EP_DESC_LEN)
+_Static_assert(NCM_FUNCTION_LEN == 85u, "NCM_FUNCTION_LEN weicht von TinyUSBs TUD_CDC_NCM_DESC_LEN ab");
 
 #define CONFIG_DESC_LEN 9u
-#define CONFIG_TOTAL_LEN (CONFIG_DESC_LEN + 2u * CDC_ACM_FUNCTION_LEN + CDC_ECM_FUNCTION_LEN)
+#define CONFIG_TOTAL_LEN (CONFIG_DESC_LEN + NCM_FUNCTION_LEN + 2u * CDC_FUNCTION_LEN)
 #define DEVICE_FRAMEWORK_LEN (DEVICE_DESC_LEN + CONFIG_TOTAL_LEN)
 
-// CDC1.2-Deskriptor-Subtypen (bDescriptorSubtype im CS_INTERFACE-Deskriptor, bDescriptorType
-// 0x24) -- dieselben numerischen Werte wie im TinyUSB-Stack intern verwendet, hier von Hand
-// aufgefuehrt, da USBX (anders als TinyUSB) keine TUD_CDC_DESCRIPTOR()-aehnlichen Hilfsmakros
-// mitbringt (s. Plan: ST's eigener Deskriptor-Baukasten in ux_device_descriptors.c ist
-// Anwendungs-/Demo-Code, kein USBX-Middleware-Bestandteil, und fuer unser fest bekanntes
+// CDC1.2/[USBNCM1.0]-Deskriptor-Subtypen (bDescriptorSubtype im CS_INTERFACE-Deskriptor,
+// bDescriptorType 0x24) -- dieselben numerischen Werte wie im TinyUSB-Stack intern verwendet,
+// hier von Hand aufgefuehrt, da USBX (anders als TinyUSB) keine TUD_CDC_DESCRIPTOR()-aehnlichen
+// Hilfsmakros mitbringt (s. Plan: ST's eigener Deskriptor-Baukasten in ux_device_descriptors.c
+// ist Anwendungs-/Demo-Code, kein USBX-Middleware-Bestandteil, und fuer unser fest bekanntes
 // 3-Funktionen-Composite unverhaeltnismaessig, s. Commit-Nachricht).
 #define CS_INTERFACE 0x24u
 #define CDC_FD_HEADER 0x00u
 #define CDC_FD_CALL_MANAGEMENT 0x01u
 #define CDC_FD_ACM 0x02u
 #define CDC_FD_UNION 0x06u
-#define CDC_FD_ETHERNET 0x0Fu
+#define CDC_FD_ETHERNET_NETWORKING 0x0Fu
+#define CDC_FD_NCM 0x1Au
+
+// CDC-NCM 1.0 Kapitel 5.1: bInterfaceSubClass=0x0D (Network Control Model) statt 0x02 (ACM);
+// Daten-Interface-bInterfaceProtocol=0x01 (Network Transfer Block), statt 0x00 bei CDC-ACM/
+// RNDIS-Daten-Interfaces.
+#define CDC_SUBCLASS_NCM 0x0Du
+#define NCM_DATA_PROTOCOL_NTB 0x01u
+
+// CDC-NCM 1.0 Tabelle 5-2 bmNetworkCapabilities: keine der optionalen Capability-Bits gesetzt
+// (kein SET_ETHERNET_PACKET_FILTER-Statistik-Support, kein NET_ADDRESS, ...) -- passend zu
+// ncm_control_request()s reiner ACK-Quittierung dieser optionalen Requests, s. usbd_ncm.c.
+#define NCM_NETWORK_CAPS_NONE 0x00u
 
 #define U16LE(v) (uint8_t)((v) & 0xFFu), (uint8_t)(((v) >> 8) & 0xFFu)
 
@@ -176,6 +202,35 @@ static uint8_t const g_device_framework[DEVICE_FRAMEWORK_LEN] = {
     1u, 0u,                              // bConfigurationValue, iConfiguration
     0xC0u,                               // bmAttributes (Self-Powered, Bit7 reserviert=1)
     50u,                                 // bMaxPower (100mA / 2mA-Einheiten)
+
+    // ============ CDC-NCM ("FactoryControl Network") ============
+    // bFunctionClass/SubClass/Protocol = 0x02/0x0D/0x00 (Communications/Network Control Model) --
+    // der USB-IF-Standardweg fuer eine virtuelle Netzwerkkarte, byteidentisch zu TinyUSBs
+    // TUD_CDC_NCM_DESCRIPTOR()-Expansion (s. Kommentar bei NCM_FUNCTION_LEN oben).
+    IAD_LEN, 0x0Bu, ITF_NCM_CONTROL, 2u, 0x02u, CDC_SUBCLASS_NCM, 0x00u, STRIDX_NCM,
+    // Control-Interface -- Alt=0, 1 Endpunkt (Notification).
+    ITF_LEN, 0x04, ITF_NCM_CONTROL, 0u, 1u, 0x02u, CDC_SUBCLASS_NCM, 0x00u, STRIDX_NCM,
+    CDC_HEADER_FD_LEN, CS_INTERFACE, CDC_FD_HEADER, U16LE(0x0110),
+    CDC_UNION_FD_LEN, CS_INTERFACE, CDC_FD_UNION, ITF_NCM_CONTROL, ITF_NCM_DATA,
+    // Ethernet Networking FD (CDC1.2 5.2.3.4) -- iMACAddress verweist auf den 12-Hex-Ziffern-
+    // MAC-Stringdeskriptor (s. g_ncm_mac_string/usbd_device_setup()), bmEthernetStatistics=0
+    // (keine der optionalen Statistik-Faehigkeiten beworben), wMaxSegmentSize=NCM_MTU (14 Byte
+    // Ethernet-Header + 1500 Byte IP-MTU, s. gleichlautende Konstante in usb_ncm_driver.c),
+    // wNumberMCFilters=0, bNumberPowerFilters=0.
+    CDC_ETH_NET_FD_LEN, CS_INTERFACE, CDC_FD_ETHERNET_NETWORKING, STRIDX_NCM_MAC,
+        0x00u, 0x00u, 0x00u, 0x00u, U16LE(1514u), U16LE(0u), 0x00u,
+    // NCM FD (CDC-NCM 1.0 Tabelle 5-2) -- bcdNcmVersion=1.00, bmNetworkCapabilities=0 (s.
+    // NCM_NETWORK_CAPS_NONE oben).
+    CDC_NCM_FD_LEN, CS_INTERFACE, CDC_FD_NCM, U16LE(0x0100), NCM_NETWORK_CAPS_NONE,
+    EP_DESC_LEN, 0x05, EP_NCM_NOTIF, 0x03u, U16LE(EP_NCM_NOTIF_SIZE), 8u,
+    // Daten-Interface Alt=0 -- 0 Endpunkte (idle), bis der Host per SET_INTERFACE auf Alt=1
+    // umschaltet. bInterfaceClass=0x0A (CDC Data), bInterfaceProtocol=0x01 (Network Transfer
+    // Block, s. NCM_DATA_PROTOCOL_NTB) statt 0x00 bei CDC-ACM-Daten-Interfaces.
+    ITF_LEN, 0x04, ITF_NCM_DATA, 0u, 0u, 0x0Au, 0x00u, NCM_DATA_PROTOCOL_NTB, 0u,
+    // Daten-Interface Alt=1 -- 2 Bulk-Endpunkte (aktiv).
+    ITF_LEN, 0x04, ITF_NCM_DATA, 1u, 2u, 0x0Au, 0x00u, NCM_DATA_PROTOCOL_NTB, 0u,
+    EP_DESC_LEN, 0x05, EP_NCM_IN, 0x02u, U16LE(EP_NCM_DATA_SIZE), 0u,
+    EP_DESC_LEN, 0x05, EP_NCM_OUT, 0x02u, U16LE(EP_NCM_DATA_SIZE), 0u,
 
     // ============ CDC-ACM 0 ("FactoryControl Debug") ============
     IAD_LEN, 0x0Bu, ITF_CDC0_DEBUG_CONTROL, 2u, 0x02u, 0x02u, 0x00u, STRIDX_CDC0_DEBUG,
@@ -202,23 +257,13 @@ static uint8_t const g_device_framework[DEVICE_FRAMEWORK_LEN] = {
     ITF_LEN, 0x04, ITF_CDC1_MODBUS_DATA, 0u, 2u, 0x0Au, 0x00u, 0x00u, 0u,
     EP_DESC_LEN, 0x05, EP_CDC1_OUT, 0x02u, U16LE(EP_CDC1_DATA_SIZE), 0u,
     EP_DESC_LEN, 0x05, EP_CDC1_IN, 0x02u, U16LE(EP_CDC1_DATA_SIZE), 0u,
-
-    // ============ CDC-ECM ("FactoryControl Network") ============
-    IAD_LEN, 0x0Bu, ITF_ECM_CONTROL, 2u, 0x02u, 0x06u, 0x00u, STRIDX_ECM,
-    ITF_LEN, 0x04, ITF_ECM_CONTROL, 0u, 1u, 0x02u, 0x06u, 0x00u, STRIDX_ECM,
-    CDC_HEADER_FD_LEN, CS_INTERFACE, CDC_FD_HEADER, U16LE(0x0110),
-    // Ethernet Networking Functional Descriptor (CDC1.2 Tabelle 5-4): iMACAddress,
-    // bmEthernetStatistics (4 Byte, keine Statistiken unterstuetzt), wMaxSegmentSize
-    // (1514 = Standard-Ethernet-MTU+Header), wNumberMCFilters (keine Multicast-Filter),
-    // bNumberPowerFilters (kein Wake-on-LAN-Pattern-Filter).
-    CDC_ECM_FD_LEN, CS_INTERFACE, CDC_FD_ETHERNET, STRIDX_ECM_MAC,
-    0x00u, 0x00u, 0x00u, 0x00u, U16LE(1514u), U16LE(0u), 0x00u,
-    CDC_UNION_FD_LEN, CS_INTERFACE, CDC_FD_UNION, ITF_ECM_CONTROL, ITF_ECM_DATA,
-    EP_DESC_LEN, 0x05, EP_ECM_NOTIF, 0x03u, U16LE(EP_ECM_NOTIF_SIZE), 16u,
-    ITF_LEN, 0x04, ITF_ECM_DATA, 0u, 2u, 0x0Au, 0x00u, 0x00u, 0u,
-    EP_DESC_LEN, 0x05, EP_ECM_OUT, 0x02u, U16LE(EP_ECM_DATA_SIZE), 0u,
-    EP_DESC_LEN, 0x05, EP_ECM_IN, 0x02u, U16LE(EP_ECM_DATA_SIZE), 0u,
 };
+_Static_assert(sizeof(g_device_framework) == DEVICE_FRAMEWORK_LEN,
+               "g_device_framework literal byte count does not match the hand-computed "
+               "DEVICE_FRAMEWORK_LEN -- a mismatch here silently zero-pads/truncates the "
+               "descriptor (C array-initializer rules: fewer initializers than the declared "
+               "size is NOT a compile error) and corrupts every descriptor after the first "
+               "short one, which breaks enumeration on the host without any build-time signal.");
 
 // --- String-/Sprach-Framework -------------------------------------------------------------
 // Format laut _ux_device_stack_descriptor_send()'s String-Framework-Parser (libs/ST/usbx/
@@ -448,26 +493,6 @@ void usbd_cdc_modbus_write_flush(void) {
     // selbst an (semaphorengesteuerter Schreib-Thread), ein separater Flush-Schritt entfaellt.
 }
 
-// --- CDC-ECM: lokale/entfernte MAC + Aktivierung ------------------------------------------
-// Analog zu ST's ux_device_cdc_ecm.c (STM32H573I-DK-Referenzprojekt) -- lokale Node-ID geht
-// als iMACAddress-Stringdeskriptor tatsaechlich auf den USB-Draht (s. STRIDX_ECM_MAC oben),
-// die entfernte Node-ID ist rein interner USBX-Buchhaltungswert (nie uebertragen, die
-// tatsaechliche MAC-Adresse des Hosts wird -- wie schon beim alten NCM-Treiber -- per ARP
-// ermittelt) und wird hier nur der Vollstaendigkeit halber deterministisch aus derselben
-// Chip-UID abgeleitet (letztes Byte um 1 versetzt, damit sie sich von der lokalen Adresse
-// unterscheidet).
-static UCHAR g_ecm_remote_node_id[UX_DEVICE_CLASS_CDC_ECM_NODE_ID_LENGTH];
-
-static VOID cdc_ecm_activate(VOID* instance) {
-    (void)instance;
-    log_info("USBX: CDC-ECM aktiviert (Host hat Netzwerk-Interface konfiguriert)");
-}
-
-static VOID cdc_ecm_deactivate(VOID* instance) {
-    (void)instance;
-    log_info("USBX: CDC-ECM deaktiviert");
-}
-
 // --- USBX-Systemspeicher -------------------------------------------------------------------
 // ux_system_initialize() braucht einen zusammenhaengenden Speicherblock fuer alle internen
 // Allokationen (Klasseninstanzen, Endpunkt-Puffer, ...) -- analog zu NX_APP_PACKET_POOL_SIZE
@@ -497,24 +522,41 @@ uint32_t usbd_device_get_isr_count(void) {
     return g_usb_isr_count;
 }
 
-// tud_mount_cb()/tud_umount_cb()-Aequivalent (s. TinyUSB-Fassung) -- ux_device_stack_initialize()
-// letzter Parameter, aus dem Enumerationskontext heraus mit UX_DEVICE_ATTACHED/_ADDRESSED/
-// _CONFIGURED/_SUSPENDED/_REMOVED (s. ux_api.h) aufgerufen. Reine Diagnose, kein
-// Rueckgabewert-Handling noetig (USBX ignoriert ihn faktisch, s. Aufrufstelle in
-// ux_device_stack_control_request_process.c/_transfer_all_request_abort.c).
+// tud_mount_cb()/tud_umount_cb()-Aequivalent (s. TinyUSB-Fassung).
+//
+// KORRIGIERT (urspruenglicher Kommentar war falsch/nie hardwaregetestet, s. Commit-Historie):
+// In diesem vendorten USBX-Stand (libs/ST/usbx) wird diese Callback KEINESFALLS mit
+// UX_DEVICE_CONFIGURED/_ADDRESSED/_RESET aufgerufen -- grep ueber den gesamten Baum zeigt genau
+// EINEN Aufrufer mit einem generischen ux_api.h-UX_DEVICE_*-Wert
+// (ux_device_stack_disconnect.c: nur UX_DEVICE_REMOVED, u.a. bei JEDEM Bus-Reset ausgeloest,
+// nicht nur bei echtem Kabelabzug -- s. HAL_PCD_ResetCallback in ux_dcd_stm32_callback.c). Der
+// tatsaechliche "Enumeration abgeschlossen"-Indikator sind stattdessen die klassen-eigenen
+// Activate-Callbacks (cdc_debug_activate()/cdc_modbus_activate()/ncm_activate() in usbd_ncm.c), vom
+// USBX-Klassen-Framework beim SET_CONFIGURATION/SET_INTERFACE aufgerufen -- NICHT dieser
+// generischen Callback. Die restlichen tatsaechlich aufgerufenen Werte kommen aus
+// ux_dcd_stm32_callback.c/ux_dcd_stm32_initialize_complete.c (STM32-DCD-spezifische
+// UX_DCD_STM32_*-Codes ausserhalb des ux_api.h-Wertebereichs, s. ux_dcd_stm32.h) plus
+// UX_DEVICE_ATTACHED (ebenfalls bei jedem Bus-Reset, direkt nach dem UX_DEVICE_REMOVED oben).
+// UX_DCD_STM32_SOF_RECEIVED bewusst nicht geloggt (feuert alle 1ms, reine Log-Flut).
 static UINT usbx_device_state_change(ULONG state) {
     switch (state) {
-        case UX_DEVICE_CONFIGURED:
-            log_info("USBX: mounted (Host hat Enumeration abgeschlossen)");
-            break;
-        case UX_DEVICE_RESET:
-            log_info("USBX: Bus-Reset");
+        case UX_DEVICE_ATTACHED:
+            log_info("USBX: attached (PHY/Bus-Reset abgeschlossen, EP0 offen)");
             break;
         case UX_DEVICE_REMOVED:
-            log_info("USBX: unmounted (Kabel getrennt)");
+            log_info("USBX: disconnect-Event (Bus-Reset ODER echter Kabelabzug)");
             break;
-        case UX_DEVICE_SUSPENDED:
-            log_info("USBX: suspend");
+        case UX_DCD_STM32_DEVICE_CONNECTED:
+            log_info("USBX: DCD connected (VBUS/D+ Pullup erkannt)");
+            break;
+        case UX_DCD_STM32_DEVICE_DISCONNECTED:
+            log_info("USBX: DCD disconnected");
+            break;
+        case UX_DCD_STM32_DEVICE_SUSPENDED:
+            log_info("USBX: DCD suspend");
+            break;
+        case UX_DCD_STM32_DEVICE_RESUMED:
+            log_info("USBX: DCD resume");
             break;
         default:
             break;
@@ -522,13 +564,12 @@ static UINT usbx_device_state_change(ULONG state) {
     return UX_SUCCESS;
 }
 
-void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2, uint8_t const ecm_mac[6]) {
+void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2, uint8_t const net_mac[6]) {
     snprintf(g_serial_string, sizeof(g_serial_string), "%08lX%08lX%08lX",
              (unsigned long)chip_uid0, (unsigned long)chip_uid1, (unsigned long)chip_uid2);
-    snprintf(g_ecm_mac_string, sizeof(g_ecm_mac_string), "%02X%02X%02X%02X%02X%02X",
-             ecm_mac[0], ecm_mac[1], ecm_mac[2], ecm_mac[3], ecm_mac[4], ecm_mac[5]);
-    memcpy(g_ecm_remote_node_id, ecm_mac, UX_DEVICE_CLASS_CDC_ECM_NODE_ID_LENGTH);
-    g_ecm_remote_node_id[UX_DEVICE_CLASS_CDC_ECM_NODE_ID_LENGTH - 1] ^= 0x01u;
+    // 12 Grossbuchstaben-Hexziffern ohne Trennzeichen, s. g_ncm_mac_string-Deklaration oben.
+    snprintf(g_ncm_mac_string, sizeof(g_ncm_mac_string), "%02X%02X%02X%02X%02X%02X",
+             net_mac[0], net_mac[1], net_mac[2], net_mac[3], net_mac[4], net_mac[5]);
 
     g_string_framework_length = 0;
     append_string_entry(STRIDX_MANUFACTURER, STRING_MANUFACTURER);
@@ -536,18 +577,29 @@ void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid
     append_string_entry(STRIDX_SERIAL, g_serial_string);
     append_string_entry(STRIDX_CDC0_DEBUG, STRING_CDC0_DEBUG);
     append_string_entry(STRIDX_CDC1_MODBUS, STRING_CDC1_MODBUS);
-    append_string_entry(STRIDX_ECM, STRING_ECM);
-    append_string_entry(STRIDX_ECM_MAC, g_ecm_mac_string);
+    append_string_entry(STRIDX_NCM, STRING_NCM);
+    append_string_entry(STRIDX_NCM_MAC, g_ncm_mac_string);
 
     HAL_NVIC_SetPriority(USB_DRD_FS_IRQn, 5, 0);
 
     UXASSERT(ux_system_initialize(g_usbx_memory_pool, USBX_MEMORY_POOL_SIZE, UX_NULL, 0),
             "USBX system initialize failed");
 
-    // Muss vor ux_device_stack_class_register() der CDC-ECM-Instanz laufen (s. ST's
-    // app_usbx_device.c MX_USBX_Device_Init()) -- registriert den generischen NetX-Duo-
-    // Bruecken-Treiber (_ux_network_driver_entry, s. usb_cdc_ecm_driver.c), den die CDC-ECM-
-    // Klasse intern verwendet.
+    // Initialisiert USBX' generischen, klassenunabhaengigen NetX-Duo-Bruecken-Treiber
+    // (_ux_network_driver_entry/_activate/_deactivate/_link_up/_down/_packet_received, s.
+    // libs/ST/usbx/common/usbx_network), an den sich unsere eigene usbd_ncm.c-Klasse anbindet (s.
+    // dortiger Klassenkommentar). NUR DEFENSIV/idempotent hier nochmal aufgerufen (interne
+    // Guard-Variable verhindert ein zweites memset()) -- der WIRKLICH entscheidende Aufruf
+    // passiert bereits VOR net_setup.cpp's nx_ip_interface_attach() in net_setup_create() (s.
+    // dortiger ausfuehrlicher Kommentar): ux_network_driver_init() memset()t seine gesamte interne
+    // usb_network_devices[]-Tabelle, und muss deshalb VOR dem allerersten NX_LINK_INTERFACE_ATTACH
+    // laufen, das diese Tabelle befuellt -- nx_ip_interface_attach() laeuft aber schon in
+    // tx_application_define() (VOR Scheduler-Start), waehrend usbd_device_setup() hier erst
+    // spaeter aus dem UsbdDeviceThread heraus laeuft. Ein alleiniger Aufruf HIER (wie es eine
+    // fruehere Fassung dieser Datei tat) haette ATTACHs Eintrag nachtraeglich wieder auf 0
+    // zurueckgesetzt -- Symptom war ein fuer immer NULL bleibender ip_instance-Zeiger (Paket-Pool
+    // liess sich nie aufloesen, DHCP kam trotz augenscheinlich funktionierendem NTB-Empfang nie
+    // durch), s. Debugging-Sitzung.
     UXASSERT(ux_network_driver_init(), "USBX network driver init failed");
 
     UXASSERT(ux_device_stack_initialize((UCHAR*)UX_NULL, 0,           // kein High-Speed (USB_DRD_FS ist FS-only)
@@ -571,16 +623,11 @@ void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid
                                             1, ITF_CDC1_MODBUS_CONTROL, &modbus_parameter),
             "USBX CDC-ACM Modbus register failed");
 
-    static UX_SLAVE_CLASS_CDC_ECM_PARAMETER ecm_parameter;
-    ecm_parameter.ux_slave_class_cdc_ecm_instance_activate = cdc_ecm_activate;
-    ecm_parameter.ux_slave_class_cdc_ecm_instance_deactivate = cdc_ecm_deactivate;
-    memcpy(ecm_parameter.ux_slave_class_cdc_ecm_parameter_local_node_id, ecm_mac,
-           UX_DEVICE_CLASS_CDC_ECM_NODE_ID_LENGTH);
-    memcpy(ecm_parameter.ux_slave_class_cdc_ecm_parameter_remote_node_id, g_ecm_remote_node_id,
-           UX_DEVICE_CLASS_CDC_ECM_NODE_ID_LENGTH);
-    UXASSERT(ux_device_stack_class_register(_ux_system_slave_class_cdc_ecm_name, ux_device_class_cdc_ecm_entry,
-                                            1, ITF_ECM_CONTROL, &ecm_parameter),
-            "USBX CDC-ECM register failed");
+    // Eigene NCM-Klasse (s. usbd_ncm.h/.c) -- anders als bei CDC-ACM gibt es hier keinen
+    // ST-eigenen PARAMETER-Typ zu befuellen; die Registrierung braucht nur die Control-Interface-
+    // Nummer (das Daten-Interface liegt per Konvention auf itf_control+1) und die lokale
+    // MAC-Adresse (an _ux_network_driver_activate() weitergereicht, s. usbd_ncm.c).
+    UXASSERT(usbd_ncm_class_register(ITF_NCM_CONTROL, net_mac), "USBX CDC-NCM register failed");
 
     // hpcd_USB_DRD_FS ist zu diesem Zeitpunkt bereits per HAL_PCD_Init() initialisiert (von
     // CubeMX-generiertem Code in main.c/MX_USB_PCD_Init(), laeuft unbedingt schon waehrend
@@ -592,6 +639,66 @@ void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid
     // Referenzprojekt (app_usbx_device.c MX_USBX_Device_Stack_Init()).
     UXASSERT(ux_dcd_stm32_initialize((ULONG)USB_DRD_FS, (ULONG)&hpcd_USB_DRD_FS),
             "USBX STM32 DCD initialize failed");
+
+    // USB_DRD_FS (kein OTG, sondern der aeltere register-/PMA-basierte "USB Device"-Kern, wie er
+    // auf STM32H563 statt eines OTG-Controllers verbaut ist) braucht fuer JEDEN Endpunkt eine
+    // explizite Packet-Memory-Adresse -- HAL_PCD_EP_Open() (aufgerufen aus
+    // ux_dcd_stm32_endpoint_create.c) setzt ep->pmaadress selbst NICHT, das ist Sache der
+    // Applikation (klassisches CubeMX-USB-Device-Beispiel: usbd_conf.c::USBD_LL_Init() macht das
+    // ueber HAL_PCDEx_PMAConfig() je Endpunkt). ST's eigenes USBX-Referenzbeispiel
+    // (STM32H573I-DK, s. Kommentar oben) hat dieses Problem nicht, weil das ein OTG-HS-Board ist
+    // -- OTG-Controller adressieren ueber FIFOs, nicht ueber PMA, brauchen diesen Schritt also
+    // gar nicht. Ohne diesen Block bleiben alle ep->pmaadress-Felder bei ihrem
+    // Zero-Initialisierungswert 0 stehen: JEDER Endpunkt (EP0 und alle sechs Klassen-Endpunkte)
+    // teilt sich dieselbe physische PMA-Adresse und ueberschreibt sich gegenseitig -- das war der
+    // Auslöser fuer die "USB-Geraet hat ungueltigen Geraetedeskriptor zurueckgegeben"-Meldung von
+    // Windows: ein anderer Endpunkt hat der EP0-SETUP-Paketpufferstelle noch waehrend der
+    // Verarbeitung Daten hinterhergeschrieben (s. Debug-Log: wLength wurde als 33800 statt der
+    // tatsaechlich angefragten 8/18 Byte gelesen).
+    //
+    // NACHTRAG (zweiter Fund im selben Bereich, gleicher Debug-Log-Symptom): der erste
+    // PMA-Anlauf (pma_offset ab 0) uebersah, dass USB_DRD_PMA_BUFF (stm32h563xx.h) -- die
+    // Buffer-Deskriptor-Tabelle (TXBD/RXBD-Adress+Laengen-Paare, die die Hardware fuer JEDEN
+    // Endpunktkanal braucht) -- auf DIESELBE Basisadresse USB_DRD_PMAADDR gelegt ist wie der
+    // Nutzdatenbereich selbst, nicht getrennt davon. Diese Tabelle belegt fest
+    // UX_DCD_STM32_MAX_ED (8, s. ux_stm32_config.h) Eintraege a 8 Byte (sizeof
+    // USB_DRD_PMABuffDescTypeDef: TXBD+RXBD je uint32_t) = 64 Byte am Anfang der PMA -- mit
+    // pma_offset bei 0 beginnend ueberschrieb EP0s eigener Datenpuffer also die
+    // Deskriptortabelle aller Endpunkte (inklusive seiner eigenen), was exakt zum beobachteten,
+    // *deterministisch reproduzierbaren* falschen wLength (immer derselbe Wert 33800 bei jedem
+    // Boot) passt: RAM-Startzustand nach Reset ist deterministisch, keine echte
+    // Endpunkt-Kollision noetig, um denselben falschen Wert jedes Mal zu erzeugen.
+    //
+    // Reihenfolge/Adressen: nach den reservierten 64 Byte zuerst EP0 (OUT dann IN, je
+    // bMaxPacketSize0), danach je Klasse Notification-IN, Bulk-OUT, Bulk-IN -- durchlaufend auf
+    // 4 Byte aufgerundet (USB_ReadPMA/USB_WritePMA kopieren wortweise, s. stm32h5xx_ll_usb.c),
+    // alle Adressen und Groessen muessen ausserdem <= USB_DRD_PMA_SIZE (2048 Byte, s.
+    // stm32h563xx.h) bleiben.
+    {
+        uint16_t pma_offset = (uint16_t)(UX_DCD_STM32_MAX_ED * sizeof(USB_DRD_PMABuffDescTypeDef));
+#define PMA_ALLOC(ep_addr, size)                                                         \
+        do {                                                                             \
+            HAL_PCDEx_PMAConfig(&hpcd_USB_DRD_FS, (ep_addr), PCD_SNG_BUF, pma_offset);   \
+            pma_offset = (uint16_t)((pma_offset + (size) + 3u) & ~3u);                   \
+        } while (0)
+
+        PMA_ALLOC(0x00u, 64u);              // EP0 OUT
+        PMA_ALLOC(0x80u, 64u);              // EP0 IN
+        PMA_ALLOC(EP_NCM_NOTIF, EP_NCM_NOTIF_SIZE);
+        PMA_ALLOC(EP_NCM_OUT, EP_NCM_DATA_SIZE);
+        PMA_ALLOC(EP_NCM_IN, EP_NCM_DATA_SIZE);
+        PMA_ALLOC(EP_CDC0_NOTIF, EP_CDC0_NOTIF_SIZE);
+        PMA_ALLOC(EP_CDC0_OUT, EP_CDC0_DATA_SIZE);
+        PMA_ALLOC(EP_CDC0_IN, EP_CDC0_DATA_SIZE);
+        PMA_ALLOC(EP_CDC1_NOTIF, EP_CDC1_NOTIF_SIZE);
+        PMA_ALLOC(EP_CDC1_OUT, EP_CDC1_DATA_SIZE);
+        PMA_ALLOC(EP_CDC1_IN, EP_CDC1_DATA_SIZE);
+#undef PMA_ALLOC
+        if (pma_offset > 2048u) {
+            log_error("USB PMA layout overflow: %u > 2048 Byte", (unsigned)pma_offset);
+            Error_Handler();
+        }
+    }
 
     HAL_NVIC_EnableIRQ(USB_DRD_FS_IRQn);
 
@@ -616,7 +723,17 @@ _Noreturn void usbd_device_loop(void (*poll_hook)(void)) {
     bool vsense_last = false;
 
     for (;;) {
+#ifdef BOARD_NUCLEO_H563ZI
+        // Test-Rig: USB_VSENSE (PC0, 10k/10k-Spannungsteiler an VBUS) ist board-spezifische
+        // Zusatzbeschaltung der echten Platine, auf dem Nucleo unbeschaltet/floatend -- dort
+        // gilt VBUS als immer da (das Nucleo erkennt VBUS an seinem USB-User-Connector CN13
+        // bereits selbst ueber VBUS_SENSE/PA4, s. UM3115 Abschnitt 11.6.2; die PCD/USBX-Seite
+        // braucht dafuer keine zusaetzliche Software-Gate-Logik). HAL_PCD_Start() laeuft dadurch
+        // wie unten schon vorgesehen genau einmal beim ersten Schleifendurchlauf.
+        bool vsense_now = true;
+#else
         bool vsense_now = (HAL_GPIO_ReadPin(USB_VSENSE_GPIO_Port, USB_VSENSE_Pin) == GPIO_PIN_SET);
+#endif
         if (vsense_now != vsense_last) {
             if (vsense_now) {
                 // HAL_PCD_Start(): schaltet den Pull-Up an D+ zu (der Host beginnt zu

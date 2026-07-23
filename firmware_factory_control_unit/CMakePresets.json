@@ -23,6 +23,13 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
+        },
+        {
+            "name": "Debug-Nucleo",
+            "inherits": "Debug",
+            "cacheVariables": {
+                "BOARD_NUCLEO_H563ZI": "ON"
+            }
         }
     ],
     "buildPresets": [
@@ -33,6 +40,10 @@
         {
             "name": "Release",
             "configurePreset": "Release"
+        },
+        {
+            "name": "Debug-Nucleo",
+            "configurePreset": "Debug-Nucleo"
         }
     ]
 }

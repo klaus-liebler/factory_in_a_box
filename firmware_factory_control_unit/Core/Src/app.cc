@@ -162,14 +162,20 @@ void App::ComputeEcmMac(const uint32_t chip_uid[3], uint8_t mac[6]) {
         bool power_ok = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_STATUS) == 0;
         ULONG tx_ticks_now = tx_time_get();
 
+        // usbd_device_get_isr_count(): reine Diagnose fuer USB-Enumerationsprobleme -- zeigt, ob
+        // USB_DRD_FS_IRQn ueberhaupt feuert (PHY-/Interrupt-Ebene) unabhaengig davon, ob die
+        // Enumeration auf USBX-Protokollebene je erfolgreich abschliesst (s. Kommentar bei
+        // usbx_device_state_change() in usbd_device.c).
+        uint32_t usb_isr_count = usbd_device_get_isr_count();
+
         if (power_ok) {
             uint16_t bus_mv = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_BUS_VOLTAGE_MV);
             int16_t current_ma = (int16_t)this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_CURRENT_MA);
-            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Bus=%u mV, Current=%d mA",
-                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned)bus_mv, (int)current_ma);
+            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Bus=%u mV, Current=%d mA, USB-ISRs=%u",
+                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned)bus_mv, (int)current_ma, (unsigned)usb_isr_count);
         } else {
-            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Power=n/a (INA226 nicht erkannt)",
-                     (int)cpu_temp_c, (unsigned)free_heap_kib);
+            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Power=n/a (INA226 nicht erkannt), USB-ISRs=%u",
+                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned)usb_isr_count);
         }
 
         // Bis zur naechsten durch 3 teilbaren Sekunde schlafen (statt starr 3s ab jetzt) --
@@ -267,62 +273,55 @@ void App::fillRegistersWithInitialValues() {
 void App::greeting() {
     log_info("");
     log_info("=== FactoryInABox Control Unit starting ===");
-    log_info("Board:    %.*s", (int)BOARD_NAME.length(), BOARD_NAME.data());
-    log_info("Hostname: %s.local", DEVICE_HOSTNAME);
+    log_info(" -> Board:    %.*s", (int)BOARD_NAME.length(), BOARD_NAME.data());
+    log_info(" -> Hostname: %s.local", DEVICE_HOSTNAME);
     log_info("--- Build Information ---");
-    log_info("  Version: %.*s", (int)git::VERSION.length(), git::VERSION.data());
-    log_info("  Commit:  %.*s (%.*s)", (int)git::COMMIT_HASH.length(), git::COMMIT_HASH.data(),
+    log_info(" -> Version:  %.*s", (int)git::VERSION.length(), git::VERSION.data());
+    log_info(" -> Commit:   %.*s (%.*s)", (int)git::COMMIT_HASH.length(), git::COMMIT_HASH.data(),
             (int)git::BRANCH.length(), git::BRANCH.data());
-    log_info("  Message: %.*s", (int)git::COMMIT_MESSAGE.length(), git::COMMIT_MESSAGE.data());
-    log_info("  Author:  %.*s", (int)git::COMMIT_AUTHOR.length(), git::COMMIT_AUTHOR.data());
-    log_info("  Built:   %.*s", (int)git::BUILD_TIMESTAMP.length(), git::BUILD_TIMESTAMP.data());
+    log_info(" -> Message:  %.*s", (int)git::COMMIT_MESSAGE.length(), git::COMMIT_MESSAGE.data());
+    log_info(" -> Author:   %.*s", (int)git::COMMIT_AUTHOR.length(), git::COMMIT_AUTHOR.data());
+    log_info(" -> Built:    %.*s", (int)git::BUILD_TIMESTAMP.length(), git::BUILD_TIMESTAMP.data());
     if (git::IS_DIRTY) {
-        log_warn("Working directory has uncommitted changes!");
+    log_warn(" -> Clean:    yes");
     } else {
-        log_info("Working directory was clean relative to Git.");
+    log_info(" -> Clean:    no");
     }
 
     log_info("--- Clocks ---");
-    log_info("  SYSCLK: %lu MHz", (unsigned long)(HAL_RCC_GetSysClockFreq() / 1000000));
-    log_info("  HCLK:   %lu MHz", (unsigned long)(HAL_RCC_GetHCLKFreq() / 1000000));
-    log_info("  PCLK1:  %lu MHz", (unsigned long)(HAL_RCC_GetPCLK1Freq() / 1000000));
-    log_info("  PCLK2:  %lu MHz", (unsigned long)(HAL_RCC_GetPCLK2Freq() / 1000000));
+    log_info(" -> SYSCLK:   %lu MHz", (unsigned long)(HAL_RCC_GetSysClockFreq() / 1000000));
+    log_info(" -> HCLK:     %lu MHz", (unsigned long)(HAL_RCC_GetHCLKFreq() / 1000000));
+    log_info(" -> PCLK1:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK1Freq() / 1000000));
+    log_info(" -> PCLK2:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK2Freq() / 1000000));
 
-    // UID_BASE liegt im OTP-/System-Speicherbereich, nicht im regulaeren Flash-Adressraum, den
-    // der ICACHE ueberwacht -- ein Read bei aktivem ICACHE erzeugt einen precise BusFault.
-    HAL_ICACHE_Disable();
-    uint32_t uid0 = HAL_GetUIDw0();
-    uint32_t uid1 = HAL_GetUIDw1();
-    uint32_t uid2 = HAL_GetUIDw2();
-    HAL_ICACHE_Enable();
+
     log_info("--- Chip ---");
-    log_info("  UID: %08lX-%08lX-%08lX", (unsigned long)uid0, (unsigned long)uid1, (unsigned long)uid2);
-    log_info("  Reset cause: %s", reset_cause());
+    log_info(" -> UID:      %08lX-%08lX-%08lX", (unsigned long)this->chip_uid[0], (unsigned long)this->chip_uid[1], (unsigned long)this->chip_uid[2]);
+    log_info(" -> Reset:    %s", reset_cause());
     __HAL_RCC_CLEAR_RESET_FLAGS();
 
-    log_info("  MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+    log_info(" -> MAC:      S%02X:%02X:%02X:%02X:%02X:%02X",
             heth.Init.MACAddr[0], heth.Init.MACAddr[1], heth.Init.MACAddr[2],
             heth.Init.MACAddr[3], heth.Init.MACAddr[4], heth.Init.MACAddr[5]);
-
     log_info("============================================");
 }
 
 void App::SetupBeforeThreadX() {
+    HAL_ICACHE_Disable();
+    this->chip_uid[0] = HAL_GetUIDw0();
+    this->chip_uid[1] = HAL_GetUIDw1();
+    this->chip_uid[2] = HAL_GetUIDw2();
+    HAL_ICACHE_Enable();
+    greeting();
+    
     this->register_model = BuildModbusRegisterModel();
 
     // Ganz zuerst: falls ein USB-PD-Netzteil die Versorgung uebernimmt:
     // Blockieren, bis Spannung=20V
     this->usb_pd_control = new USBPDControl(this->register_model);
     this->usb_pd_control->EarlySetup(20000);
-
-    HAL_ICACHE_Disable();
-    this->chip_uid[0] = HAL_GetUIDw0();
-    this->chip_uid[1] = HAL_GetUIDw1();
-    this->chip_uid[2] = HAL_GetUIDw2();
-    HAL_ICACHE_Enable();
-
+    
     fillRegistersWithInitialValues();
-    greeting();
 
     // Reset-Pin des LAN8720-Phy kurz auf LOW, damit er sauber startet (s. LAN8720-Datenblatt).
     HAL_GPIO_WritePin(ETH_RESET_GPIO_Port, ETH_RESET_Pin, GPIO_PIN_RESET);

@@ -19,18 +19,20 @@ extern "C" {
 // dieselbe UID, die auch schon fuer CHIP_ID_* Modbus-Register und den Hostnamen verwendet wird
 // (s. App::chip_uid). Muss aus einem laufenden ThreadX-Thread heraus aufgerufen werden, NICHT vor
 // tx_kernel_enter() (USBX braucht wie TinyUSB den laufenden Scheduler).
-// ecm_mac: 6 Bytes fuer den MAC-Adress-String-Deskriptor der virtuellen CDC-ECM-NIC -- von
-// App::ComputeNcmMac() berechnet, dieselben Bytes gehen auch an usb_cdc_ecm_driver_init() (s.
-// dort). Anders als bei TinyUSB startet USBX den eigentlichen USB-Controller (HAL_PCD_Start())
-// noch NICHT hier, sondern erst in usbd_device_loop(), sobald USB_VSENSE tatsaechlich 5V zeigt
-// (s. dort) -- ux_device_stack_initialize()/Klassen-Registrierung/ux_dcd_stm32_initialize()
-// koennen dagegen bereits unabhaengig vom Kabel-Status passieren.
-void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2, uint8_t const ecm_mac[6]);
+// net_mac: 6 Bytes fuer die MAC-Adresse der virtuellen CDC-NCM-NIC -- anders als bei RNDIS geht
+// diese bei NCM tatsaechlich als USB-Stringdeskriptor auf den Draht (iMACAddress der Ethernet
+// Networking Functional Descriptor, s. g_ncm_mac_string/g_device_framework in usbd_device.c) --
+// von App::ComputeEcmMac() berechnet (Name historisch von der vorherigen CDC-ECM-Fassung,
+// Berechnung selbst klassenunabhaengig). Anders als bei TinyUSB startet USBX den eigentlichen USB-Controller
+// (HAL_PCD_Start()) noch NICHT hier, sondern erst in usbd_device_loop(), sobald USB_VSENSE
+// tatsaechlich 5V zeigt (s. dort) -- ux_device_stack_initialize()/Klassen-Registrierung/
+// ux_dcd_stm32_initialize() koennen dagegen bereits unabhaengig vom Kabel-Status passieren.
+void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2, uint8_t const net_mac[6]);
 
 // Endlosschleife (kehrt nie zurueck): koppelt den USB-Controller per HAL_PCD_Start()/_Stop() an
 // die tatsaechliche 5V-Praesenz am USB-Port (PC0/USB_VSENSE, 10k/10k-Spannungsteiler) -- analog
 // zu tud_connect()/tud_disconnect() bei der TinyUSB-Fassung. Anders als dort gibt es aber KEINE
-// tud_task()-Polling-Schleife mehr: USBX' Geraeteklassen (CDC-ACM x2, CDC-ECM) bedienen sich
+// tud_task()-Polling-Schleife mehr: USBX' Geraeteklassen (CDC-ACM x2, CDC-NCM) bedienen sich
 // jeweils ueber eigene, von der Klasse selbst erzeugte ThreadX-Threads (bulkin_thread/
 // bulkout_thread/interrupt_thread) komplett selbststaendig, angetrieben vom USB_DRD_FS-Interrupt
 // (s. USB_DRD_FS_IRQHandler unten). Diese Schleife hier dient nur noch der VSENSE-Ueberwachung

@@ -46,7 +46,13 @@ static void set_pwm_duty_permille(TIM_HandleTypeDef *htim, uint32_t channel, uin
 void Io::readInputs(uint32_t now) {
     (void)now;
     // Lichtschranken (NPN, idle-high -> aktiv = LOW).
+#ifdef BOARD_NUCLEO_H563ZI
+    // Test-Rig ohne echte Lichtschranke 1: Board-Taste B1 simuliert sie (ebenfalls aktiv Low,
+    // s. main.h) -- fuer Modbus-Clients nicht von der echten Lichtschranke zu unterscheiden.
+    bool ls1_active = (HAL_GPIO_ReadPin(USERBUTTON_GPIO_Port, USERBUTTON_Pin) == GPIO_PIN_RESET);
+#else
     bool ls1_active = (HAL_GPIO_ReadPin(LIGHTBARRIER1_GPIO_Port, LIGHTBARRIER1_Pin) == GPIO_PIN_RESET);
+#endif
     bool ls2_active = (HAL_GPIO_ReadPin(LIGHTBARRIER2_GPIO_Port, LIGHTBARRIER2_Pin) == GPIO_PIN_RESET);
     bool ls3_active = (HAL_GPIO_ReadPin(LIGHTBARRIER3_GPIO_Port, LIGHTBARRIER3_Pin) == GPIO_PIN_RESET);
     register_model.SetInputRegister(ModbusRegisters::Input::LIGHTBARRIER1, ls1_active ? 1 : 0);
@@ -88,6 +94,11 @@ void Io::updateOutputs(uint32_t now) {
     uint16_t compressor_permille = register_model.GetHoldingRegister(ModbusRegisters::Holding::COMPRESSOR_PWM);
     set_pwm_duty_permille(&htim4, TIM_CHANNEL_3, conveyor_permille);
     set_pwm_duty_permille(&htim4, TIM_CHANNEL_4, compressor_permille);
+#ifdef BOARD_NUCLEO_H563ZI
+    // Test-Rig ohne echten Foerderbandmotor: Board-LED LD1 simuliert ihn (an sobald Duty > 0) --
+    // LD1 haengt an PB0, keinem TIM4-Kanal, daher kein PWM-Dimmen, nur an/aus.
+    HAL_GPIO_WritePin(USERLED_GPIO_Port, USERLED_Pin, conveyor_permille > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+#endif
 
     // HealthState-Aggregation -- ETH_LINK_STATUS/SPEED/DUPLEX werden von eth_link.Loop() selbst
     // edge-getriggert geschrieben, hier nur der aktuelle Status fuer die Health-Bit-Berechnung.

@@ -99,7 +99,7 @@ public:
     // (beide haetten denselben UDP-Port 5353 auf derselben NX_IP gebunden), daher weiterhin nur
     // diese eine Instanz, jetzt auf beiden Interfaces.
     NX_MDNS mdns;
-    // DHCP-Server fuer die virtuelle USB-CDC-ECM-NIC (vergibt 192.168.173.2 an den per USB
+    // DHCP-Server fuer die virtuelle USB-CDC-NCM-NIC (vergibt 192.168.173.2 an den per USB
     // verbundenen Host) -- Gegenstueck zu dhcp_client oben, der stattdessen als DHCP-Client auf
     // dem Ethernet-Interface laeuft.
     NX_DHCP_SERVER dhcp_server;
@@ -135,13 +135,14 @@ public:
     // Wird von usbd_device_loop() (reines C, s. usbd_device.h) in jedem Schleifendurchlauf
     // aufgerufen -- einziger Weg, aus der C-Schleife heraus regelmaessig C++-Code (hier:
     // ModbusRtuServer::Poll()) anzustossen, ohne usbd_device.c C++-Wissen beizubringen (s.
-    // dortiger Klassenkommentar zum Grund fuer die strikte C/C++-Trennung). Anders als bei der
-    // TinyUSB-Fassung uebernimmt USBX' CDC-ECM-Klasse den Netzwerk-Versand komplett selbststaendig
-    // (eigener bulkin_thread) -- hier bleibt nur noch Modbus-RTU-Polling uebrig.
+    // dortiger Klassenkommentar zum Grund fuer die strikte C/C++-Trennung). Die CDC-NCM-Klasse
+    // (s. usbd_ncm.c) braucht dagegen KEIN Polling mehr -- sie haengt ueber USBX' generischen
+    // ux_network_driver rein ereignisgetrieben an NetX Duo, exakt wie USBX' eigene CDC-ECM/
+    // RNDIS-Klassen.
     static void UsbdDevicePollHook();
 
     // Locally-administered, aus der Board-UID abgeleitete MAC-Adresse fuer die virtuelle
-    // CDC-ECM-NIC (Byte 0 = 0x02, s. IEEE 802-2014 Tabelle 8-1 "locally administered unicast").
+    // CDC-NCM-NIC (Byte 0 = 0x02, s. IEEE 802-2014 Tabelle 8-1 "locally administered unicast").
     // An genau dieser einen Stelle berechnet und sowohl an usbd_device_setup() (MAC-Adress-
     // String-Deskriptor der Klassenregistrierung) als auch an net_setup.cpp's
     // nx_ip_interface_attach()-Aufruf (physische Interface-Adresse) weitergereicht (aus zwei

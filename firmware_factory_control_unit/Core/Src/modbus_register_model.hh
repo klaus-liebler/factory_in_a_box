@@ -1,7 +1,7 @@
 #pragma once
 // Fixer, von Hand gepflegter Teil des Modbus-Registermodells -- nur die Adress-Konstanten
-// haengen von der Register-Map ab und werden per tools/generate-register-map.mjs aus
-// register-map.json erzeugt (gleiches Muster wie stm32_libs/common_stm32/gpio/generated/*.inc).
+// haengen von der Register-Map ab und werden per builder/src/phases/read-modbus-register-map.ts
+// aus register-map.json erzeugt (gleiches Muster wie stm32_libs/common_stm32/gpio/generated/*.inc).
 // Die generierten Fragmente enthalten bewusst nur constexpr-Zeilen -- die umschliessenden
 // namespace-Bloecke stehen hier, fest von Hand gepflegt. Diese Datei selbst -- Speicherlayout,
 // Mutex-Handling, Zugriffsmethoden -- aendert sich nicht mit der Register-Map und wird deshalb

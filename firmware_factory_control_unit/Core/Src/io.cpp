@@ -4,7 +4,7 @@
 // Stepper-Register, ToF/Farbsensor, CAN, WS2812), Zyklus ca. alle 50ms (IO_THREAD_SLEEP_TICKS).
 //
 // Vorher waren das zehn einzelne ThreadX-Threads (led/link/io/usb_pd/scale/stepper/tof_color/
-// can/ws2812 + modbus_server); bis auf modbus_server (blockierender TCP-Accept-Loop, ein
+// can/ws2812 + modbus_tcp_server); bis auf modbus_tcp_server (blockierender TCP-Accept-Loop, ein
 // grundsaetzlich anderes Ausfuehrungsmodell) und app_main (einmaliger Boot-Orchestrator) sind
 // die alle hier zusammengefasst -- keins der zusammengefassten Subsysteme blockiert nennenswert
 // lange (HX711/FDCAN/WS2812 sind nicht-blockierendes Register-/DMA-Polling, ToF/Farbsensor
@@ -23,6 +23,10 @@
 extern "C" ADC_HandleTypeDef hadc1;
 extern "C" TIM_HandleTypeDef htim4;
 extern "C" size_t GetFreeHeapBytes(void);
+// Schuetzt hi2c1/hi2c2/hi2c4 vor gleichzeitigem Zugriff aus diesem Thread (tof_color_.Loop()/
+// power_.Loop() unten) und dem HTTP-getriggerten /api/i2c-Scan (s. webserver.cpp), s. Kommentar
+// bei der Definition in app.cc.
+extern TX_MUTEX i2c_bus_mutex;
 
 // Holding-Register sind 0..1000 Promille Duty -- CCR = (ARR+1) * permille / 1000.
 static void set_pwm_duty_permille(TIM_HandleTypeDef *htim, uint32_t channel, uint16_t permille) {
@@ -46,7 +50,13 @@ static void set_pwm_duty_permille(TIM_HandleTypeDef *htim, uint32_t channel, uin
 void Io::readInputs(uint32_t now) {
     (void)now;
     // Lichtschranken (NPN, idle-high -> aktiv = LOW).
+#ifdef BOARD_NUCLEO_H563ZI
+    // Test-Rig ohne echte Lichtschranke 1: Board-Taste B1 simuliert sie (ebenfalls aktiv Low,
+    // s. main.h) -- fuer Modbus-Clients nicht von der echten Lichtschranke zu unterscheiden.
+    bool ls1_active = (HAL_GPIO_ReadPin(USERBUTTON_GPIO_Port, USERBUTTON_Pin) == GPIO_PIN_RESET);
+#else
     bool ls1_active = (HAL_GPIO_ReadPin(LIGHTBARRIER1_GPIO_Port, LIGHTBARRIER1_Pin) == GPIO_PIN_RESET);
+#endif
     bool ls2_active = (HAL_GPIO_ReadPin(LIGHTBARRIER2_GPIO_Port, LIGHTBARRIER2_Pin) == GPIO_PIN_RESET);
     bool ls3_active = (HAL_GPIO_ReadPin(LIGHTBARRIER3_GPIO_Port, LIGHTBARRIER3_Pin) == GPIO_PIN_RESET);
     register_model.SetInputRegister(ModbusRegisters::Input::LIGHTBARRIER1, ls1_active ? 1 : 0);
@@ -67,10 +77,14 @@ void Io::processMembers(uint32_t now) {
     cpu_temp_.Loop(now);
     eth_link.Loop(now);
     usb_pd_control.Loop();
+    // power_/tof_color_ sind die einzigen I2C-Nutzer hier -- i2c_bus_mutex schuetzt hi2c1/hi2c2/
+    // hi2c4 vor einem gleichzeitigen /api/i2c-Scan aus dem HTTP-Server-Thread (s. webserver.cpp).
+    tx_mutex_get(&i2c_bus_mutex, TX_WAIT_FOREVER);
     power_.Loop(now);
+    tof_color_.Loop(now);
+    tx_mutex_put(&i2c_bus_mutex);
     scale_.Loop(now);
     stepper_.Loop(now);
-    tof_color_.Loop(now);
     ws2812_.Loop(now);
 }
 
@@ -88,6 +102,11 @@ void Io::updateOutputs(uint32_t now) {
     uint16_t compressor_permille = register_model.GetHoldingRegister(ModbusRegisters::Holding::COMPRESSOR_PWM);
     set_pwm_duty_permille(&htim4, TIM_CHANNEL_3, conveyor_permille);
     set_pwm_duty_permille(&htim4, TIM_CHANNEL_4, compressor_permille);
+#ifdef BOARD_NUCLEO_H563ZI
+    // Test-Rig ohne echten Foerderbandmotor: Board-LED LD1 simuliert ihn (an sobald Duty > 0) --
+    // LD1 haengt an PB0, keinem TIM4-Kanal, daher kein PWM-Dimmen, nur an/aus.
+    HAL_GPIO_WritePin(USERLED_GPIO_Port, USERLED_Pin, conveyor_permille > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+#endif
 
     // HealthState-Aggregation -- ETH_LINK_STATUS/SPEED/DUPLEX werden von eth_link.Loop() selbst
     // edge-getriggert geschrieben, hier nur der aktuelle Status fuer die Health-Bit-Berechnung.

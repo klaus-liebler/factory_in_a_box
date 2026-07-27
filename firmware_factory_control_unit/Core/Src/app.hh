@@ -1,17 +1,22 @@
 // ============================================================================
 // ThreadX Application Wiring -- erzeugt alle Pools/Threads (tx_application_define(), laeuft
 // vor dem Scheduler) und orchestriert danach den Boot-Ablauf (App::AppThread(), der einzige
-// Thread mit TX_AUTO_START). Vier ThreadX-Threads insgesamt (bewusst nicht mehr nur drei, s.
-// usbd_device_thread unten):
+// Thread mit TX_AUTO_START). Fuenf ThreadX-Threads insgesamt:
 //   - app_main_thread: einmaliger Boot-Orchestrator (FileX/TLS/HTTP/DHCP/Modbus-Setup, dann
 //     Start der uebrigen Threads)
-//   - modbus_server_thread: blockierender TCP-Accept-Loop (ModbusTcpServer::run())
+//   - modbus_tcp_server_thread: blockierender TCP-Accept-Loop (ModbusTcpServer::run())
+//   - modbus_rtu_thread: blockierender Lese-/Verarbeitungs-/Sende-Loop fuer Modbus-RTU-ueber-
+//     USB-CDC (App::ModbusRtuThread(), s. app.cc -- ModbusRtuServer selbst enthaelt nur noch die
+//     Protokoll-Logik, s. Klassenkommentar in stm32_libs/modbus/modbus_rtu_server.hpp) -- EIN
+//     Thread, EIN Puffer statt der vorherigen Ringpuffer-/Mailbox-Konstruktion mit zwei
+//     Zwischen-Threads (Empfangen und Senden schliessen sich bei Modbus-RTU ohnehin gegenseitig
+//     aus).
 //   - io_thread: EIN gemeinsamer Thread fuer alle Sensoren/Aktoren (s. io.cpp fuer die
 //     Begruendung, warum das zusammengefasst werden konnte)
-//   - usbd_device_thread: TinyUSB tud_task()-Loop (s. usbd_device.cc). Bewusst NICHT in
-//     io_thread mit-erledigt (wie z.B. usb_pd_control.Loop()) -- USB Full-Speed braucht
-//     reaktionsschnelle Bedienung (~1ms-Frames), waehrend io_thread einen 50ms-Zyklus faehrt;
-//     ein Mischen wuerde Enumeration/Bulk-Durchsatz sichtbar ausbremsen.
+//   - usbd_device_thread: USBX-Lebenszyklus-Schleife (usbd_device_loop(), s. usbd_device.c) --
+//     ueberwacht nur noch USB_VSENSE; die eigentliche USB-Bedienung (Enumeration/Bulk-Transfers)
+//     laeuft seit dem Umstieg von TinyUSB auf USBX in klasseneigenen ThreadX-Threads (s.
+//     Klassenkommentar in usbd_device.h), nicht mehr hier.
 //   - heartbeat_thread: reine Diagnose (Log-Zeile alle 3s: CPU-Temperatur/freier Heap/
 //     Bus-Spannung/Strom). Bewusst NICHT im io_thread (koennte durch dessen Sensor-/Aktor-
 //     Zyklus verzoegert werden) -- liest nur bereits von io_thread periodisch aktualisierte
@@ -24,7 +29,6 @@
 #include "io.hpp"
 #include "usb_pd_control.hpp"
 #include "usbd_device.h"
-#include "usb_ncm_driver.h"
 #include "hal_tick_threadx.h"
 
 #include "modbus_register_model.hh"
@@ -95,16 +99,16 @@ public:
     NX_IP ip_instance;
     NX_DHCP dhcp_client;
     NX_WEB_HTTP_SERVER http_server;
-    // Zusaetzlich auf dem USB-NCM-Interface aktiviert (s. net_setup.cpp) -- eine zweite
-    // NX_MDNS-Instanz fuer einen eigenen festen Namen scheiterte an NX_PORT_UNAVAILABLE (beide
-    // haetten denselben UDP-Port 5353 auf derselben NX_IP gebunden), daher weiterhin nur diese
-    // eine Instanz, jetzt auf beiden Interfaces.
+    // Zusaetzlich auf dem virtuellen USB-Netzwerk-Interface aktiviert (s. net_setup.cpp) -- eine
+    // zweite NX_MDNS-Instanz fuer einen eigenen festen Namen scheiterte an NX_PORT_UNAVAILABLE
+    // (beide haetten denselben UDP-Port 5353 auf derselben NX_IP gebunden), daher weiterhin nur
+    // diese eine Instanz, jetzt auf beiden Interfaces.
     NX_MDNS mdns;
-    // DHCP-Server fuer die virtuelle NCM-NIC (vergibt 192.168.173.2 an den per USB verbundenen
-    // Host) -- Gegenstueck zu dhcp_client oben, der stattdessen als DHCP-Client auf dem
-    // Ethernet-Interface laeuft.
+    // DHCP-Server fuer die virtuelle USB-CDC-NCM-NIC (vergibt 192.168.173.2 an den per USB
+    // verbundenen Host) -- Gegenstueck zu dhcp_client oben, der stattdessen als DHCP-Client auf
+    // dem Ethernet-Interface laeuft.
     NX_DHCP_SERVER dhcp_server;
-    ModbusTcpServer* modbus_server = nullptr;
+    ModbusTcpServer* modbus_tcp_server = nullptr;
     ModbusRtuServer* modbus_rtu_server = nullptr;
     Io* io = nullptr;
     USBPDControl* usb_pd_control = nullptr;
@@ -115,7 +119,8 @@ public:
     ULONG net_mask;
 
     TX_THREAD app_main_thread;
-    TX_THREAD modbus_server_thread;
+    TX_THREAD modbus_tcp_server_thread;
+    TX_THREAD modbus_rtu_thread;
     TX_THREAD io_thread;
     TX_THREAD usbd_device_thread;
     TX_THREAD heartbeat_thread;
@@ -124,36 +129,15 @@ public:
 
     void SetupBeforeThreadX();
     void AppThread();
-    void ModbusServerThread();
+    void ModbusTcpServerThread();
+    [[noreturn]] void ModbusRtuThread();
     void IOThread();
     [[noreturn]] void UsbdDeviceThread();
     [[noreturn]] void HeartbeatThread();
     static void AppThreadStatic(ULONG arg);
-    static void ModbusServerThreadStatic(ULONG arg);
+    static void ModbusTcpServerThreadStatic(ULONG arg);
+    static void ModbusRtuThreadStatic(ULONG arg);
     static void IOThreadStatic(ULONG arg);
     static void UsbdDeviceThreadStatic(ULONG arg);
     static void HeartbeatThreadStatic(ULONG arg);
-    // Wird von usbd_device_loop() (reines C, s. usbd_device.h) nach jedem tud_task_ext()-
-    // Durchlauf aufgerufen -- einziger Weg, aus der C-Schleife heraus regelmaessig C++-Code
-    // (hier: ModbusRtuServer::Poll() und usb_ncm_driver_poll()) anzustossen, ohne usbd_device.c
-    // C++-Wissen beizubringen (s. dortiger Klassenkommentar zum Grund fuer die strikte
-    // C/C++-Trennung).
-    static void UsbdDevicePollHook();
-
-    // Legt vor JEDEM tud_task_ext()-Aufruf das Timeout fuer genau diesen Durchlauf fest (s.
-    // usbd_device.h fuer die ausfuehrliche Begruendung): kurz (1ms) NUR, wenn
-    // usb_ncm_driver_has_pending_tx() ein wartendes Paket meldet, sonst UINT32_MAX (unbegrenzt,
-    // wie vor der urspruenglichen Latenz-Behebung) -- verhindert, dass der hoeher priorisierte
-    // usbd_device_thread im USB-Leerlauf staendig alle 1ms den niedriger priorisierten io_thread
-    // verdraengt (fuehrte beim Hardware-Test zu Timeouts im DTS-CPU-Temperatursensor-Busy-Wait,
-    // s. Core/Src/setup_and_loops/cpu_temp.hh).
-    static uint32_t UsbdDeviceGetTaskTimeoutMs();
-
-    // Locally-administered, aus der Board-UID abgeleitete MAC-Adresse fuer die virtuelle
-    // NCM-NIC (Byte 0 = 0x02, s. IEEE 802-2014 Tabelle 8-1 "locally administered unicast").
-    // An genau dieser einen Stelle berechnet und sowohl an usbd_device_setup() (MAC-Adress-
-    // String-Deskriptor) als auch an usb_ncm_driver_init() (Quelladresse im Ethernet-Header)
-    // weitergereicht (aus zwei verschiedenen Uebersetzungseinheiten, s. app.cc/net_setup.cpp),
-    // damit garantiert beide dieselbe Adresse verwenden.
-    static void ComputeNcmMac(const uint32_t chip_uid[3], uint8_t mac[6]);
 };

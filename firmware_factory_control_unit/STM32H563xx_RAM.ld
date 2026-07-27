@@ -47,7 +47,10 @@ _estack = ORIGIN(RAM) + LENGTH(RAM); /* end of "RAM" Ram type memory */
 _sstack = _estack - _Min_Stack_Size;
 
 _Min_Heap_Size = 0x200;      /* required amount of heap  */
-_Min_Stack_Size = 0x400; /* required amount of stack */
+/* s. identischer Kommentar in STM32H563xx_FLASH.ld -- ThreadX' gemeinsamer Interrupt-Stack war
+ * mit 1 KiB zu knapp fuer die verschachtelten USB_DRD_FS_IRQn-Aufrufketten und fuehrte zu einem
+ * stillen Stack-Overflow-Reset waehrend mehrpaketiger EP0-Transfers. */
+_Min_Stack_Size = 0x2000; /* required amount of stack */
 
 /* Sections */
 SECTIONS

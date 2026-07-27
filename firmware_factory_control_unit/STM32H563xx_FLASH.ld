@@ -47,7 +47,22 @@ _estack = ORIGIN(RAM) + LENGTH(RAM); /* end of "RAM" Ram type memory */
 _sstack = _estack - _Min_Stack_Size;
 
 _Min_Heap_Size = 0x200;      /* required amount of heap  */
-_Min_Stack_Size = 0x400; /* required amount of stack */
+/* CubeMX-Default war 0x400 (1 KiB) -- das ist bei ThreadX (anders als bei "nacktem" HAL-Code)
+ * NICHT bloss der Stack fuer main()/Reset-Handler, sondern der EINZIGE Stack, auf dem der
+ * Cortex-M33-Port ALLE Interrupt-/Exception-Kontexte abwickelt (_tx_thread_system_stack_ptr,
+ * s. tx_initialize_low_level.S, initialisiert aus dem Reset-Vektorwert = _estack; Thread-Code
+ * selbst laeuft auf separaten, pro-Thread allozierten Stacks). USB_DRD_FS_IRQn allein durchlaeuft
+ * dabei schon mehrere tief verschachtelte Aufrufebenen (HAL_PCD_IRQHandler ->
+ * HAL_PCD_SetupStageCallback/DataInStageCallback -> USBX' _ux_device_stack_control_request_process
+ * -> Klassen-Dispatch) -- mit 1 KiB Puffer reichte das beim mehrpaketigen EP0-Transfer
+ * (GET_DESCRIPTOR(CONFIGURATION), 211 Byte > ein 64-Byte-Paket) nicht mehr, Ergebnis: Stack-
+ * Overflow auf diesem gemeinsamen Interrupt-Stack, harter Fault-Eskalations-Lockup, von der
+ * STM32H5-Hardware als "Software"-Reset gemeldet (RCC_FLAG_SFTRST, s. App::reset_cause() in
+ * app.hh) -- voellig ohne Diagnoseausgabe, weil selbst der HardFault_Handler auf demselben schon
+ * ueberlaufenen Stack keine verlaessliche Ausfuehrung mehr garantiert bekommt. 640 KiB RAM
+ * insgesamt, davon zur Buildzeit nur ~290 KiB belegt -- reichlich Spielraum fuer einen
+ * grosszuegigeren Interrupt-Stack. */
+_Min_Stack_Size = 0x2000; /* required amount of stack */
 
 /* Sections */
 SECTIONS

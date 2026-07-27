@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tx_api.h"
+#include "generated/device_ids.hh"
 
 void AppSetupBeforeThreadX(void);
 /* USER CODE END Includes */
@@ -383,35 +384,16 @@ static void MX_ETH_Init(void)
 
   /* USER CODE BEGIN MACADDRESS */
   // Statt der von CubeMX generierten, fuer ALLE Boards identischen MAC (00:80:E1:00:00:00,
-  // s.o.) -- bei mehreren Geraeten im selben Netz sonst ARP-Kollisionen. Stattdessen aus der
-  // 96-Bit-Chip-Unique-ID abgeleitet (HAL_GetUIDw0/1/2), damit jedes Board eine eigene, stabile
-  // (bei jedem Boot gleiche) MAC bekommt.
-  {
-    // UID_BASE liegt im OTP-/System-Speicherbereich, nicht im regulaeren Flash-Adressraum, den
-    // der ICACHE ueberwacht -- ein Read bei aktivem ICACHE erzeugt einen precise BusFault
-    // (gleiches Muster wie in diagnostics.hpp/greeting.cpp). MX_ICACHE_Init() laeuft an dieser
-    // Stelle im Boot noch gar nicht (kommt in main() erst nach MX_ETH_Init()), das
-    // Disable/Enable-Paar schadet trotzdem nicht und macht diesen Codeblock unabhaengig von
-    // der genauen Init-Reihenfolge.
-    HAL_ICACHE_Disable();
-    uint32_t uid0 = HAL_GetUIDw0();
-    uint32_t uid1 = HAL_GetUIDw1();
-    uint32_t uid2 = HAL_GetUIDw2();
-    HAL_ICACHE_Enable();
-
-    // 5 MAC-Bytes aus allen 96 UID-Bits ableiten (XOR-Faltung, damit alle drei Woerter
-    // beitragen -- bei manchen STM32-Chargen teilen sich Chips vom selben Wafer denselben
-    // Wert in einem einzelnen UID-Wort, ein einzelnes Wort allein waere daher keine
-    // verlaessliche Quelle).
-    uint32_t folded = uid0 ^ uid1 ^ uid2;
-    MACAddr[0] = 0x02; // Bit1=1 (locally administered), Bit0=0 (unicast) -- kein
-                        // herstellervergebener OUI-Bereich
-    MACAddr[1] = (uint8_t)(folded >> 24);
-    MACAddr[2] = (uint8_t)(folded >> 16);
-    MACAddr[3] = (uint8_t)(folded >> 8);
-    MACAddr[4] = (uint8_t)folded;
-    MACAddr[5] = (uint8_t)(uid0 >> 8) ^ (uint8_t)(uid1 >> 16) ^ (uint8_t)(uid2 >> 24);
-  }
+  // s.o.) -- bei mehreren Geraeten im selben Netz sonst ARP-Kollisionen. DEVICE_ETH_MAC (Core/
+  // generated/device_ids.hh, von builder/src/phases/read-hardware-ids.ts eincompiliert) ist
+  // bereits pro Board aus dessen 96-Bit-Chip-Unique-ID abgeleitet -- frueher
+  // (s. Commit-Historie) wurde dieselbe XOR-Faltung stattdessen bei JEDEM Boot per
+  // HAL_GetUIDw0/1/2() neu berechnet, was zusaetzlich ein HAL_ICACHE_Disable()/_Enable()-Paar
+  // brauchte (UID_BASE liegt im OTP-/System-Speicherbereich, nicht im regulaeren
+  // Flash-Adressraum, den der ICACHE ueberwacht) -- DEVICE_ETH_MAC liegt dagegen als gewoehnliche
+  // Konstante im normalen, ICACHE-sicheren Flash-Bereich, das Disable/Enable-Paar entfaellt also
+  // komplett.
+  memcpy(MACAddr, DEVICE_ETH_MAC, sizeof(MACAddr));
   /* USER CODE END MACADDRESS */
 
   if (HAL_ETH_Init(&heth) != HAL_OK)
@@ -1454,13 +1436,18 @@ static void MX_USB_PCD_Init(void)
   }
   /* USER CODE BEGIN USB_Init 2 */
   // Der USB_DRD_FS-Interrupt (NVIC-Freischaltung, Prioritaet, ISR) wird bewusst NICHT von
-  // CubeMX verwaltet (im .ioc kein NVIC-Haekchen fuer USB_DRD_FS_IRQn) -- TinyUSBs
-  // dcd_stm32_fsdev-Treiber besitzt die Peripherie exklusiv und regelt Freischaltung/Sperrung
-  // selbst (dcd_int_enable()/dcd_int_disable(), aufgerufen aus tusb_init()/tud_deinit()).
-  // Haette CubeMX hier zusaetzlich HAL_NVIC_EnableIRQ() aufgerufen, koennte der Interrupt schon
-  // vor tusb_init() feuern (z.B. wenn beim Boot bereits ein Host/5V an PC0/USB_VSENSE anliegt)
-  // und dabei RAM korrumpieren, da TinyUSBs interner Zustand (Queue/Mutex) dann noch nicht
-  // existiert. Handler-Funktion, Prioritaet und Lifecycle liegen vollstaendig in usbd_device.c.
+  // CubeMX verwaltet (im .ioc kein NVIC-Haekchen fuer USB_DRD_FS_IRQn) -- diesmal NICHT, weil
+  // USBX' ux_dcd_stm32-Treiber die Peripherie exklusiv besaesse (im Gegenteil: er ist
+  // HAL_PCD-basiert und erwartet den STANDARD HAL_PCD_IRQHandler()-Ablauf, s.
+  // USB_DRD_FS_IRQHandler() in usbd_device.c), sondern damit die Freischaltung garantiert erst
+  // NACH ux_dcd_stm32_initialize()/der USBX-Klassen-Registrierung passiert (s.
+  // usbd_device_setup()) -- vorher koennte ein Interrupt auf noch nicht initialisierten
+  // USBX-Systemzustand treffen. HAL_PCD_Init() hier (oben) laeuft dagegen unbedingt und lange
+  // vor usbd_device_setup() (das erst aus einem ThreadX-Thread heraus laufen kann) -- unkritisch,
+  // da HAL_PCD_Init() selbst laut Kommentar in ux_dcd_stm32_initialize.c keine Interrupts ausloest,
+  // solange die NVIC-Freischaltung (s.o.) noch aussteht. Handler-Funktion, Prioritaet und
+  // Lifecycle (HAL_PCD_Start()/_Stop() statt TinyUSBs tud_connect()/_disconnect()) liegen
+  // vollstaendig in usbd_device.c.
   /* USER CODE END USB_Init 2 */
 
 }
@@ -1571,7 +1558,22 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(STEPPER_EN_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
+#ifdef BOARD_NUCLEO_H563ZI
+  // Test-Rig-Ersatzsignale (s. main.h) -- GPIOB/GPIOC-Takt ist oben bereits aktiviert.
+  /*Configure GPIO pin : USERBUTTON_Pin (B1) */
+  GPIO_InitStruct.Pin = USERBUTTON_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(USERBUTTON_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : USERLED_Pin (LD1) */
+  HAL_GPIO_WritePin(USERLED_GPIO_Port, USERLED_Pin, GPIO_PIN_RESET);
+  GPIO_InitStruct.Pin = USERLED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(USERLED_GPIO_Port, &GPIO_InitStruct);
+#endif
   /* USER CODE END MX_GPIO_Init_2 */
 }
 

@@ -1,0 +1,58 @@
+// Vorlage fuer environment-config.ts (gitignored, s. dortiger Kommentar) -- getrackte Kopie mit
+// den tatsaechlich genutzten Werten (gleiches Muster wie zuvor tools/environment-config.mjs.template).
+// "npm install" legt environment-config.ts automatisch aus dieser Vorlage an, falls sie fehlt.
+import path from "node:path";
+import { existsSync, statSync } from "node:fs";
+
+// STM32CubeProgrammer-CLI -- ueberschreibbar per Umgebungsvariable STM32_PRG_PATH, falls
+// STM32CubeProgrammer nicht am Standardpfad installiert ist (z.B. anderer Rechner/CI).
+// STM32_PRG_PATH darf sowohl auf die .exe selbst als auch nur auf deren bin/-Ordner zeigen --
+// ein Ordner wird hier automatisch um den .exe-Namen ergaenzt, statt weiter unten mit einem
+// kryptischen ENOENT beim Spawnen eines Verzeichnisses zu scheitern.
+export function stm32ProgrammerCli(): string {
+	const configured = process.env.STM32_PRG_PATH;
+	if (!configured) {
+		return "C:\\Program Files\\STMicroelectronics\\STM32Cube\\STM32CubeProgrammer\\bin\\STM32_Programmer_CLI.exe";
+	}
+	if (existsSync(configured) && statSync(configured).isDirectory()) {
+		return path.join(configured, "STM32_Programmer_CLI.exe");
+	}
+	return configured;
+}
+
+// UID_BASE, siehe stm32h563xx.h -- chip-fest, keine Umgebungsvariable noetig.
+export function uidAddress(): string {
+	return "0x08FFF800";
+}
+
+// Wiederverwendete pro-Board-Zertifikate + Board-Archiv (s. docs/build-process.md).
+export function boardsDir(): string {
+	return "C:\\Users\\mail\\OneDrive - HSOS\\stm32_boards";
+}
+
+// Flash-Log (s. docs/build-process.md Abschnitt 8) -- liegt bewusst im selben Ordner wie die
+// Board-Archive, analog zu esp32_boards/builder.db.
+export function dbPath(): string {
+	return path.join(boardsDir(), "builder.db");
+}
+
+// Private CA (rootCA.pem.{crt,key}), die alle Board-Zertifikate signiert.
+export function certsDir(): string {
+	return "C:\\Users\\mail\\OneDrive - HSOS\\certificates";
+}
+
+export function caCert(): string {
+	return path.join(certsDir(), "rootCA.pem.crt");
+}
+
+export function caKey(): string {
+	return path.join(certsDir(), "rootCA.pem.key");
+}
+
+export function subjectPrefix(): string {
+	return "/C=DE/ST=NRW/L=Greven/O=Klaus Lieber personal";
+}
+
+export function certDays(): string {
+	return "3000";
+}

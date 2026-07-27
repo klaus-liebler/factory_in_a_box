@@ -2,8 +2,15 @@
 #include "modbus_register_model.hh"
 #include "tx_api.h"
 #include "net_setup.hpp"
-#include "gitconstants.hh"
-#include "generated/device_hostname.hh"
+#include "generated/gitconstants.hh"
+#include "generated/device_ids.hh"
+// Fuer App::ModbusRtuThread() -- ruft ux_device_class_cdc_acm_read()/_write() direkt auf (kein
+// Zwischen-Wrapper in usbd_device.c), nur die Instanz selbst kommt von dort (s.
+// usbd_cdc_modbus_instance()), weil sie in usbd_device.c privat bleibt (von
+// cdc_modbus_activate()/_deactivate() gesetzt). ux_api.h zuerst, weil ux_device_class_cdc_acm.h
+// dessen Basistypen (UX_SLAVE_INTERFACE, UX_MUTEX, ...) voraussetzt, ohne es selbst einzubinden.
+#include "ux_api.h"
+#include "ux_device_class_cdc_acm.h"
 
 extern "C" ADC_HandleTypeDef hadc1;
 
@@ -26,6 +33,11 @@ constexpr uint32_t USBD_DEVICE_THREAD_STACK_SIZE = 4 * 1024;
 // Zwischen Modbus (5, zeitkritischste TCP-Antworten) und io_thread (8) angesiedelt -- s.
 // Begruendung in app.hh (USB-Full-Speed-Timing vertraegt keinen 50ms-Zyklus).
 constexpr uint32_t USBD_DEVICE_THREAD_PRIORITY = 6;
+constexpr uint32_t MODBUS_RTU_THREAD_STACK_SIZE = 2 * DEFAULT_MEMORY_SIZE;
+// Wie die vormalige RX/TX-Thread-Prioritaet in usbd_device.c (MODBUS_CDC_THREAD_PRIORITY) --
+// reaktionsschnell wie usbd_device_thread, da beide auf denselben USB-Full-Speed-Zeitschranken
+// laufen (App::ModbusRtuThread() ruft blockierend ux_device_class_cdc_acm_read()/_write() auf).
+constexpr uint32_t MODBUS_RTU_THREAD_PRIORITY = 6;
 constexpr uint32_t HEARTBEAT_THREAD_STACK_SIZE = 2 * 1024;
 // Niedrigste Prioritaet aller App-Threads (grosse Zahl) -- reine Diagnose, darf nirgendwo
 // dazwischenfunken, schlaeft ohnehin 3s pro Zyklus.
@@ -38,6 +50,12 @@ constexpr uint32_t HEARTBEAT_THREAD_PRIORITY = 12;
 // tx_application_define() passieren koennen (z.B. malloc() aus globalen Konstruktoren).
 static TX_MUTEX malloc_mutex{};
 static TX_MUTEX log_mutex{};
+// Schuetzt hi2c1/hi2c2/hi2c4 (I2C_HandleTypeDef ist nicht reentrant) vor gleichzeitigem Zugriff
+// aus Io::Loop() (periodisches Sensor-Polling, s. io.cpp) UND dem neuen /api/i2c-Scan (eigener
+// Thread, der NetX-Web-Server-Thread -- s. webserver.cpp perform_i2c_scan()). Nicht static: wird
+// extern in io.cpp und webserver.cpp gebraucht (gleiches Deklarationsmuster wie die
+// I2C_HandleTypeDef-Handles selbst, s. z.B. setup_and_loops/tof_color.hh).
+TX_MUTEX i2c_bus_mutex{};
 
 static void log_lock(bool lock) {
     if (lock) {
@@ -69,6 +87,7 @@ extern "C" void tx_application_define(void *first_unused_memory) {
 
     tx_mutex_create(&malloc_mutex, const_cast<CHAR *>("malloc_mutex"), TX_INHERIT);
     tx_mutex_create(&log_mutex, const_cast<CHAR *>("Log Mutex"), TX_NO_INHERIT);
+    tx_mutex_create(&i2c_bus_mutex, const_cast<CHAR *>("I2C Bus Mutex"), TX_INHERIT);
     log_set_lock(log_lock);
     log_set_level(LOG_INFO);
 
@@ -97,12 +116,16 @@ void App::AppThreadStatic(ULONG arg) {
     reinterpret_cast<App*>(arg)->AppThread();
 }
 
-void App::ModbusServerThreadStatic(ULONG arg) {
-    reinterpret_cast<App*>(arg)->ModbusServerThread();
+void App::ModbusTcpServerThreadStatic(ULONG arg) {
+    reinterpret_cast<App*>(arg)->ModbusTcpServerThread();
 }
 
 void App::IOThreadStatic(ULONG arg) {
     reinterpret_cast<App*>(arg)->IOThread();
+}
+
+void App::ModbusRtuThreadStatic(ULONG arg) {
+    reinterpret_cast<App*>(arg)->ModbusRtuThread();
 }
 
 void App::UsbdDeviceThreadStatic(ULONG arg) {
@@ -113,10 +136,71 @@ void App::HeartbeatThreadStatic(ULONG arg) {
     reinterpret_cast<App*>(arg)->HeartbeatThread();
 }
 
-void App::ModbusServerThread(){
-    this->modbus_server->initialize();
-    log_info("Modbus TCP Server started on port 502");
-    this->modbus_server->run();
+void App::ModbusTcpServerThread(){
+    this->modbus_tcp_server->initialize();
+    log_info("Modbus TCP Server started on Port %u", this->modbus_tcp_server->Port());
+    this->modbus_tcp_server->run();
+}
+
+// Blockierender Lese-/Verarbeitungs-/Sende-Loop fuer Modbus-RTU-ueber-USB-CDC. Lebt bewusst
+// hier (statt in modbus_rtu_server.hpp) -- ModbusRtuServer selbst enthaelt nur noch die
+// Protokoll-Logik (Framing/CRC/Register-Zugriff, s. dortiger Klassenkommentar), keine eigene
+// Thread-/USB-IO-Schleife. Ruft ux_device_class_cdc_acm_read()/_write() direkt auf (kein
+// Zwischen-Wrapper in usbd_device.c) -- nur die Instanz selbst kommt von dort (s.
+// usbd_cdc_modbus_instance()), weil sie in usbd_device.c privat bleibt (von
+// cdc_modbus_activate()/_deactivate() gesetzt). EIN Thread, EIN Puffer (ModbusRtuServer::
+// Buffer()) statt vorheriger Ringpuffer-/Mailbox-Konstruktion mit zwei Zwischen-Threads:
+// Empfangen und Senden schliessen sich hier gegenseitig aus, was fuer Modbus-RTU (strikt
+// Anfrage/Antwort, nie beides gleichzeitig unterwegs) ohnehin passt.
+[[noreturn]] void App::ModbusRtuThread() {
+    log_info("Modbus RTU Server started on USB-CDC (slave ID %u)", this->modbus_rtu_server->SlaveId());
+
+    uint8_t* buf = this->modbus_rtu_server->Buffer();
+    const size_t buf_size = ModbusRtuServer::BufferSize();
+    const ULONG inter_frame_timeout_ticks = this->modbus_rtu_server->InterFrameTimeoutTicks();
+    size_t message_length = 0;
+    size_t response_length = 0;
+    ULONG last_rx_tick = tx_time_get();
+
+    while (true) {
+        UX_SLAVE_CLASS_CDC_ACM* instance = usbd_cdc_modbus_instance();
+        if (instance == nullptr) {
+            // Kein Host verbunden -- kurz schlafen
+            tx_thread_sleep(10);
+            continue;
+        }
+
+        ULONG actual_length = 0;
+
+        if (response_length != 0) {
+            // Antwort steht bereits vollstaendig in buf (s. ModbusRtuServer::ProcessChunk()) --
+            // senden und erst danach wieder empfangen (Modbus-RTU ist strikt Anfrage/Antwort).
+            ux_device_class_cdc_acm_write(instance, buf, (ULONG)response_length, &actual_length);
+            response_length = 0;
+            continue;
+        }
+
+        UINT status = ux_device_class_cdc_acm_read(instance, buf + message_length,
+                                                    (ULONG)(buf_size - message_length), &actual_length);
+        if (status != UX_SUCCESS || actual_length == 0) {
+            // Timeout (UX_NON_CONTROL_TRANSFER_TIMEOUT), Deaktivierung waehrend des Wartens,
+            // o.ae. -- angefangener Frame zu lange her -- verwerfen.
+            if (message_length != 0 && (tx_time_get() - last_rx_tick) > inter_frame_timeout_ticks) {
+                message_length = 0;
+            }
+            continue;
+        }
+
+        message_length += actual_length;
+        last_rx_tick = tx_time_get();
+        this->modbus_rtu_server->ProcessChunk(&message_length, &response_length);
+
+        if (message_length == buf_size && response_length == 0) {
+            // Ueberlauf-Schutz: Puffer randvoll, aber immer noch kein gueltiger Frame -- neu
+            // anfangen statt beim naechsten Durchlauf mit space=0 zu lesen.
+            message_length = 0;
+        }
+    }
 }
 
 void App::IOThread() {
@@ -125,28 +209,14 @@ void App::IOThread() {
     this->io->Loop();
 }
 
+// serial_string/net_mac/net_mac_string kommen fix-und-fertig aus Core/generated/
+// device_ids.hh -- nicht mehr wie frueher (s. Commit-Historie) hier aus this->chip_uid
+// abgeleitet (App::SetupBeforeThreadX() prueft bereits beim Boot, dass DEVICE_CHIP_UID_W0/1/2
+// zur tatsaechlichen Chip-UID passen, s. dort).
 [[noreturn]] void App::UsbdDeviceThread() {
-    uint8_t ecm_mac[6];
-    App::ComputeEcmMac(this->chip_uid, ecm_mac);
-    usbd_device_setup(this->chip_uid[0], this->chip_uid[1], this->chip_uid[2], ecm_mac);
+    usbd_device_setup(DEVICE_USB_SERIAL_STRING, DEVICE_USB_NCM_MAC, DEVICE_USB_NCM_MAC_STRING);
     log_info("USB Device Thread started");
-    usbd_device_loop(App::UsbdDevicePollHook);
-}
-
-// cdc_itf=1: zweite CDC-Deskriptorinstanz in usbd_device.c (ITF_CDC1_MODBUS_*), Instanz 0 ist
-// "FactoryControl Debug". slave_id=1 (Modbus-Standard-Default, ueber Modbus-Register aktuell
-// nicht konfigurierbar -- bei Bedarf spaeter aus einem Holding-Register lesen).
-void App::UsbdDevicePollHook() {
-    App::Instance().modbus_rtu_server->Poll();
-}
-
-void App::ComputeEcmMac(const uint32_t chip_uid[3], uint8_t mac[6]) {
-    mac[0] = 0x02;
-    mac[1] = (uint8_t)(chip_uid[0] >> 24);
-    mac[2] = (uint8_t)(chip_uid[0]);
-    mac[3] = (uint8_t)(chip_uid[1] >> 24);
-    mac[4] = (uint8_t)(chip_uid[1]);
-    mac[5] = (uint8_t)(chip_uid[2]);
+    usbd_device_loop();
 }
 
 // Rein diagnostisch: liest ausschliesslich bereits vom io_thread periodisch aktualisierte
@@ -162,20 +232,14 @@ void App::ComputeEcmMac(const uint32_t chip_uid[3], uint8_t mac[6]) {
         bool power_ok = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_STATUS) == 0;
         ULONG tx_ticks_now = tx_time_get();
 
-        // usbd_device_get_isr_count(): reine Diagnose fuer USB-Enumerationsprobleme -- zeigt, ob
-        // USB_DRD_FS_IRQn ueberhaupt feuert (PHY-/Interrupt-Ebene) unabhaengig davon, ob die
-        // Enumeration auf USBX-Protokollebene je erfolgreich abschliesst (s. Kommentar bei
-        // usbx_device_state_change() in usbd_device.c).
-        uint32_t usb_isr_count = usbd_device_get_isr_count();
-
         if (power_ok) {
             uint16_t bus_mv = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_BUS_VOLTAGE_MV);
             int16_t current_ma = (int16_t)this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_CURRENT_MA);
-            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Bus=%u mV, Current=%d mA, USB-ISRs=%u",
-                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned)bus_mv, (int)current_ma, (unsigned)usb_isr_count);
+            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Bus=%u mV, Current=%d mA",
+                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned)bus_mv, (int)current_ma);
         } else {
-            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Power=n/a (INA226 nicht erkannt), USB-ISRs=%u",
-                     (int)cpu_temp_c, (unsigned)free_heap_kib, (unsigned)usb_isr_count);
+            log_info("Heartbeat: CPU=%d C, FreeHeap=%u KiB, Power=n/a (INA226 nicht erkannt)",
+                     (int)cpu_temp_c, (unsigned)free_heap_kib);
         }
 
         // Bis zur naechsten durch 3 teilbaren Sekunde schlafen (statt starr 3s ab jetzt) --
@@ -206,18 +270,21 @@ void App::AppThread() {
 
     net_setup_start(this);
 
-    this->modbus_server = new ModbusTcpServer(&this->ip_instance, &this->packet_pool, *this->register_model);
+    this->modbus_tcp_server = new ModbusTcpServer(&this->ip_instance, &this->packet_pool, *this->register_model);
 
-    // Braucht keinen eigenen Thread (im Gegensatz zu ModbusTcpServer::run(), die blockierend auf
-    // einen TCP-Accept wartet): Poll() wird nicht-blockierend aus dem usbd_device_thread heraus
-    // angestossen (s. App::UsbdDevicePollHook()).
+    // cdc_itf=1: zweite CDC-Deskriptorinstanz in usbd_device.c (ITF_CDC1_MODBUS_*), Instanz 0
+    // ist "FactoryControl Debug". slave_id=1 (Modbus-Standard-Default, ueber Modbus-Register
+    // aktuell nicht konfigurierbar -- bei Bedarf spaeter aus einem Holding-Register lesen).
+    // Braucht wie ModbusTcpServer einen eigenen Thread (s. modbus_rtu_thread-Erzeugung unten) --
+    // App::ModbusRtuThread() liest/verarbeitet/sendet blockierend in einer Endlosschleife (s.
+    // dort).
     this->modbus_rtu_server = new ModbusRtuServer(1, *this->register_model);
 
-    XASSERT(tx_byte_allocate(&this->byte_pool, &ptr, 2 * DEFAULT_MEMORY_SIZE, TX_NO_WAIT), "Modbus server thread stack allocate failed");
+    XASSERT(tx_byte_allocate(&this->byte_pool, &ptr, 2 * DEFAULT_MEMORY_SIZE, TX_NO_WAIT), "Modbus TCP server thread stack allocate failed");
     XASSERT(tx_thread_create(
-        &this->modbus_server_thread,
-        _C("Modbus Server Thread"),
-        ModbusServerThreadStatic,
+        &this->modbus_tcp_server_thread,
+        _C("Modbus TCP Server Thread"),
+        ModbusTcpServerThreadStatic,
         (ULONG)this,
         ptr,
         2 * DEFAULT_MEMORY_SIZE,
@@ -225,7 +292,21 @@ void App::AppThread() {
         DEFAULT_PRIORITY,
         TX_NO_TIME_SLICE,
         TX_AUTO_START
-    ), "Modbus server thread create failed");
+    ), "Modbus TCP server thread create failed");
+
+    XASSERT(tx_byte_allocate(&this->byte_pool, &ptr, MODBUS_RTU_THREAD_STACK_SIZE, TX_NO_WAIT), "Modbus RTU thread stack allocate failed");
+    XASSERT(tx_thread_create(
+        &this->modbus_rtu_thread,
+        _C("Modbus RTU Thread"),
+        ModbusRtuThreadStatic,
+        (ULONG)this,
+        ptr,
+        MODBUS_RTU_THREAD_STACK_SIZE,
+        MODBUS_RTU_THREAD_PRIORITY,
+        MODBUS_RTU_THREAD_PRIORITY,
+        TX_NO_TIME_SLICE,
+        TX_AUTO_START
+    ), "Modbus RTU thread create failed");
 
     this->io = new Io(*this->register_model, this->ip_instance, this->dhcp_client, *this->usb_pd_control);
     // io->Setup() (registerlevel-Init aller Subsysteme: ADC-Start, PWM-Modus-Fixups, TMC2209-
@@ -281,7 +362,10 @@ void App::greeting() {
             (int)git::BRANCH.length(), git::BRANCH.data());
     log_info(" -> Message:  %.*s", (int)git::COMMIT_MESSAGE.length(), git::COMMIT_MESSAGE.data());
     log_info(" -> Author:   %.*s", (int)git::COMMIT_AUTHOR.length(), git::COMMIT_AUTHOR.data());
-    log_info(" -> Built:    %.*s", (int)git::BUILD_TIMESTAMP.length(), git::BUILD_TIMESTAMP.data());
+    // %lu statt %lld: newlib-nano (dieses Projekts printf-Implementierung) unterstuetzt keine
+    // 64-Bit-Formatspezifizierer -- ein Unix-Epoch-Zeitstempel in Sekunden passt aber bis Jahr
+    // 2106 komfortabel in 32 Bit.
+    log_info(" -> Built:    %lu (epoch)", (unsigned long)git::BUILD_TIMESTAMP_EPOCH);
     if (git::IS_DIRTY) {
     log_warn(" -> Clean:    yes");
     } else {
@@ -312,6 +396,25 @@ void App::SetupBeforeThreadX() {
     this->chip_uid[1] = HAL_GetUIDw1();
     this->chip_uid[2] = HAL_GetUIDw2();
     HAL_ICACHE_Enable();
+
+    // Board-Identitaetscheck: DEVICE_CHIP_UID_W0/1/2 (Core/generated/device_ids.hh) sind
+    // fuer genau EIN physisches Board eincompiliert (s.
+    // builder/src/phases/read-hardware-ids.ts) -- USB-Seriennummer und NCM-MAC-Adresse
+    // (DEVICE_USB_SERIAL_STRING/DEVICE_USB_NCM_MAC, s. UsbdDeviceThread()) sind daraus abgeleitet
+    // und wuerden bei einem Mismatch STILL die falsche Identitaet nach aussen zeigen. Deshalb
+    // hier ein harter Stopp statt eines Log-Warnings, sobald die tatsaechliche Chip-UID nicht
+    // passt (z.B. Firmware von Board A versehentlich auf Board B geflasht) -- noch vor jedem
+    // weiteren Setup-Schritt.
+    if (this->chip_uid[0] != DEVICE_CHIP_UID_W0 || this->chip_uid[1] != DEVICE_CHIP_UID_W1 ||
+        this->chip_uid[2] != DEVICE_CHIP_UID_W2) {
+        log_error("Chip-UID mismatch: Firmware wurde fuer ein anderes Board provisioniert! "
+                  "eincompiliert=%08lX-%08lX-%08lX tatsaechlich=%08lX-%08lX-%08lX -- "
+                  "\"node tools/provision_board_individual_data_and_files.mjs\" fuer DIESES Board ausfuehren.",
+                  (unsigned long)DEVICE_CHIP_UID_W0, (unsigned long)DEVICE_CHIP_UID_W1, (unsigned long)DEVICE_CHIP_UID_W2,
+                  (unsigned long)this->chip_uid[0], (unsigned long)this->chip_uid[1], (unsigned long)this->chip_uid[2]);
+        Error_Handler();
+    }
+
     greeting();
     
     this->register_model = BuildModbusRegisterModel();

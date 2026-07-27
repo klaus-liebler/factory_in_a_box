@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tx_api.h"
+#include "generated/device_ids.hh"
 
 void AppSetupBeforeThreadX(void);
 /* USER CODE END Includes */
@@ -383,35 +384,16 @@ static void MX_ETH_Init(void)
 
   /* USER CODE BEGIN MACADDRESS */
   // Statt der von CubeMX generierten, fuer ALLE Boards identischen MAC (00:80:E1:00:00:00,
-  // s.o.) -- bei mehreren Geraeten im selben Netz sonst ARP-Kollisionen. Stattdessen aus der
-  // 96-Bit-Chip-Unique-ID abgeleitet (HAL_GetUIDw0/1/2), damit jedes Board eine eigene, stabile
-  // (bei jedem Boot gleiche) MAC bekommt.
-  {
-    // UID_BASE liegt im OTP-/System-Speicherbereich, nicht im regulaeren Flash-Adressraum, den
-    // der ICACHE ueberwacht -- ein Read bei aktivem ICACHE erzeugt einen precise BusFault
-    // (gleiches Muster wie in diagnostics.hpp/greeting.cpp). MX_ICACHE_Init() laeuft an dieser
-    // Stelle im Boot noch gar nicht (kommt in main() erst nach MX_ETH_Init()), das
-    // Disable/Enable-Paar schadet trotzdem nicht und macht diesen Codeblock unabhaengig von
-    // der genauen Init-Reihenfolge.
-    HAL_ICACHE_Disable();
-    uint32_t uid0 = HAL_GetUIDw0();
-    uint32_t uid1 = HAL_GetUIDw1();
-    uint32_t uid2 = HAL_GetUIDw2();
-    HAL_ICACHE_Enable();
-
-    // 5 MAC-Bytes aus allen 96 UID-Bits ableiten (XOR-Faltung, damit alle drei Woerter
-    // beitragen -- bei manchen STM32-Chargen teilen sich Chips vom selben Wafer denselben
-    // Wert in einem einzelnen UID-Wort, ein einzelnes Wort allein waere daher keine
-    // verlaessliche Quelle).
-    uint32_t folded = uid0 ^ uid1 ^ uid2;
-    MACAddr[0] = 0x02; // Bit1=1 (locally administered), Bit0=0 (unicast) -- kein
-                        // herstellervergebener OUI-Bereich
-    MACAddr[1] = (uint8_t)(folded >> 24);
-    MACAddr[2] = (uint8_t)(folded >> 16);
-    MACAddr[3] = (uint8_t)(folded >> 8);
-    MACAddr[4] = (uint8_t)folded;
-    MACAddr[5] = (uint8_t)(uid0 >> 8) ^ (uint8_t)(uid1 >> 16) ^ (uint8_t)(uid2 >> 24);
-  }
+  // s.o.) -- bei mehreren Geraeten im selben Netz sonst ARP-Kollisionen. DEVICE_ETH_MAC (Core/
+  // generated/device_ids.hh, von builder/src/phases/read-hardware-ids.ts eincompiliert) ist
+  // bereits pro Board aus dessen 96-Bit-Chip-Unique-ID abgeleitet -- frueher
+  // (s. Commit-Historie) wurde dieselbe XOR-Faltung stattdessen bei JEDEM Boot per
+  // HAL_GetUIDw0/1/2() neu berechnet, was zusaetzlich ein HAL_ICACHE_Disable()/_Enable()-Paar
+  // brauchte (UID_BASE liegt im OTP-/System-Speicherbereich, nicht im regulaeren
+  // Flash-Adressraum, den der ICACHE ueberwacht) -- DEVICE_ETH_MAC liegt dagegen als gewoehnliche
+  // Konstante im normalen, ICACHE-sicheren Flash-Bereich, das Disable/Enable-Paar entfaellt also
+  // komplett.
+  memcpy(MACAddr, DEVICE_ETH_MAC, sizeof(MACAddr));
   /* USER CODE END MACADDRESS */
 
   if (HAL_ETH_Init(&heth) != HAL_OK)

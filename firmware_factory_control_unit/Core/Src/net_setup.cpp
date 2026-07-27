@@ -8,7 +8,7 @@
 
 #include "nx_stm32_eth_driver.h"
 #include "fx_stm32_sd_driver.h"
-#include "generated/device_hostname.hh"
+#include "generated/device_ids.hh"
 #include "assets.h"
 // _ux_network_driver_entry: USBX' eigener, generischer NX_IP_DRIVER (libs/ST/usbx/common/
 // usbx_network/inc/ux_network_driver.h) -- unsere eigene CDC-NCM-Geraeteklasse (s. usbd_ncm.h/.c)
@@ -266,7 +266,7 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     // je nachdem, welches Interface der Host gerade tatsaechlich erreichen kann, fuehrte das zu
     // nicht erreichbaren Adressen. Die IP dieses Interfaces ist ohnehin fest (192.168.173.1,
     // s. USB_NCM_IP_ADDRESS), daher stattdessen einfach per direkter IP erreichbar --
-    // tools/provision-certificate.mjs traegt diese Adresse zusaetzlich als IP-SAN ins
+    // tools/provision_board_individual_data_and_files.mjs traegt diese Adresse zusaetzlich als IP-SAN ins
     // Geraetezertifikat ein, damit https://192.168.173.1/ ohne Zertifikatsfehler funktioniert.
 }
 
@@ -295,7 +295,7 @@ void net_setup_start(App *app) {
 
     // --- HTTPS (NetX Secure TLS) Setup ---
     // Zertifikat + privater Schluessel kommen aus dem generierten device_certificate.c
-    // (siehe tools/provision-certificate.mjs) -- individuell pro Board ueber die
+    // (siehe tools/provision_board_individual_data_and_files.mjs) -- individuell pro Board ueber die
     // STM32-Unique-ID provisioniert und von der privaten CA signiert. TLS 1.2/ECDSA-P256,
     // kein Client-Zertifikat/Mutual-TLS (letzte drei Parameterpaare NX_NULL/0).
     // nx_secure_x509_certificate_initialize()/nx_secure_tls_metadata_size_calculate() sind

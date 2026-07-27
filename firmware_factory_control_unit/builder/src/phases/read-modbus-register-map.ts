@@ -1,33 +1,31 @@
-#!/usr/bin/env node
-// Generiert drei reine Konstanten-Fragmente (Core/Src/generated/register_input.inc,
-// register_holding.inc, register_maxindex.inc) und web/src/register-map.ts (TypeScript) aus
-// der programmiersprachen-neutralen Quelle register-map.json. Manuell aufrufen bei
-// Aenderungen an register-map.json:
-//   node tools/generate-register-map.mjs
+// Phase "ReadModbusRegisterMapAndGenerateFiles" (s. docs/build-process.md Abschnitt 6) --
+// Nachfolger von tools/generate-register-map.mjs, inhaltlich unveraendert, nur das Ziel hat sich
+// geaendert: es wird ins Board-Archiv geschrieben (oder, ohne Board-Kontext, direkt nach
+// Core/generated/web/generated, s. docs/build-process.md Abschnitt 4). Immer "Forced" --
+// schema-getrieben und billig, ein Ueberspringen braechte keinen Vorteil.
 //
-// Die .inc-Fragmente enthalten bewusst NUR constexpr-Zeilen -- keine namespace-Deklaration,
-// keine geschweiften Klammern. Die umschliessenden Namespaces (ModbusRegisters::Input/::Holding)
-// stehen fest in Core/Src/modbus_register_model.hh (von Hand gepflegt, bindet die drei
-// Fragmente per #include ein, gleiches Muster wie stm32_libs/common_stm32/gpio/generated/*.inc).
-//
-// Alle Ausgabedateien werden eingecheckt (wie stm32_libs/common_stm32/gpio/generated/*.inc
-// und Core/Src/generated/modbus_ui_page.c) -- kein Build-Schritt haengt automatisch daran.
-import { readFileSync, writeFileSync } from "node:fs";
+// Erzeugt drei reine Konstanten-Fragmente (register_input.inc, register_holding.inc,
+// register_maxindex.inc) und register-map.ts (TypeScript) aus der programmiersprachen-neutralen
+// Quelle register-map.json. Die .inc-Fragmente enthalten bewusst NUR constexpr-Zeilen -- keine
+// namespace-Deklaration, keine geschweiften Klammern. Die umschliessenden Namespaces
+// (ModbusRegisters::Input/::Holding) stehen fest in Core/Src/modbus_register_model.hh (von Hand
+// gepflegt, bindet die drei Fragmente per #include ein).
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { boardGeneratedDir } from "../board-archive.ts";
+import { resolveBoardId } from "../board-context.ts";
+import { coreGeneratedDir, rootDir, webGeneratedDir } from "../paths.ts";
 
-const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const schemaPath = path.join(rootDir, "register-map.json");
-const generatedDir = path.join(rootDir, "Core", "Src", "generated");
-const inputIncPath = path.join(generatedDir, "register_input.inc");
-const holdingIncPath = path.join(generatedDir, "register_holding.inc");
-const maxIndexIncPath = path.join(generatedDir, "register_maxindex.inc");
-const tsPath = path.join(rootDir, "web", "src", "register-map.ts");
+// register-map.json ist von Hand gepflegtes Schema, kein generierter Code -- hier bewusst locker
+// (unknown/any) typisiert statt ein volles Schema-Interface nachzubilden, das bei jeder
+// register-map.json-Erweiterung mitgepflegt werden muesste.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type Schema = any;
+type RegisterEntry = any;
+type Region = any;
 
-const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
-
-function regCommentParts(reg) {
-	const parts = [];
+function regCommentParts(reg: RegisterEntry): string[] {
+	const parts: string[] = [];
 	if (reg.description) parts.push(reg.description);
 	if (reg.unit) parts.push(`[${reg.unit}]`);
 	if (reg.signed) parts.push("signed");
@@ -36,19 +34,12 @@ function regCommentParts(reg) {
 	return parts;
 }
 
-// ---------------------------------------------------------------------------
-// C++: Core/Src/generated/register_input.inc / register_holding.inc / register_maxindex.inc
-// ---------------------------------------------------------------------------
-// Jede Datei enthaelt NUR constexpr-Zeilen (keine namespace-Deklaration, keine geschweiften
-// Klammern) -- die umschliessenden namespace Input {}/Holding {} stehen in
-// Core/Src/modbus_register_model.hh.
-
 // Ein Eintrag in region.registers ist entweder ein normales Register (hat "name") oder eine
 // combine-Gruppe (hat "combine", darin ein "registers"-Array mit den zugrundeliegenden
 // Einzelregistern -- s. register-map.json, z.B. CHIP_ID/CAN_TX_COUNT). Fuer die C++-Ausgabe
 // spielt die Gruppierung keine Rolle, nur die zugrundeliegenden Einzelregister zaehlen.
-function flattenRegisters(registers) {
-	const result = [];
+function flattenRegisters(registers: RegisterEntry[]): RegisterEntry[] {
+	const result: RegisterEntry[] = [];
 	for (const entry of registers) {
 		if (entry.combine) {
 			result.push(...entry.combine.registers);
@@ -59,7 +50,7 @@ function flattenRegisters(registers) {
 	return result;
 }
 
-function genFlatBank(bank) {
+function genFlatBank(bank: { regions: Region[] }): string {
 	let out = "";
 	for (const region of bank.regions) {
 		out += `// ${region.title} (Region-Start ${region.startAddress}, Reserve bis ${region.endAddress})\n`;
@@ -73,22 +64,22 @@ function genFlatBank(bank) {
 	return out;
 }
 
-const incFileHeader = `// GENERIERT von tools/generate-register-map.mjs aus register-map.json -- nicht von Hand
-// editieren. Aenderungen an der Register-Map gehoeren in register-map.json, anschliessend
-// "node tools/generate-register-map.mjs" erneut ausfuehren.
+const INC_FILE_HEADER = `// GENERIERT von builder/src/phases/read-modbus-register-map.ts aus register-map.json -- nicht
+// von Hand editieren. Aenderungen an der Register-Map gehoeren in register-map.json,
+// anschliessend "npm run phase:register-map" erneut ausfuehren.
 //
 // Nur per #include aus Core/Src/modbus_register_model.hh eingebunden (innerhalb des dort
 // bereits geoeffneten namespace-Blocks), nicht eigenstaendig uebersetzbar -- enthaelt bewusst
 // nur constexpr-Zeilen, keine eigene namespace-Deklaration/Klammern.
 `;
 
-function generateInputInc() {
+function generateInputInc(schema: Schema): string {
 	let healthBits = "// HealthState-Bitfeld (Input::HEALTH_STATE), s. register-map.json healthBits\n";
 	for (const bit of schema.healthBits) {
 		healthBits += `constexpr uint16_t HEALTH_BIT_${bit.name} = ${bit.bit};\n`;
 	}
 
-	return `${incFileHeader}//
+	return `${INC_FILE_HEADER}//
 // Adressen sind Offsets in ModbusRegisterModel::input_registers_.
 // 32-Bit-Werte belegen zwei Register (High-Word zuerst), siehe MbapHeader::serialize.
 // Block-Markierungen heissen *_REGION_START/*_REGION_END statt *_BASE/*_END, da z.B.
@@ -97,19 +88,19 @@ function generateInputInc() {
 ${genFlatBank(schema.banks.input)}${healthBits}`;
 }
 
-function generateHoldingInc() {
-	return `${incFileHeader}//
+function generateHoldingInc(schema: Schema): string {
+	return `${INC_FILE_HEADER}//
 // Adressen sind Offsets in ModbusRegisterModel::holding_registers_.
 // 32-Bit-Werte belegen zwei Register (High-Word zuerst), siehe MbapHeader::serialize.
 
 ${genFlatBank(schema.banks.holding)}`;
 }
 
-function generateMaxIndexInc() {
+function generateMaxIndexInc(schema: Schema): string {
 	const lastInputRegion = schema.banks.input.regions.at(-1);
 	const lastHoldingRegion = schema.banks.holding.regions.at(-1);
 
-	return `${incFileHeader}//
+	return `${INC_FILE_HEADER}//
 // Hoechster belegter Index je Register-Bank -- bestimmt die Groesse der
 // ModbusRegisterModel-Arrays (s. modbus_register_model.hh). Bei Erweiterung der Register-Map
 // (neue Region ans Ende angehaengt) hier mitziehen. Referenziert Input::/Holding::, die im
@@ -119,11 +110,7 @@ constexpr uint16_t HOLDING_REGISTER_MAX_INDEX = Holding::${lastHoldingRegion.id}
 `;
 }
 
-// ---------------------------------------------------------------------------
-// TypeScript: web/src/register-map.ts
-// ---------------------------------------------------------------------------
-
-function tsStringLiteral(s) {
+function tsStringLiteral(s: string): string {
 	return JSON.stringify(s);
 }
 
@@ -132,7 +119,7 @@ function tsStringLiteral(s) {
 // register-map.json). Erzeugt in beiden Faellen GENAU einen RegisterDef-Eintrag; die
 // combine-Gruppe nutzt ihre eigenen label/description/display-Angaben statt derer des ersten
 // zugrundeliegenden Registers.
-function genTsRegister(entry, bank) {
+function genTsRegister(entry: RegisterEntry, bank: "input" | "holding"): string {
 	if (entry.combine) {
 		const group = entry.combine;
 		const first = group.registers[0];
@@ -159,17 +146,12 @@ function genTsRegister(entry, bank) {
 	}
 	if (reg.min !== undefined) fields.push(`min: ${reg.min}`);
 	if (reg.max !== undefined) fields.push(`max: ${reg.max}`);
-	// display ist die EINE Darstellungsform fuer Lesen (Zahl/Hex/Binaer/Bool-Badge) UND
-	// Schreiben (Toggle fuer "bool", Slider fuer "range") -- s. register-panel.ts. "decimal"
-	// ist der Default (generisches Zahlenfeld zum Schreiben bei Holding-Registern).
 	fields.push(`display: ${tsStringLiteral(reg.display ?? "decimal")}`);
 	return `{ ${fields.join(", ")} }`;
 }
 
-function generateTs() {
-	// Reihenfolge in der UI: Input-Regionen (Sensoren) zuerst, dann Holding (Aktuatoren) --
-	// gleiche Reihenfolge wie in der bisherigen handgeschriebenen register-map.ts.
-	const orderedByOriginalLayout = [];
+function generateTs(schema: Schema): string {
+	const orderedByOriginalLayout: { title: string; bank: "input" | "holding"; registers: RegisterEntry[] }[] = [];
 	for (const region of schema.banks.input.regions) {
 		if (region.registers.length > 0) orderedByOriginalLayout.push({ title: region.title, bank: "input", registers: region.registers });
 	}
@@ -179,9 +161,7 @@ function generateTs() {
 
 	const regionsSource = orderedByOriginalLayout
 		.map((region) => {
-			const regsSource = region.registers
-				.map((entry) => "\t\t\t" + genTsRegister(entry, region.bank))
-				.join(",\n");
+			const regsSource = region.registers.map((entry: RegisterEntry) => "\t\t\t" + genTsRegister(entry, region.bank)).join(",\n");
 			return `\t{\n\t\ttitle: ${tsStringLiteral(region.title)},\n\t\tregisters: [\n${regsSource}\n\t\t]\n\t}`;
 		})
 		.join(",\n");
@@ -189,9 +169,9 @@ function generateTs() {
 	const lastInputRegion = schema.banks.input.regions.at(-1);
 	const lastHoldingRegion = schema.banks.holding.regions.at(-1);
 
-	return `// GENERIERT von tools/generate-register-map.mjs aus register-map.json -- nicht von Hand
-// editieren. Aenderungen an der Register-Map gehoeren in register-map.json, anschliessend
-// "node tools/generate-register-map.mjs" erneut ausfuehren.
+	return `// GENERIERT von builder/src/phases/read-modbus-register-map.ts aus register-map.json -- nicht
+// von Hand editieren. Aenderungen an der Register-Map gehoeren in register-map.json,
+// anschliessend "npm run phase:register-map" erneut ausfuehren.
 
 export type RegisterBank = "input" | "holding";
 // Eine Darstellungsform fuers Lesen UND Schreiben (s. register-panel.ts):
@@ -235,18 +215,38 @@ ${regionsSource}
 ];
 
 // Muss mit ModbusRegisters::INPUT_REGISTER_MAX_INDEX / HOLDING_REGISTER_MAX_INDEX
-// (generated/modbus_register_map.inc) uebereinstimmen -- bestimmt, wie viele Werte
+// (generated/register_maxindex.inc) uebereinstimmen -- bestimmt, wie viele Werte
 // /api/registers liefert.
 export const INPUT_REGISTER_COUNT = ${lastInputRegion.endAddress + 1}; // Index 0..${lastInputRegion.endAddress}
 export const HOLDING_REGISTER_COUNT = ${lastHoldingRegion.endAddress + 1}; // Index 0..${lastHoldingRegion.endAddress}
 `;
 }
 
-writeFileSync(inputIncPath, generateInputInc());
-writeFileSync(holdingIncPath, generateHoldingInc());
-writeFileSync(maxIndexIncPath, generateMaxIndexInc());
-writeFileSync(tsPath, generateTs());
-console.log(`${schemaPath} -> ${inputIncPath}`);
-console.log(`${schemaPath} -> ${holdingIncPath}`);
-console.log(`${schemaPath} -> ${maxIndexIncPath}`);
-console.log(`${schemaPath} -> ${tsPath}`);
+export function readModbusRegisterMapAndGenerateFiles(explicitBoardId?: string): void {
+	const schemaPath = path.join(rootDir, "register-map.json");
+	const schema: Schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+
+	const inputInc = generateInputInc(schema);
+	const holdingInc = generateHoldingInc(schema);
+	const maxIndexInc = generateMaxIndexInc(schema);
+	const ts = generateTs(schema);
+
+	const boardId = resolveBoardId(explicitBoardId);
+	const coreOut = boardId ? boardGeneratedDir(boardId) : coreGeneratedDir;
+	const webOut = boardId ? boardGeneratedDir(boardId) : webGeneratedDir;
+
+	mkdirSync(coreOut, { recursive: true });
+	mkdirSync(webOut, { recursive: true });
+	writeFileSync(path.join(coreOut, "register_input.inc"), inputInc);
+	writeFileSync(path.join(coreOut, "register_holding.inc"), holdingInc);
+	writeFileSync(path.join(coreOut, "register_maxindex.inc"), maxIndexInc);
+	writeFileSync(path.join(webOut, "register-map.ts"), ts);
+
+	if (boardId) {
+		console.log(`${schemaPath} -> Board-Archiv (${boardId})`);
+	} else {
+		console.warn(
+			"Kein Board-Kontext bekannt -- schreibe Register-Map direkt nach Core/generated bzw. web/generated (kein Archiv-Eintrag)."
+		);
+	}
+}

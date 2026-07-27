@@ -60,18 +60,6 @@ static char const* const STRING_CDC0_DEBUG = "FactoryControl Debug";
 static char const* const STRING_CDC1_MODBUS = "FactoryControl Modbus";
 static char const* const STRING_NCM = "FactoryControl Network";
 
-// Vom App-Chip-UID gebildet (s. usbd_device_setup()) -- 24 Hex-Ziffern (3x uint32_t) +
-// Nullterminator.
-static char g_serial_string[25] = "000000000000000000000000";
-
-// CDC1.2 Ethernet Networking Functional Descriptor's iMACAddress-String (s. g_device_framework
-// unten) MUSS laut Spezifikation (5.2.3.4) aus genau 12 Grossbuchstaben-Hexziffern OHNE
-// Trennzeichen bestehen ("network address... in canonical format... hexadecimal digits" --
-// Windows' eingebauter NCM-Treiber (cdcecm.sys/ndismux) parst dieses Feld beim Enumerieren als
-// die MAC-Adresse der virtuellen NIC) -- von net_mac (s. usbd_device_setup()) zur Laufzeit
-// befuellt, analog zu g_serial_string oben.
-static char g_ncm_mac_string[13] = "000000000000";
-
 // --- Interface-/Endpunkt-Layout ----------------------------------------------------------
 // 1x CDC-NCM (Netzwerk) + 2x CDC-ACM (Debug, Modbus). NCM statt RNDIS: RNDIS lud zwar in
 // Windows' eingebautem Treiber, brachte diesen Rechner aber mit einem Bluescreen
@@ -213,7 +201,7 @@ static uint8_t const g_device_framework[DEVICE_FRAMEWORK_LEN] = {
     CDC_HEADER_FD_LEN, CS_INTERFACE, CDC_FD_HEADER, U16LE(0x0110),
     CDC_UNION_FD_LEN, CS_INTERFACE, CDC_FD_UNION, ITF_NCM_CONTROL, ITF_NCM_DATA,
     // Ethernet Networking FD (CDC1.2 5.2.3.4) -- iMACAddress verweist auf den 12-Hex-Ziffern-
-    // MAC-Stringdeskriptor (s. g_ncm_mac_string/usbd_device_setup()), bmEthernetStatistics=0
+    // MAC-Stringdeskriptor (s. DEVICE_USB_NCM_MAC_STRING/usbd_device_setup()), bmEthernetStatistics=0
     // (keine der optionalen Statistik-Faehigkeiten beworben), wMaxSegmentSize=NCM_MTU (14 Byte
     // Ethernet-Header + 1500 Byte IP-MTU, s. gleichlautende Konstante in usb_ncm_driver.c),
     // wNumberMCFilters=0, bNumberPowerFilters=0.
@@ -360,110 +348,10 @@ uint32_t usbd_debug_cdc_write(uint8_t const* buffer, uint32_t len) {
     return len;
 }
 
-// --- Modbus-CDC: RX (blockierender Lese-Thread + Ringpuffer) -----------------------------
-// ux_device_class_cdc_acm_read() blockiert (wartet bis zu UX_NON_CONTROL_TRANSFER_TIMEOUT auf
-// tatsaechliche OUT-Daten) -- fuer ModbusRtuServer::Poll()'s nichtblockierenden
-// available()/read()-Vertrag (s. usbd_device.h) deshalb NICHT direkt nutzbar. Ein dedizierter
-// Thread ruft die blockierende Funktion stattdessen selbst in einer Endlosschleife auf und
-// puffert das Ergebnis in einem einfachen Single-Producer/Single-Consumer-Ringpuffer (Thread
-// schreibt nur den Kopf-, Poll() nur den Schwanzindex -- auf Cortex-M sind 32-Bit-Zugriffe auf
-// natuerlich ausgerichtete ULONGs atomar, ein Mutex ist daher nicht noetig, s. aehnliches Muster
-// in usb_cdc_ecm_driver.c/vormals usb_ncm_driver.c).
-#define MODBUS_RX_RING_SIZE 256u
-static uint8_t g_modbus_rx_ring[MODBUS_RX_RING_SIZE];
-static volatile uint32_t g_modbus_rx_head;
-static volatile uint32_t g_modbus_rx_tail;
-
-#define MODBUS_THREAD_STACK_SIZE 1024u
-static TX_THREAD g_modbus_rx_thread;
-static uint8_t g_modbus_rx_thread_stack[MODBUS_THREAD_STACK_SIZE];
-// Priorisierung wie das umgebende usbd_device_thread (s. App::USBD_DEVICE_THREAD_PRIORITY in
-// app.hh -- reaktionsschnell noetig fuer USB-Timing, aber unterhalb von Modbus-TCP) --
-// hartkodiert statt aus C++ importiert, da diese Datei bewusst reines C bleibt (s.
-// Klassenkommentar in usbd_device.h).
-#define MODBUS_CDC_THREAD_PRIORITY 6u
-
-static void modbus_rx_thread_entry(ULONG arg) {
-    (void)arg;
-    uint8_t chunk[64];
-    for (;;) {
-        UX_SLAVE_CLASS_CDC_ACM* instance = g_cdc_modbus_instance;
-        if (instance == NULL) {
-            // Kein Host verbunden -- kurz schlafen statt die Schleife leerzudrehen (analog zum
-            // VSENSE-Polling in usbd_device_loop()).
-            tx_thread_sleep(10);
-            continue;
-        }
-
-        ULONG actual_length = 0;
-        UINT status = ux_device_class_cdc_acm_read(instance, chunk, sizeof(chunk), &actual_length);
-        if (status != UX_SUCCESS || actual_length == 0) {
-            // Timeout, Deaktivierung waehrend des Wartens, o.ae. -- Schleife faengt sich von
-            // selbst wieder (g_cdc_modbus_instance wird beim naechsten Durchlauf neu gelesen).
-            continue;
-        }
-
-        for (ULONG i = 0; i < actual_length; i++) {
-            uint32_t next_head = (g_modbus_rx_head + 1u) % MODBUS_RX_RING_SIZE;
-            if (next_head == g_modbus_rx_tail) {
-                // Ringpuffer voll -- Rest dieses Pakets verwerfen (wie TinyUSBs internes
-                // RX-FIFO bei Ueberlauf; ModbusRtuServer erkennt einen unvollstaendigen Frame
-                // ohnehin per CRC und verwirft ihn selbst).
-                break;
-            }
-            g_modbus_rx_ring[g_modbus_rx_head] = chunk[i];
-            g_modbus_rx_head = next_head;
-        }
-    }
-}
-
-uint32_t usbd_cdc_modbus_available(void) {
-    uint32_t head = g_modbus_rx_head;
-    uint32_t tail = g_modbus_rx_tail;
-    return (head >= tail) ? (head - tail) : (MODBUS_RX_RING_SIZE - tail + head);
-}
-
-uint32_t usbd_cdc_modbus_read(uint8_t* buffer, uint32_t bufsize) {
-    uint32_t n = 0;
-    while (n < bufsize && g_modbus_rx_tail != g_modbus_rx_head) {
-        buffer[n++] = g_modbus_rx_ring[g_modbus_rx_tail];
-        g_modbus_rx_tail = (g_modbus_rx_tail + 1u) % MODBUS_RX_RING_SIZE;
-    }
-    return n;
-}
-
-// --- Modbus-CDC: TX (Mailbox + blockierender Schreib-Thread) -----------------------------
-// write_with_callback() (s. Debug-CDC oben) scheidet fuer Modbus aus: UX_SLAVE_CLASS_CDC_ACM_
-// IOCTL_TRANSMISSION_START (Voraussetzung fuer write_with_callback()) sperrt gleichzeitig den
-// blockierenden Lesepfad komplett (s. Pruefung auf ux_slave_class_cdc_acm_transmission_status
-// in ux_device_class_cdc_acm_read.c) -- Modbus braucht aber BEIDE Richtungen. Stattdessen: ein
-// zweiter dedizierter Thread ruft die blockierende ux_device_class_cdc_acm_write() auf, eine
-// Ein-Platz-"Mailbox" (kein tiefer Ringpuffer -- Modbus-RTU ist strikt Anfrage/Antwort, es ist
-// nie mehr als eine Antwort gleichzeitig unterwegs) entkoppelt das vom aufrufenden
-// ModbusRtuServer::Poll()-Kontext.
-#define MODBUS_TX_BUF_SIZE 256u
-static uint8_t g_modbus_tx_buf[MODBUS_TX_BUF_SIZE];
-static volatile uint32_t g_modbus_tx_len;
-static TX_SEMAPHORE g_modbus_tx_ready;
-static TX_THREAD g_modbus_tx_thread;
-static uint8_t g_modbus_tx_thread_stack[MODBUS_THREAD_STACK_SIZE];
-
-static void modbus_tx_thread_entry(ULONG arg) {
-    (void)arg;
-    for (;;) {
-        tx_semaphore_get(&g_modbus_tx_ready, TX_WAIT_FOREVER);
-        UX_SLAVE_CLASS_CDC_ACM* instance = g_cdc_modbus_instance;
-        if (instance != NULL) {
-            ULONG actual_length = 0;
-            // Blockierend (bis zu UX_NON_CONTROL_TRANSFER_TIMEOUT) -- unkritisch: laeuft in
-            // einem eigenen Thread, nicht im gemeinsamen Poll-Kontext von
-            // App::UsbdDevicePollHook().
-            ux_device_class_cdc_acm_write(instance, g_modbus_tx_buf, g_modbus_tx_len, &actual_length);
-        }
-        g_modbus_tx_len = 0;
-    }
-}
-
+// --- Modbus-CDC: nur noch Instanz-Verwaltung ------------------------------------------------
+// ModbusRtuServer::Run() (stm32_libs/modbus/modbus_rtu_server.hpp) ruft ux_device_class_cdc_acm_
+// read()/_write() SELBST direkt blockierend auf (bindet dafuer den vollen USBX-CDC-ACM-Header
+// ein) -- diese Datei muss dafuer nur noch die Instanz herausgeben, kein Zwischen-Wrapper mehr.
 static VOID cdc_modbus_activate(VOID* instance) {
     g_cdc_modbus_instance = (UX_SLAVE_CLASS_CDC_ACM*)instance;
 }
@@ -473,24 +361,8 @@ static VOID cdc_modbus_deactivate(VOID* instance) {
     g_cdc_modbus_instance = NULL;
 }
 
-uint32_t usbd_cdc_modbus_write(const uint8_t* buffer, uint32_t len) {
-    if (g_modbus_tx_len != 0) {
-        // Vorherige Antwort noch nicht abgesendet -- sollte beim strikten Anfrage/Antwort-Takt
-        // von Modbus-RTU nicht vorkommen; sicherheitshalber verwerfen statt zu ueberschreiben.
-        return 0;
-    }
-    if (len > MODBUS_TX_BUF_SIZE) {
-        len = MODBUS_TX_BUF_SIZE;
-    }
-    memcpy(g_modbus_tx_buf, buffer, len);
-    g_modbus_tx_len = len;
-    tx_semaphore_put(&g_modbus_tx_ready);
-    return len;
-}
-
-void usbd_cdc_modbus_write_flush(void) {
-    // No-Op (s. usbd_device.h) -- usbd_cdc_modbus_write() stoesst die Uebertragung bereits
-    // selbst an (semaphorengesteuerter Schreib-Thread), ein separater Flush-Schritt entfaellt.
+UX_SLAVE_CLASS_CDC_ACM* usbd_cdc_modbus_instance(void) {
+    return g_cdc_modbus_instance;
 }
 
 // --- USBX-Systemspeicher -------------------------------------------------------------------
@@ -503,8 +375,6 @@ void usbd_cdc_modbus_write_flush(void) {
 #define USBX_MEMORY_POOL_SIZE (32u * 1024u)
 static UCHAR g_usbx_memory_pool[USBX_MEMORY_POOL_SIZE] __attribute__((aligned(4)));
 
-static volatile uint32_t g_usb_isr_count = 0;
-
 // USB_DRD_FS_IRQHandler() wird bewusst NICHT von CubeMX generiert (im .ioc kein NVIC-Haekchen
 // fuer USB_DRD_FS_IRQn, s. main.c MX_USB_PCD_Init()) -- anders als bei der TinyUSB-Fassung
 // NICHT, weil dieser Treiber den Interrupt exklusiv besaesse (USBX' ux_dcd_stm32-Treiber ist
@@ -514,12 +384,7 @@ static volatile uint32_t g_usb_isr_count = 0;
 // usbd_device_setup() unten) -- vorher koennte ein Interrupt auf noch nicht initialisierten
 // USBX-Zustand treffen.
 void USB_DRD_FS_IRQHandler(void) {
-    g_usb_isr_count++;
     HAL_PCD_IRQHandler(&hpcd_USB_DRD_FS);
-}
-
-uint32_t usbd_device_get_isr_count(void) {
-    return g_usb_isr_count;
 }
 
 // tud_mount_cb()/tud_umount_cb()-Aequivalent (s. TinyUSB-Fassung).
@@ -564,21 +429,15 @@ static UINT usbx_device_state_change(ULONG state) {
     return UX_SUCCESS;
 }
 
-void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2, uint8_t const net_mac[6]) {
-    snprintf(g_serial_string, sizeof(g_serial_string), "%08lX%08lX%08lX",
-             (unsigned long)chip_uid0, (unsigned long)chip_uid1, (unsigned long)chip_uid2);
-    // 12 Grossbuchstaben-Hexziffern ohne Trennzeichen, s. g_ncm_mac_string-Deklaration oben.
-    snprintf(g_ncm_mac_string, sizeof(g_ncm_mac_string), "%02X%02X%02X%02X%02X%02X",
-             net_mac[0], net_mac[1], net_mac[2], net_mac[3], net_mac[4], net_mac[5]);
-
+void usbd_device_setup(char const* serial_string, uint8_t const net_mac[6], char const* net_mac_string) {
     g_string_framework_length = 0;
     append_string_entry(STRIDX_MANUFACTURER, STRING_MANUFACTURER);
     append_string_entry(STRIDX_PRODUCT, STRING_PRODUCT);
-    append_string_entry(STRIDX_SERIAL, g_serial_string);
+    append_string_entry(STRIDX_SERIAL, serial_string);
     append_string_entry(STRIDX_CDC0_DEBUG, STRING_CDC0_DEBUG);
     append_string_entry(STRIDX_CDC1_MODBUS, STRING_CDC1_MODBUS);
     append_string_entry(STRIDX_NCM, STRING_NCM);
-    append_string_entry(STRIDX_NCM_MAC, g_ncm_mac_string);
+    append_string_entry(STRIDX_NCM_MAC, net_mac_string);
 
     HAL_NVIC_SetPriority(USB_DRD_FS_IRQn, 5, 0);
 
@@ -702,23 +561,10 @@ void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid
 
     HAL_NVIC_EnableIRQ(USB_DRD_FS_IRQn);
 
-    UXASSERT(tx_semaphore_create(&g_modbus_tx_ready, "Modbus CDC TX Ready", 0),
-            "Modbus CDC TX semaphore create failed");
-    UXASSERT(tx_thread_create(&g_modbus_rx_thread, "Modbus CDC RX", modbus_rx_thread_entry, 0,
-                              g_modbus_rx_thread_stack, MODBUS_THREAD_STACK_SIZE,
-                              MODBUS_CDC_THREAD_PRIORITY, MODBUS_CDC_THREAD_PRIORITY,
-                              TX_NO_TIME_SLICE, TX_AUTO_START),
-            "Modbus CDC RX thread create failed");
-    UXASSERT(tx_thread_create(&g_modbus_tx_thread, "Modbus CDC TX", modbus_tx_thread_entry, 0,
-                              g_modbus_tx_thread_stack, MODBUS_THREAD_STACK_SIZE,
-                              MODBUS_CDC_THREAD_PRIORITY, MODBUS_CDC_THREAD_PRIORITY,
-                              TX_NO_TIME_SLICE, TX_AUTO_START),
-            "Modbus CDC TX thread create failed");
-
     log_info("USBX device stack initialized");
 }
 
-_Noreturn void usbd_device_loop(void (*poll_hook)(void)) {
+_Noreturn void usbd_device_loop(void) {
     bool started = false;
     bool vsense_last = false;
 
@@ -752,10 +598,6 @@ _Noreturn void usbd_device_loop(void (*poll_hook)(void)) {
                 log_info("USB_VSENSE: keine 5V mehr, USB-Stack getrennt");
             }
             vsense_last = vsense_now;
-        }
-
-        if (poll_hook) {
-            poll_hook();
         }
 
         // Fester kurzer Sleep statt TinyUSBs adaptivem tud_task_ext()-Timeout: USBX' eigene

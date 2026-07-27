@@ -1,17 +1,22 @@
 // ============================================================================
 // ThreadX Application Wiring -- erzeugt alle Pools/Threads (tx_application_define(), laeuft
 // vor dem Scheduler) und orchestriert danach den Boot-Ablauf (App::AppThread(), der einzige
-// Thread mit TX_AUTO_START). Vier ThreadX-Threads insgesamt (bewusst nicht mehr nur drei, s.
-// usbd_device_thread unten):
+// Thread mit TX_AUTO_START). Fuenf ThreadX-Threads insgesamt:
 //   - app_main_thread: einmaliger Boot-Orchestrator (FileX/TLS/HTTP/DHCP/Modbus-Setup, dann
 //     Start der uebrigen Threads)
-//   - modbus_server_thread: blockierender TCP-Accept-Loop (ModbusTcpServer::run())
+//   - modbus_tcp_server_thread: blockierender TCP-Accept-Loop (ModbusTcpServer::run())
+//   - modbus_rtu_thread: blockierender Lese-/Verarbeitungs-/Sende-Loop fuer Modbus-RTU-ueber-
+//     USB-CDC (App::ModbusRtuThread(), s. app.cc -- ModbusRtuServer selbst enthaelt nur noch die
+//     Protokoll-Logik, s. Klassenkommentar in stm32_libs/modbus/modbus_rtu_server.hpp) -- EIN
+//     Thread, EIN Puffer statt der vorherigen Ringpuffer-/Mailbox-Konstruktion mit zwei
+//     Zwischen-Threads (Empfangen und Senden schliessen sich bei Modbus-RTU ohnehin gegenseitig
+//     aus).
 //   - io_thread: EIN gemeinsamer Thread fuer alle Sensoren/Aktoren (s. io.cpp fuer die
 //     Begruendung, warum das zusammengefasst werden konnte)
 //   - usbd_device_thread: USBX-Lebenszyklus-Schleife (usbd_device_loop(), s. usbd_device.c) --
-//     ueberwacht nur noch USB_VSENSE und stoesst ModbusRtuServer::Poll() an; die eigentliche
-//     USB-Bedienung (Enumeration/Bulk-Transfers) laeuft seit dem Umstieg von TinyUSB auf USBX
-//     in klasseneigenen ThreadX-Threads (s. Klassenkommentar in usbd_device.h), nicht mehr hier.
+//     ueberwacht nur noch USB_VSENSE; die eigentliche USB-Bedienung (Enumeration/Bulk-Transfers)
+//     laeuft seit dem Umstieg von TinyUSB auf USBX in klasseneigenen ThreadX-Threads (s.
+//     Klassenkommentar in usbd_device.h), nicht mehr hier.
 //   - heartbeat_thread: reine Diagnose (Log-Zeile alle 3s: CPU-Temperatur/freier Heap/
 //     Bus-Spannung/Strom). Bewusst NICHT im io_thread (koennte durch dessen Sensor-/Aktor-
 //     Zyklus verzoegert werden) -- liest nur bereits von io_thread periodisch aktualisierte
@@ -103,7 +108,7 @@ public:
     // verbundenen Host) -- Gegenstueck zu dhcp_client oben, der stattdessen als DHCP-Client auf
     // dem Ethernet-Interface laeuft.
     NX_DHCP_SERVER dhcp_server;
-    ModbusTcpServer* modbus_server = nullptr;
+    ModbusTcpServer* modbus_tcp_server = nullptr;
     ModbusRtuServer* modbus_rtu_server = nullptr;
     Io* io = nullptr;
     USBPDControl* usb_pd_control = nullptr;
@@ -114,7 +119,8 @@ public:
     ULONG net_mask;
 
     TX_THREAD app_main_thread;
-    TX_THREAD modbus_server_thread;
+    TX_THREAD modbus_tcp_server_thread;
+    TX_THREAD modbus_rtu_thread;
     TX_THREAD io_thread;
     TX_THREAD usbd_device_thread;
     TX_THREAD heartbeat_thread;
@@ -123,30 +129,15 @@ public:
 
     void SetupBeforeThreadX();
     void AppThread();
-    void ModbusServerThread();
+    void ModbusTcpServerThread();
+    [[noreturn]] void ModbusRtuThread();
     void IOThread();
     [[noreturn]] void UsbdDeviceThread();
     [[noreturn]] void HeartbeatThread();
     static void AppThreadStatic(ULONG arg);
-    static void ModbusServerThreadStatic(ULONG arg);
+    static void ModbusTcpServerThreadStatic(ULONG arg);
+    static void ModbusRtuThreadStatic(ULONG arg);
     static void IOThreadStatic(ULONG arg);
     static void UsbdDeviceThreadStatic(ULONG arg);
     static void HeartbeatThreadStatic(ULONG arg);
-    // Wird von usbd_device_loop() (reines C, s. usbd_device.h) in jedem Schleifendurchlauf
-    // aufgerufen -- einziger Weg, aus der C-Schleife heraus regelmaessig C++-Code (hier:
-    // ModbusRtuServer::Poll()) anzustossen, ohne usbd_device.c C++-Wissen beizubringen (s.
-    // dortiger Klassenkommentar zum Grund fuer die strikte C/C++-Trennung). Die CDC-NCM-Klasse
-    // (s. usbd_ncm.c) braucht dagegen KEIN Polling mehr -- sie haengt ueber USBX' generischen
-    // ux_network_driver rein ereignisgetrieben an NetX Duo, exakt wie USBX' eigene CDC-ECM/
-    // RNDIS-Klassen.
-    static void UsbdDevicePollHook();
-
-    // Locally-administered, aus der Board-UID abgeleitete MAC-Adresse fuer die virtuelle
-    // CDC-NCM-NIC (Byte 0 = 0x02, s. IEEE 802-2014 Tabelle 8-1 "locally administered unicast").
-    // An genau dieser einen Stelle berechnet und sowohl an usbd_device_setup() (MAC-Adress-
-    // String-Deskriptor der Klassenregistrierung) als auch an net_setup.cpp's
-    // nx_ip_interface_attach()-Aufruf (physische Interface-Adresse) weitergereicht (aus zwei
-    // verschiedenen Uebersetzungseinheiten, s. app.cc/net_setup.cpp), damit garantiert beide
-    // dieselbe Adresse verwenden.
-    static void ComputeEcmMac(const uint32_t chip_uid[3], uint8_t mac[6]);
 };

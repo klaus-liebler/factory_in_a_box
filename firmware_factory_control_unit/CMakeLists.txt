@@ -39,33 +39,6 @@ enable_language(C CXX ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
 
-# Git-Versionsinformationen (Commit/Branch/Tag/Dirty-Status) als generated/gitconstants.hh --
-# bei jedem Build neu erzeugt (kein file-basiertes DEPENDS, daher immer "dirty" fuer
-# Ninja/Make), siehe cmake/generate_git_constants.cmake sowie das identische Muster in
-# firmware_stm32_control_unit/CMakeLists.txt. WORKING_DIRECTORY liegt in diesem
-# Projektunterordner, git findet das umschliessende factory_in_a_box-Repo trotzdem (laeuft die
-# Verzeichnisse hoch).
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
-find_package(Git QUIET)
-if(GIT_FOUND)
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/gitconstants.hh
-        COMMAND ${CMAKE_COMMAND}
-            -D GIT_EXECUTABLE=${GIT_EXECUTABLE}
-            -D OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/generated
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_git_constants.cmake
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Generating git constants header..."
-        VERBATIM
-    )
-    add_custom_target(generate_git_constants ALL
-        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated/gitconstants.hh
-    )
-    add_dependencies(${CMAKE_PROJECT_NAME} generate_git_constants)
-else()
-    message(WARNING "Git not found, skipping git constants generation")
-endif()
-
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
@@ -179,7 +152,7 @@ list(FILTER USBX_SOURCES EXCLUDE REGEX "ux_system_tasks_run\\.c$")
 # --- Binaer-Assets (Geraetezertifikat/-schluessel + komprimierte Weboberflaeche) ---
 # Statt wie frueher generierter C-Arrays (Core/Src/generated/device_certificate.c,
 # modbus_ui_page.c, beide eingecheckt) werden jetzt die rohen Binaerdateien selbst eingecheckt
-# (assets/*.der von tools/provision-certificate.mjs, assets/index.html.br von
+# (assets/*.der von tools/provision_board_individual_data_and_files.mjs, assets/index.html.br von
 # web/scripts/embed-into-firmware.mjs) und bei jedem Build per objcopy zu je einem .o
 # konvertiert -- landen in der eigenen .flash_assets-Linker-Section (s.
 # STM32H563xx_FLASH.ld), objcopy liefert dazu automatisch die Symbole
@@ -255,6 +228,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    # "Core" (zusaetzlich zu "Core/Src") loest "#include \"generated/*.hh\"" gegen
+    # Core/generated/ auf (s. builder/, docs/build-process.md) -- alle betroffenen #include-Zeilen
+    # bleiben dadurch unveraendert, nur der von builder/ CopyGeneratedFilesToBuildDirectory
+    # befuellte Zielordner hat sich von Core/Src/generated nach Core/generated verschoben.
+    Core
     Core/Src
     libs/ST/threadx/common/inc
     libs/ST/threadx/ports/cortex_m33/gnu/inc
@@ -289,7 +267,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     libs/hw/tcs34725
     libs/hw/ws2812
     libs/hw/ina226
-    # generated/gitconstants.hh -- s. generate_git_constants-Custom-Target oben.
+    # generated/assets.h -- s. ASSET_H_FILE/BINARY_ASSETS oben (CMake-eigene Objcopy-Mechanik,
+    # keine "Codegenerierung" im Sinne von builder/, s. docs/build-process.md Abschnitt 11).
     ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 

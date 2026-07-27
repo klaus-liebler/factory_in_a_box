@@ -379,9 +379,10 @@
 /* Defined, this macro disables CDC ACM non-blocking transmission support.  */
 
 /* -- FactoryControl: bewusst NICHT definiert -- der non-blocking Schreibpfad
-   (ux_device_class_cdc_acm_write_with_callback(), s. usbd_device.c) ist fuer Debug- UND
-   Modbus-CDC zwingend erforderlich (beide werden aus einem gemeinsamen, nicht-blockierenden
-   Poll-Kontext heraus beschrieben, s. App::UsbdDevicePollHook()). */
+   (ux_device_class_cdc_acm_write_with_callback(), s. usbd_device.c) ist fuer die Debug-CDC-
+   Instanz zwingend erforderlich (syscalls.c's _write()-Spiegelung der Log-Ausgabe darf nicht
+   blockieren). Die Modbus-CDC-Instanz braucht das NICHT mehr -- ModbusRtuServer::Run() (s.
+   modbus_rtu_server.hpp) liest/schreibt beide Richtungen blockierend aus ihrem eigenen Thread. */
 /* #define UX_DEVICE_CLASS_CDC_ACM_TRANSMISSION_DISABLE  */
 
 /* Defined, device HID interrupt OUT transfer is supported.  */

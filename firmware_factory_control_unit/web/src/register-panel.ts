@@ -1,6 +1,6 @@
 import { LitElement, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { RegisterRegion, RegisterDef } from "./register-map.js";
+import type { RegisterRegion, RegisterDef } from "../generated/register-map.js";
 
 // Zeigt eine Register-Region (siehe register-map.ts) als Tabelle. reg.display ist die EINE
 // Darstellungsform fuers Lesen UND Schreiben:

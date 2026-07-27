@@ -14,20 +14,22 @@
 extern "C" {
 #endif
 
-// Initialisiert USBX (ux_system_initialize()/ux_device_stack_initialize()/Klassen-Registrierung)
-// und merkt sich die Board-eindeutige Chip-UID fuer den USB-Seriennummer-Stringdeskriptor --
-// dieselbe UID, die auch schon fuer CHIP_ID_* Modbus-Register und den Hostnamen verwendet wird
-// (s. App::chip_uid). Muss aus einem laufenden ThreadX-Thread heraus aufgerufen werden, NICHT vor
-// tx_kernel_enter() (USBX braucht wie TinyUSB den laufenden Scheduler).
-// net_mac: 6 Bytes fuer die MAC-Adresse der virtuellen CDC-NCM-NIC -- anders als bei RNDIS geht
-// diese bei NCM tatsaechlich als USB-Stringdeskriptor auf den Draht (iMACAddress der Ethernet
-// Networking Functional Descriptor, s. g_ncm_mac_string/g_device_framework in usbd_device.c) --
-// von App::ComputeEcmMac() berechnet (Name historisch von der vorherigen CDC-ECM-Fassung,
-// Berechnung selbst klassenunabhaengig). Anders als bei TinyUSB startet USBX den eigentlichen USB-Controller
-// (HAL_PCD_Start()) noch NICHT hier, sondern erst in usbd_device_loop(), sobald USB_VSENSE
-// tatsaechlich 5V zeigt (s. dort) -- ux_device_stack_initialize()/Klassen-Registrierung/
-// ux_dcd_stm32_initialize() koennen dagegen bereits unabhaengig vom Kabel-Status passieren.
-void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid2, uint8_t const net_mac[6]);
+// Initialisiert USBX (ux_system_initialize()/ux_device_stack_initialize()/Klassen-Registrierung).
+// serial_string/net_mac/net_mac_string kommen bereits fix-und-fertig aus Core/generated/
+// device_ids.hh (DEVICE_USB_SERIAL_STRING/DEVICE_USB_NCM_MAC/DEVICE_USB_NCM_MAC_STRING, s. dortiger
+// Klassenkommentar) -- pro Board eincompilierte Konstanten statt hier zur Laufzeit aus der
+// Chip-UID zusammengesetzt (frueher per snprintf(), s. Commit-Historie). net_mac_string MUSS
+// laut CDC1.2 Ethernet Networking Functional Descriptor (5.2.3.4) aus genau 12 Grossbuchstaben-
+// Hexziffern ohne Trennzeichen bestehen und dieselben 6 Byte wie net_mac repraesentieren --
+// device_ids.hh generiert beide zusammen, daher hier bewusst als zwei getrennte Parameter statt
+// net_mac_string selbst aus net_mac herzuleiten (keine doppelte Formatierungslogik). Muss aus
+// einem laufenden ThreadX-Thread heraus aufgerufen werden, NICHT vor tx_kernel_enter() (USBX
+// braucht wie TinyUSB den laufenden Scheduler). Anders als bei TinyUSB startet USBX den
+// eigentlichen USB-Controller (HAL_PCD_Start()) noch NICHT hier, sondern erst in
+// usbd_device_loop(), sobald USB_VSENSE tatsaechlich 5V zeigt (s. dort) --
+// ux_device_stack_initialize()/Klassen-Registrierung/ux_dcd_stm32_initialize() koennen dagegen
+// bereits unabhaengig vom Kabel-Status passieren.
+void usbd_device_setup(char const* serial_string, uint8_t const net_mac[6], char const* net_mac_string);
 
 // Endlosschleife (kehrt nie zurueck): koppelt den USB-Controller per HAL_PCD_Start()/_Stop() an
 // die tatsaechliche 5V-Praesenz am USB-Port (PC0/USB_VSENSE, 10k/10k-Spannungsteiler) -- analog
@@ -35,20 +37,11 @@ void usbd_device_setup(uint32_t chip_uid0, uint32_t chip_uid1, uint32_t chip_uid
 // tud_task()-Polling-Schleife mehr: USBX' Geraeteklassen (CDC-ACM x2, CDC-NCM) bedienen sich
 // jeweils ueber eigene, von der Klasse selbst erzeugte ThreadX-Threads (bulkin_thread/
 // bulkout_thread/interrupt_thread) komplett selbststaendig, angetrieben vom USB_DRD_FS-Interrupt
-// (s. USB_DRD_FS_IRQHandler unten). Diese Schleife hier dient nur noch der VSENSE-Ueberwachung
-// und dem periodischen Aufruf von poll_hook (fuer ModbusRtuServer::Poll(), das -- anders als die
-// USBX-Klassen -- weiterhin aktiv aus der Anwendung heraus angestossen werden muss, s.
-// usbd_cdc_modbus_read()).
-//
-// poll_hook (optional, NULL erlaubt): wird in jedem Schleifendurchlauf aufgerufen (fester,
-// kurzer Sleep zwischen den Durchlaeufen statt TinyUSBs adaptivem tud_task_ext()-Timeout -- ohne
-// eigene tud_task()-Polling-Schleife entfaellt der urspruengliche Grund fuer die Adaptivitaet,
-// s. Kommentar-Historie der TinyUSB-Fassung).
-_Noreturn void usbd_device_loop(void (*poll_hook)(void));
-
-// Diagnose (Enumerations-Haenger nach echtem Host-Anschluss, s. Debugging-Sitzung der TinyUSB-
-// Fassung). Anzahl der bisherigen USB_DRD_FS_IRQHandler()-Aufrufe seit Boot.
-uint32_t usbd_device_get_isr_count(void);
+// (s. USB_DRD_FS_IRQHandler unten). Diese Schleife hier dient nur noch der VSENSE-Ueberwachung --
+// ModbusRtuServer laeuft in seinem eigenen Thread (App::ModbusRtuThread()) und ruft dort direkt
+// ux_device_class_cdc_acm_read()/_write() auf (s. usbd_cdc_modbus_instance() unten), ohne von
+// hier aus angestossen zu werden (kein poll_hook mehr noetig).
+_Noreturn void usbd_device_loop(void);
 
 // Duenner Wrapper um die erste CDC-ACM-Instanz ("FactoryControl Debug") -- von syscalls.c's
 // _write()-Spiegelung der Log-Ausgabe genutzt (s. dort). Nichtblockierend/best-effort wie
@@ -56,31 +49,17 @@ uint32_t usbd_device_get_isr_count(void);
 // verbunden ist oder eine vorherige Uebertragung noch nicht abgeschlossen wurde.
 uint32_t usbd_debug_cdc_write(uint8_t const* buffer, uint32_t len);
 
-// --- Duenne C-Wrapper um die zweite CDC-ACM-Instanz ("FactoryControl Modbus") -- fuer
-// ModbusRtuServer (C++, stm32_libs/modbus/modbus_rtu_server.hpp), die dieselben vier
-// Funktionssignaturen wie bei der TinyUSB-Fassung erwartet (bewusst UNVERAENDERT, s.
-// modbus_rtu_server.hpp) und daher weiterhin nichtblockierend/pollend arbeitet.
-//
-// usbd_cdc_modbus_available()/_read(): USBX' ux_device_class_cdc_acm_read() blockiert (wartet
-// bis zu UX_NON_CONTROL_TRANSFER_TIMEOUT auf tatsaechliche OUT-Daten vom Host) -- fuer den hier
-// benoetigten nichtblockierenden Poll-Kontext ungeeignet. Ein dedizierter Empfangs-Thread (s.
-// usbd_device.c) ruft ux_device_class_cdc_acm_read() deshalb selbst blockierend in einer Schleife
-// auf und puffert das Ergebnis in einem Ringpuffer -- diese beiden Funktionen lesen NUR aus
-// diesem Ringpuffer, nie direkt aus USBX.
-uint32_t usbd_cdc_modbus_available(void);
-uint32_t usbd_cdc_modbus_read(uint8_t* buffer, uint32_t bufsize);
-// usbd_cdc_modbus_write(): nichtblockierend ueber ux_device_class_cdc_acm_write_with_callback()
-// (Fire-and-forget, wie TinyUSBs tud_cdc_n_write() -- Abschluss wird intern von der Klasse ueber
-// deren eigenen bulkin_thread erledigt). Liefert 0, wenn eine vorherige Uebertragung noch
-// nicht abgeschlossen ist (analog zu TinyUSBs vollem TX-Ringpuffer) -- ModbusRtuServer prueft den
-// Rueckgabewert aktuell nicht, verhaelt sich dann wie bei einem verlorenen Frame (Modbus-Master
-// wiederholt selbst nach Timeout).
-uint32_t usbd_cdc_modbus_write(const uint8_t* buffer, uint32_t len);
-// write_flush(): bei TinyUSB noetig (eigener Ringpuffer, der explizit geleert werden musste),
-// bei USBX' write_with_callback()-Pfad ueberfluessig (jeder write() stoesst die Uebertragung
-// bereits selbst an) -- bleibt als No-Op-Stub erhalten, damit modbus_rtu_server.hpp UNVERAENDERT
-// bleiben kann (s. Klassenkommentar oben).
-void usbd_cdc_modbus_write_flush(void);
+// Opaker Zeiger auf die zweite CDC-ACM-Instanz ("FactoryControl Modbus", von
+// cdc_modbus_activate()/_deactivate() in usbd_device.c gesetzt) -- NUR als Vorwaertsdeklaration
+// (kein #include von ux_device_class_cdc_acm.h hier), damit diese Datei weiterhin ohne die vollen
+// USBX-Header auskommt. ModbusRtuServer (C++, stm32_libs/modbus/modbus_rtu_server.hpp) bindet
+// diesen einen Header selbst ein (dessen extern-"C"-Bloecke machen das C++-safe) und ruft
+// ux_device_class_cdc_acm_read()/_write() direkt blockierend in ihrem eigenen Thread
+// (App::ModbusRtuThread()) auf -- kein Zwischen-Wrapper, kein Ringpuffer/Mailbox/Zwischen-Thread
+// mehr noetig (Modbus-RTU ist ohnehin strikt Anfrage/Antwort, Lesen und Schreiben passieren im
+// Aufrufer nie gleichzeitig).
+typedef struct UX_SLAVE_CLASS_CDC_ACM_STRUCT UX_SLAVE_CLASS_CDC_ACM;
+UX_SLAVE_CLASS_CDC_ACM* usbd_cdc_modbus_instance(void);
 
 #ifdef __cplusplus
 }

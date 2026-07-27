@@ -1,7 +1,19 @@
-import type { Plugin } from "vite";
-import type { OutputBundle, OutputAsset } from "rollup";
+// Whitespace-/Lit-Template-Minifizierung fuer das bereits zu einer einzigen index.html inlinete
+// Bundle (s. vite-plugin-single-file-firmware-asset.ts). Inhaltlich identisch zum vormaligen
+// web/scripts/postbuild-singlefile-minify.ts (inlineSingleFileMinifyPlugin), nur als eigenstaendige
+// Funktion statt als eigenes Vite-Plugin exportiert -- s. docs/build-process.md Abschnitt 9.
+//
+// Explizite Referenz statt Verlass auf tsc's Default-Datei-Discovery: html-minifier-terser.d.ts
+// liegt zwar im selben Ordner, wird aber NICHT automatisch eingesammelt, wenn tsc (via
+// web/tsconfig.json, s. "npm run typecheck") von web/ aus gestartet wird -- builder/ ist kein
+// Unterordner von web/, und ohne Import/Referenz landet eine lose .d.ts-Datei nie im Programm.
+/// <reference path="./html-minifier-terser.d.ts" />
 import { minify as minifyHtml } from "html-minifier-terser";
 import { minify as minifyJs } from "terser";
+
+// html-minifier-terser liefert keine eigenen Typdeklarationen (anders als terser) und auch keine
+// @types/html-minifier-terser -- "shorthand ambient module"-Deklaration (s. html-minifier-terser.d.ts)
+// behandelt den Import als "any" statt eines harten TS7016-Fehlers.
 
 function isIdentChar(char: string): boolean {
 	return /[A-Za-z0-9_$]/.test(char);
@@ -210,11 +222,7 @@ function minifyHtmlFragment(htmlText: string): string {
 		.trim();
 }
 
-async function minifyTemplateByTag(
-	tagName: string,
-	parts: string[],
-	expressions: string[]
-): Promise<string> {
+async function minifyTemplateByTag(tagName: string, parts: string[], expressions: string[]): Promise<string> {
 	const placeholders = expressions.map((_, index) => `__EXPR_${index}__`);
 	let withPlaceholders = parts[0] ?? "";
 	for (let i = 0; i < expressions.length; i += 1) {
@@ -368,7 +376,7 @@ async function minifyInlineModuleScripts(htmlSource: string): Promise<string> {
 			module: true,
 			compress: { passes: 2 },
 			mangle: true,
-			format: { comments: false }
+			format: { comments: false },
 		});
 
 		const finalScriptCode = jsMinified.code ?? renderTemplateMinifiedCode;
@@ -380,37 +388,23 @@ async function minifyInlineModuleScripts(htmlSource: string): Promise<string> {
 	return result;
 }
 
-export function inlineSingleFileMinifyPlugin(): Plugin {
-	return {
-		name: "inline-singlefile-minify",
-		apply: "build",
-		enforce: "post",
-		async generateBundle(_options, bundle: OutputBundle) {
-			const indexHtmlAsset = (Object.values(bundle) as OutputAsset[]).find(
-				item => item.type === "asset" && item.fileName === "index.html"
-			);
-
-			if (!indexHtmlAsset) return;
-
-			const htmlSource =
-				typeof indexHtmlAsset.source === "string"
-					? indexHtmlAsset.source
-					: Buffer.from(indexHtmlAsset.source).toString("utf8");
-
-			const htmlWithMinifiedScripts = await minifyInlineModuleScripts(htmlSource);
-			indexHtmlAsset.source = await minifyHtml(htmlWithMinifiedScripts, {
-				collapseWhitespace: true,
-				collapseInlineTagWhitespace: true,
-				removeComments: true,
-				removeRedundantAttributes: true,
-				removeScriptTypeAttributes: true,
-				removeTagWhitespace: true,
-				removeAttributeQuotes: true,
-				useShortDoctype: true,
-				minifyCSS: true,
-				minifyJS: true,
-				caseSensitive: true
-			});
-		}
-	};
+// Nimmt die bereits zu einem einzigen <script type="module">/<style> inlinete index.html
+// (s. vite-plugin-single-file-firmware-asset.ts) und entfernt zusaetzliche Leerzeichen aus
+// HTML/CSS/JS -- inklusive Lit-Tagged-Template-Inhalten, die generische Minifizierer sonst als
+// beliebige String-Literale unangetastet lassen wuerden.
+export async function minifyHtmlDocument(htmlSource: string): Promise<string> {
+	const htmlWithMinifiedScripts = await minifyInlineModuleScripts(htmlSource);
+	return minifyHtml(htmlWithMinifiedScripts, {
+		collapseWhitespace: true,
+		collapseInlineTagWhitespace: true,
+		removeComments: true,
+		removeRedundantAttributes: true,
+		removeScriptTypeAttributes: true,
+		removeTagWhitespace: true,
+		removeAttributeQuotes: true,
+		useShortDoctype: true,
+		minifyCSS: true,
+		minifyJS: true,
+		caseSensitive: true,
+	});
 }

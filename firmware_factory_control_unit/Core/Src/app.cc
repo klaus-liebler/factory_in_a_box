@@ -50,12 +50,6 @@ constexpr uint32_t HEARTBEAT_THREAD_PRIORITY = 12;
 // tx_application_define() passieren koennen (z.B. malloc() aus globalen Konstruktoren).
 static TX_MUTEX malloc_mutex{};
 static TX_MUTEX log_mutex{};
-// Schuetzt hi2c1/hi2c2/hi2c4 (I2C_HandleTypeDef ist nicht reentrant) vor gleichzeitigem Zugriff
-// aus Io::Loop() (periodisches Sensor-Polling, s. io.cpp) UND dem neuen /api/i2c-Scan (eigener
-// Thread, der NetX-Web-Server-Thread -- s. webserver.cpp perform_i2c_scan()). Nicht static: wird
-// extern in io.cpp und webserver.cpp gebraucht (gleiches Deklarationsmuster wie die
-// I2C_HandleTypeDef-Handles selbst, s. z.B. setup_and_loops/tof_color.hh).
-TX_MUTEX i2c_bus_mutex{};
 
 static void log_lock(bool lock) {
     if (lock) {
@@ -87,10 +81,8 @@ extern "C" void tx_application_define(void *first_unused_memory) {
 
     tx_mutex_create(&malloc_mutex, const_cast<CHAR *>("malloc_mutex"), TX_INHERIT);
     tx_mutex_create(&log_mutex, const_cast<CHAR *>("Log Mutex"), TX_NO_INHERIT);
-    tx_mutex_create(&i2c_bus_mutex, const_cast<CHAR *>("I2C Bus Mutex"), TX_INHERIT);
     log_set_lock(log_lock);
     log_set_level(LOG_INFO);
-
     app.register_model->ArmForMultithreadingWithMutex();
 
     log_info("tx_application_define() called, first_unused_memory=%p", first_unused_memory);

@@ -1,4 +1,4 @@
-// Entry-Point: baut die Dashboard-Shell auf und haengt die drei Apps ein (Reihenfolge der
+// Entry-Point: baut die Dashboard-Shell auf und haengt die Apps ein (Reihenfolge der
 // RegisterApp()-Aufrufe bestimmt die Reihenfolge in der Sidebar). Kein Websocket, kein Login --
 // jede App spricht bei Bedarf direkt schlankes HTTP/Fetch (s. api.ts).
 import "./shell/app-shell.js";

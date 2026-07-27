@@ -1,8 +1,8 @@
-// Bekannte IC-Kandidaten je I2C-7-Bit-Adresse -- reine Nachschlagehilfe fuer die I2C-Discovery-
-// Ansicht (s. apps/i2c-scan-app.ts): mehrere ICs teilen sich oft dieselbe Standardadresse, ein
+// Bekannte IC-Kandidaten je I2C-7-Bit-Adresse -- reine Nachschlagehilfe fuer den "I2C Diagnostics"-
+// Block in apps/system-info-app.ts: mehrere ICs teilen sich oft dieselbe Standardadresse, ein
 // tatsaechlicher Treffer bei einer Adresse ist deshalb nur ein Hinweis, keine sichere Identifikation.
 // Reines Nachschlagewerk, wird nirgends von der Firmware gebraucht (die liefert nur, OB unter
-// einer Adresse ein Geraet geantwortet hat, s. Core/Src/webserver.cpp perform_i2c_scan()).
+// einer Adresse ein Geraet geantwortet hat, s. Core/Src/webserver.cpp PerformBootI2cScans()).
 export const I2C_ADDRESS_CANDIDATES: readonly string[] = [
 	"reserved", // 0x00
 	"reserved",

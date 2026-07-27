@@ -127,6 +127,15 @@ public:
     uint32_t chip_uid[3];
     ModbusRegisterModel* register_model = nullptr;
 
+    // Ergebnis der einmaligen I2C-Geraete-Discovery beim Boot (s. Io::Setup() ->
+    // PerformBootI2cScans() in webserver.cpp, aufgerufen als allererstes, vor tof_color_.Setup()/
+    // power_.Setup(), damit deren eigene NACK-lastige Sensorsuche das Bild nicht verfaelscht).
+    // 16 Byte = 128 Bit Bitfeld je Bus, Bit N = Adresse N, LSB zuerst -- unveraendert (kein
+    // Parsen/Interpretieren) ueber /api/system weitergereicht, s. dortiges fill_system_info().
+    uint8_t i2c1_scan[16] = {0};
+    uint8_t i2c2_scan[16] = {0};
+    uint8_t i2c4_scan[16] = {0};
+
     void SetupBeforeThreadX();
     void AppThread();
     void ModbusTcpServerThread();

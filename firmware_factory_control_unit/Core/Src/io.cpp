@@ -18,15 +18,12 @@
 // ============================================================================
 #include "io.hpp"
 #include "main.h"
+#include "webserver.hpp"
 #include <cstddef>
 
 extern "C" ADC_HandleTypeDef hadc1;
 extern "C" TIM_HandleTypeDef htim4;
 extern "C" size_t GetFreeHeapBytes(void);
-// Schuetzt hi2c1/hi2c2/hi2c4 vor gleichzeitigem Zugriff aus diesem Thread (tof_color_.Loop()/
-// power_.Loop() unten) und dem HTTP-getriggerten /api/i2c-Scan (s. webserver.cpp), s. Kommentar
-// bei der Definition in app.cc.
-extern TX_MUTEX i2c_bus_mutex;
 
 // Holding-Register sind 0..1000 Promille Duty -- CCR = (ARR+1) * permille / 1000.
 static void set_pwm_duty_permille(TIM_HandleTypeDef *htim, uint32_t channel, uint16_t permille) {
@@ -77,12 +74,8 @@ void Io::processMembers(uint32_t now) {
     cpu_temp_.Loop(now);
     eth_link.Loop(now);
     usb_pd_control.Loop();
-    // power_/tof_color_ sind die einzigen I2C-Nutzer hier -- i2c_bus_mutex schuetzt hi2c1/hi2c2/
-    // hi2c4 vor einem gleichzeitigen /api/i2c-Scan aus dem HTTP-Server-Thread (s. webserver.cpp).
-    tx_mutex_get(&i2c_bus_mutex, TX_WAIT_FOREVER);
     power_.Loop(now);
     tof_color_.Loop(now);
-    tx_mutex_put(&i2c_bus_mutex);
     scale_.Loop(now);
     stepper_.Loop(now);
     ws2812_.Loop(now);
@@ -127,6 +120,10 @@ void Io::Setup() {
     uint32_t now = tx_time_get();
     info_led.Begin(now);
     info_led.AnimatePixel(now, &heartbeat_pattern_);
+    // Einmaliger I2C-Geraete-Scan aller drei Busse, als allererster I2C-Zugriff ueberhaupt --
+    // noch bevor tof_color_.Setup()/power_.Setup() eigene, NACK-lastige Sensorsuchen anstossen,
+    // die das Scan-Bild verfaelschen wuerden (s. webserver.hpp PerformBootI2cScans()).
+    PerformBootI2cScans();
     eth_link.Setup();
     can_setup_and_loop.Setup();
     cpu_temp_.Setup();

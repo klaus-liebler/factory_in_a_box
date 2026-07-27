@@ -26,18 +26,6 @@ constexpr uint16_t MANUFACTURER_ID_EXPECTED = 0x5449;
 
 constexpr uint32_t I2C_TIMEOUT_MS = 20;
 
-// TOF3 (VL53L0X am selben I2C4-Bus, s. Core/Src/setup_and_loops/tof_color.hh) ist auf dieser
-// Platinen-Revision nicht bestueckt -- dessen fehlgeschlagener Probe()-Zugriff waehrend
-// Io::Setup() (NACK auf eine nicht existierende Adresse) legt den I2C4-Bus fuer ALLE folgenden
-// Transaktionen lahm, auch fuer dieses INA226, das mit dem eigentlichen TOF3-Fehler nichts zu
-// tun hat -- bestaetigt per Test (tof_color_.Setup() vor power_.Setup() gezogen: INA226s eigenes
-// Probe()/Init() schlug daraufhin ebenfalls sofort fehl). WICHTIG: HAL_I2C_GetState() meldet in
-// diesem Zustand weiterhin READY -- ein Check-and-recover darauf (frueherer Versuch) griff nie.
-// Der Fix ist daher ein BEDINGUNGSLOSER DeInit()+Init() einmalig beim Start von INA226::Probe()
-// (dem allerersten Registerzugriff ueberhaupt), bevor irgendein Register angefasst wird. Io::Setup()
-// ruft tof_color_.Setup() bewusst VOR power_.Setup() auf, damit dieser Reclaim den TOF3-Schaden
-// sicher ueberschreibt und der Bus fuer die restliche Laufzeit sauber bleibt -- TOF3 fasst I2C4
-// nach Setup() nie wieder an.
 bool INA226::ReclaimI2CBus() {
     HAL_I2C_DeInit(hi2c_);
     return HAL_I2C_Init(hi2c_) == HAL_OK;

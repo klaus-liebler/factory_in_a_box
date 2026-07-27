@@ -13,33 +13,33 @@ export interface RegisterValues {
 	input: number[];
 }
 
-// LAN8742-PHY-Diagnose (s. Core/Src/webserver.cpp read_phy_diagnostics()): passive MDIO-Reads plus
-// eine aktiv ausgeloeste TDR-Kabeldiagnose (Kurzschluss/Unterbrechung/Angepasst). readOk === false,
-// wenn schon die passiven Registerzugriffe fehlgeschlagen sind (z.B. falsche PHY-Adresse) -- alle
-// anderen Felder sind dann bedeutungslos. tdrAvailable === false analog fuer die TDR-Messung.
-export interface PhyDiagnostics {
+// LAN8742-PHY-Register, unveraendert/roh wie vom Chip gelesen (s. Core/Src/webserver.cpp
+// PhyRegisters/read_phy_registers() -- auf Anwenderwunsch keinerlei Bit-Interpretation mehr in
+// der Firmware, das Parsen/Interpretieren passiert stattdessen client-seitig, s.
+// apps/system-info-app.ts). readOk === false, wenn schon die passiven Registerzugriffe
+// fehlgeschlagen sind (z.B. falsche PHY-Adresse) -- alle anderen Felder sind dann bedeutungslos.
+// tdrAvailable === false analog fuer die TDR-Messung (bsr/physcsr/mcsr/secr/scsir bleiben in dem
+// Fall trotzdem gueltig).
+export interface PhyRegisters {
 	readOk: boolean;
-	linkUp: boolean;
-	autonegDone: boolean;
-	energyDetected: boolean;
-	autoMdixEnabled: boolean;
-	polarityReversed: boolean;
-	speedDuplex: "10-HD" | "10-FD" | "100-HD" | "100-FD" | "unknown";
-	// Symbol-Error-Counter -- loescht sich beim Lesen selbst (Datenblatt), ist deshalb der
-	// Zaehlerstand SEIT DEM LETZTEN GET /api/system, nicht seit Systemstart.
-	symbolErrorCount: number;
 	tdrAvailable: boolean;
-	// TCSR.TDR_CH_STATUS -- laut LAN8742-Registerbeschreibung "Messung gueltig".
-	tdrStatus: boolean;
-	// TCSR.TDR_CH_CABLE_TYPE. "default" bedeutet unklar/nicht (neu) gemessen, "match" bedeutet
-	// angepasst/kein Fehler erkannt.
-	cableType: "default" | "shorted" | "open" | "match";
-	// TCSR.TDR_CH_LENGTH, roh (0-255) -- kein Meterwert, das Datenblatt dokumentiert keine direkte
-	// Umrechnungskonstante, nur als relativer Indikator zur Fehlerstelle zu verstehen.
-	cableFaultDistanceRaw: number;
-	// CLR.CABLE_LENGTH, grobe 4-Bit-Klasse (0-15) -- nur bei bestehendem Link aussagekraeftig
-	// (anders als die TDR-Werte oben).
-	cableLengthClass: number;
+	bsr: number;
+	physcsr: number;
+	mcsr: number;
+	secr: number;
+	scsir: number;
+	tcsr: number;
+	clr: number;
+}
+
+// Ergebnis des einmaligen I2C-Geraete-Scans beim Boot (s. Core/Src/webserver.hpp
+// PerformBootI2cScans(), aufgerufen aus Io::Setup()) -- je Bus 128 Eintraege (Index = 7-Bit-
+// Adresse), true = Geraet antwortet. I2C3 ist auf dieser Platine aktuell nicht per CubeMX
+// aktiviert (keine freien SCL/SDA-Pins mit passender Alternate Function ohne Konflikt).
+export interface I2cScanResult {
+	I2C_1: boolean[];
+	I2C_2: boolean[];
+	I2C_4: boolean[];
 }
 
 // Nur echte Laufzeitwerte -- Firmware-Version, Board-Name, Hostname, Chip-UID und MAC-Adressen
@@ -51,7 +51,8 @@ export interface SystemInfo {
 	ipAddress: string;
 	netMask: string;
 	resetCauseCode: number;
-	phy: PhyDiagnostics;
+	phy: PhyRegisters;
+	i2c: I2cScanResult;
 }
 
 // Der Server-Paket-Pool der Firmware ist bewusst winzig (siehe Core/Src/app.cpp), eine
@@ -106,43 +107,19 @@ function formatOctets(view: DataView, offset: number, count: number, sep: string
 	return parts.join(sep);
 }
 
-const SPEED_DUPLEX_BY_CODE: Record<number, PhyDiagnostics["speedDuplex"]> = {
-	0: "10-HD",
-	1: "10-FD",
-	2: "100-HD",
-	3: "100-FD",
-};
-
-const CABLE_TYPE_BY_CODE: Record<number, PhyDiagnostics["cableType"]> = {
-	0: "default",
-	1: "shorted",
-	2: "open",
-	3: "match",
-};
-
-// phyFlagsOffset ist der Offset des ersten PHY-Feldes (phy_flags) -- alle weiteren PHY-Felder
-// folgen ab dort in fester Reihenfolge, s. Layout-Tabelle in Core/Src/webserver.cpp.
-function decodePhyDiagnostics(view: DataView, phyFlagsOffset: number): PhyDiagnostics {
-	const flags = view.getUint8(phyFlagsOffset);
-	return {
-		linkUp: (flags & 0x01) !== 0,
-		autonegDone: (flags & 0x02) !== 0,
-		energyDetected: (flags & 0x04) !== 0,
-		autoMdixEnabled: (flags & 0x08) !== 0,
-		polarityReversed: (flags & 0x10) !== 0,
-		readOk: (flags & 0x20) !== 0,
-		tdrAvailable: (flags & 0x40) !== 0,
-		tdrStatus: (flags & 0x80) !== 0,
-		speedDuplex: SPEED_DUPLEX_BY_CODE[view.getUint8(phyFlagsOffset + 1)] ?? "unknown",
-		symbolErrorCount: view.getUint16(phyFlagsOffset + 2, true),
-		cableType: CABLE_TYPE_BY_CODE[view.getUint8(phyFlagsOffset + 4)] ?? "default",
-		cableFaultDistanceRaw: view.getUint8(phyFlagsOffset + 5),
-		cableLengthClass: view.getUint8(phyFlagsOffset + 6),
-	};
+// bitfieldOffset zeigt auf ein 16-Byte-Bitfeld (128 Bit, LSB von Byte 0 = Adresse 0), s.
+// Core/Src/webserver.cpp PerformBootI2cScans().
+function decodeI2cBitfield(view: DataView, bitfieldOffset: number): boolean[] {
+	const result: boolean[] = new Array(128);
+	for (let addr = 0; addr < 128; addr++) {
+		const byte = view.getUint8(bitfieldOffset + Math.floor(addr / 8));
+		result[addr] = (byte & (1 << addr % 8)) !== 0;
+	}
+	return result;
 }
 
 // Byte-Layout muss exakt zu Core/Src/webserver.cpp fill_system_info() passen (dort auch als
-// Tabelle dokumentiert).
+// Tabelle dokumentiert): PHY-Register roh ab Offset 17, I2C-Bitfelder ab Offset 33/49/65.
 export async function fetchSystemInfo(): Promise<SystemInfo> {
 	const response = await fetchWithTimeout("/api/system");
 	if (!response.ok) {
@@ -157,46 +134,21 @@ export async function fetchSystemInfo(): Promise<SystemInfo> {
 		ipAddress: formatOctets(view, 8, 4, ".", 10, 0),
 		netMask: formatOctets(view, 12, 4, ".", 10, 0),
 		resetCauseCode: view.getUint8(16),
-		phy: decodePhyDiagnostics(view, 17),
-	};
-}
-
-// Ergebnis von GET /api/i2c (s. Core/Src/webserver.cpp perform_i2c_scan()) -- je Bus ein
-// 128-Eintrag-Array, Index = 7-Bit-I2C-Adresse, true = Geraet hat auf HAL_I2C_IsDeviceReady()
-// geantwortet. Busnamen wie in register-map.json (reg.i2c.bus).
-export interface I2cScanResult {
-	I2C_1: boolean[];
-	I2C_2: boolean[];
-	I2C_4: boolean[];
-}
-
-// bitfieldOffset zeigt auf ein 16-Byte-Bitfeld (128 Bit, LSB von Byte 0 = Adresse 0), s.
-// Core/Src/webserver.cpp scan_i2c_bus().
-function decodeI2cBitfield(view: DataView, bitfieldOffset: number): boolean[] {
-	const result: boolean[] = new Array(128);
-	for (let addr = 0; addr < 128; addr++) {
-		const byte = view.getUint8(bitfieldOffset + Math.floor(addr / 8));
-		result[addr] = (byte & (1 << addr % 8)) !== 0;
-	}
-	return result;
-}
-
-// Ein voller 3-Bus-Scan (128 Adressen je Bus, s. Core/Src/webserver.cpp scan_i2c_bus()) dauert
-// spuerbar laenger als die anderen Endpunkte -- eigener, grosszuegigerer Timeout statt des
-// FETCH_TIMEOUT_MS-Standardwerts, der fuer die gepollten Endpunkte ausgelegt ist.
-const I2C_SCAN_TIMEOUT_MS = 15000;
-
-export async function fetchI2cScan(): Promise<I2cScanResult> {
-	const response = await fetchWithTimeout("/api/i2c", I2C_SCAN_TIMEOUT_MS);
-	if (!response.ok) {
-		throw new Error(`GET /api/i2c fehlgeschlagen: HTTP ${response.status}`);
-	}
-	const buffer = await response.arrayBuffer();
-	const view = new DataView(buffer);
-
-	return {
-		I2C_1: decodeI2cBitfield(view, 0),
-		I2C_2: decodeI2cBitfield(view, 16),
-		I2C_4: decodeI2cBitfield(view, 32),
+		phy: {
+			readOk: view.getUint8(17) !== 0,
+			tdrAvailable: view.getUint8(18) !== 0,
+			bsr: view.getUint16(19, true),
+			physcsr: view.getUint16(21, true),
+			mcsr: view.getUint16(23, true),
+			secr: view.getUint16(25, true),
+			scsir: view.getUint16(27, true),
+			tcsr: view.getUint16(29, true),
+			clr: view.getUint16(31, true),
+		},
+		i2c: {
+			I2C_1: decodeI2cBitfield(view, 33),
+			I2C_2: decodeI2cBitfield(view, 49),
+			I2C_4: decodeI2cBitfield(view, 65),
+		},
 	};
 }

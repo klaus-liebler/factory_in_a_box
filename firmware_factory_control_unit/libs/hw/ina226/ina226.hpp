@@ -51,11 +51,11 @@ public:
     // oder ob das Problem breiter geworden ist (auch diese NACKen jetzt).
     bool ReadDiagnosticIds(uint16_t *manufacturer_id, uint16_t *die_id);
 
-    // Erzwingt einen sauberen I2C4-Peripherie-Zustand (DeInit()+Init()) -- automatisch als
-    // allererster Schritt in Probe() (s. .cpp: TOF3-NACK beim Setup() legt den Bus lahm), aber
-    // auch OEFFENTLICH aufrufbar, um den Bus nach einem Laufzeit-Fehlschlag (z.B. Timeout durch
-    // ETH-DMA-Interrupt-Verdraengung, aehnlich dem HX711-Fall) vor dem naechsten Versuch
-    // zurueckzuerobern -- s. Aufrufer in power.hh.
+    // DeInit()+Init() der I2C-Peripherie -- automatisch als allererster Schritt in Probe(), aber
+    // auch OEFFENTLICH aufrufbar (s. Aufrufer in power.hh). Ob das einen haengenden Bus
+    // tatsaechlich zuverlaessig zuruecksetzt, ist NICHT bestaetigt (s. Commit-Historie) --
+    // Diagnose per Log-Ausgabe statt dieser Annahme, falls ein Geraet weiterhin nicht gefunden
+    // wird.
     bool ReclaimI2CBus();
 
 private:

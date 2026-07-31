@@ -3,9 +3,9 @@ import { singleFileFirmwareAssetPlugin } from "../builder/vite-plugin-single-fil
 
 // singleFileFirmwareAssetPlugin() (s. dort) inlined JS+CSS in eine einzige dist/index.html,
 // entfernt zusaetzliche Leerzeichen und schreibt das Ergebnis direkt Brotli-komprimiert nach
-// ../assets/index.html.br (per objcopy/Linker-Section ins Firmware-Flash einkompiliert, siehe
-// CMakeLists.txt) -- ein einziger "vite build"-Aufruf genuegt, kein separater Embed-Schritt mehr
-// (s. docs/build-process.md Abschnitt 9).
+// ../build/assets/index.html.br (per objcopy/Linker-Section ins Firmware-Flash einkompiliert,
+// siehe CMakeLists.txt) -- ein einziger "vite build"-Aufruf genuegt, kein separater Embed-Schritt
+// mehr (s. docs/build-process.md Abschnitt 9).
 //
 // Im Dev-Server (npm run dev) werden /api/*-Anfragen an die echte Control-Unit weitergeleitet,
 // statt sie ebenfalls von Vite bedienen zu lassen (Vite hat keine Modbus-Bruecke) -- so laesst

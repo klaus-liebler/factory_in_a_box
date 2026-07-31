@@ -1,0 +1,7 @@
+# ws-protocol ID-Lookup-Tabelle -- automatisch von ReadWebSocketProtocol.cs gepflegt.
+# NICHT von Hand umsortieren/umnummerieren. Neue Zeilen werden beim naechsten Generieren
+# automatisch angehaengt; bestehende Zeilen NIE geaendert oder entfernt (s. Kommentar bei
+# 'class IdMap' im Generator) -- das haelt die Wire-IDs ueber die Zeit stabil.
+# Format je Zeile: <kind> <name> <id>
+namespace system 1
+message system.LogMessage 1

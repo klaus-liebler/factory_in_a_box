@@ -151,17 +151,23 @@ list(FILTER USBX_SOURCES EXCLUDE REGEX "ux_system_tasks_run\\.c$")
 
 # --- Binaer-Assets (Geraetezertifikat/-schluessel + komprimierte Weboberflaeche) ---
 # Statt wie frueher generierter C-Arrays (Core/Src/generated/device_certificate.c,
-# modbus_ui_page.c, beide eingecheckt) werden jetzt die rohen Binaerdateien selbst eingecheckt
-# (assets/*.der von tools/provision_board_individual_data_and_files.mjs, assets/index.html.br von
-# web/scripts/embed-into-firmware.mjs) und bei jedem Build per objcopy zu je einem .o
-# konvertiert -- landen in der eigenen .flash_assets-Linker-Section (s.
+# modbus_ui_page.c, beide eingecheckt) werden jetzt die rohen Binaerdateien selbst verwendet
+# (build/assets/*.der von der Phase ReadHardwareIDsAndGenerateFilesAndCerts.../
+# CopyGeneratedFilesToBuildDirectory, build/assets/index.html.br von der Phase BuildWebApp --
+# s. builder/, docs/build-process.md) und bei jedem Build per objcopy zu je
+# einem .o konvertiert -- landen in der eigenen .flash_assets-Linker-Section (s.
 # STM32H563xx_FLASH.ld), objcopy liefert dazu automatisch die Symbole
 # _binary_<sanitierter-Dateiname>_start/_end (Laenge per Zeigerdifferenz, s. net_setup.cpp/
-# webserver.cpp).
+# webserver.cpp). build/assets/ liegt bewusst unter build/ (nicht als eigener Top-Level-Ordner):
+# beide sind vollstaendig generierte, gitignorte Snapshots aus dem Board-Archiv bzw. Web-Build,
+# genau wie build/.last-board-id -- unabhaengig vom jeweiligen CMake-Preset, deshalb
+# CMAKE_CURRENT_SOURCE_DIR (Repo-Wurzel) statt CMAKE_CURRENT_BINARY_DIR (preset-spezifisch,
+# ${sourceDir}/build/<preset>/), sonst gaebe es pro Preset eine eigene Kopie von Zertifikat/
+# Schluessel/Web-Bundle statt einer gemeinsamen.
 set(BINARY_ASSETS
-    "assets/device_certificate.der"
-    "assets/device_key.der"
-    "assets/index.html.br"
+    "build/assets/device_certificate.der"
+    "build/assets/device_key.der"
+    "build/assets/index.html.br"
 )
 
 set(ASSET_H_FILE "${CMAKE_CURRENT_BINARY_DIR}/generated/assets.h")
@@ -179,14 +185,14 @@ foreach(BIN_FILE_PATH ${BINARY_ASSETS})
 
     # objcopy backt bei "-I binary" den kompletten (relativen) Eingabepfad in den Symbolnamen
     # ein, nicht nur den Dateinamen -- WORKING_DIRECTORY sorgt dafuer, dass nur der blanke
-    # Dateiname ("assets/device_certificate.der" -> "device_certificate.der") einfliesst, damit
-    # SYM_START/SYM_END unten tatsaechlich zu den erzeugten Symbolen passen.
+    # Dateiname ("build/assets/device_certificate.der" -> "device_certificate.der") einfliesst,
+    # damit SYM_START/SYM_END unten tatsaechlich zu den erzeugten Symbolen passen.
     add_custom_command(
         OUTPUT ${OBJ_FILE}
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/assets"
         COMMAND ${CMAKE_OBJCOPY} -I binary -O elf32-littlearm --rename-section .data=.flash_assets
                 "${BIN_NAME}" "${OBJ_FILE}"
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build/assets"
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${BIN_FILE_PATH}"
         COMMENT "Konvertiere ${BIN_NAME} zu Flash-Asset-Objekt..."
         VERBATIM
@@ -206,6 +212,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/app.cc
     Core/Src/net_setup.cpp
     Core/Src/webserver.cpp
+    Core/Src/ws_log_bridge.cpp
     Core/Src/io.cpp
     Core/Src/usb_pd_control.cpp
     Core/Src/usbd_device.c

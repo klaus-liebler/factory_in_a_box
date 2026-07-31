@@ -1,0 +1,6 @@
+{
+  "$comment": "Single Source of Truth fuer die Produktversion (FW_VERSION_MAJOR/MINOR/PATCH). Generiert daraus: Core/generated/firmware_constants.hh und web/generated/build-info.ts, via builder/Phases/ReadGitStatus.cs. Nicht direkt in den generierten Dateien editieren -- bei einem Versions-Bump nur diese Datei aendern, anschliessend ReadGitStatusAndGenerateFiles erneut ausfuehren.",
+  "major": 0,
+  "minor": 1,
+  "patch": 0
+}

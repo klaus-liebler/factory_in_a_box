@@ -386,7 +386,7 @@ static void MX_ETH_Init(void)
   /* USER CODE BEGIN MACADDRESS */
   // Statt der von CubeMX generierten, fuer ALLE Boards identischen MAC (00:80:E1:00:00:00,
   // s.o.) -- bei mehreren Geraeten im selben Netz sonst ARP-Kollisionen. DEVICE_ETH_MAC (Core/
-  // generated/device_ids.hh, von builder/src/phases/read-hardware-ids.ts eincompiliert) ist
+  // generated/device_ids.hh, von builder/Phases/ReadHardwareIds.cs eincompiliert) ist
   // bereits pro Board aus dessen 96-Bit-Chip-Unique-ID abgeleitet -- frueher
   // (s. Commit-Historie) wurde dieselbe XOR-Faltung stattdessen bei JEDEM Boot per
   // HAL_GetUIDw0/1/2() neu berechnet, was zusaetzlich ein HAL_ICACHE_Disable()/_Enable()-Paar

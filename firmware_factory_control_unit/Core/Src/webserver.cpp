@@ -1,21 +1,17 @@
 // ============================================================================
-// Modbus-Register-Weboberflaeche -- liefert die unter web/ gebaute, minifizierte und Brotli-
-// komprimierte Single-File-UI (per objcopy ins Flash einkompiliert, siehe assets/index.html.br
-// und CMakeLists.txt BINARY_ASSETS) fuer JEDEN Pfad AUSSER "/api/*" aus (SPA-Fallback fuer den
-// History-API-Router der UI, s. web/src/shell/router.ts -- "/system"/"/power" muessen serverseitig
-// dieselbe index.html.br liefern wie "/"), sowie schlanke Endpunkte zum Lesen/Schreiben aller
-// Register und zum Abfragen von System-/I2C-Bus-Informationen. Bewusst kein JSON auf C++-Seite
-// (weder Parser noch Encoder) -- /api/registers liefert alle Register voll binaer (2 Byte
-// Little-Endian je Register, s. register_binary_total_length()), /api/system liefert ein
-// kompaktes festes Binaer-Struct (s. fill_system_info()), das u.a. auch das Ergebnis des
-// einmaligen I2C-Geraete-Scans beim Boot enthaelt (s. PerformBootI2cScans(), aufgerufen aus
-// Io::Setup()), /api/write-holding ist ein GET mit Query-Parametern statt POST+JSON-Body (erspart
-// nx_web_http_server_content_get()+Parser fuer diese Demo-UI). Unbekannte /api/*-Pfade bekommen
-// 404 statt der UI, s. webserver_request_callback()/handle_api_request().
+// Routen-Implementierung fuer den HTTPS/WebSocket-Server (s. webserver.hpp/
+// http_websocket_server.hpp). Bewusst kein JSON auf C++-Seite (weder Parser noch Encoder) --
+// /api/registers liefert alle Register voll binaer (2 Byte Little-Endian je Register, s.
+// register_binary_total_length()), /api/system liefert ein kompaktes festes Binaer-Struct (s.
+// fill_system_info()), das u.a. auch das Ergebnis des einmaligen I2C-Geraete-Scans beim Boot
+// enthaelt (s. PerformBootI2cScans(), aufgerufen aus Io::Setup()), /api/write-holding ist ein
+// GET mit Query-Parametern statt POST+JSON-Body. Unbekannte /api/*-Pfade bekommen automatisch
+// 404 von Http::WebServer (s. dortige DispatchRoute()), jeder andere Pfad die SPA-Shell.
 // ============================================================================
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 
 #include "webserver.hpp"
 #include "app.hh"
@@ -33,78 +29,8 @@ extern "C" size_t GetFreeHeapBytes(void);
 extern "C" I2C_HandleTypeDef hi2c1;
 extern "C" I2C_HandleTypeDef hi2c2;
 extern "C" I2C_HandleTypeDef hi2c4;
-// Per objcopy eingebettetes Binary (assets/index.html.br, s. CMakeLists.txt BINARY_ASSETS/
-// generated/assets.h) -- Laenge per Zeigerdifferenz Start/Ende statt eines separaten
-// LEN-Symbols (objcopy liefert nur _start/_end).
 
-// Liefert genau 'want' Bytes ab dem aktuellen Zustand von *context nach dest -- wird von
-// send_streamed_response() wiederholt aufgerufen, bis die komplette Antwort geschrieben ist.
-typedef void (*ChunkWriter)(void *context, char *dest, size_t want);
-
-// Sendet eine Antwort bekannter Gesamtlaenge in 512-Byte-Haeppchen: pro Haeppchen ein frisches
-// NX_PACKET allozieren, befuellen, sofort senden -- nie mehr als ein/zwei Pakete gleichzeitig
-// in Arbeit, unabhaengig von total_length. Genau das Muster, mit dem die FileX-GET-Verarbeitung
-// dieser Middleware selbst grosse Dateien haeppchenweise sendet (nx_web_http_server.c,
-// GET-Verarbeitung: Paket allozieren/befuellen/senden/wiederholen) -- braucht daher keinen
-// groesseren Server-Paket-Pool als den bestehenden (SERVER_POOL_SIZE, s. net_setup.cpp).
-static UINT send_streamed_response(NX_WEB_HTTP_SERVER *server_ptr, const char *content_type,
-                                   const char *additional_header, size_t total_length,
-                                   ChunkWriter write_chunk, void *context) {
-    static constexpr size_t CHUNK_SIZE = 512;
-
-    NX_PACKET *packet_ptr;
-    if (nx_web_http_server_callback_generate_response_header(
-            server_ptr, &packet_ptr, _C(NX_WEB_HTTP_STATUS_OK),
-            (UINT)total_length, _C(content_type),
-            _C(additional_header)) != NX_SUCCESS) {
-        return NX_NOT_SUCCESSFUL;
-    }
-
-    char chunk[CHUNK_SIZE];
-    size_t sent = 0;
-    while (sent < total_length) {
-        size_t want = total_length - sent;
-        if (want > CHUNK_SIZE) {
-            want = CHUNK_SIZE;
-        }
-        write_chunk(context, chunk, want);
-
-        if (sent > 0) {
-            // Erstes Haeppchen landet im Header-Paket von oben, jedes weitere braucht ein
-            // frisches Paket -- das vorherige wurde bereits per packet_send() verschickt.
-            // Bewusst nx_web_http_server_response_packet_allocate() statt des rohen
-            // nx_packet_allocate(...,0,...): nur diese Variante reserviert am Paketanfang
-            // den Platz, den der IP/TCP-Stack beim Senden fuer die Header braucht (siehe
-            // _nx_web_http_server_generate_response_header, das dieselbe Funktion fuer das
-            // allererste Paket verwendet). Mit rohem nx_packet_allocate(...,0,...) bekommt
-            // _nx_ip_header_add() beim Senden ein falsch ausgerichtetes nx_packet_prepend_ptr
-            // und loest einen UsageFault (UNALIGNED) aus.
-            if (nx_web_http_server_response_packet_allocate(server_ptr, &packet_ptr,
-                                                            NX_WAIT_FOREVER) != NX_SUCCESS) {
-                return NX_NOT_SUCCESSFUL;
-            }
-        }
-
-        if (nx_packet_data_append(packet_ptr, chunk, (ULONG)want,
-                                  server_ptr->nx_web_http_server_packet_pool_ptr, NX_WAIT_FOREVER) != NX_SUCCESS) {
-            nx_packet_release(packet_ptr);
-            return NX_NOT_SUCCESSFUL;
-        }
-        if (nx_web_http_server_callback_packet_send(server_ptr, packet_ptr) != NX_SUCCESS) {
-            return NX_NOT_SUCCESSFUL;
-        }
-        sent += want;
-    }
-
-    if (total_length == 0) {
-        // Leerer Body: das oben allozierte Header-Paket wurde nie befuellt/gesendet.
-        return (nx_web_http_server_callback_packet_send(server_ptr, packet_ptr) == NX_SUCCESS)
-                   ? NX_SUCCESS : NX_NOT_SUCCESSFUL;
-    }
-    return NX_SUCCESS;
-}
-
-// Quelle fuer send_streamed_response(): der eincompilierte Brotli-Blob, context = Cursor (Byte-
+// Quelle fuer Response::SendStreamed(): der eincompilierte Brotli-Blob, context = Cursor (Byte-
 // Offset), der zwischen Aufrufen weiterlaeuft.
 static void write_from_flash_blob(void *context, char *dest, size_t want) {
     size_t *cursor = (size_t *)context;
@@ -112,7 +38,7 @@ static void write_from_flash_blob(void *context, char *dest, size_t want) {
     *cursor += want;
 }
 
-// Quelle fuer send_streamed_response(): alle Holding- (Index 0..HOLDING_REGISTER_MAX_INDEX)
+// Quelle fuer Response::SendStreamed(): alle Holding- (Index 0..HOLDING_REGISTER_MAX_INDEX)
 // dann alle Input-Register (0..INPUT_REGISTER_MAX_INDEX) als rohe 2-Byte-Little-Endian-Werte,
 // ohne jedes Trenn- oder Fuellzeichen -- die Anzahl je Bank ist auf beiden Seiten fix bekannt
 // (register-map.ts exportiert HOLDING_REGISTER_COUNT/INPUT_REGISTER_COUNT dafuer), ein
@@ -231,13 +157,13 @@ static PhyRegisters read_phy_registers() {
     return r;
 }
 
-// Quelle fuer send_streamed_response(): ein einmalig (bei GET /api/system) zusammengestelltes,
+// Quelle fuer Response::SendStreamed(): ein einmalig (bei GET /api/system) zusammengestelltes,
 // festes Binaer-Struct mit Systeminformationen -- klein genug, um komplett in einen lokalen
 // Stack-Puffer geschrieben und in einem einzigen Chunk gesendet zu werden. Enthaelt bewusst NUR
 // echte Laufzeitwerte -- Firmware-Version, Board-Name, Hostname, Chip-UID und MAC-Adressen sind
 // Compile-Zeit-Konstanten (s. Core/Inc/constants.hh bzw. Core/generated/device_ids.hh) und werden
 // stattdessen einmalig beim Web-Build nach web/generated/build-info.ts eincompiliert (s.
-// builder/src/phases/read-git-status.ts) -- keine unnoetige Wire-Uebertragung bei jedem
+// builder/Phases/ReadGitStatus.cs) -- keine unnoetige Wire-Uebertragung bei jedem
 // Seitenaufruf. Layout (alle Mehrbyte-Felder Little-Endian, s. RegisterBinaryState-Kommentar
 // oben), von system-info-app.ts per DataView an exakt denselben Offsets wieder ausgelesen:
 //   Offset  Bytes  Feld
@@ -377,105 +303,101 @@ void PerformBootI2cScans() {
     scan_i2c_bus(4, &hi2c4, app.i2c4_scan);
 }
 
-// 404-Antwort fuer unbekannte /api/*-Pfade (s. handle_api_request()) -- ein Client-Bug oder
-// veralteter API-Aufruf, kein Fall fuer den SPA-Fallback in send_spa_shell_response().
-static UINT send_not_found_response(NX_WEB_HTTP_SERVER *server_ptr) {
-    NX_PACKET *packet_ptr;
-    if (nx_web_http_server_callback_generate_response_header(
-            server_ptr, &packet_ptr, _C(NX_WEB_HTTP_STATUS_NOT_FOUND),
-            0, _C("text/plain"), NX_NULL) != NX_SUCCESS) {
-        return NX_NOT_SUCCESSFUL;
+// Sucht "key=value" in einer "&"-getrennten Query-String (s. /api/write-holding) und liefert den
+// Wert als vorzeichenlose Ganzzahl. Ersetzt das bisherige nx_web_http_server_query_get()
+// (dessen HTTP-Server-spezifische API mit dem neuen Http::WebServer entfaellt) durch eine
+// schlanke eigene Suche direkt auf dem bereits '\0'-terminierten Request::query-String.
+static bool find_query_uint(const char *query, const char *key, unsigned int *out_value) {
+    if (!query) return false;
+    size_t key_len = strlen(key);
+    const char *p = query;
+    while (*p) {
+        const char *eq = strchr(p, '=');
+        if (!eq) return false;
+        size_t name_len = (size_t)(eq - p);
+        const char *amp = strchr(eq, '&');
+        size_t value_len = amp ? (size_t)(amp - eq - 1) : strlen(eq + 1);
+
+        if (name_len == key_len && strncmp(p, key, key_len) == 0) {
+            char buf[24] = {0};
+            if (value_len >= sizeof(buf)) value_len = sizeof(buf) - 1;
+            memcpy(buf, eq + 1, value_len);
+            buf[value_len] = '\0';
+            *out_value = (unsigned int)strtoul(buf, nullptr, 10);
+            return true;
+        }
+
+        p = amp ? amp + 1 : eq + 1 + value_len;
     }
-    return (nx_web_http_server_callback_packet_send(server_ptr, packet_ptr) == NX_SUCCESS)
-               ? NX_WEB_HTTP_CALLBACK_COMPLETED : NX_NOT_SUCCESSFUL;
+    return false;
 }
 
-// Alle Endpunkte unter "/api" -- fester, bekannter Satz. Eine unbekannte /api/*-URL bekommt
-// bewusst ein 404 statt der Weboberflaeche (anders als jeder Nicht-/api-Pfad, s.
-// webserver_request_callback()).
-static UINT handle_api_request(NX_WEB_HTTP_SERVER *server_ptr, CHAR *resource, NX_PACKET *packet_ptr) {
-    if (strcmp(resource, "/api/registers") == 0) {
-        RegisterBinaryState state;
-        state.register_model = App::Instance().register_model;
-        UINT status = send_streamed_response(server_ptr, "application/octet-stream", NX_NULL,
-                                             register_binary_total_length(), write_register_binary_chunk, &state);
-        return (status == NX_SUCCESS) ? NX_WEB_HTTP_CALLBACK_COMPLETED : NX_NOT_SUCCESSFUL;
+static void handle_registers(void *, const Http::Request &, Http::Response &resp) {
+    RegisterBinaryState state;
+    state.register_model = App::Instance().register_model;
+    resp.SendStreamed(200, "application/octet-stream", nullptr,
+                       register_binary_total_length(), write_register_binary_chunk, &state);
+}
+
+static void handle_system(void *, const Http::Request &, Http::Response &resp) {
+    SystemInfoState state;
+    fill_system_info(state);
+    resp.SendStreamed(200, "application/octet-stream", nullptr,
+                       sizeof(state.buffer), write_system_info_chunk, &state);
+}
+
+static void handle_write_holding(void *, const Http::Request &req, Http::Response &resp) {
+    unsigned int address = 0, value = 0;
+    const char *response_text = "ERROR";
+
+    if (find_query_uint(req.query, "address", &address) &&
+        find_query_uint(req.query, "value", &value) &&
+        address <= ModbusRegisters::HOLDING_REGISTER_MAX_INDEX && value <= UINT16_MAX) {
+        App::Instance().register_model->SetHoldingRegister((uint16_t)address, (uint16_t)value);
+        response_text = "OK";
     }
 
-    if (strcmp(resource, "/api/system") == 0) {
-        SystemInfoState state;
-        fill_system_info(state);
-        UINT status = send_streamed_response(server_ptr, "application/octet-stream", NX_NULL,
-                                             sizeof(state.buffer), write_system_info_chunk, &state);
-        return (status == NX_SUCCESS) ? NX_WEB_HTTP_CALLBACK_COMPLETED : NX_NOT_SUCCESSFUL;
-    }
-
-    if (strcmp(resource, "/api/write-holding") == 0) {
-        char response_data[512] = {0};
-        char response_type[30] = {0};
-        char addr_query[24] = {0};
-        char value_query[24] = {0};
-        UINT addr_query_size, value_query_size;
-        unsigned int address = 0, value = 0;
-
-        if (nx_web_http_server_query_get(packet_ptr, 0, addr_query, &addr_query_size, sizeof(addr_query) - 1) == NX_SUCCESS &&
-            nx_web_http_server_query_get(packet_ptr, 1, value_query, &value_query_size, sizeof(value_query) - 1) == NX_SUCCESS &&
-            sscanf(addr_query, "address=%u", &address) == 1 &&
-            sscanf(value_query, "value=%u", &value) == 1 &&
-            address <= ModbusRegisters::HOLDING_REGISTER_MAX_INDEX && value <= UINT16_MAX) {
-            App::Instance().register_model->SetHoldingRegister((uint16_t)address, (uint16_t)value);
-            sprintf(response_data, "OK");
-        } else {
-            sprintf(response_data, "ERROR");
-        }
-
-        UINT string_length;
-        nx_web_http_server_type_get(server_ptr, resource, response_type, &string_length);
-        response_type[string_length] = '\0';
-
-        NX_PACKET *resp_packet;
-        if (nx_web_http_server_callback_generate_response_header(
-                server_ptr, &resp_packet, _C(NX_WEB_HTTP_STATUS_OK),
-                strlen(response_data), response_type, NX_NULL) != NX_SUCCESS) {
-            return NX_NOT_SUCCESSFUL;
-        }
-
-        if (nx_packet_data_append(resp_packet, response_data, strlen(response_data),
-                                  server_ptr->nx_web_http_server_packet_pool_ptr,
-                                  NX_WAIT_FOREVER) != NX_SUCCESS) {
-            nx_packet_release(resp_packet);
-            return NX_NOT_SUCCESSFUL;
-        }
-
-        if (nx_web_http_server_callback_packet_send(server_ptr, resp_packet) != NX_SUCCESS) {
-            nx_packet_release(resp_packet);
-            return NX_NOT_SUCCESSFUL;
-        }
-
-        return NX_WEB_HTTP_CALLBACK_COMPLETED;
-    }
-
-    return send_not_found_response(server_ptr);
+    resp.SendFixed(200, "OK", "text/plain", nullptr, (const uint8_t *)response_text, strlen(response_text));
 }
 
 // Liefert fuer "/" UND jeden Client-seitigen Router-Pfad (s. web/src/shell/router.ts -- History-
 // API-Routing, z.B. "/system"/"/power", kein Hash-Routing) dieselbe Single-File-UI aus. Ein
 // direkter Aufruf oder Reload einer solchen URL landet damit trotzdem in der App, die anhand von
 // window.location.pathname selbst entscheidet, was sie anzeigt (klassischer SPA-Fallback).
-static UINT send_spa_shell_response(NX_WEB_HTTP_SERVER *server_ptr) {
+// Registriert als Http::WebServer-Default-Handler, greift also fuer jeden Pfad, der nicht mit
+// dem API-Praefix beginnt und keiner expliziten Route entspricht.
+static void handle_spa_shell(void *, const Http::Request &, Http::Response &resp) {
     size_t cursor = 0;
     size_t html_br_len = (size_t)(_binary_index_html_br_end - _binary_index_html_br_start);
-    UINT status = send_streamed_response(server_ptr, "text/html", "Content-Encoding: br\r\n",
-                                         html_br_len, write_from_flash_blob, &cursor);
-    return (status == NX_SUCCESS) ? NX_WEB_HTTP_CALLBACK_COMPLETED : NX_NOT_SUCCESSFUL;
+    resp.SendStreamed(200, "text/html", "Content-Encoding: br\r\n", html_br_len, write_from_flash_blob, &cursor);
 }
 
-UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT request_type,
-                                 CHAR *resource, NX_PACKET *packet_ptr) {
-    (void)request_type;
+// WebSocket-Endpunkt "/ws" -- reine Transportschicht-Verifikation (Echo), das eigentliche
+// Anwendungsprotokoll (z.B. Live-Push von Registeraenderungen) ist noch nicht festgelegt und
+// kommt in einem spaeteren Schritt hinzu (s. Klassenkommentar in http_websocket_server.hpp).
+static void handle_ws_open(void *, Http::WebSocketConnection &) {
+    log_info("WebSocket: Verbindung geoeffnet");
+}
 
-    if (strncmp(resource, "/api", 4) == 0) {
-        return handle_api_request(server_ptr, resource, packet_ptr);
+static void handle_ws_message(void *, Http::WebSocketConnection &conn, bool is_binary,
+                               const uint8_t *data, size_t len) {
+    if (is_binary) {
+        conn.SendBinary(data, len);
+    } else {
+        conn.SendText((const char *)data, len);
     }
-    return send_spa_shell_response(server_ptr);
+}
+
+static void handle_ws_close(void *, Http::WebSocketConnection &) {
+    log_info("WebSocket: Verbindung geschlossen");
+}
+
+void webserver_register_routes(Http::WebServer &server) {
+    server.RegisterRoute(Http::Method::GET, "/api/registers", true, handle_registers, nullptr);
+    server.RegisterRoute(Http::Method::GET, "/api/system", true, handle_system, nullptr);
+    server.RegisterRoute(Http::Method::GET, "/api/write-holding", true, handle_write_holding, nullptr);
+    server.SetDefaultHandler(handle_spa_shell, nullptr);
+
+    server.SetWebSocketPath("/ws");
+    server.SetWebSocketHandlers(handle_ws_open, handle_ws_message, handle_ws_close, nullptr);
 }

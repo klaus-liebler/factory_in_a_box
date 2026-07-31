@@ -12,7 +12,7 @@
 //   2) minifyHtmlDocument() (builder/singlefile-minify.ts, unveraendert aus dem vormaligen
 //      inlineSingleFileMinifyPlugin uebernommen) entfernt zusaetzliche Leerzeichen aus dem
 //      inlinierten HTML/CSS/JS.
-//   3) Brotli-komprimiert das Ergebnis und schreibt es direkt nach ../assets/index.html.br (per
+//   3) Brotli-komprimiert das Ergebnis und schreibt es direkt nach ../build/assets/index.html.br (per
 //      objcopy/Linker-Section ins Firmware-Flash einkompiliert, siehe CMakeLists.txt) -- kein
 //      separater "npm run embed"-Aufruf mehr noetig, BuildWebApp (s. docs/build-process.md) besteht
 //      damit aus einem einzigen "vite build".
@@ -118,7 +118,11 @@ export function singleFileFirmwareAssetPlugin(): Plugin {
 				},
 			});
 
-			const assetsDir = path.join(import.meta.dirname, "..", "assets");
+			// build/assets/ statt eines eigenen Top-Level-Ordners (s. Paths.cs AssetsDir) -- hier
+			// bewusst eigenstaendig relativ zu dieser Datei berechnet statt aus dem C#-Projekt
+			// importiert (diese Datei wird direkt von web/vite.config.ts per Vite/Node geladen, nicht
+			// vom C#-Compiler).
+			const assetsDir = path.join(import.meta.dirname, "..", "build", "assets");
 			mkdirSync(assetsDir, { recursive: true });
 			const outFile = path.join(assetsDir, "index.html.br");
 			writeFileSync(outFile, compressed);

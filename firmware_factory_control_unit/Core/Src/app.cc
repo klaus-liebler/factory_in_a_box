@@ -216,6 +216,15 @@ void App::IOThread() {
 // eigener Zugriff auf DTS/I2C4, daher unkritisch bzgl. Peripherie-Besitz/Timing des io_threads.
 // PWR_STATUS==0 bedeutet "INA226 erkannt und Read() erfolgreich" (s. power.hh); ohne das faellt
 // die Zeile auf einen "n/a"-Hinweis zurueck statt eine Spannung/Strom von 0 vorzutaeuschen.
+//
+// Sendet ausserdem bei jedem Durchlauf ein WebSocket-Ping an alle verbundenen Clients (s.
+// Http::WebServer::SendKeepalivePings()) -- ohne das wuerde eine ansonsten gesunde, aber
+// inaktive WebSocket-Verbindung nach Ablauf des Session-Timeouts (net_setup.cpp, aktuell 30s)
+// einfach getrennt (sichtbar im Log als "WebSocket: Verbindung geschlossen"/"...geoeffnet" im
+// Minutentakt), da Broadcast()-Nachrichten (z.B. die Log-Spiegelung) rein ausgehend sind und den
+// Idle-Timer von nx_tcpserver nicht zuruecksetzen -- nur eingehende Bytes tun das, hier also das
+// vom Browser automatisch beantwortete Pong. 3s-Takt ist bewusst grosszuegig unter dem Timeout,
+// kein eigener Thread/Timer noetig, da dieser Thread ohnehin schon in diesem Takt laeuft.
 [[noreturn]] void App::HeartbeatThread() {
     log_info("Heartbeat Thread started");
     while (true) {
@@ -223,6 +232,8 @@ void App::IOThread() {
         uint16_t free_heap_kib = this->register_model->GetInputRegister(ModbusRegisters::Input::FREE_HEAP_KIB);
         bool power_ok = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_STATUS) == 0;
         ULONG tx_ticks_now = tx_time_get();
+
+        this->web_server.SendKeepalivePings();
 
         if (power_ok) {
             uint16_t bus_mv = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_BUS_VOLTAGE_MV);
@@ -391,7 +402,7 @@ void App::SetupBeforeThreadX() {
 
     // Board-Identitaetscheck: DEVICE_CHIP_UID_W0/1/2 (Core/generated/device_ids.hh) sind
     // fuer genau EIN physisches Board eincompiliert (s.
-    // builder/src/phases/read-hardware-ids.ts) -- USB-Seriennummer und NCM-MAC-Adresse
+    // builder/Phases/ReadHardwareIds.cs) -- USB-Seriennummer und NCM-MAC-Adresse
     // (DEVICE_USB_SERIAL_STRING/DEVICE_USB_NCM_MAC, s. UsbdDeviceThread()) sind daraus abgeleitet
     // und wuerden bei einem Mismatch STILL die falsche Identitaet nach aussen zeigen. Deshalb
     // hier ein harter Stopp statt eines Log-Warnings, sobald die tatsaechliche Chip-UID nicht

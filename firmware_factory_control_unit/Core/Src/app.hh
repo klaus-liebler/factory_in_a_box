@@ -41,7 +41,7 @@
 #include "tx_api.h"
 #include "nxd_dhcp_client.h"
 #include "nxd_dhcp_server.h"
-#include "nx_web_http_server.h"
+#include "http_websocket_server.hpp"
 #include "nxd_mdns.h"
 #include "common_macros.hh"
 #include "constants.hh"
@@ -98,7 +98,9 @@ public:
 
     NX_IP ip_instance;
     NX_DHCP dhcp_client;
-    NX_WEB_HTTP_SERVER http_server;
+    // HTTPS/WebSocket-Server (s. Core/Src/http_websocket_server.hpp) -- ersetzt den frueheren
+    // nx_web_http_server, der keine WebSockets konnte.
+    Http::WebServer web_server;
     // Zusaetzlich auf dem virtuellen USB-Netzwerk-Interface aktiviert (s. net_setup.cpp) -- eine
     // zweite NX_MDNS-Instanz fuer einen eigenen festen Namen scheiterte an NX_PORT_UNAVAILABLE
     // (beide haetten denselben UDP-Port 5353 auf derselben NX_IP gebunden), daher weiterhin nur

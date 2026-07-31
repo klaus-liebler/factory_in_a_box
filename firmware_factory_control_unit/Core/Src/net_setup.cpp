@@ -4,6 +4,7 @@
 #include "net_setup.hpp"
 #include "app.hh"
 #include "webserver.hpp"
+#include "ws_log_bridge.hpp"
 #include "log.h"
 
 #include "nx_stm32_eth_driver.h"
@@ -43,25 +44,35 @@ constexpr uint32_t DEFAULT_ARP_CACHE_SIZE = 1024;
 constexpr uint32_t Nx_IP_INSTANCE_THREAD_SIZE = 2 * 1024;
 constexpr uint32_t NX_APP_INSTANCE_PRIORITY = 10;
 constexpr UINT HTTPS_PORT = 443;
-constexpr uint32_t SERVER_PACKET_SIZE = 2 * NX_WEB_HTTP_SERVER_MIN_PACKET_SIZE;
+// Ehemals von NX_WEB_HTTP_SERVER_MIN_PACKET_SIZE (nx_web_http_server.h) abgeleitet -- jetzt
+// eigener, von diesem Addon unabhaengiger Wert fuer den Paket-Pool des neuen Http::WebServer
+// (s. http_websocket_server.hpp). Ein NX_PACKET dieser Groesse reicht fuer die meisten
+// Antwort-/WebSocket-Frame-Haeppchen; groessere Antworten (SPA-Blob, Register-Dump) verketten
+// automatisch mehrere Pakete aus demselben Pool (nx_packet_data_append()).
+constexpr uint32_t SERVER_PACKET_SIZE = 1536;
 // RSA-2048-Signierung waehrend des ECDHE-Handshakes (nx_crypto_huge_number Montgomery-
 // Exponentiation) laeuft auf diesem Thread und braucht deutlich mehr Stack als reine
 // HTTP-Verarbeitung -- 4096 Byte reichten fuer Plain-HTTP, fuehrten mit HTTPS aber zu einem
 // Stack-Overflow mitten im Handshake. 16000 Byte matched demo_netxduo_https.c aus dem
 // STM32Cube-Referenzpaket (dort exakt fuer denselben Zweck dimensioniert).
 constexpr uint32_t SERVER_STACK = 16384;
-constexpr uint32_t SERVER_POOL_SIZE = SERVER_PACKET_SIZE * 4;
+// 8 Pakete Reserve statt der alten 4 -- der neue Server bedient bis zu drei gleichzeitige
+// Sessions (1 HTTP + 2 WebSocket, s. Http::WebServer::MAX_SESSIONS) statt vormals zwei rein
+// serieller HTTP-Sessions.
+constexpr uint32_t SERVER_POOL_SIZE = SERVER_PACKET_SIZE * 8;
 constexpr uint32_t NX_APP_PACKET_POOL_SIZE = (DEFAULT_PAYLOAD_SIZE + sizeof(NX_PACKET)) * 50;
 constexpr uint32_t NX_APP_DEFAULT_IP_ADDRESS = 0;
 constexpr uint32_t NX_APP_DEFAULT_NET_MASK = 0;
 
 // TLS-Empfangspuffer fuer die Reassemblierung von TLS-Records (Handshake-Nachrichten wie die
 // Zertifikatskette, aber auch normale Application-Data-Records) -- ein einzelner TLS-Record
-// kann laut Spezifikation bis zu ~16 KB gross sein, 8 KB reichte also im ungebuenstigsten Fall
-// nicht. ST's eigenes demo_netxduo_https.c nutzt 40 KB (grosszuegig gerundet, nicht errechnet);
-// wir bleiben knapp ueber der 16-KB-Grenze, da der Puffer per new[] vom freien Heap kommt (nicht
-// vom knappen nx_app_byte_pool) und ausreichend SRAM ausserhalb des Pools frei ist.
-constexpr uint32_t TLS_PACKET_BUFFER_SIZE = 17 * 1024;
+// kann laut Spezifikation bis zu ~16 KB gross sein. nx_tcpserver_tls_setup() (s.
+// Http::WebServer::SecureConfigure()) teilt diesen Gesamtpuffer gleichmaessig auf alle
+// Http::WebServer::MAX_SESSIONS Sessions auf -- 24 KB / 3 Sessions = 8 KB je Session, etwas
+// grosszuegiger als der alte, auf eine Session bezogene 17-KB-Wert (der intern bereits durch
+// NX_WEB_HTTP_SERVER_SESSION_MAX=2 geteilt wurde). Kommt per new[] vom freien Heap (nicht vom
+// knappen nx_app_byte_pool), ausreichend SRAM ist vorhanden (STM32H563: 640 KiB gesamt).
+constexpr uint32_t TLS_PACKET_BUFFER_SIZE = 24 * 1024;
 constexpr UINT MDNS_THREAD_PRIORITY = 14;
 constexpr uint32_t MDNS_STACK_SIZE = 2 * 1024;
 constexpr uint32_t MDNS_LOCAL_CACHE_SIZE = 1024;
@@ -166,11 +177,16 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
                                 SERVER_POOL_SIZE - sizeof(NX_PACKET_POOL)), "HTTP Server Pool create failed");
 
     XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, SERVER_STACK, TX_NO_WAIT), "HTTP Server stack allocate failed");
-    XASSERT(nx_web_http_server_create(&app->http_server, _C("HTTP Server"),
-                                    &app->ip_instance, HTTPS_PORT,
-                                    nullptr, (VOID *)ptr, SERVER_STACK,
-                                    server_pool, NX_NULL,
-                                    webserver_request_callback), "HTTP Server create failed");
+    // Priority 4: dieselbe erhoehte Prioritaet, die zuvor NX_WEB_HTTP_SERVER_PRIORITY (nx_user.h)
+    // dem alten nx_web_http_server-Thread gab -- reagiert schneller auf eingehende Requests/
+    // WebSocket-Frames als die App-Threads (Prioritaet 10, s. NX_APP_INSTANCE_PRIORITY oben).
+    // 30s Session-Timeout: Kompromiss zwischen zuegigem Aufraeumen liegengelassener HTTP-
+    // Keep-Alive-Verbindungen (vormals 10s) und genug Toleranz fuer WebSocket-Verbindungen, die
+    // laut Anforderung laengere Ruhephasen haben duerfen, bis die Anwendung ihr eigenes
+    // Nachrichtenprotokoll (inkl. etwaiger Heartbeats) festlegt.
+    XASSERT(app->web_server.Create(&app->ip_instance, server_pool, ptr, SERVER_STACK, 4, 30),
+            "HTTP/WebSocket Server create failed");
+    webserver_register_routes(app->web_server);
 
     // --- HTTPS (NetX Secure TLS) Setup ---
     // nx_secure_x509_certificate_initialize()/nx_secure_tls_metadata_size_calculate() sind
@@ -326,32 +342,31 @@ void net_setup_start(App *app) {
     ULONG tls_metadata_size = 0;
     XASSERT(nx_secure_tls_metadata_size_calculate(&nx_crypto_tls_ciphers_ecc, &tls_metadata_size),
             "TLS metadata size calculate failed");
-    UCHAR *tls_metadata = new UCHAR[tls_metadata_size * NX_WEB_HTTP_SERVER_SESSION_MAX];
+    UCHAR *tls_metadata = new UCHAR[tls_metadata_size * Http::WebServer::MAX_SESSIONS];
     UCHAR *tls_packet_buffer = new UCHAR[TLS_PACKET_BUFFER_SIZE];
 
-    XASSERT(nx_web_http_server_secure_configure(
-        &app->http_server, &nx_crypto_tls_ciphers_ecc,
-        tls_metadata, tls_metadata_size * NX_WEB_HTTP_SERVER_SESSION_MAX,
+    XASSERT(app->web_server.SecureConfigure(
+        &nx_crypto_tls_ciphers_ecc,
+        tls_metadata, tls_metadata_size * Http::WebServer::MAX_SESSIONS,
         tls_packet_buffer, TLS_PACKET_BUFFER_SIZE,
-        &g_device_certificate, NX_NULL, 0, NX_NULL, 0, NX_NULL, 0), "HTTPS TLS configure failed");
+        &g_device_certificate), "HTTPS TLS configure failed");
 
     // ECDHE braucht zusaetzlich die unterstuetzten Kurven (secp256r1/384r1/521r1, s.
     // nx_crypto_ecc_curves) -- ohne diesen Aufruf schlaegt der Handshake fehl, sobald der
     // Client eine ECDHE-Ciphersuite waehlt.
-    XASSERT(nx_web_http_server_secure_ecc_configure(
-        &app->http_server, nx_crypto_ecc_supported_groups,
+    XASSERT(app->web_server.SecureEccConfigure(
+        nx_crypto_ecc_supported_groups,
         (USHORT)nx_crypto_ecc_supported_groups_size, nx_crypto_ecc_curves), "HTTPS ECC configure failed");
 
-    NX_WEB_HTTP_SERVER_MIME_MAP mime_maps[] = {
-        {_C("css"), _C("text/css")},
-        {_C("svg"), _C("image/svg+xml")},
-        {_C("png"), _C("image/png")},
-        {_C("jpg"), _C("image/jpg")}
-    };
-    nx_web_http_server_mime_maps_additional_set(&app->http_server, mime_maps, 4);
-
-    XASSERT(nx_web_http_server_start(&app->http_server), "HTTP Server start failed");
-    log_info("HTTP Server started");
+    // Listen-Backlog 2x MAX_SESSIONS (analog zum alten NX_WEB_HTTP_SERVER_MAX_PENDING =
+    // NX_WEB_HTTP_SERVER_SESSION_MAX<<1): erlaubt kurzzeitig etwas mehr wartende SYN-Verbindungen,
+    // als gleichzeitig bedient werden koennen, statt sie sofort abzulehnen.
+    XASSERT(app->web_server.Start(HTTPS_PORT, Http::WebServer::MAX_SESSIONS * 2), "HTTP Server start failed");
+    log_info("HTTP/WebSocket Server started");
+    // Ab hier wird jede weitere Logger-Ausgabe zusaetzlich per WebSocket an verbundene Clients
+    // gespiegelt (s. ws_log_bridge.hpp) -- unschaedlich, dass noch keine Verbindungen bestehen
+    // (Broadcast() findet einfach keine aktiven Sessions).
+    WsLogBridge_Install(&app->web_server);
 
     XASSERT(nx_ip_address_change_notify(&app->ip_instance,
                                       ip_address_change_notify_callback,

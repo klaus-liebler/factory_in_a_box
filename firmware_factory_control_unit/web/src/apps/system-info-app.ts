@@ -30,7 +30,7 @@ function formatUptime(totalSeconds: number): string {
 	return parts.join(" ");
 }
 
-// Alle Zeitpunkte kommen als Unix-Epoch-Sekunden (int64-tauglich, s. builder/src/git-info.ts) --
+// Alle Zeitpunkte kommen als Unix-Epoch-Sekunden (int64-tauglich, s. builder/GitInfo.cs) --
 // hier und NUR hier, am Anzeigeort, in die lokale Zeitzone des Browsers umgerechnet
 // (toLocaleString() nutzt implizit Intl mit der System-/Browser-Zeitzone).
 function formatEpochSeconds(epochSeconds: number): string {
@@ -189,7 +189,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 
 				<div class="region-grid">
 					<!-- Board/Hostname/Chip-UID/MAC/Zertifikat sind Compile-Zeit-Konstanten
-					     (s. builder/src/phases/read-git-status.ts) -- kommen direkt aus build-info.ts, keine
+					     (s. builder/Phases/ReadGitStatus.cs) -- kommen direkt aus build-info.ts, keine
 					     Laufzeit-Abfrage noetig, deshalb ohne "Aktualisieren"-Button/Ladezustand. -->
 					<div class="panel-section">
 						<div class="panel-label">Board Info</div>

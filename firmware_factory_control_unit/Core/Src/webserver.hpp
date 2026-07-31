@@ -1,13 +1,15 @@
 #pragma once
-// HTTP-Request-Callback fuer den NetX Duo HTTP(S)-Server -- liefert die unter web/ gebaute
-// Single-File-UI (gzip, siehe Core/Src/generated/modbus_ui_page.c) unter "/" aus, sowie
-// schlanke Text-/Query-Endpunkte zum Lesen/Schreiben aller Register. Siehe webserver.cpp fuer
-// Details zum Antwortformat.
+// Routen fuer den HTTPS/WebSocket-Server (s. http_websocket_server.hpp) -- liefert die unter
+// web/ gebaute, minifizierte und Brotli-komprimierte Single-File-UI (per objcopy ins Flash
+// einkompiliert, siehe assets/index.html.br und CMakeLists.txt BINARY_ASSETS) fuer JEDEN Pfad
+// AUSSER "/api/*" aus (SPA-Fallback fuer den History-API-Router der UI, s.
+// web/src/shell/router.ts), schlanke Endpunkte zum Lesen/Schreiben aller Register und zum
+// Abfragen von System-/I2C-Bus-Informationen, sowie einen WebSocket-Endpunkt unter "/ws"
+// (s. Klassenkommentar in http_websocket_server.hpp -- Anwendungsprotokoll darueber ist noch
+// nicht festgelegt, aktuell nur ein Echo zur Verifikation der Transportschicht).
+#include "http_websocket_server.hpp"
 
-#include "nx_web_http_server.h"
-
-UINT webserver_request_callback(NX_WEB_HTTP_SERVER *server_ptr, UINT request_type,
-                                 CHAR *resource, NX_PACKET *packet_ptr);
+void webserver_register_routes(Http::WebServer &server);
 
 // Einmaliger I2C-Geraete-Scan aller drei Busse beim Boot -- aufgerufen aus Io::Setup() (nicht per
 // HTTP-Anfrage: ein per Browser ausgeloester Scan schlug wiederholt fehl, vermutlich durch

@@ -1,0 +1,28 @@
+{
+  "$comment": "Single Source of Truth fuer 'system'-Nachrichten des binaeren WebSocket-Nachrichtenprotokolls zwischen Firmware und Browser. Namespaces ergeben sich aus dem Punkt im 'name' jeder Deklaration (s. docs/websocket-protocol.md Abschnitt 8), NICHT mehr aus der Datei. Generiert (zusammen mit allen anderen *.json in diesem Verzeichnis): Core/generated/ws_protocol.hh (C++) und web/generated/ws-protocol.ts (TypeScript), via builder-Phase ReadWebSocketProtocolAndGenerateFiles (dotnet run --project builder -- ReadWebSocketProtocolAndGenerateFiles). Nicht in den generierten Dateien editieren. IDs werden beim Generieren automatisch vergeben und stabil in ws-protocol/ids.txt festgehalten.",
+  "messages": [
+    {
+      "name": "system.LogMessage",
+      "kind": "event",
+      "description": "Eine einzelne Logger-Ausgabe (log_info/log_warn/... aus stm32_libs/common_stm32/log.h), live an alle verbundenen WebSocket-Clients gepusht (s. Core/Src/ws_log_bridge.cpp).",
+      "fields": [
+        {
+          "name": "level",
+          "type": "EnumU8",
+          "enumName": "LogLevel",
+          "description": "Log-Level, mit dem diese Zeile auch original geloggt wurde (s. enum in log.h) -- der Browser bildet das 1:1 auf die passende console.*()-Funktion ab (s. web/src/ws-client.ts), damit die Chrome-DevTools-Filter (Verbose/Info/Warnings/Errors) genauso greifen wie bei nativen console-Aufrufen.",
+          "enumValues": [
+            { "name": "LOG_TRACE", "value": 0 },
+            { "name": "LOG_DEBUG", "value": 1 },
+            { "name": "LOG_INFO", "value": 2 },
+            { "name": "LOG_WARN", "value": 3 },
+            { "name": "LOG_ERROR", "value": 4 },
+            { "name": "LOG_FATAL", "value": 5 }
+          ]
+        },
+        { "name": "timestampMs", "type": "uint32", "description": "HAL_GetTick() zum Zeitpunkt der Log-Ausgabe" },
+        { "name": "text", "type": "string", "description": "Formatierte Logzeile (UTF-8, ohne Datei/Zeile-Praefix, ohne Zeilenumbruch)" }
+      ]
+    }
+  ]
+}

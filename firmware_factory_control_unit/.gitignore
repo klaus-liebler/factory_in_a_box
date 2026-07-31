@@ -4,13 +4,16 @@ mx.scratch
 
 # Generierter Code (s. docs/build-process.md) -- wird von den builder/-Phasen erzeugt, nicht
 # eingecheckt. Quelle der Wahrheit ist jeweils das Board-Archiv unter stm32_boards/<id>/generated/.
+# build/assets/ (Geraetezertifikat/-schluessel, index.html.br) ist bereits durch die "build"-Regel
+# oben abgedeckt, extra Eintrag nicht noetig.
 /Core/generated/
 /web/generated/
 /web/dist/
-/assets/*.der
-/assets/index.html.br
 node_modules/
 
-# Persoenliche Maschinenpfade -- getrackt ist nur environment-config.ts.template (gleiches
-# Muster wie zuvor tools/environment-config.mjs vs. environment-config.mjs.template).
-/builder/src/environment-config.ts
+# builder/ -- appsettings.json enthaelt persoenliche Maschinenpfade und ist gitignored, getrackt
+# ist nur appsettings.json.template; builder.csproj legt die reale Datei bei Bedarf automatisch
+# daraus an (s. docs/build-process.md).
+/builder/appsettings.json
+/builder/bin/
+/builder/obj/

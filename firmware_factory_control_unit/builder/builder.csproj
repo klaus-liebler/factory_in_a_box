@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Build-Orchestrator (s. docs/build-process.md) als dotnet-Applikation: Nachfolger des
+    vormaligen Node/TypeScript-Orchestrators (frueher ebenfalls unter builder/, mit
+    builder/src/cli.ts als Einstiegspunkt; ersetzt durch Program.cs). Die drei TS-Dateien
+    (vite-plugin-single-file-firmware-asset.ts, singlefile-minify.ts, html-minifier-terser.d.ts)
+    sind bewusst als TypeScript stehengeblieben: sie implementieren ein Vite-Plugin (Vite hat keine
+    C#-API), s. Phases/BuildWebApp.cs und Abschnitt 6 der Doku.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Builder</RootNamespace>
+    <AssemblyName>builder</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Fuer BuilderOptions.cs (appsettings.json -> typsichere POCO-Klasse, s. dort). -->
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+  </ItemGroup>
+
+  <!--
+    appsettings.json enthaelt persoenliche Maschinenpfade (STM32CubeProgrammer, OneDrive-Ordner
+    fuer Board-Archiv/CA) und ist gitignored: getrackt ist nur appsettings.json.template. Aus dem
+    Standard-Glob ausgeschlossen und stattdessen von EnsureAppSettings unten explizit
+    (wieder-)hinzugefuegt, da ein per Target neu angelegtes File vom Default-Glob der
+    Projekt-Evaluation (laeuft VOR den Targets) in diesem Build-Durchlauf sonst nicht mehr erfasst
+    wuerde: analog zum vormaligen EnsureEnvironmentConfig-Muster, das dieses Target ersetzt, nur
+    fuer eine Content-Datei (CopyToOutputDirectory) statt eine Compile-Datei.
+  -->
+  <ItemGroup>
+    <None Remove="appsettings.json" />
+  </ItemGroup>
+
+  <Target Name="EnsureAppSettings" BeforeTargets="BeforeBuild">
+    <Copy
+      Condition="!Exists('$(MSBuildProjectDirectory)\appsettings.json')"
+      SourceFiles="$(MSBuildProjectDirectory)\appsettings.json.template"
+      DestinationFiles="$(MSBuildProjectDirectory)\appsettings.json" />
+    <ItemGroup>
+      <None Include="$(MSBuildProjectDirectory)\appsettings.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+  </Target>
+
+</Project>

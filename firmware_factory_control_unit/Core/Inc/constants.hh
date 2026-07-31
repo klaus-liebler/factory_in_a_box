@@ -2,15 +2,12 @@
 #include <cstdint>
 #include <string_view>
 
-//Name & Version
-#ifdef BOARD_NUCLEO_H563ZI
-constexpr std::string_view BOARD_NAME = "Factory Control Unit [TEST RIG: Nucleo-H563ZI] (STM32H563)";
-#else
-constexpr std::string_view BOARD_NAME = "Factory Control Unit (STM32H563)";
-#endif
-constexpr uint16_t FW_VERSION_MAJOR = 0;
-constexpr uint16_t FW_VERSION_MINOR = 1;
-constexpr uint16_t FW_VERSION_PATCH = 0;
+// BOARD_NAME/FW_VERSION_MAJOR/MINOR/PATCH: generiert (nicht mehr von Hand gepflegt), s.
+// builder/Phases/ReadGitStatus.cs. BOARD_NAME kommt aus einem Board-Archiv-Nachschlag (board.json,
+// s. builder/BoardStore.cs) statt aus einem #ifdef BOARD_NUCLEO_H563ZI-Umschalter (Fallback:
+// konfigurierter Default, s. docs/build-process.md Abschnitt 5); FW_VERSION_* aus
+// firmware-version.json (Repo-Root).
+#include "generated/firmware_constants.hh"
 
 //Memory Pool Sizes for ThreadX, FileX, and NetXDuo
 constexpr uint32_t TX_APP_MEM_POOL_SIZE = 10 * 1024;

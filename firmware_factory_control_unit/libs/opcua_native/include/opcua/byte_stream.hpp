@@ -69,17 +69,18 @@ public:
     }
     // ByteString shares the exact same wire format as String (Part 6 5.2.1.2/5.2.1.3) -- only
     // the C++-side interpretation differs (raw bytes vs. text). Exposed separately so callers
-    // don't have to reach through String::value for binary payloads.
-    bool ReadByteString(std::string &out, bool &isNull) {
+    // don't have to reach through String::value for binary payloads. Non-owning, like
+    // ReadString() -- valid only until the underlying buffer is reused (see types.hpp).
+    bool ReadByteString(std::string_view &out, bool &isNull) {
         Int32 length = 0;
         if(!ReadInt32(length)) return false;
         if(length < 0) {
-            out.clear();
+            out = {};
             isNull = true;
             return true;
         }
         if(!CheckRemaining(static_cast<size_t>(length))) return Fail();
-        out.assign(reinterpret_cast<const char*>(data_.data() + pos_), static_cast<size_t>(length));
+        out = std::string_view(reinterpret_cast<const char*>(data_.data() + pos_), static_cast<size_t>(length));
         isNull = false;
         pos_ += static_cast<size_t>(length);
         return true;
@@ -150,7 +151,7 @@ public:
         return WriteRaw(v.value.data(), v.value.size());
     }
     bool WriteString(std::string_view v) { return WriteString(String(v)); }
-    bool WriteByteString(const std::string &v, bool isNull) {
+    bool WriteByteString(std::string_view v, bool isNull) {
         if(isNull) return WriteInt32(-1);
         if(!WriteInt32(static_cast<Int32>(v.size()))) return false;
         return WriteRaw(v.data(), v.size());

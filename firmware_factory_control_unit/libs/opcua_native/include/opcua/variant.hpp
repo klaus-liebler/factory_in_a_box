@@ -40,16 +40,19 @@ public:
                                  opcua::NodeId, StatusCode, QualifiedName, LocalizedText>;
     Storage storage;
 
-    Variant() = default;
+    constexpr Variant() = default;
 
+    // constexpr: lets a constexpr Node table (address_space.hpp) embed a constant Value
+    // directly, e.g. Node{.staticValue = Variant::Of(String("hello"))} -- no runtime
+    // construction, placed in Flash with the rest of the enclosing table.
     template <typename T>
-    static Variant Of(T v) {
+    static constexpr Variant Of(T v) {
         Variant result;
         result.storage = std::move(v);
         return result;
     }
 
-    bool IsEmpty() const { return std::holds_alternative<std::monostate>(storage); }
+    constexpr bool IsEmpty() const { return std::holds_alternative<std::monostate>(storage); }
 
     // Undefined or the empty variant if IsEmpty() -- check first.
     BuiltinTypeId TypeId() const;

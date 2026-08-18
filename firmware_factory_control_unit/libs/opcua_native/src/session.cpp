@@ -12,7 +12,7 @@ constexpr UInt32 ANONYMOUS_IDENTITY_TOKEN_TYPEID = 321;
 
 bool SkipSignatureData(ByteReader &r) {
     String algorithm;
-    std::string signature;
+    std::string_view signature;
     bool signatureIsNull = true;
     if(!r.ReadString(algorithm)) return false;
     return r.ReadByteString(signature, signatureIsNull);
@@ -25,7 +25,7 @@ bool SkipSoftwareCertificateArray(ByteReader &r) {
     Int32 count = 0;
     if(!r.ReadInt32(count)) return false;
     for(Int32 i = 0; i < count; i++) {
-        std::string cert;
+        std::string_view cert;
         bool certIsNull = true;
         if(!r.ReadByteString(cert, certIsNull)) return false;
         if(!SkipSignatureData(r)) return false;
@@ -43,7 +43,7 @@ bool Session::HandleCreate(ByteReader &requestBody, UInt32 connectionSlot,
     if(!DecodeApplicationDescription(requestBody, clientDescription)) return false;
 
     String serverUri, requestedEndpointUrl, sessionName;
-    std::string clientNonce, clientCertificate;
+    std::string_view clientNonce, clientCertificate;
     bool clientNonceIsNull = true, clientCertificateIsNull = true;
     Double requestedSessionTimeout = 0;
     UInt32 maxResponseMessageSize = 0;
@@ -72,13 +72,13 @@ bool Session::HandleCreate(ByteReader &requestBody, UInt32 connectionSlot,
     if(!EncodeNodeId(w, sessionId_)) return false;
     if(!EncodeNodeId(w, authenticationToken_)) return false;
     if(!w.WriteDouble(revisedTimeout)) return false;
-    if(!w.WriteByteString(std::string{}, true)) return false; // ServerNonce = null (no crypto)
-    if(!w.WriteByteString(std::string{}, true)) return false; // ServerCertificate = null
+    if(!w.WriteByteString(std::string_view{}, true)) return false; // ServerNonce = null (no crypto)
+    if(!w.WriteByteString(std::string_view{}, true)) return false; // ServerCertificate = null
     if(!w.WriteInt32(1)) return false;                        // ServerEndpoints: 1 entry
     if(!EncodeEndpointDescription(w, BuildEndpoint(endpointUrl))) return false;
     if(!w.WriteInt32(-1)) return false;                        // ServerSoftwareCertificates: null
     if(!w.WriteString(String::Null())) return false;           // ServerSignature.Algorithm
-    if(!w.WriteByteString(std::string{}, true)) return false;  // ServerSignature.Signature
+    if(!w.WriteByteString(std::string_view{}, true)) return false;  // ServerSignature.Signature
     return w.WriteUInt32(8192);                                 // MaxRequestMessageSize
 }
 
@@ -97,7 +97,7 @@ bool Session::HandleActivate(ByteReader &requestBody, ByteWriter &w) {
     Byte tokenEncoding = 0;
     if(!requestBody.ReadByte(tokenEncoding)) return false;
     if(tokenEncoding & 0x01) {
-        std::string body;
+        std::string_view body;
         bool bodyIsNull = true;
         if(!requestBody.ReadByteString(body, bodyIsNull)) return false;
     } else if(tokenEncoding & 0x02) {
@@ -121,7 +121,7 @@ bool Session::HandleActivate(ByteReader &requestBody, ByteWriter &w) {
 
     if(!EncodeNodeId(w, NodeId(0, ns0::ActivateSessionResponse))) return false;
     if(!EncodeResponseHeader(w, MakeResponseHeader(reqHeader, result))) return false;
-    if(!w.WriteByteString(std::string{}, true)) return false; // ServerNonce
+    if(!w.WriteByteString(std::string_view{}, true)) return false; // ServerNonce
     if(!w.WriteInt32(-1)) return false;                        // Results: null array
     return w.WriteInt32(-1);                                    // DiagnosticInfos: null array
 }

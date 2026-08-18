@@ -28,7 +28,7 @@ bool HandleGetEndpoints(ByteReader &requestBody, std::string_view ourEndpointUrl
 // response is written with ResponseHeader.serviceResult = BadSessionNotActivated and empty
 // result arrays instead.
 bool HandleRead(const AddressSpace &addressSpace, bool sessionActive, ByteReader &requestBody, ByteWriter &w);
-bool HandleWrite(AddressSpace &addressSpace, bool sessionActive, ByteReader &requestBody, ByteWriter &w);
+bool HandleWrite(const AddressSpace &addressSpace, bool sessionActive, ByteReader &requestBody, ByteWriter &w);
 bool HandleBrowse(const AddressSpace &addressSpace, bool sessionActive, ByteReader &requestBody, ByteWriter &w);
 
 } // namespace opcua

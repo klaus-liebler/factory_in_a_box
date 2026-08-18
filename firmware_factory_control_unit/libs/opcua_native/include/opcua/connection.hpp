@@ -24,7 +24,7 @@ public:
     // Rebinds this (reused, e.g. from a fixed connection-table slot) Connection object to a
     // fresh TCP connection -- must be called once before the first HandleMessage().
     // endpointUrl must outlive this Connection (points at a server-owned, unchanging string).
-    void Reset(UInt32 connectionSlot, ITransport *transport, AddressSpace *addressSpace,
+    void Reset(UInt32 connectionSlot, ITransport *transport, const AddressSpace *addressSpace,
               std::string_view endpointUrl);
 
     // Processes exactly one complete UA TCP message (header.messageSize == msg.size(),
@@ -41,7 +41,7 @@ private:
 
     UInt32 connectionSlot_ = 0;
     ITransport *transport_ = nullptr;
-    AddressSpace *addressSpace_ = nullptr;
+    const AddressSpace *addressSpace_ = nullptr;
     std::string_view endpointUrl_;
 
     bool helloReceived_ = false;

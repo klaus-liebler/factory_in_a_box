@@ -17,7 +17,7 @@ bool DecodeAndDiscardExtensionObject(ByteReader &r) {
     if(!r.ReadByte(encoding)) return false;
     if(encoding & 0x01) {
         // Binary body: ByteString-shaped (length-prefixed raw bytes).
-        std::string discard;
+        std::string_view discard;
         bool isNull = false;
         return r.ReadByteString(discard, isNull);
     }

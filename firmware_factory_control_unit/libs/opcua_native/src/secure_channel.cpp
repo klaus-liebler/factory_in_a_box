@@ -20,8 +20,8 @@ bool BeginOpenSecureChannelMessage(ByteWriter &w, UInt32 channelId, UInt32 seque
     if(!w.WriteUInt32(channelId)) return false;
     // AsymmetricAlgorithmSecurityHeader (SecurityPolicy#None: no certificates).
     if(!w.WriteString(SECURITY_POLICY_NONE_URI)) return false;
-    if(!w.WriteByteString(std::string{}, true)) return false; // SenderCertificate = null
-    if(!w.WriteByteString(std::string{}, true)) return false; // ReceiverCertificateThumbprint = null
+    if(!w.WriteByteString(std::string_view{}, true)) return false; // SenderCertificate = null
+    if(!w.WriteByteString(std::string_view{}, true)) return false; // ReceiverCertificateThumbprint = null
     if(!w.WriteUInt32(sequenceNumber)) return false;
     return w.WriteUInt32(requestId);
 }
@@ -52,7 +52,7 @@ bool ParseOpenSecureChannelMessage(std::span<const Byte> msg, ParsedSecureMessag
     if(!r.ReadUInt32(out.channelId)) return false;
 
     String policyUri;
-    std::string senderCert, receiverThumbprint;
+    std::string_view senderCert, receiverThumbprint;
     bool senderCertIsNull = true, receiverThumbprintIsNull = true;
     if(!r.ReadString(policyUri)) return false;
     if(!r.ReadByteString(senderCert, senderCertIsNull)) return false;
@@ -93,7 +93,7 @@ bool SecureChannel::HandleOpen(ByteReader &requestBody, UInt32 assignedChannelId
     UInt32 clientProtocolVersion = 0;
     Int32 requestType = 0;
     Int32 securityMode = 0;
-    std::string clientNonce;
+    std::string_view clientNonce;
     bool clientNonceIsNull = true;
     UInt32 requestedLifetimeMs = 0;
     if(!requestBody.ReadUInt32(clientProtocolVersion)) return false;
@@ -128,7 +128,7 @@ bool SecureChannel::HandleOpen(ByteReader &requestBody, UInt32 assignedChannelId
     if(!w.WriteUInt32(tokenId_)) return false;
     if(!w.WriteDateTime(createdAt_)) return false;
     if(!w.WriteUInt32(revisedLifetimeMs_)) return false;
-    if(!w.WriteByteString(std::string{}, true)) return false; // ServerNonce = null (no crypto)
+    if(!w.WriteByteString(std::string_view{}, true)) return false; // ServerNonce = null (no crypto)
     return FinishSecureMessage(w, startPos);
 }
 

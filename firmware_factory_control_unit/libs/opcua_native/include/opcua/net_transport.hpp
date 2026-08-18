@@ -40,7 +40,7 @@ public:
     // endpointUrl must outlive this object (a server-owned, unchanging string, e.g. a
     // function-local static in opcua_setup.cpp).
     UINT Create(NX_IP *ipPtr, NX_PACKET_POOL *packetPool, void *threadStackPtr, UINT threadStackSize,
-               UINT threadPriority, ULONG sessionTimeoutSeconds, AddressSpace *addressSpace,
+               UINT threadPriority, ULONG sessionTimeoutSeconds, const AddressSpace *addressSpace,
                std::string_view endpointUrl);
     UINT Start(UINT port, UINT listenBacklog);
 
@@ -84,7 +84,7 @@ private:
 
     NX_TCPSERVER tcpServer_{};
     NX_PACKET_POOL *packetPool_ = nullptr;
-    AddressSpace *addressSpace_ = nullptr;
+    const AddressSpace *addressSpace_ = nullptr;
     std::string_view endpointUrl_;
     std::array<NX_TCP_SESSION, MAX_SESSIONS> sessions_{};
     std::array<SessionState, MAX_SESSIONS> sessionStates_{};

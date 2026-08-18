@@ -54,8 +54,8 @@ AttributeReadResult ReadNodeAttribute(const AddressSpace &as, const NodeId &node
     }
 }
 
-StatusCode WriteNodeAttribute(AddressSpace &as, const NodeId &nodeId, UInt32 attributeId, const Variant &value) {
-    Node *node = as.FindNodeMutable(nodeId);
+StatusCode WriteNodeAttribute(const AddressSpace &as, const NodeId &nodeId, UInt32 attributeId, const Variant &value) {
+    const Node *node = as.FindNode(nodeId);
     if(!node)
         return StatusCode::BadNodeIdUnknown;
     if(static_cast<ns0::AttributeId>(attributeId) != ns0::AttributeId::Value)
@@ -66,14 +66,12 @@ StatusCode WriteNodeAttribute(AddressSpace &as, const NodeId &nodeId, UInt32 att
         return StatusCode::BadNotWritable;
     if(value.IsEmpty())
         return StatusCode::BadTypeMismatch;
+    // Nodes are immutable data (see address_space.hpp) -- a Variable with the Write access bit
+    // set but no WriteCallback is a node-definition bug, not a "write into staticValue" case.
+    if(!node->writeCallback)
+        return StatusCode::BadNotWritable;
 
-    if(node->writeCallback)
-        return node->writeCallback(node->userContext, value) ? StatusCode::Good : StatusCode::BadTypeMismatch;
-
-    if(!(value.DataTypeNodeId() == node->dataType))
-        return StatusCode::BadTypeMismatch;
-    node->staticValue = value;
-    return StatusCode::Good;
+    return node->writeCallback(node->userContext, value) ? StatusCode::Good : StatusCode::BadTypeMismatch;
 }
 
 bool EncodeDataValue(ByteWriter &w, StatusCode status, const Variant *value) {
@@ -164,7 +162,7 @@ bool HandleRead(const AddressSpace &as, bool sessionActive, ByteReader &requestB
     return w.WriteInt32(-1); // DiagnosticInfos: null array
 }
 
-bool HandleWrite(AddressSpace &as, bool sessionActive, ByteReader &requestBody, ByteWriter &w) {
+bool HandleWrite(const AddressSpace &as, bool sessionActive, ByteReader &requestBody, ByteWriter &w) {
     RequestHeader reqHeader;
     if(!DecodeRequestHeader(requestBody, reqHeader)) return false;
     if(!sessionActive) {
@@ -252,7 +250,7 @@ bool HandleBrowse(const AddressSpace &as, bool sessionActive, ByteReader &reques
         const Node *sourceNode = as.FindNode(nodeId);
         if(!sourceNode) {
             if(!w.WriteStatusCode(StatusCode::BadNodeIdUnknown)) return false;
-            if(!w.WriteByteString(std::string{}, true)) return false; // ContinuationPoint
+            if(!w.WriteByteString(std::string_view{}, true)) return false; // ContinuationPoint
             if(!w.WriteInt32(-1)) return false;                        // References: null
             continue;
         }
@@ -267,7 +265,7 @@ bool HandleBrowse(const AddressSpace &as, bool sessionActive, ByteReader &reques
         if(direction == 1 || direction == 2) as.ForEachReference(nodeId, false, collect);
 
         if(!w.WriteStatusCode(StatusCode::Good)) return false;
-        if(!w.WriteByteString(std::string{}, true)) return false; // ContinuationPoint = null, see services.hpp
+        if(!w.WriteByteString(std::string_view{}, true)) return false; // ContinuationPoint = null, see services.hpp
         if(!w.WriteInt32(static_cast<Int32>(collectedCount))) return false;
 
         for(size_t j = 0; j < collectedCount; j++) {

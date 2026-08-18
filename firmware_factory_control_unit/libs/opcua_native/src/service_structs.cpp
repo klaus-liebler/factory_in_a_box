@@ -45,7 +45,7 @@ bool EncodeUserTokenPolicy(ByteWriter &w, const UserTokenPolicy &v) {
 bool EncodeEndpointDescription(ByteWriter &w, const EndpointDescription &v) {
     if(!w.WriteString(v.endpointUrl)) return false;
     if(!EncodeApplicationDescription(w, v.server)) return false;
-    if(!w.WriteByteString(std::string{}, true)) return false; // serverCertificate = null
+    if(!w.WriteByteString(std::string_view{}, true)) return false; // serverCertificate = null
     if(!w.WriteInt32(v.securityMode)) return false;
     if(!w.WriteString(v.securityPolicyUri)) return false;
     // userIdentityTokens: exactly one entry (Anonymous).

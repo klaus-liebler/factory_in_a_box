@@ -33,7 +33,7 @@ void OpcUaTcpServer::SessionTransport::RequestClose() {
 
 UINT OpcUaTcpServer::Create(NX_IP *ipPtr, NX_PACKET_POOL *packetPool, void *threadStackPtr,
                            UINT threadStackSize, UINT threadPriority, ULONG sessionTimeoutSeconds,
-                           AddressSpace *addressSpace, std::string_view endpointUrl) {
+                           const AddressSpace *addressSpace, std::string_view endpointUrl) {
     packetPool_ = packetPool;
     addressSpace_ = addressSpace;
     endpointUrl_ = endpointUrl;

@@ -97,7 +97,7 @@ bool DecodeNodeId(ByteReader &r, NodeId &out) {
         out = NodeId{};
         out.namespaceIndex = ns;
         out.type = NodeIdType::String;
-        out.string = s.isNull ? std::string{} : s.value;
+        out.string = s.isNull ? std::string_view{} : s.value;
         return true;
     }
     case NODEID_ENCODING_GUID: {
@@ -113,7 +113,7 @@ bool DecodeNodeId(ByteReader &r, NodeId &out) {
     }
     case NODEID_ENCODING_OPAQUE: {
         UInt16 ns = 0;
-        std::string bytes;
+        std::string_view bytes;
         bool isNull = false;
         if(!r.ReadUInt16(ns)) return false;
         if(!r.ReadByteString(bytes, isNull)) return false;
@@ -159,7 +159,7 @@ bool DecodeExpandedNodeId(ByteReader &r, ExpandedNodeId &out) {
         UInt16 ns = 0; String s;
         ok = r.ReadUInt16(ns) && r.ReadString(s);
         base = NodeId{}; base.namespaceIndex = ns; base.type = NodeIdType::String;
-        base.string = s.isNull ? std::string{} : s.value;
+        base.string = s.isNull ? std::string_view{} : s.value;
         break;
     }
     case 0x04: {
@@ -169,7 +169,7 @@ bool DecodeExpandedNodeId(ByteReader &r, ExpandedNodeId &out) {
         break;
     }
     case 0x05: {
-        UInt16 ns = 0; std::string bytes; bool isNull = false;
+        UInt16 ns = 0; std::string_view bytes; bool isNull = false;
         ok = r.ReadUInt16(ns) && r.ReadByteString(bytes, isNull);
         base = NodeId{}; base.namespaceIndex = ns; base.type = NodeIdType::Opaque; base.string = bytes;
         break;
@@ -200,7 +200,7 @@ bool DecodeQualifiedName(ByteReader &r, QualifiedName &out) {
     String name;
     if(!r.ReadUInt16(out.namespaceIndex)) return false;
     if(!r.ReadString(name)) return false;
-    out.name = name.isNull ? std::string{} : name.value;
+    out.name = name.isNull ? std::string_view{} : name.value;
     return true;
 }
 
@@ -225,12 +225,12 @@ bool DecodeLocalizedText(ByteReader &r, LocalizedText &out) {
     if(encoding & 0x01) {
         String s;
         if(!r.ReadString(s)) return false;
-        out.locale = s.isNull ? std::string{} : s.value;
+        out.locale = s.isNull ? std::string_view{} : s.value;
     }
     if(encoding & 0x02) {
         String s;
         if(!r.ReadString(s)) return false;
-        out.text = s.isNull ? std::string{} : s.value;
+        out.text = s.isNull ? std::string_view{} : s.value;
     }
     return true;
 }

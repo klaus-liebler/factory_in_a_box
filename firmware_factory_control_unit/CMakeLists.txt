@@ -107,7 +107,6 @@ add_library(opcua_native OBJECT
     libs/opcua_native/src/clock.cpp
     libs/opcua_native/src/secure_channel.cpp
     libs/opcua_native/src/service_structs.cpp
-    libs/opcua_native/src/address_space.cpp
     libs/opcua_native/src/session.cpp
     libs/opcua_native/src/services.cpp
     libs/opcua_native/src/connection.cpp

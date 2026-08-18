@@ -1,23 +1,35 @@
 #pragma once
-// Minimal, statically-allocated address space (Part 3): a flat array of Nodes plus a flat
-// array of References between them -- no hash map, matches this project's static-allocation
-// convention (see e.g. NX_TCP_SESSION arrays elsewhere) and comfortably covers the eventual
-// ~70 register-map.json-derived Variable nodes plus a handful of NS0 nodes. MAX_NODES/
-// MAX_REFERENCES are sized for that later step already, not just today's small test model.
+// The address space is a compile-time-fixed, non-owning view over externally-defined constexpr
+// tables (project requirement, 2026-08-19) -- NOT built at runtime via AddObjectNode()/
+// AddVariableNode()/AddReference()-style function calls. AddressSpace itself is just two spans
+// plus lookup helpers; the actual Node/ReferenceEntry data lives wherever the caller defines it
+// (e.g. opcua_test_address_space.cpp today, a register-map.json-generated table later) as a
+// `constexpr Node kNodes[] = {...}` array with designated initializers.
 //
-// Two ways to back a Variable's Value attribute:
-//  - No ReadCallback: the Value attribute IS staticValue, and Write() (if AccessLevel allows)
-//    assigns directly into it -- for genuinely static or free-standing values (this server's
-//    "Greeting"/"UptimeSeconds" test nodes).
-//  - ReadCallback set (and optionally WriteCallback): Value is computed/forwarded on every
-//    access -- the shape a future register-map.json-derived node uses to read/write through to
-//    ModbusRegisterModel instead of duplicating storage.
-#include <array>
-#include <optional>
+// Nodes are immutable by design: a genuinely writable Variable node MUST go through a
+// WriteCallback pointing at externally-owned, explicitly-mutable RAM (e.g. a future
+// ModbusRegisterModel-backed register) -- there is no "static value the server quietly mutates
+// in place" path. This keeps every constexpr node table trivially placeable in Flash (.rodata)
+// with zero RAM cost, and makes "is this node's storage mutable" a question answered entirely
+// by whether it has a WriteCallback, not by inspecting AddressSpace internals.
+#include <span>
 
 #include "opcua/node_ids.hpp"
 #include "opcua/types.hpp"
 #include "opcua/variant.hpp"
+
+// Apply to every `constexpr Node kNodes[] = {...}` table that contains a ReadCallback/
+// WriteCallback (a function pointer): GCC's default section-selection heuristic treats any
+// const object holding a pointer-to-code as needing load-time relocation (correct for
+// PIC/shared-library targets) and silently places it in .data instead of .rodata -- meaning
+// it would still cost RAM plus a startup copy, exactly what constexpr was meant to avoid. On
+// this bare-metal, statically-linked target there is no runtime relocation step at all (the
+// linker resolves every function address to its final Flash location at link time), so it's
+// always safe to force true .rodata placement here. Without this, `nm`/`size` on the object
+// file would show the table as `d` (.data) instead of `r` (.rodata) -- verify with those tools
+// if in doubt, `constexpr` alone does not guarantee Flash placement once function pointers are
+// involved.
+#define OPCUA_RODATA __attribute__((section(".rodata")))
 
 namespace opcua {
 
@@ -37,12 +49,19 @@ struct Node {
     // --- Variable-only fields (ignored for Object nodes) ---
     NodeId dataType;
     Byte accessLevel = 0;
+    // Constant Value for a node with no ReadCallback (e.g. a fixed test/status string) --
+    // ignored if readCallback is set. Never mutated at runtime; see the file header comment
+    // for why a truly dynamic value must be a ReadCallback instead.
     Variant staticValue;
     ReadCallback readCallback = nullptr;
+    // Set together with a WriteCallback for a genuinely writable Variable -- a node with the
+    // Write access bit set but no WriteCallback is a node-definition bug and is rejected at
+    // Write time (see services.cpp WriteNodeAttribute), not silently allowed to "work" via
+    // staticValue mutation.
     WriteCallback writeCallback = nullptr;
     void *userContext = nullptr;
 
-    Variant ReadValue() const { return readCallback ? readCallback(userContext) : staticValue; }
+    constexpr Variant ReadValue() const { return readCallback ? readCallback(userContext) : staticValue; }
 };
 
 struct ReferenceEntry {
@@ -54,52 +73,29 @@ struct ReferenceEntry {
 
 class AddressSpace {
 public:
-    static constexpr size_t MAX_NODES = 128;
-    static constexpr size_t MAX_REFERENCES = 256;
+    constexpr AddressSpace(std::span<const Node> nodes, std::span<const ReferenceEntry> references)
+        : nodes_(nodes), references_(references) {}
 
-    // --- Registration (call during startup only, before the server accepts connections;
-    // none of this is safe to call concurrently with lookups from a network thread). ---
-    bool AddObjectNode(const NodeId &id, const QualifiedName &browseName, const LocalizedText &displayName);
-    // Static Variable: Value attribute is "initialValue" itself, mutable via Write() in place
-    // if accessLevel allows (no ReadCallback/WriteCallback).
-    bool AddVariableNode(const NodeId &id, const QualifiedName &browseName, const LocalizedText &displayName,
-                        const NodeId &dataType, Byte accessLevel, Variant initialValue);
-    // Callback-backed Variable: Value attribute is computed/forwarded through read/write.
-    bool AddVariableNodeWithCallback(const NodeId &id, const QualifiedName &browseName,
-                                     const LocalizedText &displayName, const NodeId &dataType,
-                                     Byte accessLevel, ReadCallback read, WriteCallback write,
-                                     void *context);
-
-    // Adds a forward reference sourceId --referenceTypeId--> targetId, and (unless
-    // addInverse=false) the matching inverse entry from targetId's perspective -- Browse
-    // (connection.cpp) needs to walk both directions (e.g. HasComponent forward from a folder
-    // to find its children, but also inverse from a Variable to find its parent for
-    // TranslateBrowsePathsToNodeIds later).
-    bool AddReference(const NodeId &sourceId, const NodeId &referenceTypeId, const NodeId &targetId,
-                      bool addInverse = true);
-
-    const Node *FindNode(const NodeId &id) const;
-    Node *FindNodeMutable(const NodeId &id);
+    const Node *FindNode(const NodeId &id) const {
+        for(const Node &n : nodes_) {
+            if(n.nodeId == id) return &n;
+        }
+        return nullptr;
+    }
 
     // Invokes fn(const ReferenceEntry&) for every reference where sourceId matches "nodeId" in
     // the requested direction (isForward == wantForward) -- the core of the Browse service.
     template <typename F>
     void ForEachReference(const NodeId &nodeId, bool wantForward, F &&fn) const {
-        for(size_t i = 0; i < referenceCount_; i++) {
-            const ReferenceEntry &ref = references_[i];
+        for(const ReferenceEntry &ref : references_) {
             if(ref.sourceId == nodeId && ref.isForward == wantForward)
                 fn(ref);
         }
     }
 
 private:
-    Node *AddNodeCommon(const NodeId &id, NodeClass nodeClass, const QualifiedName &browseName,
-                        const LocalizedText &displayName);
-
-    std::array<Node, MAX_NODES> nodes_;
-    size_t nodeCount_ = 0;
-    std::array<ReferenceEntry, MAX_REFERENCES> references_;
-    size_t referenceCount_ = 0;
+    std::span<const Node> nodes_;
+    std::span<const ReferenceEntry> references_;
 };
 
 } // namespace opcua

@@ -28,7 +28,6 @@ constexpr UINT OPCUA_THREAD_PRIORITY = 6;
 // nx_packet_pool_create()/OpcUaTcpServer both keep pointers into these for as long as the
 // server runs (the whole program's lifetime here) -- must not be stack-locals.
 NX_PACKET_POOL g_opcuaPacketPool;
-opcua::AddressSpace g_addressSpace;
 opcua::OpcUaTcpServer g_server;
 char g_endpointUrl[64];
 
@@ -45,8 +44,6 @@ void OpcUaServerSetup(App *app) {
     XASSERT(tx_byte_allocate(&app->byte_pool, &ptr, OPCUA_THREAD_STACK_SIZE, TX_NO_WAIT),
             "OPC UA TCP server thread stack allocate failed");
 
-    BuildOpcUaTestAddressSpace(g_addressSpace);
-
     // No stable hostname is available yet at this point in the boot sequence (DHCP hasn't
     // resolved); "opc.tcp://:<port>" (empty host) is valid per Part 6 7.1.2.3 and is what
     // clients connect to by IP/port anyway.
@@ -54,7 +51,7 @@ void OpcUaServerSetup(App *app) {
 
     XASSERT(g_server.Create(&app->ip_instance, &g_opcuaPacketPool, ptr, OPCUA_THREAD_STACK_SIZE,
                             OPCUA_THREAD_PRIORITY, OPCUA_SESSION_TIMEOUT_SECONDS,
-                            &g_addressSpace, g_endpointUrl),
+                            &OpcUaTestAddressSpace(), g_endpointUrl),
             "OPC UA TCP server create failed");
     XASSERT(g_server.Start(OPCUA_PORT, opcua::OpcUaTcpServer::MAX_SESSIONS * 2),
             "OPC UA TCP server start failed");

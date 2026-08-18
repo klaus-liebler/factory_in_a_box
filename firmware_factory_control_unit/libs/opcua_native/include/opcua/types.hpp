@@ -8,10 +8,19 @@
 //
 // No exceptions/RTTI on this target (-fno-exceptions -fno-rtti, see cmake/gcc-arm-none-eabi.cmake)
 // -- every fallible operation in this whole server returns bool/StatusCode, never throws.
+//
+// String/QualifiedName/LocalizedText/NodeId all hold std::string_view, NOT std::string --
+// deliberately non-owning (project requirement: the address space must be a compile-time-fixed
+// constexpr/Flash-resident data structure, not built by runtime function calls, see
+// address_space.hpp). This is safe on both ends: constant node data (BrowseName/DisplayName/
+// static Values) points at literal/static storage that outlives the program, and decoded wire
+// strings only ever need to stay valid for the duration of one synchronous
+// Connection::HandleMessage() call (nothing in this server stores a decoded string past that
+// call -- see connection.cpp/net_transport.cpp) -- the underlying bytes live in the session's
+// receive buffer, which isn't reused until the current message has been fully processed.
 #include <algorithm>
 #include <cstdint>
 #include <cstddef>
-#include <string>
 #include <string_view>
 #include <variant>
 
@@ -31,23 +40,27 @@ using Double = double;
 
 // 100ns ticks since 1601-01-01 (the OPC UA / Windows FILETIME epoch) -- same convention used
 // project-wide for any future RTC/SNTP integration, kept consistent here even though this
-// board has neither (see DateTimeNow() in clock.cpp, tx_time_get()-based like the open62541
+// board has neither (see opcua::Now() in clock.cpp, tx_time_get()-based like the open62541
 // port's arch layer was).
+//
+// TODO(later): this board has no RTC today, so Now() is boot-relative, not calendar-accurate
+// (see clock.cpp). Once a real RTC exists on this project, clock.cpp's Now() needs to read it
+// instead -- flagged explicitly by the user (2026-08-19) as a follow-up, not in scope now.
 using DateTime = int64_t;
 constexpr int64_t DATETIME_UNIX_EPOCH = 11644473600LL * 10000000LL;
 constexpr int64_t DATETIME_SEC = 10000000LL;
 
 // OPC UA Part 6 6.2.5: length -1 (0xFFFFFFFF on the wire) is the "null string", distinct from
-// a present-but-empty string. std::string cannot represent that distinction on its own, so it
-// carries alongside a bool -- default-constructed String() is null (matches a not-yet-set
+// a present-but-empty string. std::string_view can't represent that distinction on its own, so
+// it carries alongside a bool -- default-constructed String() is null (matches a not-yet-set
 // optional attribute), String("") is the empty-but-present string.
 struct String {
-    std::string value;
+    std::string_view value;
     bool isNull = true;
 
-    String() = default;
-    String(std::string_view v) : value(v), isNull(false) {}
-    static String Null() { return String{}; }
+    constexpr String() = default;
+    constexpr String(std::string_view v) : value(v), isNull(false) {}
+    static constexpr String Null() { return String{}; }
 };
 
 // Part 6 5.1.3: StatusCode is a plain UInt32, top 16 bits are the severity+code, low 16 bits
@@ -116,13 +129,13 @@ struct NodeId {
     UInt16 namespaceIndex = 0;
     NodeIdType type = NodeIdType::Numeric;
     UInt32 numeric = 0;
-    std::string string;   // used for String and (raw bytes) Opaque
+    std::string_view string; // used for String and (raw bytes) Opaque -- see codec.cpp DecodeNodeId()
     Guid guid;
 
-    NodeId() = default;
+    constexpr NodeId() = default;
     constexpr NodeId(UInt16 ns, UInt32 id) : namespaceIndex(ns), type(NodeIdType::Numeric), numeric(id) {}
 
-    friend bool operator==(const NodeId &a, const NodeId &b) {
+    friend constexpr bool operator==(const NodeId &a, const NodeId &b) {
         if(a.namespaceIndex != b.namespaceIndex || a.type != b.type)
             return false;
         switch(a.type) {
@@ -136,9 +149,9 @@ struct NodeId {
         }
         return false;
     }
-    friend bool operator!=(const NodeId &a, const NodeId &b) { return !(a == b); }
+    friend constexpr bool operator!=(const NodeId &a, const NodeId &b) { return !(a == b); }
 
-    bool IsNull() const { return namespaceIndex == 0 && type == NodeIdType::Numeric && numeric == 0; }
+    constexpr bool IsNull() const { return namespaceIndex == 0 && type == NodeIdType::Numeric && numeric == 0; }
 };
 
 // ExpandedNodeId (Part 6 5.2.3): NodeId + optional namespaceUri/serverIndex. This server never
@@ -149,18 +162,18 @@ using ExpandedNodeId = NodeId;
 
 struct QualifiedName {
     UInt16 namespaceIndex = 0;
-    std::string name;
+    std::string_view name;
 
-    QualifiedName() = default;
-    QualifiedName(UInt16 ns, std::string_view n) : namespaceIndex(ns), name(n) {}
+    constexpr QualifiedName() = default;
+    constexpr QualifiedName(UInt16 ns, std::string_view n) : namespaceIndex(ns), name(n) {}
 };
 
 struct LocalizedText {
-    std::string locale;
-    std::string text;
+    std::string_view locale;
+    std::string_view text;
 
-    LocalizedText() = default;
-    LocalizedText(std::string_view loc, std::string_view t) : locale(loc), text(t) {}
+    constexpr LocalizedText() = default;
+    constexpr LocalizedText(std::string_view loc, std::string_view t) : locale(loc), text(t) {}
 };
 
 // NodeClass (Part 3 5.2.2) -- only the two classes this server's address space actually uses.

@@ -8,7 +8,7 @@
 
 namespace opcua {
 
-void Connection::Reset(UInt32 connectionSlot, ITransport *transport, AddressSpace *addressSpace,
+void Connection::Reset(UInt32 connectionSlot, ITransport *transport, const AddressSpace *addressSpace,
                        std::string_view endpointUrl) {
     connectionSlot_ = connectionSlot;
     transport_ = transport;

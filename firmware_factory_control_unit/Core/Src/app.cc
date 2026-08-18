@@ -42,6 +42,14 @@ constexpr uint32_t HEARTBEAT_THREAD_STACK_SIZE = 2 * 1024;
 // Niedrigste Prioritaet aller App-Threads (grosse Zahl) -- reine Diagnose, darf nirgendwo
 // dazwischenfunken, schlaeft ohnehin 3s pro Zyklus.
 constexpr uint32_t HEARTBEAT_THREAD_PRIORITY = 12;
+// This thread (App::OpcUaThread(), see opcua_setup.hpp/.cpp) only pumps timers/cyclic
+// callbacks (UA_Server_run_iterate) -- actual message processing happens on the separate
+// NX_TCPSERVER worker thread that OPC UA's own ConnectionManager spins up (see
+// libs/open62541_netxduo_arch/connectionmanager_tcp_netxduo.c), so this stack stays modest.
+constexpr uint32_t OPCUA_THREAD_STACK_SIZE = 4 * 1024;
+// Same band as the Modbus TCP server thread (DEFAULT_PRIORITY) -- reacts to client requests
+// via UA_Server_run_iterate, but doesn't need to preempt the I/O thread's sensor/actuator cycle.
+constexpr uint32_t OPCUA_THREAD_PRIORITY = 6;
 
 // TX_MUTEX{} zero-initialisiert u.a. tx_mutex_id -- tx_mutex_create() setzt dieses Feld
 // intern auf die magische Konstante TX_MUTEX_ID (ungleich 0, s. tx_mutex.h), daher genuegt ein
@@ -128,6 +136,10 @@ void App::HeartbeatThreadStatic(ULONG arg) {
     reinterpret_cast<App*>(arg)->HeartbeatThread();
 }
 
+void App::OpcUaThreadStatic(ULONG arg) {
+    reinterpret_cast<App*>(arg)->OpcUaThread();
+}
+
 void App::ModbusTcpServerThread(){
     this->modbus_tcp_server->initialize();
     log_info("Modbus TCP Server started on Port %u", this->modbus_tcp_server->Port());
@@ -199,6 +211,13 @@ void App::IOThread() {
     this->io->Setup();
     log_info("I/O Thread started");
     this->io->Loop();
+}
+
+// See Core/Src/opcua_setup.hpp/.cpp -- entirely self-contained (builds its own
+// UA_ServerConfig/EventLoop/ConnectionManager/address space in-thread, then loops
+// UA_Server_run_iterate() forever). No cleanup on return since it never returns.
+[[noreturn]] void App::OpcUaThread() {
+    OpcUaServerThread(this);
 }
 
 // serial_string/net_mac/net_mac_string kommen fix-und-fertig aus Core/generated/
@@ -341,6 +360,13 @@ void App::AppThread() {
                      ptr, HEARTBEAT_THREAD_STACK_SIZE,
                      HEARTBEAT_THREAD_PRIORITY, HEARTBEAT_THREAD_PRIORITY,
                      TX_NO_TIME_SLICE, TX_AUTO_START), "Heartbeat thread create failed");
+
+    XASSERT(tx_byte_allocate(&this->byte_pool, &ptr, OPCUA_THREAD_STACK_SIZE, TX_NO_WAIT), "OPC UA Thread stack allocate failed");
+    XASSERT(tx_thread_create(&this->opcua_thread, _C("OPC UA Server Thread"),
+                     App::OpcUaThreadStatic, (ULONG)this,
+                     ptr, OPCUA_THREAD_STACK_SIZE,
+                     OPCUA_THREAD_PRIORITY, OPCUA_THREAD_PRIORITY,
+                     TX_NO_TIME_SLICE, TX_AUTO_START), "OPC UA thread create failed");
 }
 
 void App::fillRegistersWithInitialValues() {

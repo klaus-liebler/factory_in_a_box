@@ -166,11 +166,9 @@ bewusst TypeScript -- sie implementieren ein Vite-Plugin, das `web/vite.config.t
 Vite lädt die Plugin-Datei dabei selbst (natives TypeScript-Type-Stripping, keine
 Zusatzabhängigkeit wie `ts-node`/`tsx`).
 
-`package.json` im Repo-Root ist ein npm-Workspace (`"workspaces": ["web"]`) und deklariert
-`html-minifier-terser`, `terser` und `vite` zusätzlich als eigene `devDependencies` -- `builder/`
-und `web/` sind Geschwisterverzeichnisse, node_modules-Resolution hebt nicht automatisch zwischen
-ihnen, die Root-Dependencies stellen sicher, dass `web/build-tools/vite-plugin-single-file-firmware-asset.ts`
-sie trotzdem findet.
+Alle fuer den Web-Build noetigen npm-Abhaengigkeiten liegen direkt in `web/package.json`
+(`vite`, `html-minifier-terser`, `terser` usw.). Es gibt bewusst kein npm-Workspace-Root mehr;
+Install und Build laufen ausschliesslich im `web/`-Verzeichnis.
 
 ## 4. Verzeichnisstrukturen
 
@@ -178,7 +176,6 @@ Repo (nur die vom Build-Prozess betroffenen Teile):
 
 ```
 firmware_factory_control_unit/
-├── package.json                  # npm-Workspace-Root (vite/terser/html-minifier-terser für builder/'s Vite-Plugin)
 ├── firmware-version.json         # Produktversion (FW_VERSION_MAJOR/MINOR/PATCH), s. Abschnitt 5
 ├── builder/                      # s. Abschnitt 3
 ├── tools/                        # Skripte OHNE Bezug zur Codegenerierung (rename-usb-devices.ps1, test-modbus.ts, ...)

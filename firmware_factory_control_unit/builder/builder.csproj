@@ -3,10 +3,9 @@
   <!--
     Build-Orchestrator (s. docs/build-process.md) als dotnet-Applikation: Nachfolger des
     vormaligen Node/TypeScript-Orchestrators (frueher ebenfalls unter builder/, mit
-    builder/src/cli.ts als Einstiegspunkt; ersetzt durch Program.cs). Die drei TS-Dateien
-    (vite-plugin-single-file-firmware-asset.ts, singlefile-minify.ts, html-minifier-terser.d.ts)
-    sind bewusst als TypeScript stehengeblieben: sie implementieren ein Vite-Plugin (Vite hat keine
-    C#-API), s. Phases/BuildWebApp.cs und Abschnitt 6 der Doku.
+    builder/src/cli.ts als Einstiegspunkt; ersetzt durch Program.cs). Die Vite-Plugin-Implementierung
+    liegt bewusst als TypeScript unter web/build-tools/ (Vite hat keine C#-API), waehrend
+    Program.cs den Build nur orchestriert.
   -->
 
   <PropertyGroup>
@@ -20,10 +19,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Fuer BuilderOptions.cs (appsettings.json -> typsichere POCO-Klasse, s. dort). -->
+    <!-- Fuer BuilderSettings.cs (appsettings.json -> typsich getrennte Konfigurations-Poco-Klassen). -->
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="C:\repos\dotnet_libs\firmware_builder_common\src\FirmwareBuilder.Common\FirmwareBuilder.Common.csproj" />
   </ItemGroup>
 
   <!--

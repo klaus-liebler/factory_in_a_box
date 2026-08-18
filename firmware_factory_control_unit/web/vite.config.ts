@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { singleFileFirmwareAssetPlugin } from "../builder/vite-plugin-single-file-firmware-asset.ts";
+import { singleFileFirmwareAssetPlugin } from "./build-tools/vite-plugin-single-file-firmware-asset.ts";
 
 // singleFileFirmwareAssetPlugin() (s. dort) inlined JS+CSS in eine einzige dist/index.html,
 // entfernt zusaetzliche Leerzeichen und schreibt das Ergebnis direkt Brotli-komprimiert nach

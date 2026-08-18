@@ -152,7 +152,7 @@ list(FILTER USBX_SOURCES EXCLUDE REGEX "ux_system_tasks_run\\.c$")
 # --- Binaer-Assets (Geraetezertifikat/-schluessel + komprimierte Weboberflaeche) ---
 # Statt wie frueher generierter C-Arrays (Core/Src/generated/device_certificate.c,
 # modbus_ui_page.c, beide eingecheckt) werden jetzt die rohen Binaerdateien selbst verwendet
-# (build/assets/*.der von der Phase ReadHardwareIDsAndGenerateFilesAndCerts.../
+# (build/assets/*.der von den Phasen ReadHardwareIds + GenerateCertificates... + GenerateDeviceArtifacts/
 # CopyGeneratedFilesToBuildDirectory, build/assets/index.html.br von der Phase BuildWebApp --
 # s. builder/, docs/build-process.md) und bei jedem Build per objcopy zu je
 # einem .o konvertiert -- landen in der eigenen .flash_assets-Linker-Section (s.

@@ -2,7 +2,7 @@
   "name": "firmware_factory_control_unit",
   "private": true,
   "type": "module",
-  "description": "npm-Workspace-Root fuer web/ -- deklariert vite/terser/html-minifier-terser zusaetzlich als eigene devDependencies, damit builder/'s Vite-Plugin (builder/vite-plugin-single-file-firmware-asset.ts, s. docs/build-process.md) sie als Geschwisterverzeichnis von web/ findet. Der Build-Orchestrator selbst ist builder/ (dotnet-Applikation, s. docs/build-process.md).",
+  "description": "npm-Workspace-Root fuer web/ -- deklariert vite/terser/html-minifier-terser zusaetzlich als eigene devDependencies, damit das Firmware-Asset-Vite-Plugin unter web/build-tools/ sie findet. Der Build-Orchestrator selbst ist builder/ (dotnet-Applikation, s. docs/build-process.md).",
   "workspaces": [
     "web"
   ],

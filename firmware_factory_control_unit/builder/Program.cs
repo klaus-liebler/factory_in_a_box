@@ -1,32 +1,89 @@
-// Einstiegspunkt fuer alle Build-Phasen (s. docs/build-process.md Abschnitt 2).
-//
-// Aufruf:
-//   dotnet run --project builder -- <Phase> [--preset Debug|Release|Debug-Nucleo] [--board <boardId>]
-//     [--ws-protocol-path <Verzeichnis-oder-Datei>]...
-//
-// --ws-protocol-path ist wiederholbar (nur fuer ReadWebSocketProtocolAndGenerateFiles/die
-// Pipelines relevant) und fasst die *.json-Namespace-Dateien aus mehreren Verzeichnissen/
-// Einzeldateien zu EINEM ws_protocol.hh/ws-protocol.ts zusammen (s. docs/websocket-protocol.md,
-// ReadWebSocketProtocol.Run()). Ohne Angabe: nur "ws-protocol/" im Repo-Root (bisheriges
-// Alleinverhalten).
-//
-// Einzelne Phasen (Reihenfolge s. Abhaengigkeitsgraph in der Doku):
-//   ReadHardwareIDsAndGenerateFilesAndCertsLazy
-//   ReadHardwareIDsAndGenerateFilesAndCertsForced
-//   ReadModbusRegisterMapAndGenerateFiles
-//   ReadWebSocketProtocolAndGenerateFiles
-//   ReadGitStatusAndGenerateFiles
-//   CopyGeneratedFilesToBuildDirectory
-//   BuildWebApp
-//   BuildFirmware
-//   FlashFirmware
-//
-// Zusammengesetzte Pipelines:
-//   pipeline:lazy    -- Lazy  -> RegisterMap -> WsProtocol -> GitStatus -> Copy -> BuildWebApp -> BuildFirmware
-//   pipeline:forced  -- Forced -> RegisterMap -> WsProtocol -> GitStatus -> Copy -> BuildWebApp -> BuildFirmware
-//   pipeline:flash   -- pipeline:lazy, danach FlashFirmware
 using Builder;
-using Builder.Phases;
+
+static ReadHardwareIdsRequest CreateReadHardwareIdsRequest() =>
+	new(
+		BoardStorage: BuilderSettings.Current.BoardStorage,
+		Stm32Programmer: BuilderSettings.Current.Stm32Programmer,
+		BuildDir: Paths.BuildDir,
+		BoardIdCacheFile: Paths.BoardIdCacheFile,
+		RootDir: Paths.RootDir,
+		DefaultBoardTypeName: BuilderSettings.Current.BoardDefaults.DefaultBoardTypeName,
+		ResolveBoardTypeNameByBoardId: boardId => BoardStateStore.TryGetBoardTypeName(BuilderSettings.Current.BoardStorage, boardId));
+
+static GenerateCertificatesRequest CreateGenerateCertificatesRequest(string? board, bool force) =>
+	new(
+		BoardStorage: BuilderSettings.Current.BoardStorage,
+		Certificates: BuilderSettings.Current.Certificates,
+		BoardIdCacheFile: Paths.BoardIdCacheFile,
+		RootDir: Paths.RootDir,
+		ExplicitBoardId: board,
+		Force: force);
+
+static GenerateDeviceArtifactsRequest CreateGenerateDeviceArtifactsRequest(string? board) =>
+	new(
+		BoardStorage: BuilderSettings.Current.BoardStorage,
+		BoardIdCacheFile: Paths.BoardIdCacheFile,
+		ExplicitBoardId: board);
+
+static ModbusRegisterMapBuildRequest CreateModbusRequest(string? board) =>
+	new(
+		BoardStorage: BuilderSettings.Current.BoardStorage,
+		BoardIdCacheFile: Paths.BoardIdCacheFile,
+		RootDir: Paths.RootDir,
+		CoreGeneratedDir: Paths.CoreGeneratedDir,
+		WebGeneratedDir: Paths.WebGeneratedDir,
+		ExplicitBoardId: board);
+
+static BestBinaryBufferBuildRequest CreateBestBinaryBufferRequest(string? board, IReadOnlyList<string> schemaPaths) =>
+	new(
+		BoardStorage: BuilderSettings.Current.BoardStorage,
+		BoardIdCacheFile: Paths.BoardIdCacheFile,
+		RootDir: Paths.RootDir,
+		DefaultSchemaDirectory: Paths.BestBinaryBuffersSchemaDir,
+		CoreGeneratedDir: Paths.CoreGeneratedDir,
+		WebGeneratedDir: Paths.WebGeneratedDir,
+		ExplicitBoardId: board,
+		Sources: schemaPaths);
+
+static GitBuildArtifactsRequest CreateGitBuildRequest(string? board)
+{
+	var fwVersionPath = Path.Combine(Paths.RootDir, "firmware-version.json");
+	var fw = FirmwareVersionReader.Read(fwVersionPath);
+	return new GitBuildArtifactsRequest(
+		BoardStorage: BuilderSettings.Current.BoardStorage,
+		BoardIdCacheFile: Paths.BoardIdCacheFile,
+		RootDir: Paths.RootDir,
+		CoreGeneratedDir: Paths.CoreGeneratedDir,
+		WebGeneratedDir: Paths.WebGeneratedDir,
+		DefaultBoardTypeName: BuilderSettings.Current.BoardDefaults.DefaultBoardTypeName,
+		FirmwareVersionMajor: fw.Major,
+		FirmwareVersionMinor: fw.Minor,
+		FirmwareVersionPatch: fw.Patch,
+		ExplicitBoardId: board);
+}
+
+static GeneratedArtifactsCopyRequest CreateCopyRequest(string? board) =>
+	new(
+		BoardStorage: BuilderSettings.Current.BoardStorage,
+		BoardIdCacheFile: Paths.BoardIdCacheFile,
+		ExplicitBoardId: board,
+		CoreGeneratedDir: Paths.CoreGeneratedDir,
+		WebGeneratedDir: Paths.WebGeneratedDir,
+		AssetsDir: Paths.AssetsDir,
+		CoreFiles: ["device_ids.hh", "gitconstants.hh", "firmware_constants.hh", "register_input.inc", "register_holding.inc", "register_maxindex.inc", "ws_protocol.hh"],
+		WebFiles: ["register-map.ts", "build-info.ts", "ws-protocol.ts"],
+		AssetFiles: ["device_certificate.der", "device_key.der"]);
+
+static FlashFirmwarePipelineRequest CreateFlashRequest(string preset, string? board) =>
+	new(
+		BoardStorage: BuilderSettings.Current.BoardStorage,
+		Stm32Programmer: BuilderSettings.Current.Stm32Programmer,
+		RootDir: Paths.RootDir,
+		BoardIdCacheFile: Paths.BoardIdCacheFile,
+		BuildOutputDirectory: Paths.BuildDir,
+		Preset: preset,
+		DefaultBoardTypeName: BuilderSettings.Current.BoardDefaults.DefaultBoardTypeName,
+		ExplicitBoardId: board);
 
 static Args ParseArgs(string[] argv)
 {
@@ -38,7 +95,7 @@ static Args ParseArgs(string[] argv)
 
 	var preset = "Debug";
 	string? board = null;
-	var wsProtocolPaths = new List<string>();
+	var schemaPaths = new List<string>();
 	for (var i = 1; i < argv.Length; i += 1)
 	{
 		if (argv[i] == "--preset" && i + 1 < argv.Length)
@@ -51,89 +108,75 @@ static Args ParseArgs(string[] argv)
 			board = argv[i + 1];
 			i += 1;
 		}
-		else if (argv[i] == "--ws-protocol-path" && i + 1 < argv.Length)
+		else if (argv[i] == "--best-binary-buffer-schema-path" && i + 1 < argv.Length)
 		{
-			wsProtocolPaths.Add(argv[i + 1]);
+			schemaPaths.Add(argv[i + 1]);
 			i += 1;
 		}
 	}
 
-	if (!BuildFirmware.IsValidPreset(preset))
+	if (!CmakeFirmwareBuildService.IsValidPreset(preset))
 	{
 		throw new ArgumentException($"Unbekanntes Preset \"{preset}\". Gueltig: Debug, Release, Debug-Nucleo.");
 	}
 
-	return new Args(phase, preset, board, wsProtocolPaths);
+	return new Args(phase, preset, board, schemaPaths);
 }
 
-static void RunPhase(string phase, string preset, string? board, IReadOnlyList<string> wsProtocolPaths)
+static void RunPhase(string phase, string preset, string? board, IReadOnlyList<string> schemaPaths)
 {
-	switch (phase)
-	{
-		case "ReadHardwareIDsAndGenerateFilesAndCertsLazy":
-			ReadHardwareIds.Run(forced: false);
-			return;
-		case "ReadHardwareIDsAndGenerateFilesAndCertsForced":
-			ReadHardwareIds.Run(forced: true);
-			return;
-		case "ReadModbusRegisterMapAndGenerateFiles":
-			ReadModbusRegisterMap.Run(board);
-			return;
-		case "ReadWebSocketProtocolAndGenerateFiles":
-			ReadWebSocketProtocol.Run(board, wsProtocolPaths);
-			return;
-		case "ReadGitStatusAndGenerateFiles":
-			ReadGitStatus.Run(board);
-			return;
-		case "CopyGeneratedFilesToBuildDirectory":
-			CopyGeneratedToBuildDirectory.Run(board);
-			return;
-		case "BuildWebApp":
-			BuildWebApp.Run();
-			return;
-		case "BuildFirmware":
-			BuildFirmware.Run(preset);
-			return;
-		case "FlashFirmware":
-			FlashFirmware.Run(preset, board);
-			return;
-		case "pipeline:lazy":
-			ReadHardwareIds.Run(forced: false);
-			ReadModbusRegisterMap.Run(board);
-			ReadWebSocketProtocol.Run(board, wsProtocolPaths);
-			ReadGitStatus.Run(board);
-			CopyGeneratedToBuildDirectory.Run(board);
-			BuildWebApp.Run();
-			BuildFirmware.Run(preset);
-			return;
-		case "pipeline:forced":
-			ReadHardwareIds.Run(forced: true);
-			ReadModbusRegisterMap.Run(board);
-			ReadWebSocketProtocol.Run(board, wsProtocolPaths);
-			ReadGitStatus.Run(board);
-			CopyGeneratedToBuildDirectory.Run(board);
-			BuildWebApp.Run();
-			BuildFirmware.Run(preset);
-			return;
-		case "pipeline:flash":
-			ReadHardwareIds.Run(forced: false);
-			ReadModbusRegisterMap.Run(board);
-			ReadWebSocketProtocol.Run(board, wsProtocolPaths);
-			ReadGitStatus.Run(board);
-			CopyGeneratedToBuildDirectory.Run(board);
-			BuildWebApp.Run();
-			BuildFirmware.Run(preset);
-			FlashFirmware.Run(preset, board);
-			return;
-		default:
-			throw new ArgumentException($"Unbekannte Phase \"{phase}\".");
-	}
+	var registry = new CommandPipelineRegistry(StringComparer.Ordinal);
+	registry.AddCommand("ReadHardwareIds", () => Stm32BoardProvisioningService.ReadHardwareIds(CreateReadHardwareIdsRequest()));
+	registry.AddCommand("GenerateCertificatesLazy", () => Stm32BoardProvisioningService.GenerateCertificates(CreateGenerateCertificatesRequest(board, force: false)));
+	registry.AddCommand("GenerateCertificatesForced", () => Stm32BoardProvisioningService.GenerateCertificates(CreateGenerateCertificatesRequest(board, force: true)));
+	registry.AddCommand("GenerateDeviceArtifacts", () => Stm32BoardProvisioningService.GenerateDeviceArtifacts(CreateGenerateDeviceArtifactsRequest(board)));
+	registry.AddCommand("ReadModbusRegisterMapAndGenerateFiles", () => ModbusRegisterMapBuildService.Run(CreateModbusRequest(board)));
+	registry.AddCommand("GenerateBestBinaryBufferFiles", () => BestBinaryBufferBuildService.Run(CreateBestBinaryBufferRequest(board, schemaPaths)));
+	registry.AddCommand("ReadGitStatusAndGenerateFiles", () => GitBuildArtifactsService.Generate(CreateGitBuildRequest(board)));
+	registry.AddCommand("CopyGeneratedFilesToBuildDirectory", () => GeneratedArtifactsCopyService.CopyToBuildDirectories(CreateCopyRequest(board)));
+	registry.AddCommand("BuildWebApp", () => WebAppBuildService.Run(Paths.RootDir, Paths.WebDir, Paths.AssetsDir));
+	registry.AddCommand("BuildFirmware", () => CmakeFirmwareBuildService.Run(Paths.RootDir, preset));
+	registry.AddCommand("FlashFirmware", () => FlashFirmwarePipelineService.Run(CreateFlashRequest(preset, board)));
+
+	registry.AddPipeline("pipeline:lazy",
+	[
+		"ReadHardwareIds",
+		"GenerateCertificatesLazy",
+		"GenerateDeviceArtifacts",
+		"ReadModbusRegisterMapAndGenerateFiles",
+		"GenerateBestBinaryBufferFiles",
+		"ReadGitStatusAndGenerateFiles",
+		"CopyGeneratedFilesToBuildDirectory",
+		"BuildWebApp",
+		"BuildFirmware",
+	]);
+
+	registry.AddPipeline("pipeline:forced",
+	[
+		"ReadHardwareIds",
+		"GenerateCertificatesForced",
+		"GenerateDeviceArtifacts",
+		"ReadModbusRegisterMapAndGenerateFiles",
+		"GenerateBestBinaryBufferFiles",
+		"ReadGitStatusAndGenerateFiles",
+		"CopyGeneratedFilesToBuildDirectory",
+		"BuildWebApp",
+		"BuildFirmware",
+	]);
+
+	registry.AddPipeline("pipeline:flash",
+	[
+		"pipeline:lazy",
+		"FlashFirmware",
+	]);
+
+	registry.Run(phase);
 }
 
 try
 {
-	var (phase, preset, board, wsProtocolPaths) = ParseArgs(args);
-	RunPhase(phase, preset, board, wsProtocolPaths);
+	var (phase, preset, board, schemaPaths) = ParseArgs(args);
+	RunPhase(phase, preset, board, schemaPaths);
 }
 catch (Exception err)
 {
@@ -141,4 +184,4 @@ catch (Exception err)
 	Environment.Exit(1);
 }
 
-sealed record Args(string Phase, string Preset, string? Board, List<string> WsProtocolPaths);
+sealed record Args(string Phase, string Preset, string? Board, List<string> SchemaPaths);

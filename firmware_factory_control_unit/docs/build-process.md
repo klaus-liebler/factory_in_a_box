@@ -19,7 +19,7 @@ npm install
 
 (`dotnet build` legt `builder/appsettings.json` aus der Vorlage an, falls sie fehlt, s. Abschnitt
 7. `npm install` installiert `web/`s Dependencies sowie `vite`/`terser`/`html-minifier-terser` im
-Wurzel-`node_modules/`, die `builder/vite-plugin-single-file-firmware-asset.ts` zur Laufzeit braucht,
+Wurzel-`node_modules/`, die `web/build-tools/vite-plugin-single-file-firmware-asset.ts` zur Laufzeit braucht,
 s. Abschnitt 3.)
 
 ### Gesamt-Pipelines
@@ -42,10 +42,12 @@ dotnet run --project builder -- pipeline:flash -- --preset Debug-Nucleo
 ### Einzelne Phasen
 
 ```
-dotnet run --project builder -- ReadHardwareIDsAndGenerateFilesAndCertsLazy    # Board-ID lesen, Zertifikat wiederverwenden
-dotnet run --project builder -- ReadHardwareIDsAndGenerateFilesAndCertsForced  # wie oben, Zertifikat immer neu erzeugen
+dotnet run --project builder -- ReadHardwareIds                                # Board-ID lesen + Hardware-Snapshot schreiben
+dotnet run --project builder -- GenerateCertificatesLazy                       # Zertifikat wiederverwenden/bei Bedarf erzeugen
+dotnet run --project builder -- GenerateCertificatesForced                     # Zertifikat immer neu erzeugen
+dotnet run --project builder -- GenerateDeviceArtifacts                        # device_ids.hh + device-ids.json aus Snapshots
 dotnet run --project builder -- ReadModbusRegisterMapAndGenerateFiles          # register-map.json -> Code
-dotnet run --project builder -- ReadWebSocketProtocolAndGenerateFiles          # ws-protocol/*.json -> Code
+dotnet run --project builder -- GenerateBestBinaryBufferFiles                  # best_binary_buffers_schema/*.cs -> Code
 dotnet run --project builder -- ReadGitStatusAndGenerateFiles                  # Git-Stand -> Code
 dotnet run --project builder -- CopyGeneratedFilesToBuildDirectory             # Board-Archiv -> Core/generated, web/generated, build/assets
 dotnet run --project builder -- BuildWebApp                                    # vite build
@@ -58,8 +60,8 @@ einer Änderung an `register-map.json`, ohne Board oder Firmware-Build anzufasse
 
 ### `--board` überschreiben
 
-Alle Phasen außer den beiden `ReadHardwareIDs...` ermitteln das Board über einen Cache
-(`build/.last-board-id`, wird von `ReadHardwareIDsAndGenerateFilesAndCerts{Lazy,Forced}` geschrieben).
+Alle Phasen außer `ReadHardwareIds` ermitteln das Board über einen Cache
+(`build/.last-board-id`, wird von `ReadHardwareIds` geschrieben).
 Um explizit für ein anderes, gerade nicht angeschlossenes Board zu arbeiten (z. B. Register-Map für
 ein Archiv nachziehen):
 
@@ -71,35 +73,40 @@ dotnet run --project builder -- ReadModbusRegisterMapAndGenerateFiles -- --board
 
 | # | Phase | Braucht Hardware? | Schreibt nach |
 |---|---|---|---|
-| 1 | `ReadHardwareIDsAndGenerateFilesAndCertsLazy` | ja (ST-Link) | Board-Archiv -- liest Chip-UID, berechnet Hostname/MACs; TLS-Zertifikat nur neu erzeugen, wenn für dieses Board noch keins existiert. |
-| 2 | `ReadHardwareIDsAndGenerateFilesAndCertsForced` | ja | Board-Archiv -- wie 1, Zertifikat aber immer neu erzeugt (CA-Rotation, Ablauf). |
-| 3 | `ReadModbusRegisterMapAndGenerateFiles` | nein | Board-Archiv -- `register-map.json` -> `register_input.inc`/`register_holding.inc`/`register_maxindex.inc` + `register-map.ts`. |
-| 4 | `ReadWebSocketProtocolAndGenerateFiles` | nein | Board-Archiv -- `ws-protocol/*.json` (ein Namespace je Datei; `--ws-protocol-path` haengt weitere Verzeichnisse/Dateien an, s. docs/websocket-protocol.md) -> `ws_protocol.hh` + `ws-protocol.ts`. |
-| 5 | `ReadGitStatusAndGenerateFiles` | nein | Board-Archiv -- `gitconstants.hh`, `firmware_constants.hh` (BOARD_NAME/FW_VERSION_*, s. Abschnitt 5), `build-info.ts`, `gitstatus.json` aus Git-Abfrage + `firmware-version.json` + Board-Archiv. |
-| 6 | `CopyGeneratedFilesToBuildDirectory` | nein | `Core/generated/`, `web/generated/`, `build/assets/` -- reiner Kopiervorgang aus dem Board-Archiv des zuletzt erkannten Boards. |
-| 7 | `BuildWebApp` | nein | `web/dist/`, `build/assets/index.html.br` -- ruft `vite build` per Kindprozess auf (inkl. Inlining/Minify/Brotli über `singleFileFirmwareAssetPlugin`). |
-| 8 | `BuildFirmware` | nein | `build/<preset>/` -- `cmake --preset` + `cmake --build --preset`. |
-| 9 | `FlashFirmware` | ja (ST-Link) | `STM32_Programmer_CLI -c port=SWD -w <build>.elf -v -rst`, danach Aktualisierung von `board.json`/`flash_events.jsonl` im Board-Archiv (nur bei verifiziertem Erfolg). |
+| 1 | `ReadHardwareIds` | ja (ST-Link) | Board-Archiv -- liest Chip-UID, berechnet Hostname/MACs und schreibt `hardware-identity.json`. |
+| 2 | `GenerateCertificatesLazy` | nein | Board-Archiv -- erzeugt/aktualisiert PEM+DER nur falls noch nicht vorhanden; schreibt `certificate-info.json`. |
+| 3 | `GenerateCertificatesForced` | nein | Board-Archiv -- wie 2, aber immer neu erzeugen (CA-Rotation, Ablauf). |
+| 4 | `GenerateDeviceArtifacts` | nein | Board-Archiv -- `hardware-identity.json` + `certificate-info.json` -> `device_ids.hh` + `device-ids.json`. |
+| 5 | `ReadModbusRegisterMapAndGenerateFiles` | nein | Board-Archiv -- `register-map.json` -> `register_input.inc`/`register_holding.inc`/`register_maxindex.inc` + `register-map.ts`. |
+| 6 | `GenerateBestBinaryBufferFiles` | nein | Board-Archiv -- `best_binary_buffers_schema/*.cs` (wiederholbares `--best-binary-buffer-schema-path` fuer weitere Quellen) -> `ws_protocol.hh` + `ws-protocol.ts`. |
+| 7 | `ReadGitStatusAndGenerateFiles` | nein | Board-Archiv -- `gitconstants.hh`, `firmware_constants.hh` (BOARD_NAME/FW_VERSION_*, s. Abschnitt 5), `build-info.ts`, `gitstatus.json` aus Git-Abfrage + `firmware-version.json` + Board-Archiv. |
+| 8 | `CopyGeneratedFilesToBuildDirectory` | nein | `Core/generated/`, `web/generated/`, `build/assets/` -- reiner Kopiervorgang aus dem Board-Archiv des zuletzt erkannten Boards. |
+| 9 | `BuildWebApp` | nein | `web/dist/`, `build/assets/index.html.br` -- ruft `vite build` per Kindprozess auf (inkl. Inlining/Minify/Brotli über `singleFileFirmwareAssetPlugin`). |
+| 10 | `BuildFirmware` | nein | `build/<preset>/` -- `cmake --preset` + `cmake --build --preset`. |
+| 11 | `FlashFirmware` | ja (ST-Link) | `STM32_Programmer_CLI -c port=SWD -w <build>.elf -v -rst`, danach Aktualisierung von `board.json`/`flash_events.jsonl` im Board-Archiv (nur bei verifiziertem Erfolg). |
 
 ```mermaid
 flowchart TD
     HW["Board an ST-Link"]
-    L1["1: ReadHardwareIDs...Lazy"]
-    L2["2: ReadHardwareIDs...Forced"]
-    RM["3: ReadModbusRegisterMapAndGenerateFiles"]
-    WSP["4: ReadWebSocketProtocolAndGenerateFiles"]
-    GS["5: ReadGitStatusAndGenerateFiles"]
+    HWID["1: ReadHardwareIds"]
+    CERTL["2: GenerateCertificatesLazy"]
+    CERTF["3: GenerateCertificatesForced"]
+    ART["4: GenerateDeviceArtifacts"]
+    RM["5: ReadModbusRegisterMapAndGenerateFiles"]
+    WSP["6: GenerateBestBinaryBufferFiles"]
+    GS["7: ReadGitStatusAndGenerateFiles"]
     ARCHIVE["Board-Archiv\nstm32_boards/&lt;id&gt;/generated/"]
-    COPY["6: CopyGeneratedFilesToBuildDirectory"]
-    WEB["7: BuildWebApp (vite)"]
-    FW["8: BuildFirmware (cmake)"]
-    FLASH["9: FlashFirmware"]
+    COPY["8: CopyGeneratedFilesToBuildDirectory"]
+    WEB["9: BuildWebApp (vite)"]
+    FW["10: BuildFirmware (cmake)"]
+    FLASH["11: FlashFirmware"]
     BOARDJSON[("board.json +\nflash_events.jsonl\n(im Board-Archiv)")]
 
-    HW --> L1
-    HW --> L2
-    L1 --> ARCHIVE
-    L2 --> ARCHIVE
+    HW --> HWID
+    HWID --> ARCHIVE
+    CERTL --> ARCHIVE
+    CERTF --> ARCHIVE
+    ART --> ARCHIVE
     RM --> ARCHIVE
     WSP --> ARCHIVE
     GS --> ARCHIVE
@@ -120,26 +127,29 @@ builder/
 ├── Paths.cs                         # zentrale Pfad-Konstanten (sucht die Repo-Wurzel ab AppContext.BaseDirectory nach oben)
 ├── appsettings.json                  # gitignored: persönliche Maschinenpfade (STM32CubeProgrammer, OneDrive-Ordner, CA, Default-Board-Type)
 ├── appsettings.json.template         # getrackte Vorlage; wird von einem MSBuild-Target (EnsureAppSettings) automatisch angelegt
-├── BuilderOptions.cs                 # appsettings.json gebunden an eine typsichere POCO-Klasse (Microsoft.Extensions.Configuration)
-├── BoardArchive.cs                   # Pfade ins Board-Archiv (stm32_boards/<id>/generated/)
-├── BoardContext.cs                   # "Letztes bekanntes Board"-Caching (build/.last-board-id)
-├── GitInfo.cs                        # gemeinsame Git-Abfrage für gitconstants.hh/build-info.ts/gitstatus.json
-├── FirmwareVersion.cs                # liest firmware-version.json (Repo-Root) -- Produktversion
-├── BoardStore.cs                     # dateibasierte Board-Verwaltung (board.json/flash_events.jsonl), s. Abschnitt 5
-├── Json.cs                           # gemeinsame JsonSerializerOptions (relaxed Escaping, analog zu JSON.stringify)
-├── ProcessRunner.cs                  # Kindprozess-Helfer (openssl/STM32_Programmer_CLI/cmake/node/git)
-├── Phases/
-│   ├── ReadHardwareIds.cs            # Lazy + Forced (eine Klasse, ein bool-Flag)
-│   ├── ReadModbusRegisterMap.cs
-│   ├── ReadWebSocketProtocol.cs      # ws-protocol/*.json -> ws_protocol.hh + ws-protocol.ts (docs/websocket-protocol.md)
-│   ├── ReadGitStatus.cs
-│   ├── CopyGeneratedToBuildDirectory.cs
-│   ├── BuildWebApp.cs                # ruft Vite per Kindprozess auf, s. u.
-│   ├── BuildFirmware.cs
-│   └── FlashFirmware.cs
-├── vite-plugin-single-file-firmware-asset.ts  # Inlining + Minify + Brotli in einem Vite-Plugin (s. Abschnitt 6) -- TypeScript, s. u.
-├── singlefile-minify.ts              # Whitespace-/Lit-Template-Minifizierung
-└── html-minifier-terser.d.ts         # Ambient-Typ-Shim (html-minifier-terser liefert keine eigenen Typen)
+├── BuilderSettings.cs                # appsettings.json gebunden an getrennte typsichere Konfigurationsklassen
+├── GlobalUsings.cs                   # globale Imports auf FirmwareBuilder.Common
+└── Phases/                           # absichtlich leer (radikale Zentralisierung)
+
+web/build-tools/
+├── vite-plugin-single-file-firmware-asset.ts
+├── singlefile-minify.ts
+└── html-minifier-terser.d.ts
+
+firmware_builder_common/src/FirmwareBuilder.Common/
+├── BoardArchiveContext.cs             # Board-Archiv-Pfade + .last-board-id-Context (shared)
+├── BoardProvisioningModels.cs         # DeviceIdentity/CertificateInfo/Hardware-Snapshot-Modelle (shared)
+├── Stm32BoardProvisioningService.cs   # ReadHardwareIds + GenerateCertificates + GenerateDeviceArtifacts (shared)
+├── GitBuildArtifactsService.cs        # gitconstants.hh/firmware_constants.hh/build-info.ts/gitstatus.json (shared)
+├── GeneratedArtifactsCopyService.cs   # Board-Archiv -> Core/generated + web/generated + build/assets (shared)
+├── Stm32FlashService.cs               # STM32_Programmer_CLI Flash + ST-LINK-SN-Erkennung (shared)
+├── FlashFirmwarePipelineService.cs    # Flash + Archiv/History-Update (shared)
+├── ModbusRegisterMapBuildService.cs   # register-map.json -> C++/TS Artefakte (shared)
+├── BestBinaryBufferBuildService.cs    # BBB-Schema -> ws_protocol.hh/ws-protocol.ts (shared)
+├── CmakeFirmwareBuildService.cs       # cmake --preset / --build --preset (shared)
+├── WebAppBuildService.cs              # Vite-Aufruf (shared)
+├── BoardStateStore.cs                 # board.json/flash_events.jsonl (shared)
+└── FirmwareVersionReader.cs           # firmware-version.json lesen (shared)
 ```
 
 Ausführung ausschließlich über `dotnet run --project builder -- <Phase> [--preset ...] [--board ...]`
@@ -149,16 +159,17 @@ Ausführung ausschließlich über `dotnet run --project builder -- <Phase> [--pr
 **`BuildWebApp` und die drei TypeScript-Dateien:** Vite hat keine C#-API, daher bleiben
 `vite-plugin-single-file-firmware-asset.ts`, `singlefile-minify.ts` und `html-minifier-terser.d.ts`
 bewusst TypeScript -- sie implementieren ein Vite-Plugin, das `web/vite.config.ts` einbindet
-(`import { singleFileFirmwareAssetPlugin } from "../builder/vite-plugin-single-file-firmware-asset.ts"`).
-`Phases/BuildWebApp.cs` ruft dafür `node node_modules/vite/bin/vite.js build <webDir> --config
-web/vite.config.ts` als Kindprozess auf (Node/npm müssen dafür installiert sein, s. Abschnitt 1) --
+(`import { singleFileFirmwareAssetPlugin } from "./build-tools/vite-plugin-single-file-firmware-asset.ts"`).
+`Program.cs` ruft dafür den zentralen Shared-Service `WebAppBuildService` auf, der intern
+`node node_modules/vite/bin/vite.js build <webDir> --config web/vite.config.ts` startet
+(Node/npm müssen dafür installiert sein, s. Abschnitt 1) --
 Vite lädt die Plugin-Datei dabei selbst (natives TypeScript-Type-Stripping, keine
 Zusatzabhängigkeit wie `ts-node`/`tsx`).
 
 `package.json` im Repo-Root ist ein npm-Workspace (`"workspaces": ["web"]`) und deklariert
 `html-minifier-terser`, `terser` und `vite` zusätzlich als eigene `devDependencies` -- `builder/`
 und `web/` sind Geschwisterverzeichnisse, node_modules-Resolution hebt nicht automatisch zwischen
-ihnen, die Root-Dependencies stellen sicher, dass `builder/vite-plugin-single-file-firmware-asset.ts`
+ihnen, die Root-Dependencies stellen sicher, dass `web/build-tools/vite-plugin-single-file-firmware-asset.ts`
 sie trotzdem findet.
 
 ## 4. Verzeichnisstrukturen
@@ -181,6 +192,7 @@ firmware_factory_control_unit/
 │   ├── .last-board-id             # "letztes bekanntes Board"-Cache, s. Abschnitt 1
 │   ├── assets/                    # device_certificate.der, device_key.der, index.html.br
 │   └── Debug/, Release/, Debug-Nucleo/   # je Preset ein eigener CMake-Binärordner
+├── best_binary_buffers_schema/      # C#-Protokollschema (BestBinaryBuffers) + ids.txt
 └── docs/
     └── build-process.md
 ```
@@ -219,8 +231,8 @@ s. `.gitignore`). Ein frisches Checkout ist erst nach einmaligem Lauf der Build-
 ## 5. Board-Verwaltung (`board.json`/`flash_events.jsonl`) + Board-Type-/BOARD_NAME-Zuordnung
 
 Dateibasiert, kein zentrales DB-File -- jedes physische Board hat sein eigenes Archivverzeichnis
-`stm32_boards/<boardId>/` (`boardId` = `<shortId>_<volle96-Bit-Chip-UID>`, s. `ReadHardwareIds.cs`),
-darin zwei Dateien (Zugriff über `BoardStore.cs`), analog zum Vorbild
+`stm32_boards/<boardId>/` (`boardId` = `<shortId>_<volle96-Bit-Chip-UID>`, s. `Stm32BoardProvisioningService.ReadHardwareIds`),
+darin zwei Dateien (Zugriff über `BoardStateStore.cs` im Shared-Projekt), analog zum Vorbild
 `@klaus-liebler/espidf-vite` (Repo `npm-packages`, Commit "Generate everything in special
 'GENERATED'-Directory", 2025-01-26 -- dort wurde eine anfangs eingesetzte SQLite-Lösung exakt
 dieses Zuschnitts zugunsten von genau einem Verzeichnis pro Board verworfen; dieses Projekt hatte
@@ -255,13 +267,13 @@ Kein separater Typ-Katalog (die vormaligen `mcu_types`/`board_types`-Tabellen en
 `board_types.version` war immer `1` und `.settings` immer `NULL` (nie geschrieben). Falls künftig
 eine vom angeschlossenen Board unabhängige Liste ALLER bekannten Board-Typen gebraucht wird (z. B.
 für eine Auswahl-UI): das lässt sich jederzeit nachträglich per Verzeichnis-Scan über alle
-`stm32_boards/*/board.json` ermitteln (Distinct auf `boardTypeName`), ohne dass `BoardStore.cs`
+`stm32_boards/*/board.json` ermitteln (Distinct auf `boardTypeName`), ohne dass `BoardStateStore.cs`
 dafür etwas vorhalten muss.
 
 **Board-Type-Zuordnung über die Chip-UID (bzw. das daraus abgeleitete `boardId`), nicht über das
-Preset:** `ReadHardwareIDsAndGenerateFilesAndCerts{Lazy,Forced}` (Phase 1/2) schlägt `boardId` in
+Preset:** `ReadHardwareIds` (Phase 1) schlägt `boardId` in
 dessen `board.json` nach (`BoardStore.TryGetBoardTypeName`). Existiert noch kein `board.json` (z. B.
-brandneue Platine), greift `BuilderOptions.DefaultBoardTypeName` (aus `appsettings.json`, s.
+brandneue Platine), greift `BuilderSettings.BoardDefaults.DefaultBoardTypeName` (aus `appsettings.json`, s.
 Abschnitt 7) als Fallback. Das Ergebnis landet als `boardName` in `device-ids.json` im Board-Archiv
 und wird von dort sowohl für `firmware_constants.hh`s `BOARD_NAME` (Phase 5, s. u.) als auch beim
 tatsächlichen Flashen (Phase 9) für `board.json`s `boardTypeName` wiederverwendet -- das
@@ -281,14 +293,14 @@ generiert `ReadGitStatusAndGenerateFiles` (Phase 5) nach `Core/generated/firmwar
 
 ## 6. Web-Build-Plugin
 
-`builder/vite-plugin-single-file-firmware-asset.ts` ersetzt die frühere Kombination aus
+`web/build-tools/vite-plugin-single-file-firmware-asset.ts` ersetzt die frühere Kombination aus
 `vite-plugin-singlefile` + separatem Minify-Schritt + manuellem `npm run embed`: EIN Vite-Plugin,
 das im selben `generateBundle`-Hook (a) JS/CSS in die `index.html` inlined (Kern angelehnt an
 [`vite-plugin-singlefile`](https://github.com/richardtallent/vite-plugin-singlefile), MIT-lizenziert,
 nachgebaut statt als Abhängigkeit eingebunden), (b) über `singlefile-minify.ts`
 (`minifyHtmlDocument()`) Whitespace/Kommentare inkl. Lit-Templates entfernt und (c) Brotli-
 komprimiert direkt nach `build/assets/index.html.br` schreibt. `BuildWebApp` (Phase 6) ist damit ein
-einziger Vite-Build-Aufruf (aus `Phases/BuildWebApp.cs` per Kindprozess gestartet, s. Abschnitt 3)
+einziger Vite-Build-Aufruf (aus `WebAppBuildService` per Kindprozess gestartet, s. Abschnitt 3)
 ohne Nachbearbeitungsschritt.
 
 ## 7. Bekannte Annahmen / Hinweise
@@ -302,6 +314,6 @@ ohne Nachbearbeitungsschritt.
   ist gitignored -- getrackt ist nur `appsettings.json.template`; ein MSBuild-Target
   (`EnsureAppSettings` in `builder.csproj`) legt die reale Datei bei jedem `dotnet build`/`dotnet run`
   automatisch daraus an, falls sie fehlt, ohne eine vorhandene zu überschreiben. Gebunden an die
-  typsichere `BuilderOptions`-Klasse über die Standard-.NET-Konfigurationsmechanik
+  typsichere `BuilderSettings`-Konfigurationsklassen über die Standard-.NET-Konfigurationsmechanik
   (`Microsoft.Extensions.Configuration`) -- `STM32_PRG_PATH` bleibt zusätzlich als dokumentierte
-  Umgebungsvariable überschreibbar (s. `BuilderOptions.ResolveStm32ProgrammerCli()`).
+  Umgebungsvariable überschreibbar (s. `Stm32ProgrammerOptions.ResolveStm32ProgrammerCli()`).

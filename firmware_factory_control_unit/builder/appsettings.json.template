@@ -1,8 +1,28 @@
 {
-  "Stm32ProgrammerCli": "C:\\Program Files\\STMicroelectronics\\STM32Cube\\STM32CubeProgrammer\\bin\\STM32_Programmer_CLI.exe",
-  "BoardsDir": "C:\\Users\\mail\\OneDrive - HSOS\\stm32_boards",
-  "CertsDir": "C:\\Users\\mail\\OneDrive - HSOS\\certificates",
-  "SubjectPrefix": "/C=DE/ST=NRW/L=Greven/O=Klaus Lieber personal",
-  "CertDays": "3000",
-  "DefaultBoardTypeName": "FactoryControlUnit"
+  "BoardStorage": {
+    "BoardsDir": "C:\\Users\\mail\\OneDrive - HSOS\\stm32_boards"
+  },
+  "Stm32Programmer": {
+    "Stm32ProgrammerCli": "C:\\Program Files\\STMicroelectronics\\STM32Cube\\STM32CubeProgrammer\\bin\\STM32_Programmer_CLI.exe"
+  },
+  "Certificates": {
+    "CertsDir": "C:\\Users\\mail\\OneDrive - HSOS\\certificates",
+    "SubjectPrefix": "/C=DE/ST=NRW/L=Greven/O=Klaus Lieber personal",
+    "CertDays": "3000",
+    "KeyAlgorithm": "EC_P256",
+    "IncludeServerAuthEku": true,
+    "IncludeClientAuthEku": true,
+    "IncludeSubjectKeyIdentifier": false,
+    "IncludeAuthorityKeyIdentifier": true,
+    "NotBeforeBackdateDays": 1,
+    "SanIpAddress": "192.168.173.1",
+    "SanDnsEntries": [
+      "{hostname}",
+      "{hostname}.local",
+      "{hostname}.fritz.box"
+    ]
+  },
+  "BoardDefaults": {
+    "DefaultBoardTypeName": "FactoryControlUnit"
+  }
 }

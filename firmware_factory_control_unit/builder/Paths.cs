@@ -26,9 +26,7 @@ public static class Paths
 	}
 
 	public static readonly string CoreGeneratedDir = Path.Combine(RootDir, "Core", "generated");
-	// Ein *.json je Namespace (s. docs/websocket-protocol.md) -- ReadWebSocketProtocol.cs liest
-	// alle Dateien in diesem Verzeichnis, nicht nur eine einzelne ws-protocol.json.
-	public static readonly string WsProtocolDir = Path.Combine(RootDir, "ws-protocol");
+	public static readonly string BestBinaryBuffersSchemaDir = Path.Combine(RootDir, "best_binary_buffers_schema");
 	public static readonly string WebDir = Path.Combine(RootDir, "web");
 	public static readonly string WebGeneratedDir = Path.Combine(WebDir, "generated");
 	public static readonly string BuildDir = Path.Combine(RootDir, "build");

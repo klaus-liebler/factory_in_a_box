@@ -233,6 +233,14 @@ file(GLOB USBX_SOURCES
 # s. Kommentar oben). Datei ist damit fuer dieses Projekt totes Gewicht und muss raus, sonst
 # bricht der Build am fehlenden Header ab.
 list(FILTER USBX_SOURCES EXCLUDE REGEX "ux_system_tasks_run\\.c$")
+# ux_utility_pci_{read,write,class_scan}.c: PCI-Bus-Enumeration fuer Host-Controller-Karten
+# (ux_utility_pci_class_scan.c ist der einzige Aufrufer von _read/_write, wird selbst aber
+# nirgends aufgerufen -- Device-only, s. Kommentar oben, kein PCI-Host-Controller vorhanden).
+# Toter Code fuer dieses Projekt; erzeugt zudem harmlose, aber irrefuehrende
+# "array subscript outside array bounds"-Warnungen (inpl/outpl-Makros auf Adresse 0, s.
+# ux_port.h), weil die generic-Portschicht hierfuer keine echten PCI-Config-Space-Adressen
+# liefert.
+list(FILTER USBX_SOURCES EXCLUDE REGEX "ux_utility_pci_(read|write|class_scan)\\.c$")
 
 # --- Binaer-Assets (Geraetezertifikat/-schluessel + komprimierte Weboberflaeche) ---
 # Statt wie frueher generierter C-Arrays (Core/Src/generated/device_certificate.c,

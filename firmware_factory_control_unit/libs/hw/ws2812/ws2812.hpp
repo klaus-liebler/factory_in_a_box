@@ -76,7 +76,9 @@ public:
         // Dieselbe Bedingung, die ShowEach() bei jedem Aufruf leise abfaengt (s. dort) -- hier
         // zusaetzlich einmalig laut beim Bringup, statt erst beim ersten Show()-Aufruf per
         // log_warn() zu bemerken, dass CubeMX die DMA-Verlinkung fuer diesen Kanal nie bekommen hat.
-        uint16_t dma_id = use_update_burst_ ? TIM_DMA_ID_UPDATE : (uint16_t)((channel_ / 4U) + 1U);
+        // [[maybe_unused]]: HW_CONFIG_ASSERT() unten ist im Release-Build ein No-op (s.
+        // hw_config_assert.hh), macht dma_id dort sonst zu einer unbenutzten Variable.
+        [[maybe_unused]] uint16_t dma_id = use_update_burst_ ? TIM_DMA_ID_UPDATE : (uint16_t)((channel_ / 4U) + 1U);
         HW_CONFIG_ASSERT(htim_->hdma[dma_id] != nullptr,
                           "Kein GPDMA fuer diesen TIM-Kanal verlinkt (CubeMX: TIM15 -> DMA Settings)");
 

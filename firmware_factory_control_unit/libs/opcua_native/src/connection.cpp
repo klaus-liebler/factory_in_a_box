@@ -5,6 +5,7 @@
 #include "opcua/node_ids.hpp"
 #include "opcua/services.hpp"
 #include "opcua/tcp_message.hpp"
+#include "log.h"
 
 namespace opcua {
 
@@ -20,6 +21,8 @@ void Connection::Reset(UInt32 connectionSlot, ITransport *transport, const Addre
 }
 
 void Connection::SendErrorAndClose(StatusCode error, std::string_view reason) {
+    log_debug("OPC UA: slot %u closing: %.*s (0x%08X)", connectionSlot_,
+             static_cast<int>(reason.size()), reason.data(), static_cast<unsigned>(error));
     ByteWriter w(sendBuffer_);
     if(EncodeErrorMessage(w, error, reason) && w.Ok())
         transport_->Send(w.Written());
@@ -134,6 +137,9 @@ void Connection::HandleServiceMessage(std::span<const Byte> msg) {
         return;
     }
     if(parsed.channelId != secureChannel_.ChannelId() || parsed.tokenId != secureChannel_.TokenId()) {
+        log_debug("OPC UA: slot %u channel/token mismatch: got channel=%u token=%u, expected channel=%u token=%u",
+                 connectionSlot_, static_cast<unsigned>(parsed.channelId), static_cast<unsigned>(parsed.tokenId),
+                 static_cast<unsigned>(secureChannel_.ChannelId()), static_cast<unsigned>(secureChannel_.TokenId()));
         SendErrorAndClose(StatusCode::BadSecureChannelIdInvalid, "channel/token mismatch");
         return;
     }
@@ -144,6 +150,8 @@ void Connection::HandleServiceMessage(std::span<const Byte> msg) {
         SendErrorAndClose(StatusCode::BadDecodingError, "malformed service TypeId");
         return;
     }
+    log_debug("OPC UA: slot %u service typeId=(ns=%u,i=%u)", connectionSlot_,
+             static_cast<unsigned>(typeId.namespaceIndex), static_cast<unsigned>(typeId.numeric));
 
     ByteWriter w(sendBuffer_);
     size_t startPos = 0;
@@ -180,11 +188,17 @@ void Connection::HandleServiceMessage(std::span<const Byte> msg) {
     }
 
     if(!handled || !w.Ok() || !FinishSecureMessage(w, startPos)) {
+        log_debug("OPC UA: slot %u handler failed for typeId=(ns=%u,i=%u) handled=%d w.Ok=%d",
+                 connectionSlot_, static_cast<unsigned>(typeId.namespaceIndex),
+                 static_cast<unsigned>(typeId.numeric), handled ? 1 : 0, w.Ok() ? 1 : 0);
         transport_->RequestClose();
         return;
     }
-    if(!transport_->Send(w.Written()))
+    if(!transport_->Send(w.Written())) {
+        log_debug("OPC UA: slot %u Send() failed for typeId=(ns=%u,i=%u)", connectionSlot_,
+                 static_cast<unsigned>(typeId.namespaceIndex), static_cast<unsigned>(typeId.numeric));
         transport_->RequestClose();
+    }
 }
 
 } // namespace opcua

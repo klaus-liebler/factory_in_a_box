@@ -3,6 +3,8 @@
 #include "tx_api.h"
 #include "net_setup.hpp"
 #include "opcua_setup.hpp"
+#include "sntp_setup.hpp"
+#include "opcua/clock.hpp"
 #include "generated/gitconstants.hh"
 #include "generated/device_ids.hh"
 // Fuer App::ModbusRtuThread() -- ruft ux_device_class_cdc_acm_read()/_write() direkt auf (kein
@@ -81,9 +83,14 @@ extern "C" void tx_application_define(void *first_unused_memory) {
     auto& app = App::Instance();
 
     tx_mutex_create(&malloc_mutex, const_cast<CHAR *>("malloc_mutex"), TX_INHERIT);
-    tx_mutex_create(&log_mutex, const_cast<CHAR *>("Log Mutex"), TX_NO_INHERIT);
+    // TX_INHERIT (not TX_NO_INHERIT as before): LOG_INFO_ML/LOG_ML/LOG_ML_END (log.h) can now
+    // legitimately hold this lock for a while (e.g. the whole ~256ms I2C boot scan) -- priority
+    // inheritance avoids unbounded priority inversion for any higher-priority thread that tries
+    // to log during that window.
+    tx_mutex_create(&log_mutex, const_cast<CHAR *>("Log Mutex"), TX_INHERIT);
     log_set_lock(log_lock);
     log_set_level(LOG_INFO);
+    opcua::InitClockSync();
     app.register_model->ArmForMultithreadingWithMutex();
 
     log_info("tx_application_define() called, first_unused_memory=%p", first_unused_memory);
@@ -236,6 +243,13 @@ void App::IOThread() {
 
         this->web_server.SendKeepalivePings();
 
+        // See usbd_device_poll_state_change()'s comment (usbd_device.h) -- the USB ISR only
+        // records the latest state; logging it happens here, from proper thread context.
+        char usb_state_message[64];
+        if (usbd_device_poll_state_change(usb_state_message, sizeof(usb_state_message))) {
+            log_info("%s", usb_state_message);
+        }
+
         if (power_ok) {
             uint16_t bus_mv = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_BUS_VOLTAGE_MV);
             int16_t current_ma = (int16_t)this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_CURRENT_MA);
@@ -273,6 +287,10 @@ void App::AppThread() {
     hal_tick_threadx_mark_running();
 
     net_setup_start(this);
+
+    // See sntp_setup.hpp -- own thread, waits for the network then keeps opcua::Now() synced to
+    // real UTC via SNTP (see libs/opcua_native/include/opcua/clock.hpp).
+    SntpSetup(this);
 
     // See opcua_setup.hpp -- unlike Modbus TCP/HTTPS, no dedicated thread is created here:
     // nx_tcpserver_create() (inside OpcUaTcpServer::Create()) spawns and auto-starts its own
@@ -352,51 +370,48 @@ void App::AppThread() {
 void App::fillRegistersWithInitialValues() {
     this->register_model->SetInputRegister(ModbusRegisters::Input::FW_VERSION_MAJOR, FW_VERSION_MAJOR);
     this->register_model->SetInputRegister(ModbusRegisters::Input::FW_VERSION_MINOR, FW_VERSION_MINOR);
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W0_HI, (uint16_t)(chip_uid[0] >> 16));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W0_LO, (uint16_t)(chip_uid[0] & 0xFFFF));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W1_HI, (uint16_t)(chip_uid[1] >> 16));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W1_LO, (uint16_t)(chip_uid[1] & 0xFFFF));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W2_HI, (uint16_t)(chip_uid[2] >> 16));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W2_LO, (uint16_t)(chip_uid[2] & 0xFFFF));
+    ModbusRegisters::Accessors::Diagnostics::ChipId_Write(*this->register_model,
+        ModbusRegisters::Uid96{chip_uid[0], chip_uid[1], chip_uid[2]});
 }
 
 void App::greeting() {
-    log_info("");
-    log_info("=== FactoryInABox Control Unit starting ===");
-    log_info(" -> Board:    %.*s", (int)BOARD_NAME.length(), BOARD_NAME.data());
-    log_info(" -> Hostname: %s.local", DEVICE_HOSTNAME);
-    log_info("--- Build Information ---");
-    log_info(" -> Version:  %.*s", (int)git::VERSION.length(), git::VERSION.data());
-    log_info(" -> Commit:   %.*s (%.*s)", (int)git::COMMIT_HASH.length(), git::COMMIT_HASH.data(),
+    // LOG_INFO_ML/LOG_ML/LOG_ML_END (log.h): one locked block so another thread's concurrent
+    // log line can't land in the middle of this banner.
+    LOG_INFO_ML("");
+    LOG_ML("=== FactoryInABox Control Unit starting ===");
+    LOG_ML(" -> Board:    %.*s", (int)BOARD_NAME.length(), BOARD_NAME.data());
+    LOG_ML(" -> Hostname: %s.local", DEVICE_HOSTNAME);
+    LOG_ML("--- Build Information ---");
+    LOG_ML(" -> Version:  %.*s", (int)git::VERSION.length(), git::VERSION.data());
+    LOG_ML(" -> Commit:   %.*s (%.*s)", (int)git::COMMIT_HASH.length(), git::COMMIT_HASH.data(),
             (int)git::BRANCH.length(), git::BRANCH.data());
-    log_info(" -> Message:  %.*s", (int)git::COMMIT_MESSAGE.length(), git::COMMIT_MESSAGE.data());
-    log_info(" -> Author:   %.*s", (int)git::COMMIT_AUTHOR.length(), git::COMMIT_AUTHOR.data());
+    LOG_ML(" -> Message:  %.*s", (int)git::COMMIT_MESSAGE.length(), git::COMMIT_MESSAGE.data());
+    LOG_ML(" -> Author:   %.*s", (int)git::COMMIT_AUTHOR.length(), git::COMMIT_AUTHOR.data());
     // %lu statt %lld: newlib-nano (dieses Projekts printf-Implementierung) unterstuetzt keine
     // 64-Bit-Formatspezifizierer -- ein Unix-Epoch-Zeitstempel in Sekunden passt aber bis Jahr
     // 2106 komfortabel in 32 Bit.
-    log_info(" -> Built:    %lu (epoch)", (unsigned long)git::BUILD_TIMESTAMP_EPOCH);
-    if (git::IS_DIRTY) {
-    log_warn(" -> Clean:    yes");
-    } else {
-    log_info(" -> Clean:    no");
-    }
+    LOG_ML(" -> Built:    %lu (epoch)", (unsigned long)git::BUILD_TIMESTAMP_EPOCH);
+    // War zuvor invertiert (dirty -> "Clean: yes" als WARN, clean -> "Clean: no" als INFO) --
+    // ML-Bloecke haben nur einen Level fuer den ganzen Block (s. log.h), daher hier als reiner
+    // Text statt eines Level-Wechsels mitten im Block ausgedrueckt.
+    LOG_ML(" -> Clean:    %s", git::IS_DIRTY ? "no" : "yes");
 
-    log_info("--- Clocks ---");
-    log_info(" -> SYSCLK:   %lu MHz", (unsigned long)(HAL_RCC_GetSysClockFreq() / 1000000));
-    log_info(" -> HCLK:     %lu MHz", (unsigned long)(HAL_RCC_GetHCLKFreq() / 1000000));
-    log_info(" -> PCLK1:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK1Freq() / 1000000));
-    log_info(" -> PCLK2:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK2Freq() / 1000000));
+    LOG_ML("--- Clocks ---");
+    LOG_ML(" -> SYSCLK:   %lu MHz", (unsigned long)(HAL_RCC_GetSysClockFreq() / 1000000));
+    LOG_ML(" -> HCLK:     %lu MHz", (unsigned long)(HAL_RCC_GetHCLKFreq() / 1000000));
+    LOG_ML(" -> PCLK1:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK1Freq() / 1000000));
+    LOG_ML(" -> PCLK2:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK2Freq() / 1000000));
 
-
-    log_info("--- Chip ---");
-    log_info(" -> UID:      %08lX-%08lX-%08lX", (unsigned long)this->chip_uid[0], (unsigned long)this->chip_uid[1], (unsigned long)this->chip_uid[2]);
-    log_info(" -> Reset:    %s", reset_cause());
+    LOG_ML("--- Chip ---");
+    LOG_ML(" -> UID:      %08lX-%08lX-%08lX", (unsigned long)this->chip_uid[0], (unsigned long)this->chip_uid[1], (unsigned long)this->chip_uid[2]);
+    LOG_ML(" -> Reset:    %s", reset_cause());
     __HAL_RCC_CLEAR_RESET_FLAGS();
 
-    log_info(" -> MAC:      S%02X:%02X:%02X:%02X:%02X:%02X",
+    LOG_ML(" -> MAC:      S%02X:%02X:%02X:%02X:%02X:%02X",
             heth.Init.MACAddr[0], heth.Init.MACAddr[1], heth.Init.MACAddr[2],
             heth.Init.MACAddr[3], heth.Init.MACAddr[4], heth.Init.MACAddr[5]);
-    log_info("============================================");
+    LOG_ML("============================================");
+    LOG_ML_END();
 }
 
 void App::SetupBeforeThreadX() {

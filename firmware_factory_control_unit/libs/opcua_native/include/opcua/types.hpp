@@ -74,8 +74,8 @@ enum class StatusCode : UInt32 {
     BadNotSupported = 0x80100000,
     BadInvalidArgument = 0x80AB0000,
     BadOutOfRange = 0x803D0000,
-    BadNodeIdUnknown = 0x80330000,
-    BadNodeIdInvalid = 0x80320000,
+    BadNodeIdInvalid = 0x80330000,
+    BadNodeIdUnknown = 0x80340000,
     BadAttributeIdInvalid = 0x80350000,
     BadNotReadable = 0x803A0000,
     BadNotWritable = 0x803B0000,
@@ -176,11 +176,15 @@ struct LocalizedText {
     constexpr LocalizedText(std::string_view loc, std::string_view t) : locale(loc), text(t) {}
 };
 
-// NodeClass (Part 3 5.2.2) -- only the two classes this server's address space actually uses.
+// NodeClass (Part 3 5.2.2) -- only the classes this server's address space actually uses.
 enum class NodeClass : Int32 {
     Unspecified = 0,
     Object = 1,
     Variable = 2,
+    ObjectType = 8,
+    VariableType = 16,
+    ReferenceType = 32,
+    DataType = 64,
 };
 
 } // namespace opcua

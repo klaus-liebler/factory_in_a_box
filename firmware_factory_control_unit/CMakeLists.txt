@@ -80,7 +80,30 @@ target_compile_definitions(stm32cubemx INTERFACE STM32H5 STM32H5xx)
 # laut Anforderung muessen sie dort nicht funktionieren, duerfen den Boot aber auch nicht
 # aufhalten (bereits so gebaut: keine der Setup()-Routinen dieser Subsysteme haengt sich an
 # einem Error_Handler() auf, s. Kommentar bei tof_color_.Setup() in io.cpp).
-option(BOARD_NUCLEO_H563ZI "Build for the STM32H563ZI Nucleo-144 eval board (UM3115) instead of the real Factory Control Unit PCB" OFF)
+#
+# Der DEFAULT dieses option()-Aufrufs kommt, wenn vorhanden, automatisch aus
+# Core/generated/board-variant.json (vom builder/-Tool geschrieben, s.
+# FirmwareBuilder.Common/stm32/Stm32BoardProvisioningService.cs's GenerateDeviceArtifacts --
+# derselbe bereits funktionierende Chip-UID -> boardTypeName-Nachschlag, der auch BOARD_NAME
+# setzt, s. firmware_constants.hh) -- ein Mensch muss dadurch nicht mehr von Hand das passende
+# Preset waehlen (Ursache eines frueheren, session-langen Debugging-Vorfalls: falsches Preset auf
+# falsch angeschlossenem Board sah wie ein Hardware-Defekt aus, s. Projektgedaechtnis). Ein
+# expliziter Override (-DBOARD_NUCLEO_H563ZI=ON, oder das Debug-Nucleo-Preset ueber
+# cacheVariables) gewinnt weiterhin, z.B. fuer ein noch nicht provisioniertes Board ohne
+# Archiv-Eintrag -- option()'s Default wird nur beim ERSTEN Configure eines binaryDir
+# herangezogen, was hier genau der richtige Zeitpunkt ist (jedes Preset hat sein eigenes
+# build/<preset>-Verzeichnis).
+set(_board_variant_file "${CMAKE_SOURCE_DIR}/Core/generated/board-variant.json")
+set(_detected_nucleo_default OFF)
+if(EXISTS "${_board_variant_file}")
+    file(READ "${_board_variant_file}" _board_variant_json)
+    string(JSON _board_type_name GET "${_board_variant_json}" "boardTypeName")
+    if(_board_type_name STREQUAL "NucleoH563ZI")
+        set(_detected_nucleo_default ON)
+    endif()
+    message(STATUS "Board-Variant erkannt (Core/generated/board-variant.json): ${_board_type_name}")
+endif()
+option(BOARD_NUCLEO_H563ZI "Build for the STM32H563ZI Nucleo-144 eval board (UM3115) instead of the real Factory Control Unit PCB" ${_detected_nucleo_default})
 if(BOARD_NUCLEO_H563ZI)
     message(STATUS "Board target: STM32H563ZI Nucleo-144 (test rig)")
     target_compile_definitions(stm32cubemx INTERFACE BOARD_NUCLEO_H563ZI)
@@ -137,6 +160,7 @@ target_include_directories(opcua_native PRIVATE
     libs/ST/netxduo/nx_secure/ports
     libs/ST/netxduo/crypto_libraries/inc
     libs/ST/netxduo/crypto_libraries/ports/cortex_m4/gnu/inc
+    ../stm32_libs/common_stm32 # connection.cpp/net_transport.cpp use log.h for diagnostics
 )
 target_compile_definitions(opcua_native PRIVATE
     FX_INCLUDE_USER_DEFINE_FILE
@@ -172,6 +196,8 @@ file(GLOB NETXDUO_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/dhcp/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/mdns/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/web/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/dns/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/sntp/*.c
 )
 # NetX Secure (TLS) + Crypto -- wegen der Dateimenge (~360 Dateien) per GLOB statt
 # Hand-Liste eingebunden (identisches Muster wie in Nx_WebServer/CMakeLists.txt).
@@ -269,8 +295,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Core/Src/app.cc
     Core/Src/net_setup.cpp
+    Core/Src/sntp_setup.cpp
     Core/Src/opcua_setup.cpp
-    Core/Src/opcua_test_address_space.cpp
     Core/Src/webserver.cpp
     Core/Src/ws_log_bridge.cpp
     Core/Src/io.cpp
@@ -313,6 +339,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     libs/ST/netxduo/addons/dhcp
     libs/ST/netxduo/addons/mdns
     libs/ST/netxduo/addons/web
+    libs/ST/netxduo/addons/dns
+    libs/ST/netxduo/addons/sntp
     libs/ST/netxduo/nx_secure/inc
     libs/ST/netxduo/nx_secure/ports
     libs/ST/netxduo/crypto_libraries/inc

@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "opcua/tcp_message.hpp"
+#include "log.h"
 
 namespace opcua {
 
@@ -76,11 +77,14 @@ void OpcUaTcpServer::OnNewConnection(NX_TCP_SESSION *session) {
     state.recvLength = 0;
     state.transport.Bind(session, packetPool_);
     state.connection.Reset(index, &state.transport, addressSpace_, endpointUrl_);
+    log_debug("OPC UA: slot %u new TCP connection", index);
 }
 
 void OpcUaTcpServer::OnConnectionEnd(NX_TCP_SESSION *session) {
     UINT index = SessionIndex(session);
     SessionState &state = sessionStates_[index];
+    log_debug("OPC UA: slot %u connection end (state=%u)", index,
+             static_cast<unsigned>(session->nx_tcp_session_socket.nx_tcp_socket_state));
     state.transport.RequestClose(); // idempotent -- also the path a remote-initiated close takes
     state.recvLength = 0;
 }
@@ -118,6 +122,8 @@ void OpcUaTcpServer::OnReceiveData(NX_TCP_SESSION *session) {
         TcpHeader header;
         std::span<const Byte> buffered(state.recvBuffer.data(), state.recvLength);
         if(!PeekTcpHeader(buffered, header)) {
+            log_debug("OPC UA: slot %u malformed TCP header, closing (recvLength=%u)",
+                     index, static_cast<unsigned>(state.recvLength));
             state.transport.RequestClose();
             return;
         }
@@ -125,15 +131,23 @@ void OpcUaTcpServer::OnReceiveData(NX_TCP_SESSION *session) {
         // a compliant client never exceeds it; a header claiming otherwise is either corrupt
         // or a non-compliant client, either way not something to buffer for.
         if(header.messageSize < TCP_HEADER_SIZE || header.messageSize > RAW_BUFFER_SIZE) {
+            log_debug("OPC UA: slot %u '%c%c%c' claims oversized messageSize=%u, closing",
+                     index, header.messageType[0], header.messageType[1], header.messageType[2],
+                     static_cast<unsigned>(header.messageSize));
             state.transport.RequestClose();
             return;
         }
         if(state.recvLength < header.messageSize)
             break; // wait for the rest of this message to arrive
 
+        log_debug("OPC UA: slot %u recv '%c%c%c' size=%u", index, header.messageType[0],
+                 header.messageType[1], header.messageType[2],
+                 static_cast<unsigned>(header.messageSize));
         state.connection.HandleMessage(buffered.subspan(0, header.messageSize));
-        if(state.transport.Closed())
+        if(state.transport.Closed()) {
+            log_debug("OPC UA: slot %u closed by HandleMessage", index);
             return;
+        }
 
         size_t remaining = state.recvLength - header.messageSize;
         std::memmove(state.recvBuffer.data(), state.recvBuffer.data() + header.messageSize, remaining);

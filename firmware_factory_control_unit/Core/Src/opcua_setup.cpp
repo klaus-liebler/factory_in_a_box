@@ -3,7 +3,7 @@
 #include <cstdio>
 
 #include "opcua/net_transport.hpp"
-#include "opcua_test_address_space.hpp"
+#include "generated/opcua_registers_generated.hh"
 
 #include "app.hh"
 #include "common_macros.hh"
@@ -34,6 +34,13 @@ char g_endpointUrl[64];
 } // namespace
 
 void OpcUaServerSetup(App *app) {
+    // Wires the compile-time-fixed generated Node table's Read/WriteCallbacks (see
+    // opcua_registers_generated.hh -- one shared callback per base type, driven by a per-register
+    // RegisterContext) to the runtime register storage. Must happen before AddressSpaceInstance()
+    // is handed to the server below; app->register_model already exists at this point (created in
+    // App::SetupBeforeThreadX(), long before AppThread()/OpcUaServerSetup() run).
+    GeneratedOpcUa::SetRegisterModel(app->register_model);
+
     void *ptr = nullptr;
     XASSERT(tx_byte_allocate(&app->byte_pool, &ptr, OPCUA_POOL_SIZE, TX_NO_WAIT),
             "OPC UA packet pool allocate failed");
@@ -51,7 +58,7 @@ void OpcUaServerSetup(App *app) {
 
     XASSERT(g_server.Create(&app->ip_instance, &g_opcuaPacketPool, ptr, OPCUA_THREAD_STACK_SIZE,
                             OPCUA_THREAD_PRIORITY, OPCUA_SESSION_TIMEOUT_SECONDS,
-                            &OpcUaTestAddressSpace(), g_endpointUrl),
+                            &GeneratedOpcUa::AddressSpaceInstance(), g_endpointUrl),
             "OPC UA TCP server create failed");
     XASSERT(g_server.Start(OPCUA_PORT, opcua::OpcUaTcpServer::MAX_SESSIONS * 2),
             "OPC UA TCP server start failed");

@@ -8,6 +8,8 @@
 // reinem C, aber der Stil (extern-"C"-Schnittstelle nach aussen) bleibt hier bewusst erhalten,
 // damit C++-Aufrufer (app.cc) weiterhin nur diese schmale Schnittstelle sehen.
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -60,6 +62,13 @@ uint32_t usbd_debug_cdc_write(uint8_t const* buffer, uint32_t len);
 // Aufrufer nie gleichzeitig).
 typedef struct UX_SLAVE_CLASS_CDC_ACM_STRUCT UX_SLAVE_CLASS_CDC_ACM;
 UX_SLAVE_CLASS_CDC_ACM* usbd_cdc_modbus_instance(void);
+
+// Vom Heartbeat-Thread (App::HeartbeatThread(), app.cc) periodisch aufzurufen, NICHT aus ISR-
+// Kontext: liefert true und fuellt out_message, falls sich der USB-Geraetezustand seit dem
+// letzten Aufruf geaendert hat (Attach/Detach/Suspend/Resume/...), sonst false. Ersetzt ein
+// frueheres direktes log_info() aus dem USB-ISR heraus, das das Log-Mutex umging (ISR-Kontext
+// erlaubt kein tx_mutex_get(), s. Kommentar bei usbx_device_state_change() in usbd_device.c).
+bool usbd_device_poll_state_change(char *out_message, size_t out_message_size);
 
 #ifdef __cplusplus
 }

@@ -8,9 +8,10 @@ for this server's intentionally-reduced scope. No pip install needed -- stdlib o
 
 Exercises the whole handshake end to end: Hello/Acknowledge -> OpenSecureChannel ->
 CreateSession -> ActivateSession (anonymous) -> Browse (Objects -> FactoryControlUnit ->
-Greeting/UptimeSeconds) -> Read both values -> attempt Write on the read-only Greeting node
-(expects BadNotWritable, confirming access-level enforcement actually works) -> CloseSession ->
-CloseSecureChannel.
+Diagnostics/Ws2812) -> Read Diagnostics.CpuTemperatureC/HealthState -> attempt Write on the
+read-only HealthState node (expects BadNotWritable, confirming access-level enforcement still
+works) -> Write + read back Ws2812.Ws2812Ch1Pattern (a genuinely writable Holding-backed node,
+via UniversalRegisterAccess's generated address space) -> CloseSession -> CloseSecureChannel.
 
 Examples:
     python test_opcua.py --host factory-box-363836.local
@@ -681,26 +682,69 @@ def run(host: str, port: int):
 
         print(f"Browse FactoryControlUnit ({folder_id}):")
         refs = client.browse(folder_id[0], folder_id[1])
-        nodes = {}
+        regions = {}
         for ref_type, is_forward, target, browse_name, display_name, node_class in refs:
             print(f"  -> {target} browseName={browse_name} displayName={display_name} nodeClass={node_class}")
-            nodes[browse_name[1]] = target
+            regions[browse_name[1]] = target
 
-        for name in ("Greeting", "UptimeSeconds"):
-            if name not in nodes:
-                print(f"FAIL: {name} node not found")
+        for name in ("Diagnostics", "Ws2812"):
+            if name not in regions:
+                print(f"FAIL: {name} region object not found under FactoryControlUnit")
                 sys.exit(1)
-            ns, nid = nodes[name]
-            dv = client.read_value(ns, nid)
-            print(f"Read {name} ({ns},{nid}): value={dv['value']!r} status={status_name(dv['status'])}")
 
-        # Greeting is read-only (see opcua_test_address_space.cpp) -- this Write must be
-        # rejected. A Good result here would mean access-level enforcement is broken.
-        ns, nid = nodes["Greeting"]
-        result = client.write_value(ns, nid, "hacked", ua_type_id=12)
-        print(f"Write Greeting (expect BadNotWritable): {status_name(result)}")
+        print(f"Browse Diagnostics ({regions['Diagnostics']}):")
+        refs = client.browse(regions["Diagnostics"][0], regions["Diagnostics"][1])
+        diag_nodes = {}
+        for ref_type, is_forward, target, browse_name, display_name, node_class in refs:
+            print(f"  -> {target} browseName={browse_name} displayName={display_name} nodeClass={node_class}")
+            diag_nodes[browse_name[1]] = target
+
+        for name in ("CpuTemperatureC", "HealthState"):
+            if name not in diag_nodes:
+                print(f"FAIL: Diagnostics.{name} node not found")
+                sys.exit(1)
+            ns, nid = diag_nodes[name]
+            dv = client.read_value(ns, nid)
+            print(f"Read Diagnostics.{name} ({ns},{nid}): value={dv['value']!r} status={status_name(dv['status'])}")
+
+        # HealthState is Access.ReadOnly (Input register) in register_map_schema/Diagnostics.cs --
+        # this Write must be rejected. A Good result here would mean access-level enforcement is
+        # broken (or the schema's Access got flipped without the OPC UA node following it).
+        ns, nid = diag_nodes["HealthState"]
+        result = client.write_value(ns, nid, 0, ua_type_id=5)
+        print(f"Write Diagnostics.HealthState (expect BadNotWritable): {status_name(result)}")
         if result == 0:
-            print("FAIL: server accepted a write to a read-only node")
+            print("FAIL: server accepted a write to a read-only (Access.ReadOnly) node")
+            sys.exit(1)
+
+        print(f"Browse Ws2812 ({regions['Ws2812']}):")
+        refs = client.browse(regions["Ws2812"][0], regions["Ws2812"][1])
+        ws_nodes = {}
+        for ref_type, is_forward, target, browse_name, display_name, node_class in refs:
+            print(f"  -> {target} browseName={browse_name} displayName={display_name} nodeClass={node_class}")
+            ws_nodes[browse_name[1]] = target
+        if "Ws2812Ch1Pattern" not in ws_nodes:
+            print("FAIL: Ws2812.Ws2812Ch1Pattern node not found")
+            sys.exit(1)
+        ns, nid = ws_nodes["Ws2812Ch1Pattern"]
+        dv = client.read_value(ns, nid)
+        print(f"Read Ws2812.Ws2812Ch1Pattern before write: value={dv['value']!r} status={status_name(dv['status'])}")
+
+        # Access.ReadWrite (Holding register) -- this is the first genuinely writable node this
+        # server has ever had (the old hand-written test address space had none). A BadNotWritable
+        # here would mean the OPC UA generator's Access.ReadWrite -> accessLevel/writeCallback
+        # wiring is broken.
+        new_value = (dv["value"] + 1) % 5
+        result = client.write_value(ns, nid, new_value, ua_type_id=5)
+        print(f"Write Ws2812.Ws2812Ch1Pattern={new_value} (expect Good): {status_name(result)}")
+        if result != 0:
+            print("FAIL: server rejected a write to a Access.ReadWrite node")
+            sys.exit(1)
+        dv = client.read_value(ns, nid)
+        print(f"Read Ws2812.Ws2812Ch1Pattern after write: value={dv['value']!r} status={status_name(dv['status'])}")
+        if dv["value"] != new_value:
+            print(f"FAIL: read-back value {dv['value']!r} does not match written value {new_value!r} -- "
+                  "OPC UA write and the underlying ModbusRegisterModel storage are not consistent")
             sys.exit(1)
 
         print("CloseSession:")

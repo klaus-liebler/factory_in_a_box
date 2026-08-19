@@ -25,14 +25,16 @@ static GenerateDeviceArtifactsRequest CreateGenerateDeviceArtifactsRequest(strin
 		BoardIdCacheFile: Paths.BoardIdCacheFile,
 		ExplicitBoardId: board);
 
-static ModbusRegisterMapBuildRequest CreateModbusRequest(string? board) =>
+static UniversalRegisterAccessBuildRequest CreateRegisterAccessRequest(string? board) =>
 	new(
 		BoardStorage: BuilderSettings.Current.BoardStorage,
 		BoardIdCacheFile: Paths.BoardIdCacheFile,
 		RootDir: Paths.RootDir,
+		DefaultSchemaDirectory: Paths.RegisterMapSchemaDir,
 		CoreGeneratedDir: Paths.CoreGeneratedDir,
 		WebGeneratedDir: Paths.WebGeneratedDir,
-		ExplicitBoardId: board);
+		ExplicitBoardId: board,
+		Sources: []);
 
 static BestBinaryBufferBuildRequest CreateBestBinaryBufferRequest(string? board, IReadOnlyList<string> schemaPaths) =>
 	new(
@@ -70,7 +72,7 @@ static GeneratedArtifactsCopyRequest CreateCopyRequest(string? board) =>
 		CoreGeneratedDir: Paths.CoreGeneratedDir,
 		WebGeneratedDir: Paths.WebGeneratedDir,
 		AssetsDir: Paths.AssetsDir,
-		CoreFiles: ["device_ids.hh", "gitconstants.hh", "firmware_constants.hh", "register_input.inc", "register_holding.inc", "register_maxindex.inc", "ws_protocol.hh"],
+		CoreFiles: ["device_ids.hh", "gitconstants.hh", "firmware_constants.hh", "board-variant.json", "modbus_registers_generated.hh", "opcua_registers_generated.hh", "ws_protocol.hh"],
 		WebFiles: ["register-map.ts", "build-info.ts", "ws-protocol.ts"],
 		AssetFiles: ["device_certificate.der", "device_key.der"]);
 
@@ -89,7 +91,7 @@ static Args ParseArgs(string[] argv)
 {
 	if (argv.Length == 0)
 	{
-		throw new ArgumentException("Kein Phasenname angegeben. Beispiel: dotnet run --project builder -- ReadModbusRegisterMapAndGenerateFiles");
+		throw new ArgumentException("Kein Phasenname angegeben. Beispiel: dotnet run --project builder -- GenerateRegisterAccessFiles");
 	}
 	var phase = argv[0];
 
@@ -130,7 +132,7 @@ static void RunPhase(string phase, string preset, string? board, IReadOnlyList<s
 	registry.AddCommand("GenerateCertificatesLazy", () => Stm32BoardProvisioningService.GenerateCertificates(CreateGenerateCertificatesRequest(board, force: false)));
 	registry.AddCommand("GenerateCertificatesForced", () => Stm32BoardProvisioningService.GenerateCertificates(CreateGenerateCertificatesRequest(board, force: true)));
 	registry.AddCommand("GenerateDeviceArtifacts", () => Stm32BoardProvisioningService.GenerateDeviceArtifacts(CreateGenerateDeviceArtifactsRequest(board)));
-	registry.AddCommand("ReadModbusRegisterMapAndGenerateFiles", () => ModbusRegisterMapBuildService.Run(CreateModbusRequest(board)));
+	registry.AddCommand("GenerateRegisterAccessFiles", () => UniversalRegisterAccessBuildService.Run(CreateRegisterAccessRequest(board)));
 	registry.AddCommand("GenerateBestBinaryBufferFiles", () => BestBinaryBufferBuildService.Run(CreateBestBinaryBufferRequest(board, schemaPaths)));
 	registry.AddCommand("ReadGitStatusAndGenerateFiles", () => GitBuildArtifactsService.Generate(CreateGitBuildRequest(board)));
 	registry.AddCommand("CopyGeneratedFilesToBuildDirectory", () => GeneratedArtifactsCopyService.CopyToBuildDirectories(CreateCopyRequest(board)));
@@ -143,7 +145,7 @@ static void RunPhase(string phase, string preset, string? board, IReadOnlyList<s
 		"ReadHardwareIds",
 		"GenerateCertificatesLazy",
 		"GenerateDeviceArtifacts",
-		"ReadModbusRegisterMapAndGenerateFiles",
+		"GenerateRegisterAccessFiles",
 		"GenerateBestBinaryBufferFiles",
 		"ReadGitStatusAndGenerateFiles",
 		"CopyGeneratedFilesToBuildDirectory",
@@ -156,7 +158,7 @@ static void RunPhase(string phase, string preset, string? board, IReadOnlyList<s
 		"ReadHardwareIds",
 		"GenerateCertificatesForced",
 		"GenerateDeviceArtifacts",
-		"ReadModbusRegisterMapAndGenerateFiles",
+		"GenerateRegisterAccessFiles",
 		"GenerateBestBinaryBufferFiles",
 		"ReadGitStatusAndGenerateFiles",
 		"CopyGeneratedFilesToBuildDirectory",

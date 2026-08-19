@@ -25,10 +25,14 @@ static void WsLogBridgeSink(int level, char const *text, size_t len) {
     // level (int, s. enum in log.h: LOG_TRACE..LOG_FATAL) und LogLevel (generiert aus
     // ws-protocol/system.json) sind bewusst zwei getrennte, aber wertgleiche Aufzaehlungen --
     // log.h soll kein Wissen ueber das WebSocket-Wire-Format haben (s. log_ExtraSinkFn-Kommentar).
-    payload.level = (WsProtocol::system::LogMessage::LogLevel)level;
+    payload.level = (WsProtocol::system::LogLevel)level;
     payload.timestampMs = HAL_GetTick();
+    // Payload.text ist im aktuell generierten Schema null-terminiert (kein separates
+    // textLength-Feld mehr) -- text kommt aus log.c's vsnprintf()-Puffer, der immer
+    // null-terminiert ("len" markiert nur, wo diese Terminierung sitzt), daher unveraendert
+    // uebernehmbar.
     payload.text = text;
-    payload.textLength = len;
+    (void)len;
 
     uint8_t buffer[300];
     size_t encoded = WsProtocol::system::LogMessage::Encode(payload, buffer, sizeof(buffer));

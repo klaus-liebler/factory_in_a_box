@@ -212,10 +212,8 @@ class StepperSetupAndLoop : public ISetupAndLoop {
             tmc_stepper2.disable();
         }
 
-        int32_t target1 = ((int32_t)register_model.GetHoldingRegister(ModbusRegisters::Holding::STEPPER1_TARGET_HI) << 16) |
-                           register_model.GetHoldingRegister(ModbusRegisters::Holding::STEPPER1_TARGET_LO);
-        int32_t target2 = ((int32_t)register_model.GetHoldingRegister(ModbusRegisters::Holding::STEPPER2_TARGET_HI) << 16) |
-                           register_model.GetHoldingRegister(ModbusRegisters::Holding::STEPPER2_TARGET_LO);
+        int32_t target1 = ModbusRegisters::Accessors::StepperCtrl::Stepper1Target_Read(register_model);
+        int32_t target2 = ModbusRegisters::Accessors::StepperCtrl::Stepper2Target_Read(register_model);
 
         // Waehrend eine Achse homt, wird ihre normale Zielpositionsfahrt ausgesetzt (die
         // Homing-Bewegung laeuft chip-intern ueber VACTUAL, s. TMC2209::GenerateSteps() --
@@ -229,10 +227,8 @@ class StepperSetupAndLoop : public ISetupAndLoop {
 
         int32_t pos1 = stepper1_motion.GetCurrentPosition();
         int32_t pos2 = stepper2_motion.GetCurrentPosition();
-        register_model.SetInputRegister(ModbusRegisters::Input::STEPPER1_POSITION_HI, (uint16_t)((uint32_t)pos1 >> 16));
-        register_model.SetInputRegister(ModbusRegisters::Input::STEPPER1_POSITION_LO, (uint16_t)((uint32_t)pos1 & 0xFFFF));
-        register_model.SetInputRegister(ModbusRegisters::Input::STEPPER2_POSITION_HI, (uint16_t)((uint32_t)pos2 >> 16));
-        register_model.SetInputRegister(ModbusRegisters::Input::STEPPER2_POSITION_LO, (uint16_t)((uint32_t)pos2 & 0xFFFF));
+        ModbusRegisters::Accessors::StepperStatus::Stepper1Position_Write(register_model, pos1);
+        ModbusRegisters::Accessors::StepperStatus::Stepper2Position_Write(register_model, pos2);
 
         register_model.SetInputRegister(ModbusRegisters::Input::STEPPER1_STATUS, compute_status(enabled, stepper1_motion, target1));
         register_model.SetInputRegister(ModbusRegisters::Input::STEPPER2_STATUS, compute_status(enabled, stepper2_motion, target2));

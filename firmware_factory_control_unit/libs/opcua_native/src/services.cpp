@@ -6,6 +6,7 @@
 #include "opcua/codec.hpp"
 #include "opcua/node_ids.hpp"
 #include "opcua/service_header.hpp"
+#include "log.h"
 
 namespace opcua {
 
@@ -37,11 +38,16 @@ AttributeReadResult ReadNodeAttribute(const AddressSpace &as, const NodeId &node
             return {StatusCode::BadNotReadable, {}};
         return {StatusCode::Good, node->ReadValue()};
     case ns0::AttributeId::DataType:
-        if(node->nodeClass != NodeClass::Variable)
+        // HasDataTypeAttribute (address_space.hpp) is the SAME predicate the compile-time table
+        // checks use (AllTypedNodesHaveDataType/AllDataTypesResolve) -- deliberately shared, not
+        // a second hand-copied `nodeClass == Variable` check: that's exactly how this attribute
+        // ended up wrongly gated to Variable-only in the first place (2026-08-19), missing that
+        // VariableType nodes (e.g. BaseDataVariableType) have a DataType attribute too.
+        if(!HasDataTypeAttribute(node->nodeClass))
             return {StatusCode::BadAttributeIdInvalid, {}};
         return {StatusCode::Good, Variant::Of(node->dataType)};
     case ns0::AttributeId::ValueRank:
-        if(node->nodeClass != NodeClass::Variable)
+        if(!HasDataTypeAttribute(node->nodeClass))
             return {StatusCode::BadAttributeIdInvalid, {}};
         return {StatusCode::Good, Variant::Of(static_cast<Int32>(-1))}; // scalar-only, see variant.hpp
     case ns0::AttributeId::AccessLevel:
@@ -49,6 +55,37 @@ AttributeReadResult ReadNodeAttribute(const AddressSpace &as, const NodeId &node
         if(node->nodeClass != NodeClass::Variable)
             return {StatusCode::BadAttributeIdInvalid, {}};
         return {StatusCode::Good, Variant::Of(node->accessLevel)};
+    case ns0::AttributeId::Historizing:
+        if(node->nodeClass != NodeClass::Variable)
+            return {StatusCode::BadAttributeIdInvalid, {}};
+        return {StatusCode::Good, Variant::Of(false)}; // no history collection support
+    case ns0::AttributeId::EventNotifier:
+        if(node->nodeClass != NodeClass::Object)
+            return {StatusCode::BadAttributeIdInvalid, {}};
+        return {StatusCode::Good, Variant::Of(static_cast<Byte>(0))}; // no event notification support
+    // Description/WriteMask/UserWriteMask (Part 3 5.2.4): base "Node" attributes every
+    // NodeClass has, not gated by class at all -- this server tracks no per-node description
+    // text or attribute-write permissions, so these are universal, spec-legal defaults (an
+    // absent/null Description, and "nothing is attribute-writable") rather than per-node data.
+    case ns0::AttributeId::Description:
+        return {StatusCode::Good, Variant::Of(LocalizedText{})};
+    case ns0::AttributeId::WriteMask:
+    case ns0::AttributeId::UserWriteMask:
+        return {StatusCode::Good, Variant::Of(static_cast<UInt32>(0))};
+    case ns0::AttributeId::IsAbstract:
+        // HasIsAbstractAttribute (address_space.hpp) -- same shared-predicate reasoning as
+        // HasDataTypeAttribute above.
+        if(!HasIsAbstractAttribute(node->nodeClass))
+            return {StatusCode::BadAttributeIdInvalid, {}};
+        return {StatusCode::Good, Variant::Of(node->isAbstract)};
+    case ns0::AttributeId::Symmetric:
+        if(node->nodeClass != NodeClass::ReferenceType)
+            return {StatusCode::BadAttributeIdInvalid, {}};
+        return {StatusCode::Good, Variant::Of(false)}; // none of this server's ReferenceTypes are symmetric
+    case ns0::AttributeId::InverseName:
+        if(node->nodeClass != NodeClass::ReferenceType)
+            return {StatusCode::BadAttributeIdInvalid, {}};
+        return {StatusCode::Good, Variant::Of(node->inverseName)};
     default:
         return {StatusCode::BadAttributeIdInvalid, {}};
     }
@@ -115,10 +152,18 @@ bool HandleGetEndpoints(ByteReader &requestBody, std::string_view ourEndpointUrl
     if(!SkipStringArray(requestBody)) return false; // ProfileUris
     if(!requestBody.Ok()) return false;
 
+    // Echo back whatever URL the client actually used to reach us (rather than this server's
+    // own fixed, hostless default) -- strict clients (e.g. UAExpert's .NET-based stack) verify
+    // the EndpointUrl matches how they connected, and reject the session with
+    // BadInvalidArgument if a mismatched/hostless one comes back. Falls back to our default
+    // only if the client didn't specify one at all.
+    std::string_view endpointUrl = (!requestedEndpointUrl.isNull && !requestedEndpointUrl.value.empty())
+        ? requestedEndpointUrl.value : ourEndpointUrl;
+
     if(!EncodeNodeId(w, NodeId(0, ns0::GetEndpointsResponse))) return false;
     if(!EncodeResponseHeader(w, MakeResponseHeader(reqHeader, StatusCode::Good))) return false;
     if(!w.WriteInt32(1)) return false; // Endpoints: 1 entry
-    return EncodeEndpointDescription(w, BuildEndpoint(ourEndpointUrl));
+    return EncodeEndpointDescription(w, BuildEndpoint(endpointUrl));
 }
 
 bool HandleRead(const AddressSpace &as, bool sessionActive, ByteReader &requestBody, ByteWriter &w) {
@@ -156,6 +201,9 @@ bool HandleRead(const AddressSpace &as, bool sessionActive, ByteReader &requestB
         if(!requestBody.Ok()) return false;
 
         AttributeReadResult result = ReadNodeAttribute(as, nodeId, attributeId);
+        log_debug("OPC UA: Read (ns=%u,i=%u) attr=%u -> status=0x%08X", static_cast<unsigned>(nodeId.namespaceIndex),
+                 static_cast<unsigned>(nodeId.numeric), static_cast<unsigned>(attributeId),
+                 static_cast<unsigned>(result.status));
         if(!EncodeDataValue(w, result.status, IsGood(result.status) ? &result.value : nullptr))
             return false;
     }

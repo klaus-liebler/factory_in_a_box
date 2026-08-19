@@ -42,6 +42,10 @@ constexpr UInt32 DataType_UInt16 = 5;
 constexpr UInt32 DataType_Int32 = 6;
 constexpr UInt32 DataType_UInt32 = 7;
 constexpr UInt32 DataType_String = 12;
+constexpr UInt32 DataType_LocalizedText = 21;
+// The abstract root of the DataType hierarchy (Part 5) -- what a VariableType whose instances
+// may hold any concrete type (e.g. BaseDataVariableType) uses as its own DataType attribute.
+constexpr UInt32 DataType_BaseDataType = 24;
 
 // --- Well-known ReferenceType NodeIds (Part 3 Table 30, Part 4 releases) ---
 constexpr UInt32 References = 31;
@@ -60,6 +64,21 @@ constexpr UInt32 ViewsFolder = 87;
 constexpr UInt32 Server = 2253;
 constexpr UInt32 Server_ServerStatus = 2256;
 constexpr UInt32 Server_ServerStatus_State = 2259;
+// Added 2026-08-19: a real OPC UA client (UAExpert) periodically re-Reads exactly this trio
+// (State + these two) as a liveness/"is the server still healthy" watchdog -- confirmed via
+// firmware-side request tracing (see project memory). None of this server's minimal test
+// address space registered ANY Server-object nodes, so every one of these Reads failed
+// (BadNodeIdUnknown), and UAExpert's client stack reacted to the failing watchdog by tearing
+// down and reopening the connection every few seconds -- a perpetual reconnect loop that looked
+// like a transport/timing bug but was really just a missing mandatory NS0 node.
+constexpr UInt32 Server_ServerStatus_SecondsTillShutdown = 2992;
+constexpr UInt32 Server_ServerStatus_ShutdownReason = 2993;
+// The struct DataType of the ServerStatus Variable itself -- like the trio above, a Variable's
+// DataType attribute must never be left as the null NodeId (Node::dataType's default): a real
+// client that reads it (as UAExpert does for every Variable node it discovers) tries to resolve
+// that NodeId next, and a null one fails with BadNodeIdUnknown just like an unregistered real
+// one would.
+constexpr UInt32 ServerStatusDataType = 862;
 constexpr UInt32 Server_NamespaceArray = 2255;
 constexpr UInt32 Server_ServerArray = 2254;
 constexpr UInt32 FolderType = 61;

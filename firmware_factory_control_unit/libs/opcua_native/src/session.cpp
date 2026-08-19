@@ -67,6 +67,13 @@ bool Session::HandleCreate(ByteReader &requestBody, UInt32 connectionSlot,
 
     Double revisedTimeout = (requestedSessionTimeout > 0.0) ? requestedSessionTimeout : 60000.0;
 
+    // Echo back whatever URL the client itself specified (rather than this server's own fixed,
+    // hostless default) -- see HandleGetEndpoints (services.cpp) for why: strict clients
+    // (UAExpert's .NET-based stack included) reject the session with BadInvalidArgument if the
+    // returned EndpointUrl doesn't match how they connected.
+    std::string_view effectiveEndpointUrl = (!requestedEndpointUrl.isNull && !requestedEndpointUrl.value.empty())
+        ? requestedEndpointUrl.value : endpointUrl;
+
     if(!EncodeNodeId(w, NodeId(0, ns0::CreateSessionResponse))) return false;
     if(!EncodeResponseHeader(w, MakeResponseHeader(reqHeader, StatusCode::Good))) return false;
     if(!EncodeNodeId(w, sessionId_)) return false;
@@ -75,7 +82,7 @@ bool Session::HandleCreate(ByteReader &requestBody, UInt32 connectionSlot,
     if(!w.WriteByteString(std::string_view{}, true)) return false; // ServerNonce = null (no crypto)
     if(!w.WriteByteString(std::string_view{}, true)) return false; // ServerCertificate = null
     if(!w.WriteInt32(1)) return false;                        // ServerEndpoints: 1 entry
-    if(!EncodeEndpointDescription(w, BuildEndpoint(endpointUrl))) return false;
+    if(!EncodeEndpointDescription(w, BuildEndpoint(effectiveEndpointUrl))) return false;
     if(!w.WriteInt32(-1)) return false;                        // ServerSoftwareCertificates: null
     if(!w.WriteString(String::Null())) return false;           // ServerSignature.Algorithm
     if(!w.WriteByteString(std::string_view{}, true)) return false;  // ServerSignature.Signature

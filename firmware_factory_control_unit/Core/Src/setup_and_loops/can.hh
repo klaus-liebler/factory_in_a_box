@@ -58,12 +58,9 @@ class CanSetupAndLoop : public ISetupAndLoop {
         // Bus-State: 0=Error-Active, 1=Error-Passive, 2=Bus-Off
         uint16_t bus_state = proto_status.BusOff ? 2 : (proto_status.ErrorPassive ? 1 : 0);
 
-        register_model.SetInputRegister(ModbusRegisters::Input::CAN_TX_COUNT_HI, (uint16_t)(tx_count_ >> 16));
-        register_model.SetInputRegister(ModbusRegisters::Input::CAN_TX_COUNT_LO, (uint16_t)(tx_count_ & 0xFFFF));
-        register_model.SetInputRegister(ModbusRegisters::Input::CAN_RX_COUNT_HI, (uint16_t)(rx_count_ >> 16));
-        register_model.SetInputRegister(ModbusRegisters::Input::CAN_RX_COUNT_LO, (uint16_t)(rx_count_ & 0xFFFF));
-        register_model.SetInputRegister(ModbusRegisters::Input::CAN_ERROR_COUNT_HI, (uint16_t)(error_count >> 16));
-        register_model.SetInputRegister(ModbusRegisters::Input::CAN_ERROR_COUNT_LO, (uint16_t)(error_count & 0xFFFF));
+        ModbusRegisters::Accessors::Can::CanTxCount_Write(register_model, tx_count_);
+        ModbusRegisters::Accessors::Can::CanRxCount_Write(register_model, rx_count_);
+        ModbusRegisters::Accessors::Can::CanErrorCount_Write(register_model, error_count);
         register_model.SetInputRegister(ModbusRegisters::Input::CAN_LAST_ERROR, (uint16_t)proto_status.LastErrorCode);
         register_model.SetInputRegister(ModbusRegisters::Input::CAN_BUS_STATE, bus_state);
     }

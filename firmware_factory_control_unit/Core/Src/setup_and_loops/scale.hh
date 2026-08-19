@@ -39,8 +39,7 @@ class ScaleSetupAndLoop : public ISetupAndLoop {
             // Noch unkalibriert (keine Referenzgewichte vermessen) -- Rohwert direkt in die
             // WEIGHT-Register geschrieben, bis Kalibrierpunkte feststehen (siehe
             // HX711::getAverageCalibratedWeight() fuer die Umrechnung, sobald verfuegbar).
-            register_model.SetInputRegister(ModbusRegisters::Input::SCALE_A_WEIGHT_HI, (uint16_t)((uint32_t)raw_value >> 16));
-            register_model.SetInputRegister(ModbusRegisters::Input::SCALE_A_WEIGHT_LO, (uint16_t)((uint32_t)raw_value & 0xFFFF));
+            ModbusRegisters::Accessors::Scale::ScaleAWeight_Write(register_model, raw_value);
             register_model.SetInputRegister(ModbusRegisters::Input::SCALE_A_STATUS, 0);
         } else {
             // Fehlercode-Konvention (s. register-map.json): 0 = ok, ungleich 0 = Fehler --

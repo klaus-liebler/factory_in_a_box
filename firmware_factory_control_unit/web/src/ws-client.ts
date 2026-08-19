@@ -41,19 +41,38 @@ function consoleFnForLevel(level: WsProtocol.system.LogMessage.LogLevel): (...ar
 	}
 }
 
+// TEMPORARY diagnostics (2026-08-19) -- pinning down "LogMessage: frame too short" decode
+// errors. Dumps the exact raw bytes of whatever frame failed to decode, so a truncated/corrupt
+// frame can be told apart from a genuinely wrong offset/length calculation.
+function hexDump(data: ArrayBuffer): string {
+	return Array.from(new Uint8Array(data), (b) => b.toString(16).padStart(2, "0")).join(" ");
+}
+
 function handleMessage(data: ArrayBuffer): void {
-	if (data.byteLength < 4) return;
+	if (data.byteLength < 4) {
+		console.warn(`[diag] WS frame too short for even the 4-byte header: ${data.byteLength} bytes, hex=${hexDump(data)}`);
+		return;
+	}
 	const view = new DataView(data);
 	const namespaceId = view.getUint16(0, true);
 	const messageTypeId = view.getUint16(2, true);
 
 	if (namespaceId === WsProtocol.system.NAMESPACE_ID && messageTypeId === WsProtocol.system.LogMessage.TYPE_ID) {
-		const msg = WsProtocol.system.LogMessage.decode(view, 0);
-		// Platzhalter fuer den Anfang: Firmware-Logs landen vorerst nur in der Devtools-Konsole.
-		// Nachrichtentext bewusst als ERSTES Argument (nicht der Zeitstempel-Praefix davor) --
-		// eine lange Millisekundenzahl vor dem Text liess die ersten Zeichen der eigentlichen
-		// Meldung in der Konsole abgeschnitten wirken, s. Feedback.
-		consoleFnForLevel(msg.level)(msg.text, `(t=${msg.timestampMs}ms)`);
+		try {
+			const msg = WsProtocol.system.LogMessage.decode(view, 0);
+			console.debug(`[diag] WS LogMessage ok: ${data.byteLength} bytes`);
+			// Platzhalter fuer den Anfang: Firmware-Logs landen vorerst nur in der Devtools-Konsole.
+			// Nachrichtentext bewusst als ERSTES Argument (nicht der Zeitstempel-Praefix davor) --
+			// eine lange Millisekundenzahl vor dem Text liess die ersten Zeichen der eigentlichen
+			// Meldung in der Konsole abgeschnitten wirken, s. Feedback.
+			consoleFnForLevel(msg.level)(msg.text, `(t=${msg.timestampMs}ms)`);
+		} catch (error) {
+			console.warn(
+				`[diag] WS LogMessage decode FAILED: ${(error as Error).message}`,
+				`frame length=${data.byteLength} bytes`,
+				`\nhex=${hexDump(data)}`,
+			);
+		}
 		return;
 	}
 

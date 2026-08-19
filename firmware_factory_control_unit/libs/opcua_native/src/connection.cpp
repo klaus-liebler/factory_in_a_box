@@ -88,27 +88,14 @@ void Connection::HandleHello(std::span<const Byte> msg) {
 }
 
 void Connection::HandleOpenSecureChannel(std::span<const Byte> msg) {
-    ParsedSecureMessage parsed;
-    if(!ParseOpenSecureChannelMessage(msg, parsed)) {
-        SendErrorAndClose(StatusCode::BadSecurityPolicyRejected, "OpenSecureChannel parse failed");
-        return;
-    }
-
-    ByteReader body(parsed.body);
-    NodeId typeId;
-    if(!DecodeNodeId(body, typeId) || typeId != NodeId(0, ns0::OpenSecureChannelRequest)) {
-        SendErrorAndClose(StatusCode::BadTcpMessageTypeInvalid, "expected OpenSecureChannelRequest");
-        return;
-    }
-
     // Assigns a fresh ChannelId on first Open, keeps the existing one across a Renew --
     // (connectionSlot_ + 1) is guaranteed unique among this server's small, fixed connection
     // table (see the future net_transport.hpp wiring) without needing a separate allocator.
     UInt32 channelId = secureChannel_.IsOpen() ? secureChannel_.ChannelId() : (connectionSlot_ + 1);
 
     ByteWriter w(sendBuffer_);
-    if(!secureChannel_.HandleOpen(body, channelId, parsed.sequenceNumber, parsed.requestId, w) || !w.Ok()) {
-        SendErrorAndClose(StatusCode::BadInternalError, "OpenSecureChannel handling failed");
+    if(!secureChannel_.HandleOpen(msg, channelId, w) || !w.Ok()) {
+        SendErrorAndClose(StatusCode::BadSecurityChecksFailed, "OpenSecureChannel handling failed");
         return;
     }
     if(!transport_->Send(w.Written()))
@@ -116,24 +103,16 @@ void Connection::HandleOpenSecureChannel(std::span<const Byte> msg) {
 }
 
 void Connection::HandleCloseSecureChannel(std::span<const Byte> msg) {
-    ParsedSecureMessage parsed;
-    bool ok = ParseSymmetricMessage(msg, parsed) && secureChannel_.IsOpen() &&
-             parsed.channelId == secureChannel_.ChannelId() && parsed.tokenId == secureChannel_.TokenId();
-    if(ok) {
-        ByteReader body(parsed.body);
-        NodeId typeId;
-        // Best-effort: a CloseSecureChannelRequest with a malformed body still results in the
-        // connection closing (Part 4 5.5.3: there is no response either way).
-        if(DecodeNodeId(body, typeId))
-            secureChannel_.HandleClose(body);
-    }
+    // Best-effort: a CloseSecureChannelRequest that doesn't even verify still results in the
+    // connection closing (Part 4 5.5.3: there is no response either way).
+    secureChannel_.HandleClose(msg);
     transport_->RequestClose();
 }
 
 void Connection::HandleServiceMessage(std::span<const Byte> msg) {
     ParsedSecureMessage parsed;
-    if(!ParseSymmetricMessage(msg, parsed)) {
-        SendErrorAndClose(StatusCode::BadDecodingError, "malformed service message");
+    if(!secureChannel_.VerifyAndUnwrapSymmetric(msg, parsed)) {
+        SendErrorAndClose(StatusCode::BadSecurityChecksFailed, "malformed or unsigned service message");
         return;
     }
     if(parsed.channelId != secureChannel_.ChannelId() || parsed.tokenId != secureChannel_.TokenId()) {
@@ -162,7 +141,17 @@ void Connection::HandleServiceMessage(std::span<const Byte> msg) {
     }
 
     bool handled;
-    if(typeId == NodeId(0, ns0::CreateSessionRequest)) {
+    if(secureChannel_.IsDiscoveryOnly() && typeId != NodeId(0, ns0::GetEndpointsRequest)) {
+        // Part 4 5.4.4: GetEndpoints is the one service usable without security -- a
+        // SecurityPolicy#None channel exists purely for discovering which policy to actually use
+        // (see secure_channel.hpp's file header comment). Reject everything else with a proper
+        // ServiceFault instead of silently dispatching it insecurely.
+        ResponseHeader fault;
+        fault.timestamp = Now();
+        fault.requestHandle = 0;
+        fault.serviceResult = StatusCode::BadSecurityModeInsufficient;
+        handled = EncodeNodeId(w, NodeId(0, ns0::ServiceFault)) && EncodeResponseHeader(w, fault);
+    } else if(typeId == NodeId(0, ns0::CreateSessionRequest)) {
         handled = session_.HandleCreate(body, connectionSlot_, endpointUrl_, w);
     } else if(typeId == NodeId(0, ns0::ActivateSessionRequest)) {
         handled = session_.HandleActivate(body, w);
@@ -187,7 +176,7 @@ void Connection::HandleServiceMessage(std::span<const Byte> msg) {
         handled = EncodeNodeId(w, NodeId(0, ns0::ServiceFault)) && EncodeResponseHeader(w, fault);
     }
 
-    if(!handled || !w.Ok() || !FinishSecureMessage(w, startPos)) {
+    if(!handled || !w.Ok() || !secureChannel_.SignAndFinishSymmetric(w, startPos)) {
         log_debug("OPC UA: slot %u handler failed for typeId=(ns=%u,i=%u) handled=%d w.Ok=%d",
                  connectionSlot_, static_cast<unsigned>(typeId.namespaceIndex),
                  static_cast<unsigned>(typeId.numeric), handled ? 1 : 0, w.Ok() ? 1 : 0);

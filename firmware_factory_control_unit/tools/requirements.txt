@@ -1,0 +1,3 @@
+# tools/test_opcua.py -- SecurityPolicy#Basic256Sha256 needs real RSA sign/verify/OAEP, which the
+# stdlib doesn't provide. pip install -r tools/requirements.txt
+cryptography

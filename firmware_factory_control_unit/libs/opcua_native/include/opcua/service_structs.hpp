@@ -3,6 +3,8 @@
 // 7.10 EndpointDescription, 7.37 UserTokenPolicy) plus small array-skip helpers used
 // throughout request decoding for fields this server reads but never acts on (LocaleIds,
 // ProfileUris, ...).
+#include <span>
+
 #include "opcua/byte_stream.hpp"
 #include "opcua/types.hpp"
 
@@ -38,8 +40,10 @@ bool EncodeUserTokenPolicy(ByteWriter &w, const UserTokenPolicy &v);
 struct EndpointDescription {
     String endpointUrl;
     ApplicationDescription server;
-    // serverCertificate (ByteString): always null (SecurityPolicy#None, no certificate).
-    Int32 securityMode = 1; // MessageSecurityMode, Part 4 7.15 -- 1 = None
+    // serverCertificate is not stored here -- EncodeEndpointDescription writes the server's
+    // certificate CHAIN (leaf + CA) directly via WriteServerCertificateChain(), see
+    // secure_channel.hpp.
+    Int32 securityMode = 2; // MessageSecurityMode, Part 4 7.15 -- 2 = Sign
     String securityPolicyUri;
     // userIdentityTokens: exactly one policy, Anonymous (set by BuildEndpoint()).
     UserTokenPolicy userIdentityToken;
@@ -48,9 +52,10 @@ struct EndpointDescription {
 };
 bool EncodeEndpointDescription(ByteWriter &w, const EndpointDescription &v);
 
-// Builds this server's one and only endpoint (opc.tcp://<host>:<port>, SecurityPolicy#None,
-// anonymous auth) -- used by both GetEndpoints and CreateSession (Part 4 5.6.2.3: the session
-// response carries the same endpoint list as GetEndpoints would).
+// Builds this server's one and only endpoint (opc.tcp://<host>:<port>,
+// SecurityPolicy#Basic256Sha256, SecurityMode Sign, anonymous auth) -- used by both
+// GetEndpoints and CreateSession (Part 4 5.6.2.3: the session response carries the same
+// endpoint list as GetEndpoints would).
 EndpointDescription BuildEndpoint(std::string_view endpointUrl);
 
 // Reads and discards a length-prefixed array of String -- LocaleIds/ProfileUris/... wherever

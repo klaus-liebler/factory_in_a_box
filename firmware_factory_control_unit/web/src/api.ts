@@ -77,6 +77,29 @@ export async function fetchRegisters(): Promise<RegisterValues> {
 		throw new Error(`GET /api/registers fehlgeschlagen: HTTP ${response.status}`);
 	}
 	const buffer = await response.arrayBuffer();
+
+	// TEMPORARY diagnostics (2026-08-19) -- pinning down truncated/malformed /api/registers
+	// responses (RangeError in getUint16 further below). Logs on EVERY call so the exact moment
+	// a mismatch appears is visible, not just after the fact.
+	const expectedLength = (HOLDING_REGISTER_COUNT + INPUT_REGISTER_COUNT) * 2;
+	const contentLengthHeader = response.headers.get("Content-Length");
+	if (buffer.byteLength !== expectedLength || contentLengthHeader !== String(expectedLength)) {
+		const bytes = new Uint8Array(buffer);
+		const hex = (arr: Uint8Array) => Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join(" ");
+		console.warn(
+			"[diag] /api/registers size mismatch:",
+			`expected=${expectedLength}`,
+			`Content-Length header=${contentLengthHeader}`,
+			`actual buffer.byteLength=${buffer.byteLength}`,
+			`transfer-encoding=${response.headers.get("Transfer-Encoding")}`,
+			`connection=${response.headers.get("Connection")}`,
+			"\nfirst 32 bytes:", hex(bytes.slice(0, 32)),
+			"\nlast 32 bytes:", hex(bytes.slice(Math.max(0, bytes.length - 32))),
+		);
+	} else {
+		console.debug(`[diag] /api/registers ok: ${buffer.byteLength} bytes`);
+	}
+
 	const view = new DataView(buffer);
 
 	const holding: number[] = new Array(HOLDING_REGISTER_COUNT);

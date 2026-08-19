@@ -123,9 +123,7 @@ extern   "C" {
 /* Enable mDNS IPv6 feature, send/process mDNS message over IPv6 address.
    By default mDNS IPv6 function is disabled. To enable this feature,
    uncomment the following line.  */
-/*
 #define NX_MDNS_ENABLE_IPV6
-*/
 
 #ifdef NX_MDNS_ENABLE_IPV6
 

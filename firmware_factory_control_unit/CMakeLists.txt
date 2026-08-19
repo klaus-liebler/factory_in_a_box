@@ -128,6 +128,7 @@ add_library(opcua_native OBJECT
     libs/opcua_native/src/tcp_message.cpp
     libs/opcua_native/src/service_header.cpp
     libs/opcua_native/src/clock.cpp
+    libs/opcua_native/src/security_crypto.cpp
     libs/opcua_native/src/secure_channel.cpp
     libs/opcua_native/src/service_structs.cpp
     libs/opcua_native/src/session.cpp
@@ -251,6 +252,9 @@ list(FILTER USBX_SOURCES EXCLUDE REGEX "ux_system_tasks_run\\.c$")
 set(BINARY_ASSETS
     "build/assets/device_certificate.der"
     "build/assets/device_key.der"
+    "build/assets/device_certificate_ec.der"
+    "build/assets/device_key_ec.der"
+    "build/assets/root_ca.der"
     "build/assets/index.html.br"
 )
 

@@ -45,7 +45,7 @@ bool EncodeUserTokenPolicy(ByteWriter &w, const UserTokenPolicy &v) {
 bool EncodeEndpointDescription(ByteWriter &w, const EndpointDescription &v) {
     if(!w.WriteString(v.endpointUrl)) return false;
     if(!EncodeApplicationDescription(w, v.server)) return false;
-    if(!w.WriteByteString(std::string_view{}, true)) return false; // serverCertificate = null
+    if(!WriteServerCertificateChain(w)) return false; // leaf + CA, see secure_channel.hpp
     if(!w.WriteInt32(v.securityMode)) return false;
     if(!w.WriteString(v.securityPolicyUri)) return false;
     // userIdentityTokens: exactly one entry (Anonymous).
@@ -62,8 +62,8 @@ EndpointDescription BuildEndpoint(std::string_view endpointUrl) {
     ep.server.productUri = String(PRODUCT_URI);
     ep.server.applicationName = LocalizedText("en-US", APPLICATION_NAME);
     ep.server.applicationType = APPLICATION_TYPE_SERVER;
-    ep.securityMode = 1; // None
-    ep.securityPolicyUri = String(SECURITY_POLICY_NONE_URI);
+    ep.securityMode = SECURITY_MODE_SIGN;
+    ep.securityPolicyUri = String(SECURITY_POLICY_BASIC256SHA256_URI);
     ep.userIdentityToken.policyId = String(ANONYMOUS_POLICY_ID);
     ep.userIdentityToken.tokenType = 0; // Anonymous
     ep.userIdentityToken.securityPolicyUri = String::Null();

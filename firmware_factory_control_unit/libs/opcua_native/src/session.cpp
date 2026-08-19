@@ -1,7 +1,10 @@
 #include "opcua/session.hpp"
 
+#include <cstring>
+
 #include "opcua/codec.hpp"
 #include "opcua/node_ids.hpp"
+#include "opcua/secure_channel.hpp"
 #include "opcua/service_header.hpp"
 
 namespace opcua {
@@ -74,19 +77,53 @@ bool Session::HandleCreate(ByteReader &requestBody, UInt32 connectionSlot,
     std::string_view effectiveEndpointUrl = (!requestedEndpointUrl.isNull && !requestedEndpointUrl.value.empty())
         ? requestedEndpointUrl.value : endpointUrl;
 
+    // ServerSignature (Part 4 5.6.2.2): proof the server holds the private key matching
+    // serverCertificate -- sign(serverPrivateKey, clientCertificate || clientNonce). Only
+    // computable if the client actually sent both (expected whenever SecurityPolicy != None, as
+    // here); left empty otherwise rather than failing the whole session (a client that omits its
+    // certificate here already can't use most of what this signature proves anyway).
+    constexpr size_t MAX_SIGN_INPUT = 2200;
+    Byte signInput[MAX_SIGN_INPUT];
+    Byte serverSignature[security::MAX_RSA_MODULUS_BYTES];
+    size_t serverSignatureLen = 0;
+    if(!clientCertificateIsNull && !clientNonceIsNull &&
+       clientCertificate.size() + clientNonce.size() <= MAX_SIGN_INPUT) {
+        std::memcpy(signInput, clientCertificate.data(), clientCertificate.size());
+        std::memcpy(signInput + clientCertificate.size(), clientNonce.data(), clientNonce.size());
+        const auto &ourKey = GetServerIdentity().privateKey;
+        if(ourKey.modulus.size() <= sizeof(serverSignature) &&
+           security::RsaSha256Sign(ourKey,
+                                   std::span<const Byte>(signInput, clientCertificate.size() + clientNonce.size()),
+                                   std::span<Byte>(serverSignature, ourKey.modulus.size())))
+            serverSignatureLen = ourKey.modulus.size();
+    }
+
     if(!EncodeNodeId(w, NodeId(0, ns0::CreateSessionResponse))) return false;
     if(!EncodeResponseHeader(w, MakeResponseHeader(reqHeader, StatusCode::Good))) return false;
     if(!EncodeNodeId(w, sessionId_)) return false;
     if(!EncodeNodeId(w, authenticationToken_)) return false;
     if(!w.WriteDouble(revisedTimeout)) return false;
-    if(!w.WriteByteString(std::string_view{}, true)) return false; // ServerNonce = null (no crypto)
-    if(!w.WriteByteString(std::string_view{}, true)) return false; // ServerCertificate = null
+    if(!w.WriteByteString(std::string_view{}, true)) return false; // ServerNonce = null (this session
+    // never encrypts a UserIdentityToken -- anonymous auth only, see the file header comment)
+    if(!WriteServerCertificateChain(w)) return false; // leaf + CA, see secure_channel.hpp
     if(!w.WriteInt32(1)) return false;                        // ServerEndpoints: 1 entry
     if(!EncodeEndpointDescription(w, BuildEndpoint(effectiveEndpointUrl))) return false;
     if(!w.WriteInt32(-1)) return false;                        // ServerSoftwareCertificates: null
-    if(!w.WriteString(String::Null())) return false;           // ServerSignature.Algorithm
-    if(!w.WriteByteString(std::string_view{}, true)) return false;  // ServerSignature.Signature
-    return w.WriteUInt32(8192);                                 // MaxRequestMessageSize
+    if(serverSignatureLen > 0) {
+        // Basic256Sha256's AsymmetricSignatureAlgorithm (Part 7) -- same RSASSA-PKCS1-v1_5-SHA256
+        // this server uses for the SecureChannel OPN signature, see security_crypto.hpp. NOTE:
+        // the URI is 2001/04/xmldsig-more#, NOT 2000/09/xmldsig# -- the spec itself originally had
+        // a typo using the latter, but every real implementation (and UAExpert's strict signature
+        // lookup) uses the corrected 2001/04 URI; sending the wrong one causes UAExpert to fail
+        // CreateSession with BadApplicationSignatureInvalid even though the signature bytes
+        // themselves are valid (found via live UAExpert testing 2026-08-19).
+        if(!w.WriteString("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")) return false;
+        if(!w.WriteByteString(std::string_view((const char *)serverSignature, serverSignatureLen), false)) return false;
+    } else {
+        if(!w.WriteString(String::Null())) return false;
+        if(!w.WriteByteString(std::string_view{}, true)) return false;
+    }
+    return w.WriteUInt32(8192); // MaxRequestMessageSize
 }
 
 bool Session::HandleActivate(ByteReader &requestBody, ByteWriter &w) {

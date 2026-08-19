@@ -29,11 +29,16 @@
 
 // Ciphersuite-/ECC-Kurven-Tabellen aus crypto_libraries/src/nx_crypto_generic_ciphersuites.c
 // -- kein eigener Header deklariert sie (Referenz: netx_web_basic_ecc_test.c aus dem
-// STM32Cube-Paket). "_ecc"-Tabelle statt der Basis-Tabelle: bietet TLS_ECDHE_RSA_WITH_AES_*
-// (ECDHE-Keyexchange + RSA-Auth, passt zum vorhandenen RSA-2048-Zertifikat) -- ohne ECDHE
-// bieten alle gaengigen Browser keine gemeinsame Ciphersuite mehr an
-// (ERR_SSL_VERSION_OR_CIPHER_MISMATCH), da sie die reinen TLS_RSA_*-Suiten (kein Forward
-// Secrecy) laengst abgelehnt haben.
+// STM32Cube-Paket). "_ecc"-Tabelle statt der Basis-Tabelle: bietet TLS_ECDHE_ECDSA_WITH_AES_*
+// (ECDHE-Keyexchange + ECDSA-Auth, passt zum EC_P256-Zertifikat unten) -- ohne ECDHE bieten alle
+// gaengigen Browser keine gemeinsame Ciphersuite mehr an (ERR_SSL_VERSION_OR_CIPHER_MISMATCH), da
+// sie die reinen TLS_RSA_*-Suiten (kein Forward Secrecy) laengst abgelehnt haben. Bewusst ein
+// SEPARATES EC-Zertifikat statt des RSA-2048-Zertifikats, das der OPC-UA-Server verwendet (s.
+// opcua_setup.cpp) -- RSA-2048-Software-Modexp (dieses Board hat keinen Hardware-PKA, STM32H563)
+// ist fuer einen einzelnen Handshake pro langlebigem OPC-UA-SecureChannel akzeptabel, macht aber
+// jeden Seitenaufruf spuerbar traege (mehrere parallele kurzlebige HTTPS-Verbindungen pro
+// Browser-Ladevorgang, jede mit eigenem RSA-Sign) und liess WebSocket-Verbindungen scheitern --
+// gefunden per Live-Test 2026-08-19, s. Projekt-Notizen zur OPC-UA-SecurityPolicy.
 extern "C" const NX_SECURE_TLS_CRYPTO nx_crypto_tls_ciphers_ecc;
 extern "C" const USHORT nx_crypto_ecc_supported_groups[];
 extern "C" const NX_CRYPTO_METHOD *nx_crypto_ecc_curves[];
@@ -41,7 +46,12 @@ extern "C" const UINT nx_crypto_ecc_supported_groups_size;
 
 constexpr uint32_t DEFAULT_PAYLOAD_SIZE = 1536;
 constexpr uint32_t DEFAULT_ARP_CACHE_SIZE = 1024;
-constexpr uint32_t Nx_IP_INSTANCE_THREAD_SIZE = 2 * 1024;
+// Verdoppelt (war 2 KiB) seit Aktivierung von FEATURE_NX_IPV6: der IP-Thread verarbeitet jetzt
+// zusaetzlich ICMPv6/Neighbor-Discovery/DAD, die mehr Stack brauchen als reines IPv4. War NICHT
+// die Ursache eines waehrend der IPv6-Einfuehrung beobachteten DHCP-Ausfalls (der lag an einem
+// Broadcast-Filter-Bug in nx_stm32_eth_driver.c, s. dortiger Kommentar bei FilterConfig) -- bleibt
+// trotzdem als angemessene Sicherheitsmarge, da IPv6 dem Thread nachweislich mehr Arbeit gibt.
+constexpr uint32_t Nx_IP_INSTANCE_THREAD_SIZE = 4 * 1024;
 constexpr uint32_t NX_APP_INSTANCE_PRIORITY = 10;
 constexpr UINT HTTPS_PORT = 443;
 // Ehemals von NX_WEB_HTTP_SERVER_MIN_PACKET_SIZE (nx_web_http_server.h) abgeleitet -- jetzt
@@ -56,10 +66,23 @@ constexpr uint32_t SERVER_PACKET_SIZE = 1536;
 // Stack-Overflow mitten im Handshake. 16000 Byte matched demo_netxduo_https.c aus dem
 // STM32Cube-Referenzpaket (dort exakt fuer denselben Zweck dimensioniert).
 constexpr uint32_t SERVER_STACK = 16384;
-// 8 Pakete Reserve statt der alten 4 -- der neue Server bedient bis zu drei gleichzeitige
-// Sessions (1 HTTP + 2 WebSocket, s. Http::WebServer::MAX_SESSIONS) statt vormals zwei rein
-// serieller HTTP-Sessions.
-constexpr uint32_t SERVER_POOL_SIZE = SERVER_PACKET_SIZE * 8;
+// Bewusst grosszuegig (32 statt vormals 8 Pakete): dieser EINE Pool wird von ALLEM auf dem
+// EINEN NX_TCPSERVER-Event-Thread gemeinsam genutzt -- TLS-Handshake-Pakete, HTTP-Antworten
+// (SendFixed/SendStreamed, inkl. des mehrpaketigen Register-Dumps), UND jeder WebSocket-Frame,
+// einschliesslich jeder per WsLogBridge gespiegelten Log-Zeile. Response::Allocate() blockiert
+// mit NX_WAIT_FOREVER, wenn der Pool leer ist -- auf einem SINGLE-THREADED Server bedeutet das:
+// eine laufende Mehrpaket-Antwort kann exakt den Thread blockieren, der die Pakete freigeben
+// muesste (Empfang/ACK-Verarbeitung laeuft auf demselben Thread) -- ein Selbst-Deadlock-Risiko,
+// keine Race Condition. Live beobachtet (2026-08-19): sehr traege Seitenladezeiten ueber mDNS,
+// truncated /api/registers-Antworten (RangeError in api.ts), abgeschnittene WebSocket-Log-Frames
+// ("LogMessage: frame too short") -- alles Symptome von Paket-Hunger unter gleichzeitiger Last
+// (Browser-Tab + Register-Polling + laufende Log-Ausgabe gleichzeitig). RAM hat reichlich
+// Reserve (>200 KiB frei), daher hier grosszuegig statt auf ein exaktes Minimum tariert.
+constexpr uint32_t SERVER_POOL_SIZE = SERVER_PACKET_SIZE * 32;
+// Unveraendert bei 50 (war waehrend der IPv6-Einfuehrung testweise auf 80 erhoeht, in Verdacht auf
+// Paket-Pool-Erschoepfung durch ICMPv6-Verkehr -- diese Theorie war falsch (die tatsaechliche
+// Ursache war ein Broadcast-Filter-Bug in nx_stm32_eth_driver.c) und die Erhoehung ueberlastete
+// ausserdem den gemeinsamen nx_app_byte_pool, s. Commit-Historie).
 constexpr uint32_t NX_APP_PACKET_POOL_SIZE = (DEFAULT_PAYLOAD_SIZE + sizeof(NX_PACKET)) * 50;
 constexpr uint32_t NX_APP_DEFAULT_IP_ADDRESS = 0;
 constexpr uint32_t NX_APP_DEFAULT_NET_MASK = 0;
@@ -166,9 +189,47 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, DEFAULT_ARP_CACHE_SIZE, TX_NO_WAIT), "ARP cache allocate failed");
     XASSERT(nx_arp_enable(&app->ip_instance, ptr, DEFAULT_ARP_CACHE_SIZE), "ARP enable failed");
 
-    XASSERT(nx_icmp_enable(&app->ip_instance), "ICMP enable failed");
+    // nxd_icmp_enable() statt des bisherigen nx_icmp_enable(): echtes Superset, das zusaetzlich
+    // ICMPv6 (Neighbor Solicitation/Advertisement, noetig fuer Duplicate Address Detection und
+    // damit andere Hosts das Board unter seiner IPv6-Adresse ueberhaupt erreichen koennen)
+    // aktiviert -- Voraussetzung fuer das IPv6-Setup direkt im Anschluss.
+    XASSERT(nxd_icmp_enable(&app->ip_instance), "ICMP enable failed");
     XASSERT(nx_tcp_enable(&app->ip_instance), "TCP enable failed");
     XASSERT(nx_udp_enable(&app->ip_instance), "UDP enable failed");
+
+    // --- IPv6 Link-Local Setup (Interface 0 / Ethernet) ---
+    // Grund: Windows' (und andere) mDNS-Resolver fragen bei getaddrinfo(AF_UNSPEC) parallel A UND
+    // AAAA ab. Ohne AAAA-Record antwortet das Board bisher nur negativ (NSEC) -- Windows vertraut
+    // dieser negativen mDNS-Antwort aber nicht sofort, sondern wartet sein volles internes
+    // Retry-/Timeout-Schema ab (~11-12s, siehe Wireshark-Aufzeichnung), bevor ein simples
+    // "ping factory-box-*.local" ueberhaupt die erste Anfrage abschickt. Ein echter AAAA-Record
+    // vermeidet das.
+    // DAD (Duplicate Address Detection) bleibt bewusst AKTIV (Standardverhalten, s. nx_user.h) --
+    // die IPv6-Adresse ist also zunaechst NX_IPV6_ADDR_STATE_TENTATIVE. nx_mdns_enable() weiter
+    // unten erfasst die Adresse trotzdem schon jetzt (nur anhand ihres Typs, nicht ihres Status).
+    // Sobald der IP-Thread nach Scheduler-Start die Duplicate Address Detection abgeschlossen hat,
+    // meldet NX_ENABLE_IPV6_ADDRESS_CHANGE_NOTIFY (s. nx_user.h) das dem mDNS-Addon, das den
+    // AAAA-Record danach automatisch mit ankuendigt/beantwortet -- exakt der Mechanismus, den
+    // nxd_mdns.h fuer den Server-Betrieb zwingend voraussetzt (#error ohne dieses Define).
+    //
+    // nx_interface_physical_address_msw/lsw manuell vorbelegen, BEVOR nxd_ipv6_linklocal_address_set()
+    // (NX_NULL) unten die Adresse per EUI-64 daraus ableitet: der Ethernet-Treiber
+    // (nx_stm32_eth_driver.c) traegt diese Felder normalerweise erst beim NX_LINK_INTERFACE_ATTACH-
+    // Aufruf ein -- der laut _nx_ip_thread_entry() aber erst ausgefuehrt wird, NACHDEM der Scheduler
+    // gestartet ist (IP-Thread), also lange NACH net_setup_create() hier (kein Thread aktiv, s.
+    // Funktionskommentar in net_setup.hpp). Ohne diese Vorbelegung wuerde die Link-Local-Adresse
+    // faelschlich aus einer noch komplett auf 0 stehenden MAC berechnet -- live auf echter Hardware
+    // beobachtet: fe80::200:ff:fe00:0 statt der board-individuellen Adresse. Dieselben Werte, die
+    // der Treiber gleich lautend aus eth_handle.Init.MACAddr[] (== DEVICE_ETH_MAC, s. MX_ETH_Init()
+    // in main.c) nachtraegt -- daher unschaedlich, keine Duplizierung mit abweichendem Ergebnis.
+    app->ip_instance.nx_ip_interface[0].nx_interface_physical_address_msw =
+        (ULONG)((DEVICE_ETH_MAC[0] << 8) | DEVICE_ETH_MAC[1]);
+    app->ip_instance.nx_ip_interface[0].nx_interface_physical_address_lsw =
+        (ULONG)((DEVICE_ETH_MAC[2] << 24) | (DEVICE_ETH_MAC[3] << 16) |
+                (DEVICE_ETH_MAC[4] << 8) | DEVICE_ETH_MAC[5]);
+
+    XASSERT(nxd_ipv6_enable(&app->ip_instance), "IPv6 enable failed");
+    XASSERT(nxd_ipv6_linklocal_address_set(&app->ip_instance, NX_NULL), "IPv6 link-local address set failed");
 
     XASSERT(tx_byte_allocate(nx_app_byte_pool, &ptr, SERVER_POOL_SIZE, TX_NO_WAIT), "HTTP Server Pool allocate failed");
     NX_PACKET_POOL *server_pool = (NX_PACKET_POOL *)ptr;
@@ -310,9 +371,12 @@ void net_setup_start(App *app) {
     sd_media_try_open(app);
 
     // --- HTTPS (NetX Secure TLS) Setup ---
-    // Zertifikat + privater Schluessel kommen aus dem generierten device_certificate.c
+    // Zertifikat + privater Schluessel kommen aus dem generierten device_certificate_ec.c
     // (siehe tools/provision_board_individual_data_and_files.mjs) -- individuell pro Board ueber die
-    // STM32-Unique-ID provisioniert und von der privaten CA signiert. TLS 1.2/ECDSA-P256,
+    // STM32-Unique-ID provisioniert und von der privaten CA signiert. TLS 1.2/EC_P256 -- ein
+    // SEPARATES Zertifikat vom RSA-2048-Zertifikat, das der OPC-UA-Server fuer
+    // SecurityPolicy#Basic256Sha256 verwendet (s. opcua_setup.cpp und der Kommentar bei
+    // nx_crypto_tls_ciphers_ecc oben, warum HTTPS bewusst NICHT dasselbe RSA-Zertifikat teilt) --
     // kein Client-Zertifikat/Mutual-TLS (letzte drei Parameterpaare NX_NULL/0).
     // nx_secure_x509_certificate_initialize()/nx_secure_tls_metadata_size_calculate() sind
     // NX_THREADS_ONLY_CALLER_CHECKING-beschraenkt, muessen also von einem laufenden Thread
@@ -321,11 +385,11 @@ void net_setup_start(App *app) {
     // vom Heap (new[]) statt aus nx_app_byte_pool: dieser Pool ist als lokale Variable auf
     // tx_application_define() beschraenkt, waehrend der Heap seit malloc_lock_init() (s.
     // dort) threadsicher ist -- selbes Muster wie beim ModbusTcpServer.
-    const USHORT device_cert_der_len = (USHORT)(_binary_device_certificate_der_end - _binary_device_certificate_der_start);
-    const USHORT device_key_der_len = (USHORT)(_binary_device_key_der_end - _binary_device_key_der_start);
+    const USHORT device_cert_der_len = (USHORT)(_binary_device_certificate_ec_der_end - _binary_device_certificate_ec_der_start);
+    const USHORT device_key_der_len = (USHORT)(_binary_device_key_ec_der_end - _binary_device_key_ec_der_start);
     XASSERT(nx_secure_x509_certificate_initialize(
-        &g_device_certificate, (UCHAR *)_binary_device_certificate_der_start, device_cert_der_len,
-        NX_NULL, 0, (UCHAR *)_binary_device_key_der_start, device_key_der_len,
+        &g_device_certificate, (UCHAR *)_binary_device_certificate_ec_der_start, device_cert_der_len,
+        NX_NULL, 0, (UCHAR *)_binary_device_key_ec_der_start, device_key_der_len,
         NX_SECURE_X509_KEY_TYPE_EC_DER), "Device certificate initialize failed");
 
     // nx_secure_x509_not_before/_not_after sind die rohen ASN.1-UTCTime/GeneralizedTime-Bytes
@@ -339,6 +403,13 @@ void net_setup_start(App *app) {
               (int)g_device_certificate.nx_secure_x509_not_after_length,
               g_device_certificate.nx_secure_x509_not_after);
 
+    // nx_crypto_tls_ciphers_ecc bleibt die richtige Tabelle -- sie enthaelt sowohl
+    // TLS_ECDHE_ECDSA_* (EC-Zertifikat) als auch TLS_ECDHE_RSA_*/TLS_RSA_* (RSA-Zertifikat)
+    // Ciphersuiten (s. nx_crypto_generic_ciphersuites.c), TLS handshaket automatisch auf die zum
+    // tatsaechlichen Zertifikatstyp passende Suite. Mit dem EC_P256-Geraetezertifikat wird
+    // TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 ausgehandelt -- ECDHE-Schluesseltausch (Forward
+    // Secrecy) UND die Signatur selbst sind beide guenstige EC-Operationen, kein Software-RSA
+    // auf dem HTTPS-Pfad mehr.
     ULONG tls_metadata_size = 0;
     XASSERT(nx_secure_tls_metadata_size_calculate(&nx_crypto_tls_ciphers_ecc, &tls_metadata_size),
             "TLS metadata size calculate failed");
@@ -351,9 +422,10 @@ void net_setup_start(App *app) {
         tls_packet_buffer, TLS_PACKET_BUFFER_SIZE,
         &g_device_certificate), "HTTPS TLS configure failed");
 
-    // ECDHE braucht zusaetzlich die unterstuetzten Kurven (secp256r1/384r1/521r1, s.
-    // nx_crypto_ecc_curves) -- ohne diesen Aufruf schlaegt der Handshake fehl, sobald der
-    // Client eine ECDHE-Ciphersuite waehlt.
+    // ECDHE braucht weiterhin die unterstuetzten Kurven (secp256r1/384r1/521r1, s.
+    // nx_crypto_ecc_curves) -- unabhaengig vom Zertifikatstyp, das betrifft nur den
+    // Schluesseltausch. Ohne diesen Aufruf schlaegt der Handshake fehl, sobald der Client eine
+    // ECDHE-Ciphersuite waehlt.
     XASSERT(app->web_server.SecureEccConfigure(
         nx_crypto_ecc_supported_groups,
         (USHORT)nx_crypto_ecc_supported_groups_size, nx_crypto_ecc_curves), "HTTPS ECC configure failed");

@@ -9,7 +9,7 @@
     "CertsDir": "C:\\Users\\mail\\OneDrive - HSOS\\certificates",
     "SubjectPrefix": "/C=DE/ST=NRW/L=Greven/O=Klaus Lieber personal",
     "CertDays": "3000",
-    "KeyAlgorithm": "EC_P256",
+    "KeyAlgorithm": "RSA_2048",
     "IncludeServerAuthEku": true,
     "IncludeClientAuthEku": true,
     "IncludeSubjectKeyIdentifier": false,

@@ -1754,7 +1754,19 @@ static UINT  _nx_driver_hardware_initialize(NX_IP_DRIVER *driver_req_ptr)
   FilterConfig.HashMulticast = DISABLE;
   FilterConfig.DestAddrInverseFiltering = DISABLE;
   FilterConfig.PassAllMulticast = DISABLE;
-  FilterConfig.BroadcastFilter = ENABLE;
+  // ACHTUNG Namensfalle in ST's HAL: "BroadcastFilter = ENABLE" aktiviert NICHT den
+  // Broadcast-Empfang, sondern mappt direkt auf das MACPFR-Bit "DBF" ("Disable Broadcast
+  // Frames") -- ENABLE hier bedeutet also "Broadcast-Frames blockieren" (s.
+  // stm32h5xx_hal_eth.c: BroadcastFilter==ENABLE -> ETH_MACPFR_DBF gesetzt). Dieses
+  // FilterConfig ist eine DATEIWEITE globale Variable, die HIER nur befuellt, aber nicht an die
+  // Hardware geschickt wird -- der tatsaechliche HAL_ETH_SetMACFilterConfig()-Aufruf passiert
+  // erst spaeter in _nx_driver_hardware_multicast_join() (bei der ERSTEN Multicast-Gruppen-
+  // Anmeldung, z.B. mDNS), die nur PassAllMulticast aendert, aber die GESAMTE (noch immer
+  // DBF=1 enthaltende) Struktur mitschickt. Live auf echter Hardware verifiziert (Register-
+  // Readout MACPFR-Bit 5): DBF sprang exakt beim ersten Multicast-Join auf 1, kurz bevor der
+  // DHCP-Client sein Broadcast-Discover sendet -- das Offer (ebenfalls Broadcast) kam danach nie
+  // mehr an. DISABLE hier haelt Broadcast-Empfang dauerhaft aktiv.
+  FilterConfig.BroadcastFilter = DISABLE;
   FilterConfig.SrcAddrInverseFiltering = DISABLE;
   FilterConfig.SrcAddrFiltering = DISABLE;
   FilterConfig.HachOrPerfectFilter = DISABLE;

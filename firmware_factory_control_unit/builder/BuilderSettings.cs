@@ -32,7 +32,7 @@ public sealed class CertificateAuthorityOptions : ICertificateAuthorityOptions
     public string CertsDir { get; set; } = "";
     public string SubjectPrefix { get; set; } = "";
     public string CertDays { get; set; } = "3000";
-    public string KeyAlgorithm { get; set; } = "EC_P256";
+    public string KeyAlgorithm { get; set; } = "RSA_2048";
     public bool IncludeServerAuthEku { get; set; } = true;
     public bool IncludeClientAuthEku { get; set; } = true;
     public bool IncludeSubjectKeyIdentifier { get; set; } = false;

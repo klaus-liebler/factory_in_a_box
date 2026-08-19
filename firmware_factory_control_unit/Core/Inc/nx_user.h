@@ -407,12 +407,15 @@
 /* Disables IPv6 functionality when the NetX Duo library is built.
    For applications that do not need IPv6, this avoids pulling in code and
    additional storage space needed to support IPv6. */
+/*
 #define NX_DISABLE_IPV6
+*/
 
 /* Defined, enable IPV6 features. */
-/*
+/* Noetig, damit das Board neben der IPv4-A- auch eine AAAA-Antwort auf mDNS-Anfragen liefern
+   kann, statt wie bisher immer negativ per NSEC zu antworten -- s. net_setup.cpp, IPv6-Setup
+   auf Interface 0. */
 #define FEATURE_NX_IPV6
-*/
 
 /* Specifies the number of entries in the IPv6 address pool. During interface
    configuration, NetX Duo uses IPv6 entries from the pool. It is defaulted to
@@ -437,15 +440,17 @@
 /* If enabled, application is able to install a callback function to get
    notified when an interface IPv6 address is changed. By default this
    feature is disabled. */
-/*
+/* Von nxd_mdns.h zwingend vorausgesetzt (#error sonst), solange der mDNS-Server aktiv ist
+   (NX_MDNS_DISABLE_SERVER ist nicht gesetzt): das mDNS-Addon registriert intern einen Callback
+   hierueber, um die AAAA-Ankuendigung nachzuholen, sobald Duplicate Address Detection fuer die
+   IPv6-Link-Local-Adresse abgeschlossen ist (DAD bleibt bewusst aktiv, s. net_setup.cpp). */
 #define NX_ENABLE_IPV6_ADDRESS_CHANGE_NOTIFY
-*/
 
 /* This define enables simple IPv6 multicast group join/leave function.
    By default the IPv6 multicast join/leave function is not enabled. */
-/*
+/* Ebenfalls von nxd_mdns.h zwingend vorausgesetzt (#error sonst) -- das mDNS-Addon tritt darueber
+   der IPv6-Multicast-Gruppe ff02::fb bei. */
 #define NX_ENABLE_IPV6_MULTICAST
-*/
 
 /* Defined, Minimum Path MTU Discovery feature is enabled.  */
 /*

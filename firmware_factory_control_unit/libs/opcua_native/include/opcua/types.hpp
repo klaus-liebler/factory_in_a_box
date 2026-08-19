@@ -84,6 +84,10 @@ enum class StatusCode : UInt32 {
     BadSecurityChecksFailed = 0x80130000,
     BadSecurityPolicyRejected = 0x80550000,
     BadSecurityModeRejected = 0x80620000,
+    // A service other than GetEndpoints was requested on the SecurityPolicy#None
+    // discovery-only channel (Part 4 5.4.4 -- GetEndpoints is the one service usable without
+    // security; everything else needs a real, appropriately-secured channel).
+    BadSecurityModeInsufficient = 0x80770000,
     BadSecureChannelIdInvalid = 0x80300000,
     BadSecureChannelClosed = 0x80560000,
     BadRequestTypeInvalid = 0x80B00000,

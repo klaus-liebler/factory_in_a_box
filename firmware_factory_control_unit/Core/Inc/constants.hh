@@ -14,7 +14,12 @@ constexpr uint32_t TX_APP_MEM_POOL_SIZE = 10 * 1024;
 constexpr uint32_t FX_APP_MEM_POOL_SIZE = 10 * 1024;
 // Die Summe aller tx_byte_allocate(&nx_app_byte_pool, ...)-Aufrufe unten (v.a. NetXDuo-
 // Paketpool mit ~80 KB, HTTP-Server-Stack 16 KB fuer RSA/ECDHE-Handshakes, plus die Stacks
-// von app_main/modbus_tcp_server/io_thread) liegt bei ca. 130 KB vor Byte-Pool-Verwaltungsoverhead
-// -- deutliche Reserve statt auf Kante genau genug.
-constexpr uint32_t NX_APP_MEM_POOL_SIZE = 192 * 1024;
+// von app_main/modbus_tcp_server/io_thread) liegt bei ca. 130 KB vor Byte-Pool-Verwaltungsoverhead.
+// Von 192 KB auf 256 KB angehoben, als net_setup.cpp's SERVER_POOL_SIZE (HTTP/WebSocket-
+// Paket-Pool) von 8 auf 32 Pakete (+36 KB) vergroessert wurde -- mit nur 192 KB reichte die
+// verbleibende Reserve nicht mehr fuer opcua_setup.cpp's spaeteren 24-KB-Thread-Stack-Alloc
+// ("OPC UA TCP server thread stack allocate failed", live beobachtet 2026-08-19). RAM hat nach
+// wie vor reichlich Platz (STM32H563: 640 KiB gesamt), daher hier wieder grosszuegige statt
+// exakt bemessene Reserve.
+constexpr uint32_t NX_APP_MEM_POOL_SIZE = 256 * 1024;
 

@@ -121,8 +121,13 @@ export function singleFileFirmwareAssetPlugin(): Plugin {
 			// build/assets/ statt eines eigenen Top-Level-Ordners (s. Paths.cs AssetsDir) -- hier
 			// bewusst eigenstaendig relativ zu dieser Datei berechnet statt aus dem C#-Projekt
 			// importiert (diese Datei wird direkt von web/vite.config.ts per Vite/Node geladen, nicht
-			// vom C#-Compiler).
-			const assetsDir = path.join(import.meta.dirname, "..", "build", "assets");
+			// vom C#-Compiler). import.meta.dirname ist web/build-tools/ -- ZWEI ".."-Sprünge zur
+			// Repo-Wurzel noetig (web/build-tools/ -> web/ -> Repo-Wurzel), nicht einer: mit nur
+			// einem landete das Ergebnis in web/build/assets/ statt im von CMakeLists.txt/Paths.cs
+			// erwarteten <Repo-Wurzel>/build/assets/ -- index.html.br dort war seit 2026-07-31
+			// veraltet, JEDE Web-App-Aenderung seither hat es nie in eine geflashte Firmware
+			// geschafft (gefunden 2026-08-19 beim Debuggen scheinbar wirkungsloser JS-Diagnostik).
+			const assetsDir = path.join(import.meta.dirname, "..", "..", "build", "assets");
 			mkdirSync(assetsDir, { recursive: true });
 			const outFile = path.join(assetsDir, "index.html.br");
 			writeFileSync(outFile, compressed);

@@ -254,10 +254,18 @@ using WebSocketCloseHandler = void (*)(void *context, WebSocketConnection &conne
 
 class WebServer {
 public:
-    // 1 serielle HTTP-Verbindung + 2 gleichzeitige WebSocket-Verbindungen (s. Projektanforderung)
-    // -- ergibt 3 Sessions insgesamt; jede Session kann beides sein, MAX_WEBSOCKET_CONNECTIONS
-    // begrenzt separat, wie viele davon gleichzeitig WebSocket sein duerfen.
-    static constexpr UINT MAX_SESSIONS = 3;
+    // War 3 (1 serielle HTTP-Verbindung + 2 gleichzeitige WebSocket-Verbindungen, s.
+    // Projektanforderung) -- zu knapp fuer echten Betrieb: ein einzelner Browser-Tab belegt
+    // bereits 2 der 3 Sessions (1 HTTP-Keep-Alive fuers Registerpolling + 1 WebSocket fuer den
+    // Log-Spiegel), sodass JEDE weitere gleichzeitige Verbindung (Reload waehrend die alte
+    // Session noch abbaut, zweiter Tab, ...) sofort scheitert. Live beobachtet 2026-08-19:
+    // wiederholte Testverbindungen (curl/openssl/Python) fuehrten zu haeufigen Connect-Timeouts
+    // und kaputten Antworten, konsistent mit einer erschoepften/evtl. leckenden Session-Tabelle
+    // im vendorierten nx_tcpserver (addons/web/nx_tcpserver.c, nicht projekteigen). Auf 6 erhoeht
+    // als guenstige Absicherung (RAM hat reichlich Reserve) -- behebt eine tatsaechliche
+    // Leckage in der Drittanbieter-Bibliothek nicht grundsaetzlich, vergroessert aber deutlich
+    // den Puffer, bevor sie sich bemerkbar macht.
+    static constexpr UINT MAX_SESSIONS = 6;
     static constexpr UINT MAX_WEBSOCKET_CONNECTIONS = 2;
     static constexpr size_t RAW_BUFFER_SIZE = 4096;
     static constexpr size_t MAX_HEADERS = 24;

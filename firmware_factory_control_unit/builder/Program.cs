@@ -74,7 +74,7 @@ static GeneratedArtifactsCopyRequest CreateCopyRequest(string? board) =>
 		AssetsDir: Paths.AssetsDir,
 		CoreFiles: ["device_ids.hh", "gitconstants.hh", "firmware_constants.hh", "board-variant.json", "modbus_registers_generated.hh", "opcua_registers_generated.hh", "ws_protocol.hh"],
 		WebFiles: ["register-map.ts", "build-info.ts", "ws-protocol.ts"],
-		AssetFiles: ["device_certificate.der", "device_key.der"]);
+		AssetFiles: ["device_certificate.der", "device_key.der", "device_certificate_ec.der", "device_key_ec.der", "root_ca.der"]);
 
 static FlashFirmwarePipelineRequest CreateFlashRequest(string preset, string? board) =>
 	new(
@@ -95,7 +95,12 @@ static Args ParseArgs(string[] argv)
 	}
 	var phase = argv[0];
 
-	var preset = "Debug";
+	// Release is the default, not Debug: SecurityPolicy#Basic256Sha256's software RSA-2048 (no
+	// hardware PKA on this board's STM32H563, see the OPC UA security project notes) causes
+	// 13-17s ThreadX thread-starvation stalls per handshake in an unoptimized Debug build --
+	// severe enough that the board appears hung to anyone testing it. Pass --preset Debug
+	// explicitly when actual step-debugging is needed.
+	var preset = "Release";
 	string? board = null;
 	var schemaPaths = new List<string>();
 	for (var i = 1; i < argv.Length; i += 1)

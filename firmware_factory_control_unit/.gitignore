@@ -18,3 +18,4 @@ node_modules/
 /builder/bin/
 /builder/obj/
 __pycache__/
+/tools/.opcua-test-client/

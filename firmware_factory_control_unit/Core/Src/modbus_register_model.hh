@@ -1,36 +1,17 @@
 #pragma once
-// Fixer, von Hand gepflegter Teil des Modbus-Registermodells -- nur die Adress-Konstanten
-// haengen von der Register-Map ab und werden per builder/Phases/ReadModbusRegisterMap.cs
-// aus register-map.json erzeugt (gleiches Muster wie stm32_libs/common_stm32/gpio/generated/*.inc).
-// Die generierten Fragmente enthalten bewusst nur constexpr-Zeilen -- die umschliessenden
-// namespace-Bloecke stehen hier, fest von Hand gepflegt. Diese Datei selbst -- Speicherlayout,
-// Mutex-Handling, Zugriffsmethoden -- aendert sich nicht mit der Register-Map und wird deshalb
-// nicht mitgeneriert.
+// Fixer, von Hand gepflegter Teil des Modbus-Registermodells -- die Register-Map selbst (Adressen,
+// Typen, Accessor-Funktionen) kommt aus register_map_schema/*.cs (universal_register_access,
+// builder-Phase "GenerateRegisterAccessFiles") als generated/modbus_registers_generated.hh, ein
+// vollstaendig eigenstaendiger Header (nicht mehr per #include in einen hier vorgeoeffneten
+// namespace-Block eingebunden, wie es die fruehere Fragment-.inc-Generierung tat). Diese Datei
+// selbst -- Speicherlayout, Mutex-Handling, Zugriffsmethoden -- aendert sich nicht mit der
+// Register-Map und wird deshalb nicht mitgeneriert.
 
 #include <array>
 #include <cstdint>
 #include "tx_api.h"
 #include "modbus_commons.hh"
-
-namespace ModbusRegisters {
-
-// ---------------------------------------------------------------------------
-// Input-Register (FC04, read-only)
-// ---------------------------------------------------------------------------
-namespace Input {
-#include "generated/register_input.inc"
-} // namespace Input
-
-// ---------------------------------------------------------------------------
-// Holding-Register (FC03/06/16, read/write)
-// ---------------------------------------------------------------------------
-namespace Holding {
-#include "generated/register_holding.inc"
-} // namespace Holding
-
-#include "generated/register_maxindex.inc"
-
-} // namespace ModbusRegisters
+#include "generated/modbus_registers_generated.hh"
 
 // Registerspeicher fuer Holding- (FC03/06/16) und Input-Register (FC04), mit optional
 // nachtraeglich aktivierbarem Thread-sicherem Zugriff (ThreadX-Mutex).

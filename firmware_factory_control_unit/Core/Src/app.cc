@@ -2,6 +2,9 @@
 #include "modbus_register_model.hh"
 #include "tx_api.h"
 #include "net_setup.hpp"
+#include "opcua_setup.hpp"
+#include "sntp_setup.hpp"
+#include "opcua/clock.hpp"
 #include "generated/gitconstants.hh"
 #include "generated/device_ids.hh"
 // Fuer App::ModbusRtuThread() -- ruft ux_device_class_cdc_acm_read()/_write() direkt auf (kein
@@ -42,14 +45,6 @@ constexpr uint32_t HEARTBEAT_THREAD_STACK_SIZE = 2 * 1024;
 // Niedrigste Prioritaet aller App-Threads (grosse Zahl) -- reine Diagnose, darf nirgendwo
 // dazwischenfunken, schlaeft ohnehin 3s pro Zyklus.
 constexpr uint32_t HEARTBEAT_THREAD_PRIORITY = 12;
-// This thread (App::OpcUaThread(), see opcua_setup.hpp/.cpp) only pumps timers/cyclic
-// callbacks (UA_Server_run_iterate) -- actual message processing happens on the separate
-// NX_TCPSERVER worker thread that OPC UA's own ConnectionManager spins up (see
-// libs/open62541_netxduo_arch/connectionmanager_tcp_netxduo.c), so this stack stays modest.
-constexpr uint32_t OPCUA_THREAD_STACK_SIZE = 4 * 1024;
-// Same band as the Modbus TCP server thread (DEFAULT_PRIORITY) -- reacts to client requests
-// via UA_Server_run_iterate, but doesn't need to preempt the I/O thread's sensor/actuator cycle.
-constexpr uint32_t OPCUA_THREAD_PRIORITY = 6;
 
 // TX_MUTEX{} zero-initialisiert u.a. tx_mutex_id -- tx_mutex_create() setzt dieses Feld
 // intern auf die magische Konstante TX_MUTEX_ID (ungleich 0, s. tx_mutex.h), daher genuegt ein
@@ -88,9 +83,14 @@ extern "C" void tx_application_define(void *first_unused_memory) {
     auto& app = App::Instance();
 
     tx_mutex_create(&malloc_mutex, const_cast<CHAR *>("malloc_mutex"), TX_INHERIT);
-    tx_mutex_create(&log_mutex, const_cast<CHAR *>("Log Mutex"), TX_NO_INHERIT);
+    // TX_INHERIT (not TX_NO_INHERIT as before): LOG_INFO_ML/LOG_ML/LOG_ML_END (log.h) can now
+    // legitimately hold this lock for a while (e.g. the whole ~256ms I2C boot scan) -- priority
+    // inheritance avoids unbounded priority inversion for any higher-priority thread that tries
+    // to log during that window.
+    tx_mutex_create(&log_mutex, const_cast<CHAR *>("Log Mutex"), TX_INHERIT);
     log_set_lock(log_lock);
     log_set_level(LOG_INFO);
+    opcua::InitClockSync();
     app.register_model->ArmForMultithreadingWithMutex();
 
     log_info("tx_application_define() called, first_unused_memory=%p", first_unused_memory);
@@ -134,10 +134,6 @@ void App::UsbdDeviceThreadStatic(ULONG arg) {
 
 void App::HeartbeatThreadStatic(ULONG arg) {
     reinterpret_cast<App*>(arg)->HeartbeatThread();
-}
-
-void App::OpcUaThreadStatic(ULONG arg) {
-    reinterpret_cast<App*>(arg)->OpcUaThread();
 }
 
 void App::ModbusTcpServerThread(){
@@ -213,13 +209,6 @@ void App::IOThread() {
     this->io->Loop();
 }
 
-// See Core/Src/opcua_setup.hpp/.cpp -- entirely self-contained (builds its own
-// UA_ServerConfig/EventLoop/ConnectionManager/address space in-thread, then loops
-// UA_Server_run_iterate() forever). No cleanup on return since it never returns.
-[[noreturn]] void App::OpcUaThread() {
-    OpcUaServerThread(this);
-}
-
 // serial_string/net_mac/net_mac_string kommen fix-und-fertig aus Core/generated/
 // device_ids.hh -- nicht mehr wie frueher (s. Commit-Historie) hier aus this->chip_uid
 // abgeleitet (App::SetupBeforeThreadX() prueft bereits beim Boot, dass DEVICE_CHIP_UID_W0/1/2
@@ -253,6 +242,13 @@ void App::IOThread() {
         ULONG tx_ticks_now = tx_time_get();
 
         this->web_server.SendKeepalivePings();
+
+        // See usbd_device_poll_state_change()'s comment (usbd_device.h) -- the USB ISR only
+        // records the latest state; logging it happens here, from proper thread context.
+        char usb_state_message[64];
+        if (usbd_device_poll_state_change(usb_state_message, sizeof(usb_state_message))) {
+            log_info("%s", usb_state_message);
+        }
 
         if (power_ok) {
             uint16_t bus_mv = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_BUS_VOLTAGE_MV);
@@ -291,6 +287,15 @@ void App::AppThread() {
     hal_tick_threadx_mark_running();
 
     net_setup_start(this);
+
+    // See sntp_setup.hpp -- own thread, waits for the network then keeps opcua::Now() synced to
+    // real UTC via SNTP (see libs/opcua_native/include/opcua/clock.hpp).
+    SntpSetup(this);
+
+    // See opcua_setup.hpp -- unlike Modbus TCP/HTTPS, no dedicated thread is created here:
+    // nx_tcpserver_create() (inside OpcUaTcpServer::Create()) spawns and auto-starts its own
+    // worker thread, and this server has no separate timer engine that would need one.
+    OpcUaServerSetup(this);
 
     this->modbus_tcp_server = new ModbusTcpServer(&this->ip_instance, &this->packet_pool, *this->register_model);
 
@@ -360,63 +365,53 @@ void App::AppThread() {
                      ptr, HEARTBEAT_THREAD_STACK_SIZE,
                      HEARTBEAT_THREAD_PRIORITY, HEARTBEAT_THREAD_PRIORITY,
                      TX_NO_TIME_SLICE, TX_AUTO_START), "Heartbeat thread create failed");
-
-    XASSERT(tx_byte_allocate(&this->byte_pool, &ptr, OPCUA_THREAD_STACK_SIZE, TX_NO_WAIT), "OPC UA Thread stack allocate failed");
-    XASSERT(tx_thread_create(&this->opcua_thread, _C("OPC UA Server Thread"),
-                     App::OpcUaThreadStatic, (ULONG)this,
-                     ptr, OPCUA_THREAD_STACK_SIZE,
-                     OPCUA_THREAD_PRIORITY, OPCUA_THREAD_PRIORITY,
-                     TX_NO_TIME_SLICE, TX_AUTO_START), "OPC UA thread create failed");
 }
 
 void App::fillRegistersWithInitialValues() {
     this->register_model->SetInputRegister(ModbusRegisters::Input::FW_VERSION_MAJOR, FW_VERSION_MAJOR);
     this->register_model->SetInputRegister(ModbusRegisters::Input::FW_VERSION_MINOR, FW_VERSION_MINOR);
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W0_HI, (uint16_t)(chip_uid[0] >> 16));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W0_LO, (uint16_t)(chip_uid[0] & 0xFFFF));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W1_HI, (uint16_t)(chip_uid[1] >> 16));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W1_LO, (uint16_t)(chip_uid[1] & 0xFFFF));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W2_HI, (uint16_t)(chip_uid[2] >> 16));
-    this->register_model->SetInputRegister(ModbusRegisters::Input::CHIP_ID_W2_LO, (uint16_t)(chip_uid[2] & 0xFFFF));
+    ModbusRegisters::Accessors::Diagnostics::ChipId_Write(*this->register_model,
+        ModbusRegisters::Uid96{chip_uid[0], chip_uid[1], chip_uid[2]});
 }
 
 void App::greeting() {
-    log_info("");
-    log_info("=== FactoryInABox Control Unit starting ===");
-    log_info(" -> Board:    %.*s", (int)BOARD_NAME.length(), BOARD_NAME.data());
-    log_info(" -> Hostname: %s.local", DEVICE_HOSTNAME);
-    log_info("--- Build Information ---");
-    log_info(" -> Version:  %.*s", (int)git::VERSION.length(), git::VERSION.data());
-    log_info(" -> Commit:   %.*s (%.*s)", (int)git::COMMIT_HASH.length(), git::COMMIT_HASH.data(),
+    // LOG_INFO_ML/LOG_ML/LOG_ML_END (log.h): one locked block so another thread's concurrent
+    // log line can't land in the middle of this banner.
+    LOG_INFO_ML("");
+    LOG_ML("=== FactoryInABox Control Unit starting ===");
+    LOG_ML(" -> Board:    %.*s", (int)BOARD_NAME.length(), BOARD_NAME.data());
+    LOG_ML(" -> Hostname: %s.local", DEVICE_HOSTNAME);
+    LOG_ML("--- Build Information ---");
+    LOG_ML(" -> Version:  %.*s", (int)git::VERSION.length(), git::VERSION.data());
+    LOG_ML(" -> Commit:   %.*s (%.*s)", (int)git::COMMIT_HASH.length(), git::COMMIT_HASH.data(),
             (int)git::BRANCH.length(), git::BRANCH.data());
-    log_info(" -> Message:  %.*s", (int)git::COMMIT_MESSAGE.length(), git::COMMIT_MESSAGE.data());
-    log_info(" -> Author:   %.*s", (int)git::COMMIT_AUTHOR.length(), git::COMMIT_AUTHOR.data());
+    LOG_ML(" -> Message:  %.*s", (int)git::COMMIT_MESSAGE.length(), git::COMMIT_MESSAGE.data());
+    LOG_ML(" -> Author:   %.*s", (int)git::COMMIT_AUTHOR.length(), git::COMMIT_AUTHOR.data());
     // %lu statt %lld: newlib-nano (dieses Projekts printf-Implementierung) unterstuetzt keine
     // 64-Bit-Formatspezifizierer -- ein Unix-Epoch-Zeitstempel in Sekunden passt aber bis Jahr
     // 2106 komfortabel in 32 Bit.
-    log_info(" -> Built:    %lu (epoch)", (unsigned long)git::BUILD_TIMESTAMP_EPOCH);
-    if (git::IS_DIRTY) {
-    log_warn(" -> Clean:    yes");
-    } else {
-    log_info(" -> Clean:    no");
-    }
+    LOG_ML(" -> Built:    %lu (epoch)", (unsigned long)git::BUILD_TIMESTAMP_EPOCH);
+    // War zuvor invertiert (dirty -> "Clean: yes" als WARN, clean -> "Clean: no" als INFO) --
+    // ML-Bloecke haben nur einen Level fuer den ganzen Block (s. log.h), daher hier als reiner
+    // Text statt eines Level-Wechsels mitten im Block ausgedrueckt.
+    LOG_ML(" -> Clean:    %s", git::IS_DIRTY ? "no" : "yes");
 
-    log_info("--- Clocks ---");
-    log_info(" -> SYSCLK:   %lu MHz", (unsigned long)(HAL_RCC_GetSysClockFreq() / 1000000));
-    log_info(" -> HCLK:     %lu MHz", (unsigned long)(HAL_RCC_GetHCLKFreq() / 1000000));
-    log_info(" -> PCLK1:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK1Freq() / 1000000));
-    log_info(" -> PCLK2:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK2Freq() / 1000000));
+    LOG_ML("--- Clocks ---");
+    LOG_ML(" -> SYSCLK:   %lu MHz", (unsigned long)(HAL_RCC_GetSysClockFreq() / 1000000));
+    LOG_ML(" -> HCLK:     %lu MHz", (unsigned long)(HAL_RCC_GetHCLKFreq() / 1000000));
+    LOG_ML(" -> PCLK1:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK1Freq() / 1000000));
+    LOG_ML(" -> PCLK2:    %lu MHz", (unsigned long)(HAL_RCC_GetPCLK2Freq() / 1000000));
 
-
-    log_info("--- Chip ---");
-    log_info(" -> UID:      %08lX-%08lX-%08lX", (unsigned long)this->chip_uid[0], (unsigned long)this->chip_uid[1], (unsigned long)this->chip_uid[2]);
-    log_info(" -> Reset:    %s", reset_cause());
+    LOG_ML("--- Chip ---");
+    LOG_ML(" -> UID:      %08lX-%08lX-%08lX", (unsigned long)this->chip_uid[0], (unsigned long)this->chip_uid[1], (unsigned long)this->chip_uid[2]);
+    LOG_ML(" -> Reset:    %s", reset_cause());
     __HAL_RCC_CLEAR_RESET_FLAGS();
 
-    log_info(" -> MAC:      S%02X:%02X:%02X:%02X:%02X:%02X",
+    LOG_ML(" -> MAC:      S%02X:%02X:%02X:%02X:%02X:%02X",
             heth.Init.MACAddr[0], heth.Init.MACAddr[1], heth.Init.MACAddr[2],
             heth.Init.MACAddr[3], heth.Init.MACAddr[4], heth.Init.MACAddr[5]);
-    log_info("============================================");
+    LOG_ML("============================================");
+    LOG_ML_END();
 }
 
 void App::SetupBeforeThreadX() {

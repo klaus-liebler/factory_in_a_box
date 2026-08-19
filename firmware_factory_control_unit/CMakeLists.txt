@@ -80,7 +80,30 @@ target_compile_definitions(stm32cubemx INTERFACE STM32H5 STM32H5xx)
 # laut Anforderung muessen sie dort nicht funktionieren, duerfen den Boot aber auch nicht
 # aufhalten (bereits so gebaut: keine der Setup()-Routinen dieser Subsysteme haengt sich an
 # einem Error_Handler() auf, s. Kommentar bei tof_color_.Setup() in io.cpp).
-option(BOARD_NUCLEO_H563ZI "Build for the STM32H563ZI Nucleo-144 eval board (UM3115) instead of the real Factory Control Unit PCB" OFF)
+#
+# Der DEFAULT dieses option()-Aufrufs kommt, wenn vorhanden, automatisch aus
+# Core/generated/board-variant.json (vom builder/-Tool geschrieben, s.
+# FirmwareBuilder.Common/stm32/Stm32BoardProvisioningService.cs's GenerateDeviceArtifacts --
+# derselbe bereits funktionierende Chip-UID -> boardTypeName-Nachschlag, der auch BOARD_NAME
+# setzt, s. firmware_constants.hh) -- ein Mensch muss dadurch nicht mehr von Hand das passende
+# Preset waehlen (Ursache eines frueheren, session-langen Debugging-Vorfalls: falsches Preset auf
+# falsch angeschlossenem Board sah wie ein Hardware-Defekt aus, s. Projektgedaechtnis). Ein
+# expliziter Override (-DBOARD_NUCLEO_H563ZI=ON, oder das Debug-Nucleo-Preset ueber
+# cacheVariables) gewinnt weiterhin, z.B. fuer ein noch nicht provisioniertes Board ohne
+# Archiv-Eintrag -- option()'s Default wird nur beim ERSTEN Configure eines binaryDir
+# herangezogen, was hier genau der richtige Zeitpunkt ist (jedes Preset hat sein eigenes
+# build/<preset>-Verzeichnis).
+set(_board_variant_file "${CMAKE_SOURCE_DIR}/Core/generated/board-variant.json")
+set(_detected_nucleo_default OFF)
+if(EXISTS "${_board_variant_file}")
+    file(READ "${_board_variant_file}" _board_variant_json)
+    string(JSON _board_type_name GET "${_board_variant_json}" "boardTypeName")
+    if(_board_type_name STREQUAL "NucleoH563ZI")
+        set(_detected_nucleo_default ON)
+    endif()
+    message(STATUS "Board-Variant erkannt (Core/generated/board-variant.json): ${_board_type_name}")
+endif()
+option(BOARD_NUCLEO_H563ZI "Build for the STM32H563ZI Nucleo-144 eval board (UM3115) instead of the real Factory Control Unit PCB" ${_detected_nucleo_default})
 if(BOARD_NUCLEO_H563ZI)
     message(STATUS "Board target: STM32H563ZI Nucleo-144 (test rig)")
     target_compile_definitions(stm32cubemx INTERFACE BOARD_NUCLEO_H563ZI)
@@ -93,44 +116,64 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
-# --- open62541 (OPC UA server, vendored under libs/open62541, tag v1.4.18) ---
-# UA_ARCHITECTURE=none: suppresses open62541's own POSIX/Win32 EventLoop+ConnectionManager
-# code (arch/posix, arch/win32) -- this board has neither (ThreadX/NetX Duo only, no BSD
-# sockets). The NetX-Duo-specific EventLoop/ConnectionManager port lives in
-# libs/open62541_netxduo_arch/ (see there for the porting notes) and is added as extra
-# sources on the open62541 target further below, alongside the generic (architecture-
-# independent) arch/common/ua_timer.c + arch/eventloop_common.c from upstream.
-# UA_NAMESPACE_ZERO=MINIMAL avoids the big deps/ua-nodeset submodule (only needed for FULL)
-# and keeps flash footprint small -- this is a small embedded server, not the full NS0.
-# Subscriptions/PubSub/Discovery/Encryption/Historizing all OFF for the initial version
-# (SecurityPolicy None only, per project decision) -- can be revisited later.
-set(UA_ARCHITECTURE "none" CACHE STRING "" FORCE)
-set(UA_NAMESPACE_ZERO "MINIMAL" CACHE STRING "" FORCE)
-set(UA_ENABLE_SUBSCRIPTIONS ON CACHE BOOL "" FORCE)
-set(UA_ENABLE_SUBSCRIPTIONS_EVENTS OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_DA OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_HISTORIZING OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_DISCOVERY OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_DISCOVERY_MULTICAST OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_JSON_ENCODING OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_PUBSUB OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_PUBSUB_INFORMATIONMODEL OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_ENCRYPTION "OFF" CACHE STRING "" FORCE)
-set(UA_ENABLE_METHODCALLS ON CACHE BOOL "" FORCE)
-set(UA_ENABLE_NODEMANAGEMENT ON CACHE BOOL "" FORCE)
-set(UA_ENABLE_AMALGAMATION OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_DATATYPES_ALL OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_STATUSCODE_DESCRIPTIONS OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_PARSING OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_INLINABLE_EXPORT OFF CACHE BOOL "" FORCE)
-set(UA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(UA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
-set(UA_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
-set(UA_ENABLE_DEBUG_SANITIZER OFF CACHE BOOL "" FORCE)
-set(UA_FORCE_WERROR OFF CACHE BOOL "" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-add_subdirectory(libs/open62541 ${CMAKE_BINARY_DIR}/libs/open62541)
-target_compile_options(open62541-object PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-c++-compat>)
+# --- opcua_native: from-scratch OPC UA Binary server (modern C++, no external OPC UA
+# dependency) -- see libs/opcua_native/ for the design. Built up in layers, each independently
+# buildable as this object library grows: types/byte_stream (header-only) + codec/variant
+# (pure C++, no hardware headers) today; transport/session/services/address-space +
+# NetX Duo/ThreadX wiring get added (and their own include dirs/defines, mirroring the
+# open62541 port's approach on the sibling branch) as they're written.
+add_library(opcua_native OBJECT
+    libs/opcua_native/src/codec.cpp
+    libs/opcua_native/src/variant.cpp
+    libs/opcua_native/src/tcp_message.cpp
+    libs/opcua_native/src/service_header.cpp
+    libs/opcua_native/src/clock.cpp
+    libs/opcua_native/src/secure_channel.cpp
+    libs/opcua_native/src/service_structs.cpp
+    libs/opcua_native/src/session.cpp
+    libs/opcua_native/src/services.cpp
+    libs/opcua_native/src/connection.cpp
+    libs/opcua_native/src/net_transport.cpp
+)
+target_include_directories(opcua_native PUBLIC
+    libs/opcua_native/include
+)
+# net_transport.cpp/.hpp need NX_TCPSERVER (nx_tcpserver.h) + ThreadX headers -- everything
+# else in this target is pure portable C++ (no hardware/RTOS headers).
+#
+# Compile definitions MUST match the main firmware target's exactly (not just tx_time_get()-
+# relevant ones): nx_tcpserver.c itself is only ever compiled ONCE, as part of
+# ${CMAKE_PROJECT_NAME} using ITS defines (notably NX_WEB_HTTPS_ENABLE, which adds a TLS
+# session field to NX_TCP_SESSION and changes sizeof(NX_TCP_SESSION)) -- net_transport.hpp
+# declares an NX_TCP_SESSION array itself (OpcUaTcpServer::sessions_), so a mismatched view of
+# that struct's size here would corrupt memory silently (session-array indexing would disagree
+# with what nx_tcpserver.c itself computes internally). See the open62541 branch's identical
+# note for the full reasoning -- same lesson, independently rediscovered while porting this
+# transport layer.
+target_include_directories(opcua_native PRIVATE
+    libs/ST/threadx/common/inc
+    libs/ST/threadx/ports/cortex_m33/gnu/inc
+    libs/ST/netxduo/common/inc
+    libs/ST/netxduo/ports/cortex_m33/gnu/inc
+    libs/ST/netxduo/addons/web
+    libs/ST/netxduo/nx_secure/inc
+    libs/ST/netxduo/nx_secure/ports
+    libs/ST/netxduo/crypto_libraries/inc
+    libs/ST/netxduo/crypto_libraries/ports/cortex_m4/gnu/inc
+    ../stm32_libs/common_stm32 # connection.cpp/net_transport.cpp use log.h for diagnostics
+)
+target_compile_definitions(opcua_native PRIVATE
+    FX_INCLUDE_USER_DEFINE_FILE
+    NX_INCLUDE_USER_DEFINE_FILE
+    TX_INCLUDE_USER_DEFINE_FILE
+    UX_INCLUDE_USER_DEFINE_FILE
+    TX_SINGLE_MODE_NON_SECURE=1
+    NX_SECURE_INCLUDE_USER_DEFINE_FILE
+    NX_WEB_HTTPS_ENABLE
+    NX_SECURE_ENABLE_ECC_CIPHERSUITE
+    NX_SECURE_ENABLE_AEAD_CIPHER
+)
+target_link_libraries(opcua_native PRIVATE stm32cubemx)
 
 # ThreadX/FileX/NetXDuo (vendored under libs/ST/{threadx,filex,netxduo}, renamed from
 # "Middlewares" to "libs" so STM32CubeMX's regeneration doesn't treat/delete it as its
@@ -153,6 +196,8 @@ file(GLOB NETXDUO_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/dhcp/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/mdns/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/web/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/dns/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/ST/netxduo/addons/sntp/*.c
 )
 # NetX Secure (TLS) + Crypto -- wegen der Dateimenge (~360 Dateien) per GLOB statt
 # Hand-Liste eingebunden (identisches Muster wie in Nx_WebServer/CMakeLists.txt).
@@ -250,6 +295,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Core/Src/app.cc
     Core/Src/net_setup.cpp
+    Core/Src/sntp_setup.cpp
     Core/Src/opcua_setup.cpp
     Core/Src/webserver.cpp
     Core/Src/ws_log_bridge.cpp
@@ -293,6 +339,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     libs/ST/netxduo/addons/dhcp
     libs/ST/netxduo/addons/mdns
     libs/ST/netxduo/addons/web
+    libs/ST/netxduo/addons/dns
+    libs/ST/netxduo/addons/sntp
     libs/ST/netxduo/nx_secure/inc
     libs/ST/netxduo/nx_secure/ports
     libs/ST/netxduo/crypto_libraries/inc
@@ -360,71 +408,13 @@ add_subdirectory(../stm32_libs/usb_pd ${CMAKE_BINARY_DIR}/stm32_libs/usb_pd)
 # sondern direkt als GLOB in target_sources()/target_include_directories() oben, analog zu
 # ThreadX/FileX/NetX Duo -- s. USBX_SOURCES-Kommentar weiter oben zur Begruendung.
 
-# --- open62541_netxduo_arch: this project's own NetX Duo/ThreadX port of open62541's
-# EventLoop + TCP ConnectionManager (see libs/open62541_netxduo_arch/ for the design notes,
-# in particular open62541_netxduo_arch.h). Compiled as its OWN object library instead of being
-# folded into libs/open62541/CMakeLists.txt (which stays untouched/vendored) so it can freely
-# reach this project's ThreadX/NetX Duo/log.h include dirs. arch/common/ua_timer.c +
-# arch/eventloop_common.c are upstream open62541 sources (architecture-independent, but
-# skipped by open62541's own CMakeLists.txt whenever UA_ARCHITECTURE=none, see there) -- built
-# here alongside our own files instead.
-#
-# Compile definitions MUST match the main firmware target's exactly (not just a subset that
-# looks relevant): nx_tcpserver.c itself is only ever compiled ONCE, as part of
-# ${CMAKE_PROJECT_NAME} using ITS defines (notably NX_WEB_HTTPS_ENABLE, which adds a TLS
-# session field to NX_TCP_SESSION) -- this target's connectionmanager_tcp_netxduo.c never uses
-# that field, but if its view of the NX_TCP_SESSION/NX_TCPSERVER struct LAYOUT differed even by
-# one field (e.g. from omitting NX_WEB_HTTPS_ENABLE here), sizeof()/field-offset mismatches
-# between the two independently-compiled translation units sharing that struct would corrupt
-# memory silently. Same reasoning covers every other ThreadX/NetX/USBX struct this code
-# touches (NX_IP, NX_PACKET_POOL, TX_MUTEX, ...), hence matching the FULL define set rather
-# than reasoning about which ones matter for which struct.
-add_library(open62541_netxduo_arch OBJECT
-    libs/open62541_netxduo_arch/clock.c
-    libs/open62541_netxduo_arch/posix_stubs.c
-    libs/open62541_netxduo_arch/log_bridge.c
-    libs/open62541_netxduo_arch/eventloop_netxduo.c
-    libs/open62541_netxduo_arch/connectionmanager_tcp_netxduo.c
-    libs/open62541/arch/common/ua_timer.c
-    libs/open62541/arch/eventloop_common.c
-)
-target_include_directories(open62541_netxduo_arch PUBLIC
-    libs/open62541_netxduo_arch/include
-)
-target_include_directories(open62541_netxduo_arch PRIVATE
-    libs/open62541/arch
-    libs/open62541/arch/common
-    libs/ST/threadx/common/inc
-    libs/ST/threadx/ports/cortex_m33/gnu/inc
-    libs/ST/netxduo/common/inc
-    libs/ST/netxduo/ports/cortex_m33/gnu/inc
-    libs/ST/netxduo/addons/web
-    libs/ST/netxduo/nx_secure/inc
-    libs/ST/netxduo/nx_secure/ports
-    libs/ST/netxduo/crypto_libraries/inc
-    libs/ST/netxduo/crypto_libraries/ports/cortex_m4/gnu/inc
-)
-target_compile_definitions(open62541_netxduo_arch PRIVATE
-    FX_INCLUDE_USER_DEFINE_FILE
-    NX_INCLUDE_USER_DEFINE_FILE
-    TX_INCLUDE_USER_DEFINE_FILE
-    UX_INCLUDE_USER_DEFINE_FILE
-    TX_SINGLE_MODE_NON_SECURE=1
-    NX_SECURE_INCLUDE_USER_DEFINE_FILE
-    NX_WEB_HTTPS_ENABLE
-    NX_SECURE_ENABLE_ECC_CIPHERSUITE
-    NX_SECURE_ENABLE_AEAD_CIPHER
-)
-target_link_libraries(open62541_netxduo_arch PRIVATE open62541 common_stm32 stm32cubemx)
-
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     common_stm32
     tmc2209
     usb_pd
-    open62541
-    open62541_netxduo_arch
+    opcua_native
 
     # Add user defined libraries
 )

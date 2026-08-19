@@ -267,7 +267,12 @@ static void write_system_info_chunk(void *context, char *dest, size_t want) {
 // mit einem Status ausser HAL_OK/HAL_ERROR, damit sich ein nicht gefundenes Geraet bei Bedarf per
 // log_set_level(LOG_DEBUG) trotzdem ueber das Boot-Log nachvollziehen laesst.
 static void scan_i2c_bus(unsigned int bus_number, I2C_HandleTypeDef *hi2c, uint8_t out_bitfield[16]) {
-    log_info("I2C%u: Boot-Scan gestartet (State=%d, ErrorCode=0x%08lX)",
+    // LOG_INFO_ML/LOG_ML/LOG_ML_END (log.h): one locked block for the whole scan (up to ~256ms,
+    // see the HAL_Delay(2) comment below) so another thread's log line can't land in the middle.
+    // The log_debug() call below is deliberately left as a plain call, not LOG_ML(): an ML block
+    // has only one level for its whole duration (set once at LOG_INFO_ML time), so promoting it
+    // would make it always print instead of staying independently filterable at LOG_DEBUG.
+    LOG_INFO_ML("I2C%u: Boot-Scan gestartet (State=%d, ErrorCode=0x%08lX)",
               bus_number, (int)HAL_I2C_GetState(hi2c), (unsigned long)hi2c->ErrorCode);
 
     memset(out_bitfield, 0, 16);
@@ -277,7 +282,7 @@ static void scan_i2c_bus(unsigned int bus_number, I2C_HandleTypeDef *hi2c, uint8
         if (status == HAL_OK) {
             out_bitfield[addr / 8] |= (uint8_t)(1u << (addr % 8));
             found_count++;
-            log_info("I2C%u: Geraet gefunden bei Adresse 0x%02X", bus_number, (unsigned int)addr);
+            LOG_ML("I2C%u: Geraet gefunden bei Adresse 0x%02X", bus_number, (unsigned int)addr);
         } else if (status != HAL_ERROR) {
             log_debug("I2C%u: Adresse 0x%02X -- ungewoehnlicher Status %d (ErrorCode=0x%08lX)",
                        bus_number, (unsigned int)addr, (int)status, (unsigned long)hi2c->ErrorCode);
@@ -293,7 +298,8 @@ static void scan_i2c_bus(unsigned int bus_number, I2C_HandleTypeDef *hi2c, uint8
         HAL_Delay(2);
     }
 
-    log_info("I2C%u: Boot-Scan fertig -- %u Geraet(e) gefunden", bus_number, (unsigned int)found_count);
+    LOG_ML("I2C%u: Boot-Scan fertig -- %u Geraet(e) gefunden", bus_number, (unsigned int)found_count);
+    LOG_ML_END();
 }
 
 void PerformBootI2cScans() {

@@ -8,6 +8,14 @@
 #define IP_ADDR_FMT_ARGS(addr) \
     (((addr) >> 24) & 0xff), (((addr) >> 16) & 0xff), (((addr) >> 8) & 0xff), ((addr) & 0xff)
 
+// #undef first: arm-none-eabi-g++'s <string> (libstdc++ locale support) transitively pulls in
+// <cctype>, which #defines its own unrelated "_C" (a ctype classification-mask bit, value
+// 040) -- whichever of the two headers happens to be included first otherwise triggers a
+// "_C redefined" warning here. Harmless either way (this definition always wins for actual
+// _C(...) call sites below), but the #undef keeps the build warning-free regardless of
+// include order in whatever translation unit pulls both in (first hit: libs/opcua_native/,
+// whose opcua/types.hpp uses std::string).
+#undef _C
 #define _C(str) const_cast<CHAR *>(str)
 
 // Success-Makro fuer NX_SUCCESS-liefernde Aufrufe -- loggt Kontext (Datei/Zeile/Statuscode) und

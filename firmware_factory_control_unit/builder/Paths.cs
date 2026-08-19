@@ -27,6 +27,7 @@ public static class Paths
 
 	public static readonly string CoreGeneratedDir = Path.Combine(RootDir, "Core", "generated");
 	public static readonly string BestBinaryBuffersSchemaDir = Path.Combine(RootDir, "best_binary_buffers_schema");
+	public static readonly string RegisterMapSchemaDir = Path.Combine(RootDir, "register_map_schema");
 	public static readonly string WebDir = Path.Combine(RootDir, "web");
 	public static readonly string WebGeneratedDir = Path.Combine(WebDir, "generated");
 	public static readonly string BuildDir = Path.Combine(RootDir, "build");

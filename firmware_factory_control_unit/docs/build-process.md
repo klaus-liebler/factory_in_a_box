@@ -46,7 +46,7 @@ dotnet run --project builder -- ReadHardwareIds                                #
 dotnet run --project builder -- GenerateCertificatesLazy                       # Zertifikat wiederverwenden/bei Bedarf erzeugen
 dotnet run --project builder -- GenerateCertificatesForced                     # Zertifikat immer neu erzeugen
 dotnet run --project builder -- GenerateDeviceArtifacts                        # device_ids.hh + device-ids.json aus Snapshots
-dotnet run --project builder -- ReadModbusRegisterMapAndGenerateFiles          # register-map.json -> Code
+dotnet run --project builder -- GenerateRegisterAccessFiles          # register_map_schema/*.cs -> Code (Modbus + OPC UA + Web)
 dotnet run --project builder -- GenerateBestBinaryBufferFiles                  # best_binary_buffers_schema/*.cs -> Code
 dotnet run --project builder -- ReadGitStatusAndGenerateFiles                  # Git-Stand -> Code
 dotnet run --project builder -- CopyGeneratedFilesToBuildDirectory             # Board-Archiv -> Core/generated, web/generated, build/assets
@@ -55,8 +55,8 @@ dotnet run --project builder -- BuildFirmware        -- --preset <preset>      #
 dotnet run --project builder -- FlashFirmware        -- --preset <preset>      # STM32_Programmer_CLI + board.json/flash_events.jsonl-Eintrag
 ```
 
-Jede Phase ist einzeln sinnvoll aufrufbar, z. B. nur `ReadModbusRegisterMapAndGenerateFiles` nach
-einer Änderung an `register-map.json`, ohne Board oder Firmware-Build anzufassen.
+Jede Phase ist einzeln sinnvoll aufrufbar, z. B. nur `GenerateRegisterAccessFiles` nach
+einer Änderung an `register_map_schema/*.cs`, ohne Board oder Firmware-Build anzufassen.
 
 ### `--board` überschreiben
 
@@ -66,7 +66,7 @@ Um explizit für ein anderes, gerade nicht angeschlossenes Board zu arbeiten (z.
 ein Archiv nachziehen):
 
 ```
-dotnet run --project builder -- ReadModbusRegisterMapAndGenerateFiles -- --board 363836_004500173434510434363836
+dotnet run --project builder -- GenerateRegisterAccessFiles -- --board 363836_004500173434510434363836
 ```
 
 ## 2. Build-Phasen im Detail
@@ -77,7 +77,7 @@ dotnet run --project builder -- ReadModbusRegisterMapAndGenerateFiles -- --board
 | 2 | `GenerateCertificatesLazy` | nein | Board-Archiv -- erzeugt/aktualisiert PEM+DER nur falls noch nicht vorhanden; schreibt `certificate-info.json`. |
 | 3 | `GenerateCertificatesForced` | nein | Board-Archiv -- wie 2, aber immer neu erzeugen (CA-Rotation, Ablauf). |
 | 4 | `GenerateDeviceArtifacts` | nein | Board-Archiv -- `hardware-identity.json` + `certificate-info.json` -> `device_ids.hh` + `device-ids.json`. |
-| 5 | `ReadModbusRegisterMapAndGenerateFiles` | nein | Board-Archiv -- `register-map.json` -> `register_input.inc`/`register_holding.inc`/`register_maxindex.inc` + `register-map.ts`. |
+| 5 | `GenerateRegisterAccessFiles` | nein | Board-Archiv -- `register_map_schema/*.cs` -> `modbus_registers_generated.hh` + `opcua_registers_generated.hh` + `register-map.ts` (universal_register_access). |
 | 6 | `GenerateBestBinaryBufferFiles` | nein | Board-Archiv -- `best_binary_buffers_schema/*.cs` (wiederholbares `--best-binary-buffer-schema-path` fuer weitere Quellen) -> `ws_protocol.hh` + `ws-protocol.ts`. |
 | 7 | `ReadGitStatusAndGenerateFiles` | nein | Board-Archiv -- `gitconstants.hh`, `firmware_constants.hh` (BOARD_NAME/FW_VERSION_*, s. Abschnitt 5), `build-info.ts`, `gitstatus.json` aus Git-Abfrage + `firmware-version.json` + Board-Archiv. |
 | 8 | `CopyGeneratedFilesToBuildDirectory` | nein | `Core/generated/`, `web/generated/`, `build/assets/` -- reiner Kopiervorgang aus dem Board-Archiv des zuletzt erkannten Boards. |
@@ -92,7 +92,7 @@ flowchart TD
     CERTL["2: GenerateCertificatesLazy"]
     CERTF["3: GenerateCertificatesForced"]
     ART["4: GenerateDeviceArtifacts"]
-    RM["5: ReadModbusRegisterMapAndGenerateFiles"]
+    RM["5: GenerateRegisterAccessFiles"]
     WSP["6: GenerateBestBinaryBufferFiles"]
     GS["7: ReadGitStatusAndGenerateFiles"]
     ARCHIVE["Board-Archiv\nstm32_boards/&lt;id&gt;/generated/"]
@@ -144,7 +144,7 @@ firmware_builder_common/src/FirmwareBuilder.Common/
 ├── GeneratedArtifactsCopyService.cs   # Board-Archiv -> Core/generated + web/generated + build/assets (shared)
 ├── Stm32FlashService.cs               # STM32_Programmer_CLI Flash + ST-LINK-SN-Erkennung (shared)
 ├── FlashFirmwarePipelineService.cs    # Flash + Archiv/History-Update (shared)
-├── ModbusRegisterMapBuildService.cs   # register-map.json -> C++/TS Artefakte (shared)
+├── UniversalRegisterAccessBuildService.cs # register_map_schema/*.cs -> C++/TS/OPC-UA Artefakte (shared)
 ├── BestBinaryBufferBuildService.cs    # BBB-Schema -> ws_protocol.hh/ws-protocol.ts (shared)
 ├── CmakeFirmwareBuildService.cs       # cmake --preset / --build --preset (shared)
 ├── WebAppBuildService.cs              # Vite-Aufruf (shared)
@@ -212,9 +212,8 @@ stm32_boards/
         ├── gitconstants.hh
         ├── firmware_constants.hh       # BOARD_NAME/FW_VERSION_* (s. Abschnitt 5)
         ├── gitstatus.json
-        ├── register_input.inc
-        ├── register_holding.inc
-        ├── register_maxindex.inc
+        ├── modbus_registers_generated.hh
+        ├── opcua_registers_generated.hh
         ├── register-map.ts
         ├── ws_protocol.hh
         ├── ws-protocol.ts

@@ -403,30 +403,79 @@ void USB_DRD_FS_IRQHandler(void) {
 // UX_DCD_STM32_*-Codes ausserhalb des ux_api.h-Wertebereichs, s. ux_dcd_stm32.h) plus
 // UX_DEVICE_ATTACHED (ebenfalls bei jedem Bus-Reset, direkt nach dem UX_DEVICE_REMOVED oben).
 // UX_DCD_STM32_SOF_RECEIVED bewusst nicht geloggt (feuert alle 1ms, reine Log-Flut).
+//
+// Diese Callback laeuft im ISR-Kontext (USB_DRD_FS_IRQHandler -> HAL_PCD_IRQHandler ->
+// ux_dcd_stm32_callback.c/ux_dcd_stm32_initialize_complete.c/ux_device_stack_disconnect.c ->
+// hierher) -- frueher wurde hier direkt log_info() aufgerufen, was das (nicht ISR-sichere)
+// log_mutex einfach umging: tx_mutex_get() aus einem ISR heraus ist in ThreadX unzulaessig und
+// liefert lediglich einen Fehler zurueck, OHNE das Mutex tatsaechlich zu nehmen -- log_lock()
+// (app.cc) prueft diesen Rueckgabewert nicht, die Log-Zeile wird also trotzdem geschrieben, nur
+// eben ohne den Schutz, den das Mutex fuer alle anderen Aufrufer bietet (durch echte Messung
+// gefunden: eine dieser Zeilen landete mitten in einem mehrzeiligen LOG_INFO_ML/LOG_ML-Block
+// eines anderen Threads, s. Projektgedaechtnis). Deshalb hier nur noch ein simpler
+// volatile-Zustand (auf Cortex-M ist ein einzelnes 32-Bit-Wort atomar genug fuer "ISR schreibt,
+// ein Thread liest" ohne weiteres Locking) -- die eigentliche Log-Ausgabe macht
+// usbd_device_poll_state_change() unten, aus echtem Thread-Kontext (App::HeartbeatThread()).
+static volatile ULONG g_usbx_last_state = 0; // 0 = Sentinel "noch kein Event" (kein echter Zustandswert, s. unten)
+
 static UINT usbx_device_state_change(ULONG state) {
     switch (state) {
         case UX_DEVICE_ATTACHED:
-            log_info("USBX: attached (PHY/Bus-Reset abgeschlossen, EP0 offen)");
-            break;
         case UX_DEVICE_REMOVED:
-            log_info("USBX: disconnect-Event (Bus-Reset ODER echter Kabelabzug)");
-            break;
         case UX_DCD_STM32_DEVICE_CONNECTED:
-            log_info("USBX: DCD connected (VBUS/D+ Pullup erkannt)");
-            break;
         case UX_DCD_STM32_DEVICE_DISCONNECTED:
-            log_info("USBX: DCD disconnected");
-            break;
         case UX_DCD_STM32_DEVICE_SUSPENDED:
-            log_info("USBX: DCD suspend");
-            break;
         case UX_DCD_STM32_DEVICE_RESUMED:
-            log_info("USBX: DCD resume");
+            g_usbx_last_state = state;
             break;
         default:
             break;
     }
     return UX_SUCCESS;
+}
+
+// Von App::HeartbeatThread() (Core/Src/app.cc) periodisch aufgerufen -- liefert true und fuellt
+// out_message, falls sich der USB-Geraetezustand seit dem letzten Aufruf geaendert hat, sonst
+// false. last_reported_state ist ausschliesslich fuer DIESEN einen Aufrufer/Thread -- kein
+// Locking noetig, solange nur ein Thread diese Funktion aufruft. Schnelle, mehrfache
+// Zustandswechsel INNERHALB eines Heartbeat-Intervalls (3s) werden dadurch bewusst auf den
+// jeweils letzten Zustand zusammengefasst statt einzeln geloggt (anders als frueher, als jede
+// einzelne ISR-Zeile sofort geloggt wurde) -- akzeptierter Kompromiss fuer den Wegfall der
+// ISR-Log-Umgehung.
+bool usbd_device_poll_state_change(char *out_message, size_t out_message_size) {
+    static ULONG last_reported_state = 0;
+    ULONG current_state = g_usbx_last_state;
+    if (current_state == 0 || current_state == last_reported_state) {
+        return false;
+    }
+    last_reported_state = current_state;
+
+    char const *message;
+    switch (current_state) {
+        case UX_DEVICE_ATTACHED:
+            message = "USBX: attached (PHY/Bus-Reset abgeschlossen, EP0 offen)";
+            break;
+        case UX_DEVICE_REMOVED:
+            message = "USBX: disconnect-Event (Bus-Reset ODER echter Kabelabzug)";
+            break;
+        case UX_DCD_STM32_DEVICE_CONNECTED:
+            message = "USBX: DCD connected (VBUS/D+ Pullup erkannt)";
+            break;
+        case UX_DCD_STM32_DEVICE_DISCONNECTED:
+            message = "USBX: DCD disconnected";
+            break;
+        case UX_DCD_STM32_DEVICE_SUSPENDED:
+            message = "USBX: DCD suspend";
+            break;
+        case UX_DCD_STM32_DEVICE_RESUMED:
+            message = "USBX: DCD resume";
+            break;
+        default:
+            message = "USBX: unbekannter Zustand";
+            break;
+    }
+    snprintf(out_message, out_message_size, "%s", message);
+    return true;
 }
 
 void usbd_device_setup(char const* serial_string, uint8_t const net_mac[6], char const* net_mac_string) {

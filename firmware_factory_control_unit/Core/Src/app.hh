@@ -26,7 +26,6 @@
 #include <cstdint>
 
 #include "net_setup.hpp"
-#include "opcua_setup.hpp"
 #include "io.hpp"
 #include "usb_pd_control.hpp"
 #include "usbd_device.h"
@@ -127,7 +126,6 @@ public:
     TX_THREAD io_thread;
     TX_THREAD usbd_device_thread;
     TX_THREAD heartbeat_thread;
-    TX_THREAD opcua_thread;
     uint32_t chip_uid[3];
     ModbusRegisterModel* register_model = nullptr;
 
@@ -147,12 +145,10 @@ public:
     void IOThread();
     [[noreturn]] void UsbdDeviceThread();
     [[noreturn]] void HeartbeatThread();
-    [[noreturn]] void OpcUaThread();
     static void AppThreadStatic(ULONG arg);
     static void ModbusTcpServerThreadStatic(ULONG arg);
     static void ModbusRtuThreadStatic(ULONG arg);
     static void IOThreadStatic(ULONG arg);
     static void UsbdDeviceThreadStatic(ULONG arg);
     static void HeartbeatThreadStatic(ULONG arg);
-    static void OpcUaThreadStatic(ULONG arg);
 };

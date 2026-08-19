@@ -1,5 +1,9 @@
 # BestBinaryBuffers id lookup table -- automatically maintained, do not hand-reorder/renumber.
-# New lines are appended on the next codegen run; existing lines are NEVER changed or removed.
+# New lines are appended on the next codegen run; existing lines are NEVER changed or removed
+# (see IdMap in BestBinaryBuffers) -- that's what keeps wire ids stable over time.
 # One entry per line: <kind> <name> <id>
 namespace system 1
 message system.LogMessage 1
+message tasks.TaskManagerRequest 1
+message tasks.TaskListMessage 2
+namespace tasks 2

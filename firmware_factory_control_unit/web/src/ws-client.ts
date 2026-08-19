@@ -6,7 +6,9 @@
 // Decoder aus dem generierten web/generated/ws-protocol.ts weitergereicht wird (decode() erwartet
 // den KOMPLETTEN Frame inkl. Kopf plus offset=0, s. docs/websocket-protocol.md).
 //
-// Aktuell nur EIN Nachrichtentyp verdrahtet (system.LogMessage, s. unten) -- weitere
+// Zwei Nachrichtentypen verdrahtet: system.LogMessage (reiner Server->Client-Log-Spiegel) und
+// tasks.TaskListMessage (Antwort auf tasks.TaskManagerRequest, s. sendBinary()/
+// setTaskListListener() unten, genutzt von web/src/apps/task-manager-app.ts) -- weitere
 // Namespaces/Nachrichten kommen hinzu, sobald die Firmware sie tatsaechlich sendet/erwartet.
 import * as WsProtocol from "../generated/ws-protocol.js";
 
@@ -20,6 +22,29 @@ function wsUrl(): string {
 	return `wss://${location.host}/ws`;
 }
 
+// Nur waehrend eine Verbindung offen ist gesetzt (s. connect() unten) -- sendBinary() ist damit
+// aus jedem Aufrufer gefahrlos jederzeit aufrufbar, auch waehrend eines Reconnects.
+let activeSocket: WebSocket | null = null;
+
+// Kein Queueing bei fehlender Verbindung (bewusst, s. RECONNECT_DELAY_MS-Kommentar unten): der
+// naechste Aufruf (z.B. der naechste Poll-Tick von task-manager-app.ts) greift ohnehin von
+// selbst wieder, ein einzelner verlorener Request ist fuer eine Diagnose-Seite unerheblich.
+export function sendBinary(data: Uint8Array): void {
+	if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
+		activeSocket.send(data);
+	}
+}
+
+type TaskListListener = (payload: WsProtocol.tasks.TaskListMessage.Payload) => void;
+let taskListListener: TaskListListener | null = null;
+
+// Registriert/deregistriert (via null) den einzigen Abnehmer fuer tasks.TaskListMessage --
+// bewusst kein genereller Event-Bus fuer (aktuell) genau einen Nachrichtentyp, s.
+// task-manager-app.ts onShow()/onHide().
+export function setTaskListListener(listener: TaskListListener | null): void {
+	taskListListener = listener;
+}
+
 // 1:1 auf die console-Funktion abgebildet, die dem Original-Log-Level entspricht -- WICHTIG:
 // console.debug() zaehlt in Chrome DevTools als "Verbose" und ist per Default AUSGEBLENDET, bis
 // man den Verbose-Filter aktiviert. Vorher landete INFO faelschlich ebenfalls auf console.debug,
@@ -27,14 +52,14 @@ function wsUrl(): string {
 // console.info() zaehlt dagegen als "Info" und ist per Default sichtbar -- TRACE/DEBUG bleiben
 // bewusst auf console.debug (nur bei Bedarf/Verbose sichtbar), das entspricht ihrer Rolle im
 // Original (log_set_level() blendet sie im UART-Log ohnehin meist ganz aus).
-function consoleFnForLevel(level: WsProtocol.system.LogMessage.LogLevel): (...args: unknown[]) => void {
+function consoleFnForLevel(level: WsProtocol.system.LogLevel): (...args: unknown[]) => void {
 	switch (level) {
-		case WsProtocol.system.LogMessage.LogLevel.LOG_WARN:
+		case WsProtocol.system.LogLevel.LOG_WARN:
 			return console.warn;
-		case WsProtocol.system.LogMessage.LogLevel.LOG_ERROR:
-		case WsProtocol.system.LogMessage.LogLevel.LOG_FATAL:
+		case WsProtocol.system.LogLevel.LOG_ERROR:
+		case WsProtocol.system.LogLevel.LOG_FATAL:
 			return console.error;
-		case WsProtocol.system.LogMessage.LogLevel.LOG_INFO:
+		case WsProtocol.system.LogLevel.LOG_INFO:
 			return console.info;
 		default:
 			return console.debug;
@@ -76,6 +101,17 @@ function handleMessage(data: ArrayBuffer): void {
 		return;
 	}
 
+	if (namespaceId === WsProtocol.tasks.NAMESPACE_ID && messageTypeId === WsProtocol.tasks.TaskListMessage.TYPE_ID) {
+		if (taskListListener) {
+			try {
+				taskListListener(WsProtocol.tasks.TaskListMessage.decode(view, 0));
+			} catch (error) {
+				console.warn(`WS TaskListMessage decode fehlgeschlagen: ${(error as Error).message}`);
+			}
+		}
+		return;
+	}
+
 	// Unbekannte (namespaceId, messageTypeId)-Kombination -- z.B. eine neuere Firmware-Version
 	// mit einer Nachricht, die dieser Web-UI-Build noch nicht kennt. Bewusst nur geloggt statt
 	// geworfen, damit ein einzelner unbekannter Nachrichtentyp nicht die ganze Verbindung stoert.
@@ -86,6 +122,10 @@ function connect(): void {
 	const ws = new WebSocket(wsUrl());
 	ws.binaryType = "arraybuffer";
 
+	ws.addEventListener("open", () => {
+		activeSocket = ws;
+	});
+
 	ws.addEventListener("message", (event) => {
 		if (event.data instanceof ArrayBuffer) {
 			handleMessage(event.data);
@@ -93,6 +133,7 @@ function connect(): void {
 	});
 
 	ws.addEventListener("close", () => {
+		if (activeSocket === ws) activeSocket = null;
 		setTimeout(connect, RECONNECT_DELAY_MS);
 	});
 	ws.addEventListener("error", () => {

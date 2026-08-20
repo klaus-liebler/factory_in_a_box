@@ -71,6 +71,12 @@
 
 /* USER CODE BEGIN 1 */
 
+/* Fuer die TaskManager-Webseite (Core/Src/task_monitor.cpp): echte Pro-Thread-CPU-Last statt nur
+   run_count. Die eigentlichen Hook-Funktionen (_tx_execution_thread_enter/exit) sowie die
+   EXECUTION_TIME(_SOURCE_TYPE)-Typdefs fehlen im vendorten ThreadX-Paket -- s.
+   Core/Inc/tx_execution_profile.h und Core/Src/tx_execution_profile.c, die genau das ergaenzen. */
+#define TX_EXECUTION_PROFILE_ENABLE
+
 /* USER CODE END 1 */
 
 /* Define various build options for the ThreadX port.  The application should either make changes

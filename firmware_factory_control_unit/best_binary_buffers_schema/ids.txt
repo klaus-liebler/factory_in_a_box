@@ -27,3 +27,6 @@ message roarm.GetMissionGpioListRequest 16
 message roarm.GetMissionGpioListResponse 17
 message roarm.Mission 18
 namespace roarm 2
+message tasks.TaskManagerRequest 1
+message tasks.TaskListMessage 2
+namespace tasks 3

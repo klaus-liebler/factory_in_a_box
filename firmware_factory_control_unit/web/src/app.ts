@@ -7,6 +7,7 @@ import "./apps/modbus-register-app.js";
 import "./apps/power-management-app.js";
 import "./apps/system-info-app.js";
 import "./apps/roarm-teach-app.js";
+import "./apps/task-manager-app.js";
 import type { AppShell } from "./shell/app-shell.js";
 import { startWebSocketClient } from "./ws-client.js";
 
@@ -17,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	shell.RegisterApp("/power", "Power Management", "⚡", document.createElement("power-management-app"));
 	shell.RegisterApp("/system", "System", "🖥️", document.createElement("system-info-app"));
 	shell.RegisterApp("/roarm-teach", "RoArm Teach", "🦾", document.createElement("roarm-teach-app"));
+	shell.RegisterApp("/tasks", "Task Manager", "📋", document.createElement("task-manager-app"));
 
 	shell.Start();
 	startWebSocketClient();

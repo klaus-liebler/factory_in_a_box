@@ -19,6 +19,7 @@
 #include "modbus_register_model.hh"
 #include "assets.h"
 #include "lan8742.h"
+#include "task_monitor.hpp"
 #include "generated/ws_protocol.hh"
 #include "setup_and_loops/roarm_mission_gpio.hh"
 
@@ -381,11 +382,14 @@ static void handle_spa_shell(void *, const Http::Request &, Http::Response &resp
     resp.SendStreamed(200, "text/html", "Content-Encoding: br\r\n", html_br_len, write_from_flash_blob, &cursor);
 }
 
-// WebSocket-Endpunkt "/ws" -- Anwendungsprotokoll s. best_binary_buffers_schema/roarm.cs +
-// generated/ws_protocol.hh. Aktuell einziger Namespace mit eingehenden (Client->Firmware)
-// Nachrichten: "roarm" (Teach-Modus/Jogging/Mission-Verwaltung), alle geroutet an
-// App::Instance().io->RoArm() (s. setup_and_loops/roarm.hh). "system" hat nur ausgehende
-// Nachrichten (LogMessage, s. ws_log_bridge.cpp) und wird hier nie empfangen.
+// WebSocket-Endpunkt "/ws" -- Anwendungsnachrichten (s. best_binary_buffers_schema/*.cs) werden
+// hier anhand des 4-Byte-Kopfes (namespaceId/messageTypeId) ausgewertet, symmetrisch zum
+// client-seitigen Dispatch in web/src/ws-client.ts::handleMessage(). Zwei Namespaces mit
+// eingehenden (Client->Firmware) Nachrichten sind verdrahtet: "roarm" (Teach-Modus/Jogging/
+// Mission-Verwaltung, geroutet an App::Instance().io->RoArm(), s. setup_and_loops/roarm.hh) und
+// "tasks" (tasks.TaskManagerRequest, s. task_monitor.cpp). "system" hat nur ausgehende Nachrichten
+// (LogMessage, s. ws_log_bridge.cpp) und wird hier nie empfangen. Alles andere faellt weiterhin
+// auf das reine Transport-Echo zurueck.
 static void handle_ws_open(void *, Http::WebSocketConnection &) {
     log_info("WebSocket: Verbindung geoeffnet");
 }
@@ -576,22 +580,40 @@ void HandleGetMissionGpioList(Http::WebSocketConnection &conn, const uint8_t *da
 
 static void handle_ws_message(void *, Http::WebSocketConnection &conn, bool is_binary,
                                const uint8_t *data, size_t len) {
-    if (!is_binary || len < 4) return;
-    uint16_t namespace_id = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
-    uint16_t type_id = (uint16_t)data[2] | ((uint16_t)data[3] << 8);
-    if (namespace_id != WsProtocol::roarm::NAMESPACE_ID) return;
+    if (is_binary && len >= 4) {
+        uint16_t namespace_id = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
+        uint16_t type_id = (uint16_t)data[2] | ((uint16_t)data[3] << 8);
 
-    switch (type_id) {
-    case WsProtocol::roarm::StartTeachModeRequest::TYPE_ID: HandleStartTeachMode(conn, data, len); break;
-    case WsProtocol::roarm::StopTeachModeRequest::TYPE_ID: HandleStopTeachMode(conn, data, len); break;
-    case WsProtocol::roarm::JointJogTarget::TYPE_ID: HandleJointJogTarget(data, len); break;
-    case WsProtocol::roarm::CartesianJogTarget::TYPE_ID: HandleCartesianJogTarget(data, len); break;
-    case WsProtocol::roarm::ListMissionsRequest::TYPE_ID: HandleListMissions(conn, data, len); break;
-    case WsProtocol::roarm::GetMissionRequest::TYPE_ID: HandleGetMission(conn, data, len); break;
-    case WsProtocol::roarm::SaveMissionRequest::TYPE_ID: HandleSaveMission(conn, data, len); break;
-    case WsProtocol::roarm::DeleteMissionRequest::TYPE_ID: HandleDeleteMission(conn, data, len); break;
-    case WsProtocol::roarm::GetMissionGpioListRequest::TYPE_ID: HandleGetMissionGpioList(conn, data, len); break;
-    default: break; // unbekannte/nur ausgehende Nachrichtentypen -- stillschweigend ignorieren
+        if (namespace_id == WsProtocol::roarm::NAMESPACE_ID) {
+            switch (type_id) {
+            case WsProtocol::roarm::StartTeachModeRequest::TYPE_ID: HandleStartTeachMode(conn, data, len); break;
+            case WsProtocol::roarm::StopTeachModeRequest::TYPE_ID: HandleStopTeachMode(conn, data, len); break;
+            case WsProtocol::roarm::JointJogTarget::TYPE_ID: HandleJointJogTarget(data, len); break;
+            case WsProtocol::roarm::CartesianJogTarget::TYPE_ID: HandleCartesianJogTarget(data, len); break;
+            case WsProtocol::roarm::ListMissionsRequest::TYPE_ID: HandleListMissions(conn, data, len); break;
+            case WsProtocol::roarm::GetMissionRequest::TYPE_ID: HandleGetMission(conn, data, len); break;
+            case WsProtocol::roarm::SaveMissionRequest::TYPE_ID: HandleSaveMission(conn, data, len); break;
+            case WsProtocol::roarm::DeleteMissionRequest::TYPE_ID: HandleDeleteMission(conn, data, len); break;
+            case WsProtocol::roarm::GetMissionGpioListRequest::TYPE_ID: HandleGetMissionGpioList(conn, data, len); break;
+            default: break; // unbekannte/nur ausgehende Nachrichtentypen -- stillschweigend ignorieren
+            }
+            return;
+        }
+
+        if (namespace_id == WsProtocol::tasks::NAMESPACE_ID &&
+            type_id == WsProtocol::tasks::TaskManagerRequest::TYPE_ID) {
+            WsProtocol::tasks::TaskManagerRequest::Payload request{};
+            if (WsProtocol::tasks::TaskManagerRequest::Decode(data, len, request)) {
+                HandleTaskManagerRequest(conn, request.requestId);
+            }
+            return;
+        }
+    }
+
+    if (is_binary) {
+        conn.SendBinary(data, len);
+    } else {
+        conn.SendText((const char *)data, len);
     }
 }
 

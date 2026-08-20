@@ -219,6 +219,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 									`${buildInfo.FW_VERSION_MAJOR}.${buildInfo.FW_VERSION_MINOR}.${buildInfo.FW_VERSION_PATCH}`
 								)}
 								${this.row("Git-Commit", buildInfo.GIT_COMMIT_HASH)}
+								${this.row("Commit-Titel", buildInfo.GIT_COMMIT_MESSAGE)}
 								${this.row("Branch", buildInfo.GIT_BRANCH)}
 								${this.row("Tag", buildInfo.GIT_TAG)}
 								${this.row("Arbeitsverzeichnis", buildInfo.GIT_IS_DIRTY ? "geaendert (dirty)" : "sauber")}

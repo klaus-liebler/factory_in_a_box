@@ -311,11 +311,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/opcua_setup.cpp
     Core/Src/webserver.cpp
     Core/Src/ws_log_bridge.cpp
+    Core/Src/task_monitor.cpp
     Core/Src/io.cpp
     Core/Src/usb_pd_control.cpp
     Core/Src/usbd_device.c
     Core/Src/usbd_ncm.c
     Core/Src/hal_tick_threadx.c
+    Core/Src/tx_execution_profile.c
     Core/Src/fx_stm32_sd_driver_adapter.c
     Core/Src/tx_initialize_low_level.S
     libs/hw/vl53l0x/vl53l0x.cpp

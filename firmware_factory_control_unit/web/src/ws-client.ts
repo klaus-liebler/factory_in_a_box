@@ -6,13 +6,15 @@
 // Decoder aus dem generierten web/generated/ws-protocol.ts weitergereicht wird (decode() erwartet
 // den KOMPLETTEN Frame inkl. Kopf plus offset=0, s. docs/websocket-protocol.md).
 //
-// Zwei Nachrichten-"Formen" werden unterschieden (s. roarm-ws-backend.ts fuer die eigentliche
-// Nutzung):
-// - Request/Response (StartTeachMode, Mission-CRUD, ...): das generierte Payload traegt als
-//   ERSTES Feld immer requestId (uint16, direkt hinter dem 4-Byte-Kopf) -- roarmRequest() nutzt
-//   das aus, um eine Antwort anhand ihrer requestId dem wartenden Promise zuzuordnen, unabhaengig
-//   vom konkreten Nachrichtentyp.
-// - Events (JointJogTarget/CartesianJogTarget als Client->Firmware, PoseFeedback als
+// Mehrere Nachrichten-"Formen" werden unterschieden:
+// - system.LogMessage: reiner Server->Client-Log-Spiegel (kein Senden noetig).
+// - tasks.TaskListMessage (Antwort auf tasks.TaskManagerRequest, s. sendBinary()/
+//   setTaskListListener() unten, genutzt von web/src/apps/task-manager-app.ts).
+// - roarm.* Request/Response (StartTeachMode, Mission-CRUD, ...): das generierte Payload traegt
+//   als ERSTES Feld immer requestId (uint16, direkt hinter dem 4-Byte-Kopf) -- roarmRequest()
+//   nutzt das aus, um eine Antwort anhand ihrer requestId dem wartenden Promise zuzuordnen,
+//   unabhaengig vom konkreten Nachrichtentyp.
+// - roarm.* Events (JointJogTarget/CartesianJogTarget als Client->Firmware, PoseFeedback als
 //   Firmware->Client): kein Umlauf/keine requestId -- sendRoArmEvent() fuers Senden,
 //   subscribeRoArmEvent() fuers laufende Empfangen (z.B. PoseFeedback waehrend Teach-Modus).
 import * as WsProtocol from "../generated/ws-protocol.js";
@@ -26,6 +28,29 @@ const REQUEST_TIMEOUT_MS = 3000;
 
 function wsUrl(): string {
 	return `wss://${location.host}/ws`;
+}
+
+// Nur waehrend eine Verbindung offen ist gesetzt (s. connect() unten) -- sendBinary() ist damit
+// aus jedem Aufrufer gefahrlos jederzeit aufrufbar, auch waehrend eines Reconnects.
+let activeSocket: WebSocket | null = null;
+
+// Kein Queueing bei fehlender Verbindung (bewusst, s. RECONNECT_DELAY_MS-Kommentar unten): der
+// naechste Aufruf (z.B. der naechste Poll-Tick von task-manager-app.ts) greift ohnehin von
+// selbst wieder, ein einzelner verlorener Request ist fuer eine Diagnose-Seite unerheblich.
+export function sendBinary(data: Uint8Array): void {
+	if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
+		activeSocket.send(data);
+	}
+}
+
+type TaskListListener = (payload: WsProtocol.tasks.TaskListMessage.Payload) => void;
+let taskListListener: TaskListListener | null = null;
+
+// Registriert/deregistriert (via null) den einzigen Abnehmer fuer tasks.TaskListMessage --
+// bewusst kein genereller Event-Bus fuer (aktuell) genau einen Nachrichtentyp, s.
+// task-manager-app.ts onShow()/onHide().
+export function setTaskListListener(listener: TaskListListener | null): void {
+	taskListListener = listener;
 }
 
 // 1:1 auf die console-Funktion abgebildet, die dem Original-Log-Level entspricht -- WICHTIG:
@@ -115,6 +140,17 @@ function handleMessage(data: ArrayBuffer): void {
 		return;
 	}
 
+	if (namespaceId === WsProtocol.tasks.NAMESPACE_ID && messageTypeId === WsProtocol.tasks.TaskListMessage.TYPE_ID) {
+		if (taskListListener) {
+			try {
+				taskListListener(WsProtocol.tasks.TaskListMessage.decode(view, 0));
+			} catch (error) {
+				console.warn(`WS TaskListMessage decode fehlgeschlagen: ${(error as Error).message}`);
+			}
+		}
+		return;
+	}
+
 	// Unbekannte (namespaceId, messageTypeId)-Kombination -- z.B. eine neuere Firmware-Version
 	// mit einer Nachricht, die dieser Web-UI-Build noch nicht kennt. Bewusst nur geloggt statt
 	// geworfen, damit ein einzelner unbekannter Nachrichtentyp nicht die ganze Verbindung stoert.
@@ -126,6 +162,10 @@ function connect(): void {
 	ws.binaryType = "arraybuffer";
 	socket = ws;
 
+	ws.addEventListener("open", () => {
+		activeSocket = ws;
+	});
+
 	ws.addEventListener("message", (event) => {
 		if (event.data instanceof ArrayBuffer) {
 			handleMessage(event.data);
@@ -134,6 +174,7 @@ function connect(): void {
 
 	ws.addEventListener("close", () => {
 		if (socket === ws) socket = null;
+		if (activeSocket === ws) activeSocket = null;
 		setTimeout(connect, RECONNECT_DELAY_MS);
 	});
 	ws.addEventListener("error", () => {

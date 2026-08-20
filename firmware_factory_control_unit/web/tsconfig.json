@@ -1,6 +1,14 @@
 {
   "compilerOptions": {
-    "module": "nodenext",
+    // "bundler" statt "nodenext": das Projekt laeuft nie unter Nodes nativem ESM-Loader (Vite
+    // bundelt fuers Firmware-Flash-Asset, s. docs/build-process.md), und "nodenext" scheitert an
+    // der ogl-Bibliothek (deren types/index.d.ts-Barrel intern extensionlose Relativ-Imports
+    // nutzt, was unter "nodenext" strikt verboten ist -- "bundler" ahmt stattdessen nach, wie
+    // Vite/Rollup tatsaechlich aufloesen, und ist damit fuer ein gebundeltes Browser-Projekt die
+    // korrektere Wahl). Bestehende Imports mit expliziter ".js"-Endung bleiben unter "bundler"
+    // weiterhin gueltig (dort nur optional, nicht verboten).
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "target": "esnext",
     "lib": ["esnext", "dom", "dom.iterable"],
     "types": [],

@@ -27,7 +27,8 @@ html, body {
 
 modbus-register-app,
 power-management-app,
-system-info-app {
+system-info-app,
+roarm-teach-app {
 	display: block;
 	font-family: "Segoe UI", Roboto, Arial, sans-serif;
 }
@@ -38,7 +39,8 @@ system-info-app {
    drei App-Elemente wuerden dauerhaft uebereinander gestapelt sichtbar bleiben. */
 modbus-register-app[hidden],
 power-management-app[hidden],
-system-info-app[hidden] {
+system-info-app[hidden],
+roarm-teach-app[hidden] {
 	display: none;
 }
 
@@ -495,4 +497,115 @@ button:active {
 	.region-grid {
 		grid-template-columns: 1fr;
 	}
+}
+
+/* ==========================================================================
+   RoArm-Teach-App: 3D-Vorschau (OGL) + Gelenk-/Cartesian-Jogging links,
+   Schritt-/Missionsliste rechts.
+   ========================================================================== */
+
+.roarm-container {
+	max-width: 1400px;
+}
+
+.roarm-layout {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: minmax(360px, 1fr) minmax(320px, 1fr);
+	align-items: start;
+}
+
+@media (max-width: 900px) {
+	.roarm-layout {
+		grid-template-columns: 1fr;
+	}
+}
+
+.roarm-3d-container {
+	width: 100%;
+	height: 320px;
+	border-radius: var(--ui-radius-md);
+	background: linear-gradient(#eef2f7, #f7f9fb);
+	overflow: hidden;
+}
+
+.roarm-3d-container canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.roarm-pose-readout {
+	font-size: var(--ui-font-size-sm);
+	color: var(--ui-color-text-secondary);
+	font-variant-numeric: tabular-nums;
+}
+
+.roarm-slider-row {
+	display: grid;
+	grid-template-columns: 90px 1fr 4em;
+	align-items: center;
+	gap: 8px;
+}
+
+.roarm-slider-row input[type="range"] {
+	width: 100%;
+}
+
+.roarm-cartesian-form {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 8px;
+}
+
+.roarm-cartesian-form label {
+	display: flex;
+	flex-direction: column;
+	font-size: var(--ui-font-size-sm);
+	color: var(--ui-color-text-secondary);
+	gap: 2px;
+}
+
+.roarm-cartesian-form button {
+	grid-column: 1 / -1;
+}
+
+.roarm-step-toolbar {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.roarm-step-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.roarm-step-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 10px;
+	background: var(--ui-color-bg-surface);
+	border: 1px solid var(--ui-color-border-soft);
+	border-radius: var(--ui-radius-sm);
+	font-size: var(--ui-font-size-sm);
+}
+
+.roarm-step-row-actions {
+	display: flex;
+	gap: 4px;
+	flex: 0 0 auto;
+}
+
+.roarm-step-row-actions button {
+	height: 26px;
+	padding: 0 8px;
+	font-size: 11px;
 }

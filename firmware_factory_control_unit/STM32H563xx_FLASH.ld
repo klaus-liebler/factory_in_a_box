@@ -40,7 +40,13 @@ ENTRY(Reset_Handler)
 MEMORY
 {
   RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 640K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 2048K
+  /* 256K am oberen Ende des 2MB-Flashs sind fuer roarm_mission_store (littlefs, s.
+     Core/Src/roarm_mission_flash_bd.cpp) reserviert -- der Linker darf dort nichts platzieren,
+     daher FLASH hier um genau diese 256K verkuerzt statt der vollen 2048K. Der reservierte
+     Bereich faellt physisch auf die letzten 32 Sektoren von Bank 2 (Sektorgroesse 8K, s.
+     FLASH_SECTOR_SIZE in stm32h563xx.h) -- 256K/8K = 32 Sektoren, siehe
+     _roarm_mission_flash_start weiter unten. */
+  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 1792K
 }
 /* Highest address of the user mode stack */
 _estack = ORIGIN(RAM) + LENGTH(RAM); /* end of "RAM" Ram type memory */
@@ -258,4 +264,10 @@ SECTIONS
   }
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
+
+  /* Reservierter Flash-Bereich fuer roarm_mission_store (littlefs) -- direkt hinter dem jetzt
+     verkuerzten FLASH-Bereich, also die obersten 256K des physischen 2MB-Flashs. Nur ein
+     Adress-Symbol, KEINE SECTIONS-Zuweisung hierher (der Linker soll hier nie etwas platzieren,
+     das erledigt bereits die verkuerzte FLASH-Laenge oben). */
+  PROVIDE(_roarm_mission_flash_start = ORIGIN(FLASH) + LENGTH(FLASH));
 }

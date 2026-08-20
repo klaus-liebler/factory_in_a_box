@@ -8,6 +8,7 @@
 // GET mit Query-Parametern statt POST+JSON-Body. Unbekannte /api/*-Pfade bekommen automatisch
 // 404 von Http::WebServer (s. dortige DispatchRoute()), jeder andere Pfad die SPA-Shell.
 // ============================================================================
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -18,6 +19,8 @@
 #include "modbus_register_model.hh"
 #include "assets.h"
 #include "lan8742.h"
+#include "generated/ws_protocol.hh"
+#include "setup_and_loops/roarm_mission_gpio.hh"
 
 // Aus sysmem.c -- gleiche Deklaration wie in io.cpp (FREE_HEAP_KIB-Register) genutzt, hier fuer
 // den free_heap_bytes-Wert in /api/system.
@@ -378,24 +381,241 @@ static void handle_spa_shell(void *, const Http::Request &, Http::Response &resp
     resp.SendStreamed(200, "text/html", "Content-Encoding: br\r\n", html_br_len, write_from_flash_blob, &cursor);
 }
 
-// WebSocket-Endpunkt "/ws" -- reine Transportschicht-Verifikation (Echo), das eigentliche
-// Anwendungsprotokoll (z.B. Live-Push von Registeraenderungen) ist noch nicht festgelegt und
-// kommt in einem spaeteren Schritt hinzu (s. Klassenkommentar in http_websocket_server.hpp).
+// WebSocket-Endpunkt "/ws" -- Anwendungsprotokoll s. best_binary_buffers_schema/roarm.cs +
+// generated/ws_protocol.hh. Aktuell einziger Namespace mit eingehenden (Client->Firmware)
+// Nachrichten: "roarm" (Teach-Modus/Jogging/Mission-Verwaltung), alle geroutet an
+// App::Instance().io->RoArm() (s. setup_and_loops/roarm.hh). "system" hat nur ausgehende
+// Nachrichten (LogMessage, s. ws_log_bridge.cpp) und wird hier nie empfangen.
 static void handle_ws_open(void *, Http::WebSocketConnection &) {
     log_info("WebSocket: Verbindung geoeffnet");
 }
 
+namespace {
+
+// Scratch-Puffer fuers (De-)Serialisieren -- getrennt, da z.B. bei GetMissionRequest die
+// dekodierten Mission::Payload-Zeiger (name/stepsData) noch in mission_load_scratch liegen,
+// waehrend die ausgehende GetMissionResponse gleichzeitig in ws_response_scratch aufgebaut wird.
+uint8_t g_mission_load_scratch[4096];
+uint8_t g_ws_response_scratch[4300];
+uint8_t g_ws_build_scratch[4096]; // fuer ListMissionsResponse/GetMissionGpioListResponse: Zwischenpuffer der Element-Bytes vor dem finalen Encode()
+
+RoArmSetupAndLoop *GetRoArm() {
+    App &app = App::Instance();
+    return app.io ? &app.io->RoArm() : nullptr;
+}
+
+void HandleStartTeachMode(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::roarm::StartTeachModeRequest::Payload req{};
+    if (!WsProtocol::roarm::StartTeachModeRequest::Decode(data, len, req)) return;
+    RoArmSetupAndLoop *roarm = GetRoArm();
+
+    WsProtocol::roarm::StartTeachModeResponse::Payload resp{};
+    resp.requestId = req.requestId;
+    resp.success = roarm && roarm->StartTeachMode();
+    size_t n = WsProtocol::roarm::StartTeachModeResponse::Encode(resp, g_ws_response_scratch, sizeof(g_ws_response_scratch));
+    if (n > 0) conn.SendBinary(g_ws_response_scratch, n);
+}
+
+void HandleStopTeachMode(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::roarm::StopTeachModeRequest::Payload req{};
+    if (!WsProtocol::roarm::StopTeachModeRequest::Decode(data, len, req)) return;
+    RoArmSetupAndLoop *roarm = GetRoArm();
+    if (roarm) roarm->StopTeachMode();
+
+    WsProtocol::roarm::StopTeachModeResponse::Payload resp{};
+    resp.requestId = req.requestId;
+    resp.success = roarm != nullptr;
+    size_t n = WsProtocol::roarm::StopTeachModeResponse::Encode(resp, g_ws_response_scratch, sizeof(g_ws_response_scratch));
+    if (n > 0) conn.SendBinary(g_ws_response_scratch, n);
+}
+
+// JointJogTarget/CartesianJogTarget sind Events (kein Request/Response-Umlauf, s. Schema-
+// Kommentar) -- absichtlich keine Antwort, auch bei ungueltigem/abgelehntem Ziel (RoArmSetupAndLoop
+// ignoriert ein Ziel dann einfach, s. dortige Guards).
+void HandleJointJogTarget(const uint8_t *data, size_t len) {
+    WsProtocol::roarm::JointJogTarget::Payload msg{};
+    if (!WsProtocol::roarm::JointJogTarget::Decode(data, len, msg)) return;
+    RoArmSetupAndLoop *roarm = GetRoArm();
+    if (!roarm) return;
+    std::array<int16_t, RoArmKinematics::kJointCount> centiDeg{};
+    for (int i = 0; i < RoArmKinematics::kJointCount; i++) centiDeg[i] = msg.jointAnglesCentiDeg[i];
+    roarm->SetJointJogTargetCentiDeg(centiDeg);
+}
+
+void HandleCartesianJogTarget(const uint8_t *data, size_t len) {
+    WsProtocol::roarm::CartesianJogTarget::Payload msg{};
+    if (!WsProtocol::roarm::CartesianJogTarget::Decode(data, len, msg)) return;
+    RoArmSetupAndLoop *roarm = GetRoArm();
+    if (!roarm) return;
+    RoArmKinematics::CartesianPose pose;
+    pose.xMm = msg.xMm;
+    pose.yMm = msg.yMm;
+    pose.zMm = msg.zMm;
+    pose.pitchRad = RoArmKinematics::CentiDegToRad(msg.pitchCentiDeg);
+    pose.rollRad = RoArmKinematics::CentiDegToRad(msg.rollCentiDeg);
+    pose.gripperRad = RoArmKinematics::CentiDegToRad(msg.gripperCentiDeg);
+    roarm->SetCartesianJogTarget(pose);
+}
+
+void HandleListMissions(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::roarm::ListMissionsRequest::Payload req{};
+    if (!WsProtocol::roarm::ListMissionsRequest::Decode(data, len, req)) return;
+    RoArmSetupAndLoop *roarm = GetRoArm();
+
+    RoArmMissionStore::MissionSummary list[32];
+    size_t count = 0;
+    if (roarm) roarm->ListMissions(list, 32, count);
+
+    size_t buildPos = 0;
+    for (size_t i = 0; i < count; i++) {
+        WsProtocol::roarm::MissionSummary::Payload item{};
+        item.missionIndex = list[i].index;
+        item.name = list[i].name;
+        size_t next = WsProtocol::roarm::AppendListMissionsResponseMissionsMissionSummaryElement(item, g_ws_build_scratch, buildPos,
+                                                                                                   sizeof(g_ws_build_scratch));
+        if (next == 0) break; // Puffer voll -- Rest der Liste stillschweigend abschneiden
+        buildPos = next;
+    }
+
+    WsProtocol::roarm::ListMissionsResponse::Payload resp{};
+    resp.requestId = req.requestId;
+    resp.missionsData = g_ws_build_scratch;
+    resp.missionsCount = count;
+    resp.missionsDataSize = buildPos;
+    size_t n = WsProtocol::roarm::ListMissionsResponse::Encode(resp, g_ws_response_scratch, sizeof(g_ws_response_scratch));
+    if (n > 0) conn.SendBinary(g_ws_response_scratch, n);
+}
+
+void HandleGetMission(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::roarm::GetMissionRequest::Payload req{};
+    if (!WsProtocol::roarm::GetMissionRequest::Decode(data, len, req)) return;
+    RoArmSetupAndLoop *roarm = GetRoArm();
+
+    WsProtocol::roarm::GetMissionResponse::Payload resp{};
+    resp.requestId = req.requestId;
+    resp.missionIndex = req.missionIndex;
+    resp.found = false;
+    resp.name = "";
+    resp.stepsData = nullptr;
+    resp.stepsCount = 0;
+    resp.stepsDataSize = 0;
+
+    size_t rawSize = 0;
+    WsProtocol::roarm::Mission::Payload mission{};
+    if (roarm && roarm->LoadMissionRaw(req.missionIndex, g_mission_load_scratch, sizeof(g_mission_load_scratch), rawSize) &&
+        WsProtocol::roarm::Mission::Decode(g_mission_load_scratch, rawSize, mission)) {
+        // Das Wire-Format der Mission-Schritte (Datei-Inhalt) und von GetMissionResponse.steps
+        // sind byteidentisch ([classId:u16][Klassenfelder]*) -- direkte Weitergabe ohne
+        // Decode+Reencode-Umweg.
+        resp.found = true;
+        resp.name = mission.name;
+        resp.stepsData = mission.stepsData;
+        resp.stepsCount = mission.stepsCount;
+        resp.stepsDataSize = mission.stepsDataSize;
+    }
+
+    size_t n = WsProtocol::roarm::GetMissionResponse::Encode(resp, g_ws_response_scratch, sizeof(g_ws_response_scratch));
+    if (n > 0) conn.SendBinary(g_ws_response_scratch, n);
+}
+
+void HandleSaveMission(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::roarm::SaveMissionRequest::Payload req{};
+    if (!WsProtocol::roarm::SaveMissionRequest::Decode(data, len, req)) return;
+    RoArmSetupAndLoop *roarm = GetRoArm();
+
+    WsProtocol::roarm::SaveMissionResponse::Payload resp{};
+    resp.requestId = req.requestId;
+    // Dieselbe Byteidentitaet wie bei GetMissionResponse: req.stepsData ist bereits exakt das
+    // Format, das roarm_mission_store als Dateiinhalt erwartet (s. RoArmSetupAndLoop::SaveMission()).
+    if (roarm && roarm->SaveMission(req.missionIndex, req.name, req.stepsData, req.stepsDataSize, req.stepsCount)) {
+        resp.success = true;
+        resp.errorCode = 0;
+    } else {
+        resp.success = false;
+        resp.errorCode = -1;
+    }
+    size_t n = WsProtocol::roarm::SaveMissionResponse::Encode(resp, g_ws_response_scratch, sizeof(g_ws_response_scratch));
+    if (n > 0) conn.SendBinary(g_ws_response_scratch, n);
+}
+
+void HandleDeleteMission(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::roarm::DeleteMissionRequest::Payload req{};
+    if (!WsProtocol::roarm::DeleteMissionRequest::Decode(data, len, req)) return;
+    RoArmSetupAndLoop *roarm = GetRoArm();
+
+    WsProtocol::roarm::DeleteMissionResponse::Payload resp{};
+    resp.requestId = req.requestId;
+    resp.success = roarm && roarm->DeleteMission(req.missionIndex);
+    size_t n = WsProtocol::roarm::DeleteMissionResponse::Encode(resp, g_ws_response_scratch, sizeof(g_ws_response_scratch));
+    if (n > 0) conn.SendBinary(g_ws_response_scratch, n);
+}
+
+void HandleGetMissionGpioList(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::roarm::GetMissionGpioListRequest::Payload req{};
+    if (!WsProtocol::roarm::GetMissionGpioListRequest::Decode(data, len, req)) return;
+
+    size_t buildPos = 0;
+    for (const auto &def : RoArmMissionGpio::kGpios) {
+        size_t nameLen = strlen(def.name);
+        if (buildPos + nameLen + 1 > sizeof(g_ws_build_scratch)) break;
+        memcpy(g_ws_build_scratch + buildPos, def.name, nameLen);
+        buildPos += nameLen;
+        g_ws_build_scratch[buildPos++] = 0;
+    }
+
+    WsProtocol::roarm::GetMissionGpioListResponse::Payload resp{};
+    resp.requestId = req.requestId;
+    resp.namesData = g_ws_build_scratch;
+    resp.namesCount = RoArmMissionGpio::kCount;
+    resp.namesDataSize = buildPos;
+    size_t n = WsProtocol::roarm::GetMissionGpioListResponse::Encode(resp, g_ws_response_scratch, sizeof(g_ws_response_scratch));
+    if (n > 0) conn.SendBinary(g_ws_response_scratch, n);
+}
+
+} // namespace
+
 static void handle_ws_message(void *, Http::WebSocketConnection &conn, bool is_binary,
                                const uint8_t *data, size_t len) {
-    if (is_binary) {
-        conn.SendBinary(data, len);
-    } else {
-        conn.SendText((const char *)data, len);
+    if (!is_binary || len < 4) return;
+    uint16_t namespace_id = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
+    uint16_t type_id = (uint16_t)data[2] | ((uint16_t)data[3] << 8);
+    if (namespace_id != WsProtocol::roarm::NAMESPACE_ID) return;
+
+    switch (type_id) {
+    case WsProtocol::roarm::StartTeachModeRequest::TYPE_ID: HandleStartTeachMode(conn, data, len); break;
+    case WsProtocol::roarm::StopTeachModeRequest::TYPE_ID: HandleStopTeachMode(conn, data, len); break;
+    case WsProtocol::roarm::JointJogTarget::TYPE_ID: HandleJointJogTarget(data, len); break;
+    case WsProtocol::roarm::CartesianJogTarget::TYPE_ID: HandleCartesianJogTarget(data, len); break;
+    case WsProtocol::roarm::ListMissionsRequest::TYPE_ID: HandleListMissions(conn, data, len); break;
+    case WsProtocol::roarm::GetMissionRequest::TYPE_ID: HandleGetMission(conn, data, len); break;
+    case WsProtocol::roarm::SaveMissionRequest::TYPE_ID: HandleSaveMission(conn, data, len); break;
+    case WsProtocol::roarm::DeleteMissionRequest::TYPE_ID: HandleDeleteMission(conn, data, len); break;
+    case WsProtocol::roarm::GetMissionGpioListRequest::TYPE_ID: HandleGetMissionGpioList(conn, data, len); break;
+    default: break; // unbekannte/nur ausgehende Nachrichtentypen -- stillschweigend ignorieren
     }
 }
 
 static void handle_ws_close(void *, Http::WebSocketConnection &) {
     log_info("WebSocket: Verbindung geschlossen");
+}
+
+// ~10Hz (100ms) waehrend Teach-Modus aktiv -- s. Deklaration in webserver.hpp fuer die
+// Begruendung, warum das hier statt in roarm.hh lebt. Broadcast() ist von jedem Thread aufrufbar
+// (s. Http::WebServer::Broadcast()-Kommentar), Aufruf erfolgt aus dem io_thread heraus
+// (Io::processMembers()).
+void RoArmBroadcastPoseFeedbackIfDue(uint32_t now) {
+    static uint32_t last_broadcast_ms = 0;
+    App &app = App::Instance();
+    if (!app.io) return;
+    RoArmSetupAndLoop &roarm = app.io->RoArm();
+    if (!roarm.IsTeachModeActive()) return;
+    if (now - last_broadcast_ms < 100) return;
+    last_broadcast_ms = now;
+
+    WsProtocol::roarm::PoseFeedback::Payload payload = roarm.GetPoseFeedback();
+    uint8_t buffer[64];
+    size_t n = WsProtocol::roarm::PoseFeedback::Encode(payload, buffer, sizeof(buffer));
+    if (n > 0) app.web_server.Broadcast(buffer, n);
 }
 
 void webserver_register_routes(Http::WebServer &server) {

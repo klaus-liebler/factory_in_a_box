@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "lit": "^3.3.2"
+    "lit": "^3.3.2",
+    "ogl": "^1.0.11"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

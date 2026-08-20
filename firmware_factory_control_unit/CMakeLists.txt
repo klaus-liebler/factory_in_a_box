@@ -321,6 +321,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     libs/hw/vl53l0x/vl53l0x.cpp
     libs/hw/tcs34725/tcs34725.cpp
     libs/hw/ina226/ina226.cpp
+    libs/littlefs/lfs.c
+    libs/littlefs/lfs_util.c
+    Core/Src/roarm_mission_flash_bd.cpp
+    Core/Src/roarm_mission_store.cpp
     Drivers/BSP/Components/lan8742/lan8742.c
     ${ASSET_OBJ_FILES}
     ${THREADX_SOURCES}
@@ -374,6 +378,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     libs/hw/tcs34725
     libs/hw/ws2812
     libs/hw/ina226
+    libs/hw/feetech_sts
+    libs/littlefs
     # generated/assets.h -- s. ASSET_H_FILE/BINARY_ASSETS oben (CMake-eigene Objcopy-Mechanik,
     # keine "Codegenerierung" im Sinne von builder/, s. docs/build-process.md Abschnitt 11).
     ${CMAKE_CURRENT_BINARY_DIR}/generated

@@ -6,8 +6,15 @@
 // Decoder aus dem generierten web/generated/ws-protocol.ts weitergereicht wird (decode() erwartet
 // den KOMPLETTEN Frame inkl. Kopf plus offset=0, s. docs/websocket-protocol.md).
 //
-// Aktuell nur EIN Nachrichtentyp verdrahtet (system.LogMessage, s. unten) -- weitere
-// Namespaces/Nachrichten kommen hinzu, sobald die Firmware sie tatsaechlich sendet/erwartet.
+// Zwei Nachrichten-"Formen" werden unterschieden (s. roarm-ws-backend.ts fuer die eigentliche
+// Nutzung):
+// - Request/Response (StartTeachMode, Mission-CRUD, ...): das generierte Payload traegt als
+//   ERSTES Feld immer requestId (uint16, direkt hinter dem 4-Byte-Kopf) -- roarmRequest() nutzt
+//   das aus, um eine Antwort anhand ihrer requestId dem wartenden Promise zuzuordnen, unabhaengig
+//   vom konkreten Nachrichtentyp.
+// - Events (JointJogTarget/CartesianJogTarget als Client->Firmware, PoseFeedback als
+//   Firmware->Client): kein Umlauf/keine requestId -- sendRoArmEvent() fuers Senden,
+//   subscribeRoArmEvent() fuers laufende Empfangen (z.B. PoseFeedback waehrend Teach-Modus).
 import * as WsProtocol from "../generated/ws-protocol.js";
 
 // Reconnect-Backoff bewusst simpel/fest (kein exponentielles Backoff): das Board ist im
@@ -15,6 +22,7 @@ import * as WsProtocol from "../generated/ws-protocol.js";
 // haelt die Verbindung nach einem Boot/Reset/Netzwechsel zuegig wieder her, ohne bei einem
 // tatsaechlich dauerhaft nicht erreichbaren Board die Konsole mit Reconnect-Versuchen zu fluten.
 const RECONNECT_DELAY_MS = 2000;
+const REQUEST_TIMEOUT_MS = 3000;
 
 function wsUrl(): string {
 	return `wss://${location.host}/ws`;
@@ -27,25 +35,57 @@ function wsUrl(): string {
 // console.info() zaehlt dagegen als "Info" und ist per Default sichtbar -- TRACE/DEBUG bleiben
 // bewusst auf console.debug (nur bei Bedarf/Verbose sichtbar), das entspricht ihrer Rolle im
 // Original (log_set_level() blendet sie im UART-Log ohnehin meist ganz aus).
-function consoleFnForLevel(level: WsProtocol.system.LogMessage.LogLevel): (...args: unknown[]) => void {
+function consoleFnForLevel(level: WsProtocol.system.LogLevel): (...args: unknown[]) => void {
 	switch (level) {
-		case WsProtocol.system.LogMessage.LogLevel.LOG_WARN:
+		case WsProtocol.system.LogLevel.LOG_WARN:
 			return console.warn;
-		case WsProtocol.system.LogMessage.LogLevel.LOG_ERROR:
-		case WsProtocol.system.LogMessage.LogLevel.LOG_FATAL:
+		case WsProtocol.system.LogLevel.LOG_ERROR:
+		case WsProtocol.system.LogLevel.LOG_FATAL:
 			return console.error;
-		case WsProtocol.system.LogMessage.LogLevel.LOG_INFO:
+		case WsProtocol.system.LogLevel.LOG_INFO:
 			return console.info;
 		default:
 			return console.debug;
 	}
 }
 
-// TEMPORARY diagnostics (2026-08-19) -- pinning down "LogMessage: frame too short" decode
-// errors. Dumps the exact raw bytes of whatever frame failed to decode, so a truncated/corrupt
-// frame can be told apart from a genuinely wrong offset/length calculation.
 function hexDump(data: ArrayBuffer): string {
 	return Array.from(new Uint8Array(data), (b) => b.toString(16).padStart(2, "0")).join(" ");
+}
+
+let socket: WebSocket | null = null;
+let nextRequestId = 1;
+const pendingRequests = new Map<number, { resolve: (view: DataView) => void; reject: (err: Error) => void; timer: number }>();
+const eventSubscribers = new Map<number, Set<(view: DataView) => void>>(); // key = typeId innerhalb roarm.NAMESPACE_ID
+
+function handleRoarmMessage(view: DataView, typeId: number): void {
+	const responseTypeIds: ReadonlySet<number> = new Set([
+		WsProtocol.roarm.StartTeachModeResponse.TYPE_ID,
+		WsProtocol.roarm.StopTeachModeResponse.TYPE_ID,
+		WsProtocol.roarm.ListMissionsResponse.TYPE_ID,
+		WsProtocol.roarm.GetMissionResponse.TYPE_ID,
+		WsProtocol.roarm.SaveMissionResponse.TYPE_ID,
+		WsProtocol.roarm.DeleteMissionResponse.TYPE_ID,
+		WsProtocol.roarm.GetMissionGpioListResponse.TYPE_ID,
+	]);
+
+	if (responseTypeIds.has(typeId)) {
+		// requestId liegt bei JEDER Response-Nachricht an derselben Stelle (erstes Feld nach dem
+		// 4-Byte-Kopf, s. Dateikommentar) -- generische Zuordnung ohne nachrichtentypspezifischen Code.
+		const requestId = view.getUint16(4, true);
+		const pending = pendingRequests.get(requestId);
+		if (pending) {
+			pendingRequests.delete(requestId);
+			clearTimeout(pending.timer);
+			pending.resolve(view);
+		}
+		return;
+	}
+
+	const subscribers = eventSubscribers.get(typeId);
+	if (subscribers) {
+		for (const cb of subscribers) cb(view);
+	}
 }
 
 function handleMessage(data: ArrayBuffer): void {
@@ -60,19 +100,18 @@ function handleMessage(data: ArrayBuffer): void {
 	if (namespaceId === WsProtocol.system.NAMESPACE_ID && messageTypeId === WsProtocol.system.LogMessage.TYPE_ID) {
 		try {
 			const msg = WsProtocol.system.LogMessage.decode(view, 0);
-			console.debug(`[diag] WS LogMessage ok: ${data.byteLength} bytes`);
-			// Platzhalter fuer den Anfang: Firmware-Logs landen vorerst nur in der Devtools-Konsole.
 			// Nachrichtentext bewusst als ERSTES Argument (nicht der Zeitstempel-Praefix davor) --
 			// eine lange Millisekundenzahl vor dem Text liess die ersten Zeichen der eigentlichen
 			// Meldung in der Konsole abgeschnitten wirken, s. Feedback.
 			consoleFnForLevel(msg.level)(msg.text, `(t=${msg.timestampMs}ms)`);
 		} catch (error) {
-			console.warn(
-				`[diag] WS LogMessage decode FAILED: ${(error as Error).message}`,
-				`frame length=${data.byteLength} bytes`,
-				`\nhex=${hexDump(data)}`,
-			);
+			console.warn(`[diag] WS LogMessage decode FAILED: ${(error as Error).message}`, `frame length=${data.byteLength} bytes`, `\nhex=${hexDump(data)}`);
 		}
+		return;
+	}
+
+	if (namespaceId === WsProtocol.roarm.NAMESPACE_ID) {
+		handleRoarmMessage(view, messageTypeId);
 		return;
 	}
 
@@ -85,6 +124,7 @@ function handleMessage(data: ArrayBuffer): void {
 function connect(): void {
 	const ws = new WebSocket(wsUrl());
 	ws.binaryType = "arraybuffer";
+	socket = ws;
 
 	ws.addEventListener("message", (event) => {
 		if (event.data instanceof ArrayBuffer) {
@@ -93,6 +133,7 @@ function connect(): void {
 	});
 
 	ws.addEventListener("close", () => {
+		if (socket === ws) socket = null;
 		setTimeout(connect, RECONNECT_DELAY_MS);
 	});
 	ws.addEventListener("error", () => {
@@ -102,4 +143,44 @@ function connect(): void {
 
 export function startWebSocketClient(): void {
 	connect();
+}
+
+/** Feuert-und-vergisst (Event-Nachrichten wie JointJogTarget/CartesianJogTarget) -- kein Fehler,
+ * falls die Verbindung gerade nicht steht (z.B. waehrend eines Reconnects); die naechste
+ * Jog-Nachricht kommt ohnehin in Kuerze wieder, ein einzelner verlorener Zwischenschritt ist
+ * fuer ein Live-Jogging unkritisch. */
+export function sendRoArmEvent(bytes: Uint8Array): void {
+	socket?.send(bytes);
+}
+
+/** Request/Response mit generischer requestId-Zuordnung (s. Dateikommentar). 'encode' bekommt die
+ * vom Aufrufer zu verwendende requestId (in das Payload-Objekt einzusetzen, bevor encode()
+ * aufgerufen wird) und muss die fertigen Frame-Bytes zurueckgeben. */
+export function roarmRequest<TPayload>(requestId_encode: (requestId: number) => Uint8Array, decode: (view: DataView) => TPayload): Promise<TPayload> {
+	return new Promise((resolve, reject) => {
+		if (!socket || socket.readyState !== WebSocket.OPEN) {
+			reject(new Error("WebSocket nicht verbunden"));
+			return;
+		}
+		const requestId = nextRequestId++ & 0xffff;
+		const bytes = requestId_encode(requestId);
+		const timer = window.setTimeout(() => {
+			pendingRequests.delete(requestId);
+			reject(new Error("Zeitüberschreitung bei WS-Anfrage"));
+		}, REQUEST_TIMEOUT_MS);
+		pendingRequests.set(requestId, { resolve: (view) => resolve(decode(view)), reject, timer });
+		socket.send(bytes);
+	});
+}
+
+/** Laufende Push-Nachrichten (aktuell nur roarm.PoseFeedback) -- Rueckgabewert ist eine
+ * Unsubscribe-Funktion. */
+export function subscribeRoArmEvent(typeId: number, cb: (view: DataView) => void): () => void {
+	let set = eventSubscribers.get(typeId);
+	if (!set) {
+		set = new Set();
+		eventSubscribers.set(typeId, set);
+	}
+	set.add(cb);
+	return () => set!.delete(cb);
 }

@@ -11,10 +11,16 @@
 #include "setup_and_loops/cpu_temp.hh"
 #include "setup_and_loops/eth_link.hh"
 #include "setup_and_loops/power.hh"
+#include "setup_and_loops/roarm.hh"
 #include "setup_and_loops/scale.hh"
 #include "setup_and_loops/stepper.hh"
 #include "setup_and_loops/tof_color.hh"
 #include "setup_and_loops/ws2812.hh"
+
+// UART7 (PE7/PE8, "ROBOT_RX"/"ROBOT_TX" laut .ioc) -- fuer den Feetech-Servobus des RoArm-M3, s.
+// setup_and_loops/roarm.hh. Wie huart5 bei StepperSetupAndLoop: per extern "C" direkt aus dem von
+// main.c generierten globalen Handle uebernommen (kein eigener Owner-Typ noetig).
+extern "C" UART_HandleTypeDef huart7;
 
 // 5 Ticks * 10ms/Tick (TX_TIMER_TICKS_PER_SECOND=100, s. tx_user.h) = 50ms.
 constexpr ULONG IO_THREAD_SLEEP_TICKS = 5;
@@ -33,6 +39,7 @@ class Io {
     CpuTempSetupAndLoop cpu_temp_;
     EthLink eth_link;
     PowerSetupAndLoop power_;
+    RoArmSetupAndLoop roarm_;
     ScaleSetupAndLoop scale_;
     StepperSetupAndLoop stepper_;
     TofColorSetupAndLoop tof_color_;
@@ -51,6 +58,7 @@ class Io {
           cpu_temp_(register_model),
           eth_link(register_model, ip_instance, dhcp_client),
           power_(register_model),
+          roarm_(register_model, &huart7),
           scale_(register_model),
           stepper_(register_model),
           tof_color_(register_model),
@@ -58,4 +66,8 @@ class Io {
 
     void Setup();
     void Loop();
+
+    // Fuer den (spaeteren) WebSocket-Handler in webserver.cpp -- Teach-Modus/Jogging/Mission-
+    // Verwaltung laufen ueber diese Instanz, s. RoArmSetupAndLoop's oeffentliche API.
+    RoArmSetupAndLoop& RoArm() { return roarm_; }
 };

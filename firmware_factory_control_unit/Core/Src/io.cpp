@@ -75,6 +75,8 @@ void Io::processMembers(uint32_t now) {
     eth_link.Loop(now);
     usb_pd_control.Loop();
     power_.Loop(now);
+    roarm_.Loop(now);
+    RoArmBroadcastPoseFeedbackIfDue(now);
     tof_color_.Loop(now);
     scale_.Loop(now);
     stepper_.Loop(now);
@@ -137,6 +139,7 @@ void Io::Setup() {
     // Setup() nie wieder an, der Bus bleibt danach fuer die restliche Laufzeit sauber.
     tof_color_.Setup();
     power_.Setup();
+    roarm_.Setup();
     ws2812_.Setup();
 
     // MX_TIM4_Init() (main.c) konfiguriert TIM4_CH3/CH4 nur (PWM-Modus, Polaritaet) -- startet

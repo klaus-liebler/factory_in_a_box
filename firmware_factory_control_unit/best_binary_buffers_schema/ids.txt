@@ -1,5 +1,29 @@
 # BestBinaryBuffers id lookup table -- automatically maintained, do not hand-reorder/renumber.
-# New lines are appended on the next codegen run; existing lines are NEVER changed or removed.
+# New lines are appended on the next codegen run; existing lines are NEVER changed or removed
+# (see IdMap in BestBinaryBuffers) -- that's what keeps wire ids stable over time.
 # One entry per line: <kind> <name> <id>
 namespace system 1
 message system.LogMessage 1
+class roarm.MissionSummary 1
+class roarm.JointMoveStep 2
+class roarm.GpioStep 3
+class roarm.DelayStep 4
+message roarm.StartTeachModeRequest 1
+message roarm.StartTeachModeResponse 2
+message roarm.StopTeachModeRequest 3
+message roarm.StopTeachModeResponse 4
+message roarm.JointJogTarget 5
+message roarm.CartesianJogTarget 6
+message roarm.PoseFeedback 7
+message roarm.ListMissionsRequest 8
+message roarm.ListMissionsResponse 9
+message roarm.GetMissionRequest 10
+message roarm.GetMissionResponse 11
+message roarm.SaveMissionRequest 12
+message roarm.SaveMissionResponse 13
+message roarm.DeleteMissionRequest 14
+message roarm.DeleteMissionResponse 15
+message roarm.GetMissionGpioListRequest 16
+message roarm.GetMissionGpioListResponse 17
+message roarm.Mission 18
+namespace roarm 2

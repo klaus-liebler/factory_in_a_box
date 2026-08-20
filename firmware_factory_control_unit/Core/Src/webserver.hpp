@@ -19,3 +19,11 @@ void webserver_register_routes(Http::WebServer &server);
 // Speichert das Ergebnis in App::Instance().i2c1_scan/i2c2_scan/i2c4_scan, unveraendert
 // ausgeliefert ueber /api/system (Core/Src/webserver.cpp fill_system_info()).
 void PerformBootI2cScans();
+
+// Sendet, falls Teach-Modus aktiv ist und seit dem letzten Aufruf genug Zeit vergangen ist
+// (s. Definition in webserver.cpp), ein roarm.PoseFeedback-Event an alle verbundenen WebSocket-
+// Clients. Aufgerufen aus Io::processMembers() (io.cpp) nach roarm_.Loop(now) -- bewusst NICHT
+// aus RoArmSetupAndLoop selbst heraus (setup_and_loops/*.hh bleiben absichtlich frei von
+// Web-/Networking-Wissen, s. roarm.hh-Kommentar), analog zu PerformBootI2cScans() oben, das aus
+// demselben Grund schon jetzt hier statt in setup_and_loops/ lebt.
+void RoArmBroadcastPoseFeedbackIfDue(uint32_t now);

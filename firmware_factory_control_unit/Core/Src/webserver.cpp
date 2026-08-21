@@ -399,9 +399,22 @@ namespace {
 // Scratch-Puffer fuers (De-)Serialisieren -- getrennt, da z.B. bei GetMissionRequest die
 // dekodierten Mission::Payload-Zeiger (name/stepsData) noch in mission_load_scratch liegen,
 // waehrend die ausgehende GetMissionResponse gleichzeitig in ws_response_scratch aufgebaut wird.
-uint8_t g_mission_load_scratch[4096];
-uint8_t g_ws_response_scratch[4300];
-uint8_t g_ws_build_scratch[4096]; // fuer ListMissionsResponse/GetMissionGpioListResponse: Zwischenpuffer der Element-Bytes vor dem finalen Encode()
+// NICHT mit RoArmSetupAndLoop::missionLoadBuffer_ zusammengelegt -- s. dortiger Kommentar (echtes
+// Cross-Thread-Race zwischen StartMission()/io_thread und diesem Webserver-Thread).
+//
+// Alle drei waren vormals grosszuegig geraten (4096/4300/4096 Byte); jetzt exakt anhand der von
+// BestBinaryBuffers generierten constexpr <Message>_MAX_SIZE-Konstanten dimensioniert (s.
+// best_binary_buffers_schema/*.cs [BinaryMaxEncodedByteLength]/[BinaryMaxItemCount]-Bounds).
+uint8_t g_mission_load_scratch[WsProtocol::roarm::Mission::Mission_MAX_SIZE];
+// Groesste ueber diesen Puffer kodierte Nachricht ist ListMissionsResponse (1160 B) -- alle
+// anderen hier kodierten Antworten (StartTeachModeResponse/StopTeachModeResponse/GetMissionResponse/
+// SaveMissionResponse/DeleteMissionResponse/GetMissionGpioListResponse) sind kleiner. Bei einer
+// neuen, noch groesseren Nachricht auf diesem Pfad hier den Maximalwert nachziehen.
+uint8_t g_ws_response_scratch[WsProtocol::roarm::ListMissionsResponse::ListMissionsResponse_MAX_SIZE];
+// Haelt nur die Roh-Element-Bytes VOR dem finalen Encode() (ListMissionsResponse.missions/
+// GetMissionGpioListResponse.names) -- kann nie groesser werden als die sie umschliessende
+// Nachricht, daher derselbe (sichere Ober-)Grenzwert wie oben.
+uint8_t g_ws_build_scratch[WsProtocol::roarm::ListMissionsResponse::ListMissionsResponse_MAX_SIZE];
 
 RoArmSetupAndLoop *GetRoArm() {
     App &app = App::Instance();

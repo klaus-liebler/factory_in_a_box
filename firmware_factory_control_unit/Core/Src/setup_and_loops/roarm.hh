@@ -247,7 +247,19 @@ private:
     size_t stepCount_ = 0;
     size_t stepIndex_ = 0;
     uint32_t stepStartMs_ = 0;
-    uint8_t missionLoadBuffer_[4096];
+    // Sized exactly to Mission_MAX_SIZE (generated from best_binary_buffers_schema/roarm_mission.cs's
+    // [BinaryMaxEncodedByteLength]/[BinaryMaxItemCount] bounds) instead of a guessed 4096 -- was
+    // seriously oversized (Mission_MAX_SIZE is ~1KB). NOT merged with webserver.cpp's
+    // g_mission_load_scratch (a second, same-purpose buffer) despite the same content ever being
+    // in play: StartMission() below reads this buffer WITHOUT taking mutex_ (correct today only
+    // because it exclusively runs on io_thread, same as this whole class's Loop()/Setup()), while
+    // webserver.cpp's LoadMissionRaw()/HandleGetMission() run on the webserver thread under
+    // mutex_ -- a genuinely running mission (post-StartMission, mid-playback) does NOT block a
+    // concurrent GetMissionRequest for a *different* mission's data (only teachModeActive_ blocks
+    // StartMission, see ProcessMissionControlRegister() above), so sharing one buffer between the
+    // two would reintroduce a real cross-thread race that today's two-buffers-one-per-thread
+    // split avoids by construction.
+    uint8_t missionLoadBuffer_[WsProtocol::roarm::Mission::Mission_MAX_SIZE];
 
     void SendServoPositions() {
         const auto jointsRad = tracker_.GetCurrentRad();

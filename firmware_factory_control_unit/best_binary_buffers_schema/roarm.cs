@@ -91,13 +91,15 @@ public interface IMissionSummary
 public class MissionSummary : IMissionSummary
 {
     public ushort missionIndex;
-    public string name = "";
+    // Matches RoArmMissionStore::kMaxNameLength (roarm_mission_store.hh).
+    [BinaryMaxEncodedByteLength(31)] public string name = "";
 }
 
 [BinaryMessage(MessageKind.Response)]
 public class ListMissionsResponse
 {
-    public IMissionSummary[] missions = System.Array.Empty<IMissionSummary>();
+    // Matches the existing MissionSummary list[32] cap in webserver.cpp's HandleListMissions().
+    [BinaryMaxItemCount(32)] public IMissionSummary[] missions = System.Array.Empty<IMissionSummary>();
 }
 
 [BinaryMessage(MessageKind.Request)]
@@ -111,16 +113,17 @@ public class GetMissionResponse
 {
     public bool found;
     public ushort missionIndex;
-    public string name = "";
-    public IMissionStep[] steps = System.Array.Empty<IMissionStep>();
+    // Bounds match RoArmSetupAndLoop::kMaxNameLength / kMaxStepsPerMission (roarm.hh).
+    [BinaryMaxEncodedByteLength(31)] public string name = "";
+    [BinaryMaxItemCount(64)] public IMissionStep[] steps = System.Array.Empty<IMissionStep>();
 }
 
 [BinaryMessage(MessageKind.Request)]
 public class SaveMissionRequest
 {
     public ushort missionIndex;
-    public string name = "";
-    public IMissionStep[] steps = System.Array.Empty<IMissionStep>();
+    [BinaryMaxEncodedByteLength(31)] public string name = "";
+    [BinaryMaxItemCount(64)] public IMissionStep[] steps = System.Array.Empty<IMissionStep>();
 }
 
 [BinaryMessage(MessageKind.Response)]
@@ -152,5 +155,7 @@ public class GetMissionGpioListRequest
 [BinaryMessage(MessageKind.Response)]
 public class GetMissionGpioListResponse
 {
-    public string[] names = System.Array.Empty<string>();
+    // RoArmMissionGpio::kCount is currently 4 (roarm_mission_gpio.hh); 8/31 leaves headroom for
+    // the placeholder entries there to be filled in without needing a schema change.
+    [BinaryMaxItemCount(8)] [BinaryMaxEncodedByteLength(31)] public string[] names = System.Array.Empty<string>();
 }

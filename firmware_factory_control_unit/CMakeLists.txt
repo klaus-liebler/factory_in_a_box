@@ -260,8 +260,6 @@ list(FILTER USBX_SOURCES EXCLUDE REGEX "ux_utility_pci_(read|write|class_scan)\\
 set(BINARY_ASSETS
     "build/assets/device_certificate.der"
     "build/assets/device_key.der"
-    "build/assets/device_certificate_ec.der"
-    "build/assets/device_key_ec.der"
     "build/assets/root_ca.der"
     "build/assets/index.html.br"
 )

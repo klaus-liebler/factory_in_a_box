@@ -50,9 +50,15 @@ private:
         void Bind(NX_TCP_SESSION *session, NX_PACKET_POOL *pool) {
             session_ = session;
             pool_ = pool;
-            closed_ = false;
+            bound_ = true;
         }
-        bool Closed() const { return closed_; }
+        // Inverted (bound_, default false) instead of a directly-stored closed_=true default:
+        // an all-zero default lets the whole OpcUaTcpServer (including every array element of
+        // sessionStates_) live in .bss instead of .data -- a non-zero in-class default member
+        // initializer anywhere in this object graph forces the compiler to emit an explicit
+        // (non-zero) static initializer image for the WHOLE object instead. Same reasoning
+        // applied to SecureChannel::serverSequenceNumber_ (secure_channel.hpp).
+        bool Closed() const { return !bound_; }
 
         bool Send(std::span<const Byte> data) override;
         void RequestClose() override;
@@ -60,7 +66,7 @@ private:
     private:
         NX_TCP_SESSION *session_ = nullptr;
         NX_PACKET_POOL *pool_ = nullptr;
-        bool closed_ = true; // stays true until Bind() runs from OnNewConnection
+        bool bound_ = false; // stays false until Bind() runs from OnNewConnection
     };
 
     struct SessionState {

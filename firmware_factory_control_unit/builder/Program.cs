@@ -1,5 +1,14 @@
 using Builder;
 
+// TODO: Zum Builder-Programm: Mir gefallen die String-Konstanten nicht! Jeder Service implementiert eine 
+// IBuildService-Interface (Methode "RunService()"). 
+// Bei der Registrierung soll es eher so aussehen registry.Add(()=>new XYZService(arg1, arg2)). 
+// Der Service wird dann unter seinem Klassennamen verfügbar. 
+// Sehr ähnliche Services können dann durch Ableitungen von abstakten Basisklassen mit leicht veränderten 
+// Funktionen oder Werten in Konstruktorparametern erstellt werden. 
+// Unter ihrem Klassennamen sind sie dann auch im Builder verfügbar.
+//Pipeline-Definitionen können dann auch auf die Klassennamen der Services verweisen, anstatt auf String-Konstanten.
+
 static ReadHardwareIdsRequest CreateReadHardwareIdsRequest() =>
 	new(
 		BoardStorage: BuilderSettings.Current.BoardStorage,
@@ -74,7 +83,7 @@ static GeneratedArtifactsCopyRequest CreateCopyRequest(string? board) =>
 		AssetsDir: Paths.AssetsDir,
 		CoreFiles: ["device_ids.hh", "gitconstants.hh", "firmware_constants.hh", "board-variant.json", "modbus_registers_generated.hh", "opcua_registers_generated.hh", "ws_protocol.hh"],
 		WebFiles: ["register-map.ts", "build-info.ts", "ws-protocol.ts"],
-		AssetFiles: ["device_certificate.der", "device_key.der", "device_certificate_ec.der", "device_key_ec.der", "root_ca.der"]);
+		AssetFiles: ["device_certificate.der", "device_key.der", "root_ca.der"]);
 
 static FlashFirmwarePipelineRequest CreateFlashRequest(string preset, string? board) =>
 	new(
@@ -133,6 +142,8 @@ static Args ParseArgs(string[] argv)
 static void RunPhase(string phase, string preset, string? board, IReadOnlyList<string> schemaPaths)
 {
 	var registry = new CommandPipelineRegistry(StringComparer.Ordinal);
+
+
 	registry.AddCommand("ReadHardwareIds", () => Stm32BoardProvisioningService.ReadHardwareIds(CreateReadHardwareIdsRequest()));
 	registry.AddCommand("GenerateCertificatesLazy", () => Stm32BoardProvisioningService.GenerateCertificates(CreateGenerateCertificatesRequest(board, force: false)));
 	registry.AddCommand("GenerateCertificatesForced", () => Stm32BoardProvisioningService.GenerateCertificates(CreateGenerateCertificatesRequest(board, force: true)));

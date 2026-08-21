@@ -1,7 +1,7 @@
 // Beantwortet tasks.TaskManagerRequest mit einer tasks.TaskListMessage -- ein Snapshot aller
 // App-eigenen ThreadX-Threads (Name/Zustand/Prioritaet/Stack-Verbrauch inkl. High-Water-Mark/
 // CPU-Last), gezielt an genau die anfragende Verbindung gesendet (s. Aufrufer in
-// webserver.cpp::handle_ws_message()) -- bewusst KEIN web_server.Broadcast(): andere verbundene
+// webserver.cpp::handle_ws_message()) -- bewusst KEIN https_server.Broadcast(): andere verbundene
 // Clients, die die Task-Manager-Seite gar nicht offen haben (s. web/src/apps/task-manager-app.ts),
 // sollen dafuer nicht mitbezahlen. Wird dementsprechend auch nur dann ueberhaupt aufgerufen, wenn
 // im Browser tatsaechlich eine TaskManagerRequest ankommt -- kein eigener Thread, kein Timer.

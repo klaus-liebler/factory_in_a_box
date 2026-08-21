@@ -34,10 +34,10 @@ constexpr uint32_t OPCUA_THREAD_STACK_SIZE = 24576;
 // requests, doesn't need to preempt the I/O thread's sensor/actuator cycle.
 constexpr UINT OPCUA_THREAD_PRIORITY = 6;
 
-// nx_packet_pool_create()/OpcUaTcpServer both keep pointers into these for as long as the
-// server runs (the whole program's lifetime here) -- must not be stack-locals.
+// nx_packet_pool_create() keeps pointers into this for as long as the server runs (the whole
+// program's lifetime here) -- must not be a stack-local. The server object itself lives on
+// App as app->opcua_server (app.hh), analogous to app->https_server.
 NX_PACKET_POOL g_opcuaPacketPool;
-opcua::OpcUaTcpServer g_server;
 char g_endpointUrl[64];
 
 // This server's own identity for SecurityPolicy#Basic256Sha256 (secure_channel.hpp) -- the SAME
@@ -104,11 +104,11 @@ void OpcUaServerSetup(App *app) {
     // clients connect to by IP/port anyway.
     snprintf(g_endpointUrl, sizeof(g_endpointUrl), "opc.tcp://:%u", static_cast<unsigned>(OPCUA_PORT));
 
-    XASSERT(g_server.Create(&app->ip_instance, &g_opcuaPacketPool, ptr, OPCUA_THREAD_STACK_SIZE,
+    XASSERT(app->opcua_server.Create(&app->ip_instance, &g_opcuaPacketPool, ptr, OPCUA_THREAD_STACK_SIZE,
                             OPCUA_THREAD_PRIORITY, OPCUA_SESSION_TIMEOUT_SECONDS,
                             &GeneratedOpcUa::AddressSpaceInstance(), g_endpointUrl),
             "OPC UA TCP server create failed");
-    XASSERT(g_server.Start(OPCUA_PORT, opcua::OpcUaTcpServer::MAX_SESSIONS * 2),
+    XASSERT(app->opcua_server.Start(OPCUA_PORT, opcua::OpcUaTcpServer::MAX_SESSIONS * 2),
             "OPC UA TCP server start failed");
 
     log_info("OPC UA Server started on %s (SecurityPolicy#Basic256Sha256, SecurityMode Sign)", g_endpointUrl);

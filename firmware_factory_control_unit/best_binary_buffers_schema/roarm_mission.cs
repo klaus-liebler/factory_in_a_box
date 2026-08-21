@@ -41,6 +41,9 @@ public class DelayStep : IMissionStep
 [BinaryMessage(MessageKind.Event)]
 public class Mission
 {
-    public string name = "";
-    public IMissionStep[] steps = System.Array.Empty<IMissionStep>();
+    // Bounds match RoArmSetupAndLoop::kMaxNameLength / kMaxStepsPerMission (roarm.hh) -- this is
+    // also the on-flash littlefs file format, so these bounds are load-bearing for existing files,
+    // not just wire traffic.
+    [BinaryMaxEncodedByteLength(31)] public string name = "";
+    [BinaryMaxItemCount(64)] public IMissionStep[] steps = System.Array.Empty<IMissionStep>();
 }

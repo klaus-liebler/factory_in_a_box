@@ -637,7 +637,7 @@ void RoArmBroadcastPoseFeedbackIfDue(uint32_t now) {
     WsProtocol::roarm::PoseFeedback::Payload payload = roarm.GetPoseFeedback();
     uint8_t buffer[64];
     size_t n = WsProtocol::roarm::PoseFeedback::Encode(payload, buffer, sizeof(buffer));
-    if (n > 0) app.web_server.Broadcast(buffer, n);
+    if (n > 0) app.https_server.Broadcast(buffer, n);
 }
 
 void webserver_register_routes(Http::WebServer &server) {

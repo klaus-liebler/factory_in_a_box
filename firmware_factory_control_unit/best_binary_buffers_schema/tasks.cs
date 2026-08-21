@@ -51,5 +51,7 @@ public class TaskListMessage
 	// beim Dekodieren eine gleichnamige lokale Variable an, die den Namespace-Bezeichner
 	// "tasks" verdeckt und "tasks.decodeTaskInfo(...)" dadurch faelschlich als Zugriff auf die
 	// (leere) Array-Property statt auf die Namespace-Funktion aufloest.
-	public TaskInfo[] items;
+	// Matches TASK_COUNT in task_monitor.cpp -- the fixed list of App-owned ThreadX threads this
+	// snapshot ever covers.
+	[BinaryMaxItemCount(6)] public TaskInfo[] items;
 }

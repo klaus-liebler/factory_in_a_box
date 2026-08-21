@@ -84,7 +84,11 @@ public:
     bool IsDiscoveryOnly() const { return isDiscoveryOnly_; }
     UInt32 ChannelId() const { return channelId_; }
     UInt32 TokenId() const { return tokenId_; }
-    UInt32 NextServerSequenceNumber() { return serverSequenceNumber_++; }
+    // Pre-increment, not post: serverSequenceNumber_ starts at 0 (zero-init, see the .bss/.data
+    // comment on SessionTransport::bound_ in net_transport.hpp for why that matters), but Part 6
+    // 6.7.5 still wants the first sequence number a channel ever sends to be 1 -- pre-increment
+    // gives the same 1, 2, 3, ... sequence a post-increment-from-1 default would have.
+    UInt32 NextServerSequenceNumber() { return ++serverSequenceNumber_; }
 
     // "fullOpnMessage" is exactly one complete OPN message (header.messageSize == size()).
     // Accepts SecurityPolicy#Basic256Sha256 (parses+decrypts+verifies the request using the
@@ -119,7 +123,7 @@ private:
     UInt32 tokenId_ = 0;
     DateTime createdAt_ = 0;
     UInt32 revisedLifetimeMs_ = 0;
-    UInt32 serverSequenceNumber_ = 1;
+    UInt32 serverSequenceNumber_ = 0; // see NextServerSequenceNumber() comment: pre-incremented
 
     // HMAC-SHA256 signing keys derived from the OPN nonce exchange (Part 6 6.7.5) -- Sign mode
     // only needs these (no AES encrypting key/IV derived; see the file header comment).

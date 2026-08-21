@@ -8,7 +8,7 @@
 namespace opcua {
 
 bool OpcUaTcpServer::SessionTransport::Send(std::span<const Byte> data) {
-    if(closed_ || !session_) return false;
+    if(!bound_ || !session_) return false;
 
     NX_PACKET *packet = NX_NULL;
     if(nx_packet_allocate(pool_, &packet, NX_TCP_PACKET, NX_WAIT_FOREVER) != NX_SUCCESS)
@@ -26,8 +26,8 @@ bool OpcUaTcpServer::SessionTransport::Send(std::span<const Byte> data) {
 }
 
 void OpcUaTcpServer::SessionTransport::RequestClose() {
-    if(closed_ || !session_) return;
-    closed_ = true;
+    if(!bound_ || !session_) return;
+    bound_ = false;
     nx_tcp_socket_disconnect(&session_->nx_tcp_session_socket, NX_NO_WAIT);
     nx_tcp_server_socket_unaccept(&session_->nx_tcp_session_socket);
 }

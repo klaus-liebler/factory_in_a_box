@@ -29,16 +29,14 @@
 
 // Ciphersuite-/ECC-Kurven-Tabellen aus crypto_libraries/src/nx_crypto_generic_ciphersuites.c
 // -- kein eigener Header deklariert sie (Referenz: netx_web_basic_ecc_test.c aus dem
-// STM32Cube-Paket). "_ecc"-Tabelle statt der Basis-Tabelle: bietet TLS_ECDHE_ECDSA_WITH_AES_*
-// (ECDHE-Keyexchange + ECDSA-Auth, passt zum EC_P256-Zertifikat unten) -- ohne ECDHE bieten alle
-// gaengigen Browser keine gemeinsame Ciphersuite mehr an (ERR_SSL_VERSION_OR_CIPHER_MISMATCH), da
-// sie die reinen TLS_RSA_*-Suiten (kein Forward Secrecy) laengst abgelehnt haben. Bewusst ein
-// SEPARATES EC-Zertifikat statt des RSA-2048-Zertifikats, das der OPC-UA-Server verwendet (s.
-// opcua_setup.cpp) -- RSA-2048-Software-Modexp (dieses Board hat keinen Hardware-PKA, STM32H563)
-// ist fuer einen einzelnen Handshake pro langlebigem OPC-UA-SecureChannel akzeptabel, macht aber
-// jeden Seitenaufruf spuerbar traege (mehrere parallele kurzlebige HTTPS-Verbindungen pro
-// Browser-Ladevorgang, jede mit eigenem RSA-Sign) und liess WebSocket-Verbindungen scheitern --
-// gefunden per Live-Test 2026-08-19, s. Projekt-Notizen zur OPC-UA-SecurityPolicy.
+// STM32Cube-Paket). "_ecc"-Tabelle statt der Basis-Tabelle: bietet sowohl TLS_ECDHE_ECDSA_* als
+// auch TLS_ECDHE_RSA_*/TLS_RSA_*-Suiten an (s. nx_crypto_generic_ciphersuites.c) -- mit dem
+// RSA-2048-Geraetezertifikat unten handshaket TLS automatisch TLS_ECDHE_RSA_WITH_AES_*_GCM_SHA*
+// aus: ECDHE-Schluesseltausch (Forward Secrecy, noetig da gaengige Browser reine TLS_RSA_*-Suiten
+// ohne ECDHE laengst ablehnen -- ERR_SSL_VERSION_OR_CIPHER_MISMATCH) bei weiterhin RSA-signiertem
+// Zertifikat. Dasselbe RSA-2048-Zertifikat/-Schluessel wie der OPC-UA-Server (s. opcua_setup.cpp)
+// -- ein einziges gemeinsames Zertifikat statt zweier getrennter, s. Kommentar bei
+// net_setup_start() unten zur Historie.
 extern "C" const NX_SECURE_TLS_CRYPTO nx_crypto_tls_ciphers_ecc;
 extern "C" const USHORT nx_crypto_ecc_supported_groups[];
 extern "C" const NX_CRYPTO_METHOD *nx_crypto_ecc_curves[];
@@ -245,9 +243,9 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     // Keep-Alive-Verbindungen (vormals 10s) und genug Toleranz fuer WebSocket-Verbindungen, die
     // laut Anforderung laengere Ruhephasen haben duerfen, bis die Anwendung ihr eigenes
     // Nachrichtenprotokoll (inkl. etwaiger Heartbeats) festlegt.
-    XASSERT(app->web_server.Create(&app->ip_instance, server_pool, ptr, SERVER_STACK, 4, 30),
+    XASSERT(app->https_server.Create(&app->ip_instance, server_pool, ptr, SERVER_STACK, 4, 30),
             "HTTP/WebSocket Server create failed");
-    webserver_register_routes(app->web_server);
+    webserver_register_routes(app->https_server);
 
     // --- HTTPS (NetX Secure TLS) Setup ---
     // nx_secure_x509_certificate_initialize()/nx_secure_tls_metadata_size_calculate() sind
@@ -371,26 +369,29 @@ void net_setup_start(App *app) {
     sd_media_try_open(app);
 
     // --- HTTPS (NetX Secure TLS) Setup ---
-    // Zertifikat + privater Schluessel kommen aus dem generierten device_certificate_ec.c
-    // (siehe tools/provision_board_individual_data_and_files.mjs) -- individuell pro Board ueber die
-    // STM32-Unique-ID provisioniert und von der privaten CA signiert. TLS 1.2/EC_P256 -- ein
-    // SEPARATES Zertifikat vom RSA-2048-Zertifikat, das der OPC-UA-Server fuer
-    // SecurityPolicy#Basic256Sha256 verwendet (s. opcua_setup.cpp und der Kommentar bei
-    // nx_crypto_tls_ciphers_ecc oben, warum HTTPS bewusst NICHT dasselbe RSA-Zertifikat teilt) --
-    // kein Client-Zertifikat/Mutual-TLS (letzte drei Parameterpaare NX_NULL/0).
-    // nx_secure_x509_certificate_initialize()/nx_secure_tls_metadata_size_calculate() sind
-    // NX_THREADS_ONLY_CALLER_CHECKING-beschraenkt, muessen also von einem laufenden Thread
-    // aus aufgerufen werden -- dieser Thread ist der einzige mit TX_AUTO_START (siehe
+    // Zertifikat + privater Schluessel: individuell pro Board ueber die STM32-Unique-ID
+    // provisioniert und von der privaten CA signiert (s. builder/, Stm32BoardProvisioningService.cs).
+    // RSA-2048, dasselbe Zertifikat/derselbe Schluessel wie der OPC-UA-Server (s. opcua_setup.cpp)
+    // -- ein einziges gemeinsames Zertifikat statt eines separaten EC_P256-Zertifikats fuer HTTPS
+    // (frueher hier, inzwischen entfernt): das getrennte EC-Zertifikat wurde eingefuehrt, weil
+    // RSA-2048-Software-Modexp auf diesem PKA-losen Board (STM32H563) traege Seitenaufrufe und
+    // fehlschlagende WebSocket-Verbindungen verursachte -- die eigentliche Ursache war aber ein
+    // unoptimierter Debug-Build (kein Compiler-Speedup, weiterhin keine PKA-Beschleunigung), nicht
+    // RSA an sich; im Release-Build ist das gemeinsame RSA-Zertifikat auf beiden Servern
+    // unauffaellig schnell. Kein Client-Zertifikat/Mutual-TLS (letzte drei Parameterpaare
+    // NX_NULL/0). nx_secure_x509_certificate_initialize()/nx_secure_tls_metadata_size_calculate()
+    // sind NX_THREADS_ONLY_CALLER_CHECKING-beschraenkt, muessen also von einem laufenden Thread aus
+    // aufgerufen werden -- dieser Thread ist der einzige mit TX_AUTO_START (siehe
     // tx_application_define()), daher hier statt in net_setup_create(). Puffer kommen bewusst
     // vom Heap (new[]) statt aus nx_app_byte_pool: dieser Pool ist als lokale Variable auf
     // tx_application_define() beschraenkt, waehrend der Heap seit malloc_lock_init() (s.
     // dort) threadsicher ist -- selbes Muster wie beim ModbusTcpServer.
-    const USHORT device_cert_der_len = (USHORT)(_binary_device_certificate_ec_der_end - _binary_device_certificate_ec_der_start);
-    const USHORT device_key_der_len = (USHORT)(_binary_device_key_ec_der_end - _binary_device_key_ec_der_start);
+    const USHORT device_cert_der_len = (USHORT)(_binary_device_certificate_der_end - _binary_device_certificate_der_start);
+    const USHORT device_key_der_len = (USHORT)(_binary_device_key_der_end - _binary_device_key_der_start);
     XASSERT(nx_secure_x509_certificate_initialize(
-        &g_device_certificate, (UCHAR *)_binary_device_certificate_ec_der_start, device_cert_der_len,
-        NX_NULL, 0, (UCHAR *)_binary_device_key_ec_der_start, device_key_der_len,
-        NX_SECURE_X509_KEY_TYPE_EC_DER), "Device certificate initialize failed");
+        &g_device_certificate, (UCHAR *)_binary_device_certificate_der_start, device_cert_der_len,
+        NX_NULL, 0, (UCHAR *)_binary_device_key_der_start, device_key_der_len,
+        NX_SECURE_X509_KEY_TYPE_RSA_PKCS1_DER), "Device certificate initialize failed");
 
     // nx_secure_x509_not_before/_not_after sind die rohen ASN.1-UTCTime/GeneralizedTime-Bytes
     // aus dem X.509-Zertifikat (von _nx_secure_x509_certificate_parse() innerhalb obigem
@@ -404,19 +405,19 @@ void net_setup_start(App *app) {
               g_device_certificate.nx_secure_x509_not_after);
 
     // nx_crypto_tls_ciphers_ecc bleibt die richtige Tabelle -- sie enthaelt sowohl
-    // TLS_ECDHE_ECDSA_* (EC-Zertifikat) als auch TLS_ECDHE_RSA_*/TLS_RSA_* (RSA-Zertifikat)
-    // Ciphersuiten (s. nx_crypto_generic_ciphersuites.c), TLS handshaket automatisch auf die zum
-    // tatsaechlichen Zertifikatstyp passende Suite. Mit dem EC_P256-Geraetezertifikat wird
-    // TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 ausgehandelt -- ECDHE-Schluesseltausch (Forward
-    // Secrecy) UND die Signatur selbst sind beide guenstige EC-Operationen, kein Software-RSA
-    // auf dem HTTPS-Pfad mehr.
+    // TLS_ECDHE_ECDSA_* als auch TLS_ECDHE_RSA_*/TLS_RSA_* Ciphersuiten (s.
+    // nx_crypto_generic_ciphersuites.c), TLS handshaket automatisch auf die zum tatsaechlichen
+    // Zertifikatstyp passende Suite. Mit dem RSA-2048-Geraetezertifikat wird
+    // TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 ausgehandelt -- ECDHE-Schluesseltausch (Forward
+    // Secrecy) bei RSA-signiertem Zertifikat; die RSA-Signatur selbst ist im Release-Build (PKA
+    // fehlt, aber der Compiler optimiert) unauffaellig schnell, s. Kommentar weiter oben.
     ULONG tls_metadata_size = 0;
     XASSERT(nx_secure_tls_metadata_size_calculate(&nx_crypto_tls_ciphers_ecc, &tls_metadata_size),
             "TLS metadata size calculate failed");
     UCHAR *tls_metadata = new UCHAR[tls_metadata_size * Http::WebServer::MAX_SESSIONS];
     UCHAR *tls_packet_buffer = new UCHAR[TLS_PACKET_BUFFER_SIZE];
 
-    XASSERT(app->web_server.SecureConfigure(
+    XASSERT(app->https_server.SecureConfigure(
         &nx_crypto_tls_ciphers_ecc,
         tls_metadata, tls_metadata_size * Http::WebServer::MAX_SESSIONS,
         tls_packet_buffer, TLS_PACKET_BUFFER_SIZE,
@@ -426,19 +427,19 @@ void net_setup_start(App *app) {
     // nx_crypto_ecc_curves) -- unabhaengig vom Zertifikatstyp, das betrifft nur den
     // Schluesseltausch. Ohne diesen Aufruf schlaegt der Handshake fehl, sobald der Client eine
     // ECDHE-Ciphersuite waehlt.
-    XASSERT(app->web_server.SecureEccConfigure(
+    XASSERT(app->https_server.SecureEccConfigure(
         nx_crypto_ecc_supported_groups,
         (USHORT)nx_crypto_ecc_supported_groups_size, nx_crypto_ecc_curves), "HTTPS ECC configure failed");
 
     // Listen-Backlog 2x MAX_SESSIONS (analog zum alten NX_WEB_HTTP_SERVER_MAX_PENDING =
     // NX_WEB_HTTP_SERVER_SESSION_MAX<<1): erlaubt kurzzeitig etwas mehr wartende SYN-Verbindungen,
     // als gleichzeitig bedient werden koennen, statt sie sofort abzulehnen.
-    XASSERT(app->web_server.Start(HTTPS_PORT, Http::WebServer::MAX_SESSIONS * 2), "HTTP Server start failed");
+    XASSERT(app->https_server.Start(HTTPS_PORT, Http::WebServer::MAX_SESSIONS * 2), "HTTP Server start failed");
     log_info("HTTP/WebSocket Server started");
     // Ab hier wird jede weitere Logger-Ausgabe zusaetzlich per WebSocket an verbundene Clients
     // gespiegelt (s. ws_log_bridge.hpp) -- unschaedlich, dass noch keine Verbindungen bestehen
     // (Broadcast() findet einfach keine aktiven Sessions).
-    WsLogBridge_Install(&app->web_server);
+    WsLogBridge_Install(&app->https_server);
 
     XASSERT(nx_ip_address_change_notify(&app->ip_instance,
                                       ip_address_change_notify_callback,

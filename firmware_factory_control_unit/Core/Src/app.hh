@@ -46,6 +46,7 @@
 #include "common_macros.hh"
 #include "constants.hh"
 #include "main.h"
+#include "opcua/net_transport.hpp"
 
 extern "C" ETH_HandleTypeDef heth;
 
@@ -100,7 +101,10 @@ public:
     NX_DHCP dhcp_client;
     // HTTPS/WebSocket-Server (s. Core/Src/http_websocket_server.hpp) -- ersetzt den frueheren
     // nx_web_http_server, der keine WebSockets konnte.
-    Http::WebServer web_server;
+    Http::WebServer https_server;
+    // OPC UA TCP-Server (libs/opcua_native), s. Core/Src/opcua_setup.cpp -- Member statt frueher
+    // freistehendem g_server in opcua_setup.cpp, analog zu https_server oben.
+    opcua::OpcUaTcpServer opcua_server;
     // Zusaetzlich auf dem virtuellen USB-Netzwerk-Interface aktiviert (s. net_setup.cpp) -- eine
     // zweite NX_MDNS-Instanz fuer einen eigenen festen Namen scheiterte an NX_PORT_UNAVAILABLE
     // (beide haetten denselben UDP-Port 5353 auf derselben NX_IP gebunden), daher weiterhin nur

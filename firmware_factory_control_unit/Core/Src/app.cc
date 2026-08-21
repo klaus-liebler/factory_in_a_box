@@ -241,7 +241,7 @@ void App::IOThread() {
         bool power_ok = this->register_model->GetInputRegister(ModbusRegisters::Input::PWR_STATUS) == 0;
         ULONG tx_ticks_now = tx_time_get();
 
-        this->web_server.SendKeepalivePings();
+        this->https_server.SendKeepalivePings();
 
         // See usbd_device_poll_state_change()'s comment (usbd_device.h) -- the USB ISR only
         // records the latest state; logging it happens here, from proper thread context.

@@ -18,5 +18,9 @@ public class LogMessage
 {
 	public LogLevel level;
 	public uint timestampMs;
-	public string text = "";
+	// Matches the stack-local "char buf[256]" in log_write_line() (stm32_libs/common_stm32/log.c)
+	// that log_log() formats the WebSocket-bound (unprefixed) message text into before truncating
+	// -- 255 usable bytes (buf's last slot is reserved for vsnprintf's own NUL), so a longer line
+	// can never actually reach this sink regardless of what the caller's format string produces.
+	[BinaryMaxEncodedByteLength(255)] public string text = "";
 }

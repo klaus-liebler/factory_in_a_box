@@ -2,7 +2,7 @@ import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "../styles.css";
 import * as WsProtocol from "../../generated/ws-protocol.js";
-import { sendBinary, setTaskListListener } from "../ws-client.js";
+import { sendBinary, setTaskListListener, setPoolListListener } from "../ws-client.js";
 import { drawSparkline } from "./sparkline.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 
@@ -83,6 +83,8 @@ export class TaskManagerApp extends LitElement implements DashboardApp {
 	}
 
 	@state() private tasks: WsProtocol.tasks.TaskInfo[] = [];
+	@state() private pools: WsProtocol.tasks.PoolInfo[] = [];
+	@state() private freeHeapBytes = 0;
 	@state() private statusMessage = "Warte auf Verbindung...";
 	@state() private statusVariant: "warning" | "success" | "error" = "warning";
 
@@ -119,15 +121,22 @@ export class TaskManagerApp extends LitElement implements DashboardApp {
 		this.statusVariant = "success";
 	};
 
+	private readonly onPoolList = (payload: WsProtocol.tasks.PoolListMessage.Payload) => {
+		this.pools = payload.pools;
+		this.freeHeapBytes = payload.freeHeapBytes;
+	};
+
 	onShow(): void {
 		this.stopped = false;
 		setTaskListListener(this.onTaskList);
+		setPoolListListener(this.onPoolList);
 		this.scheduleNextPoll(0);
 	}
 
 	onHide(): void {
 		this.stopped = true;
 		setTaskListListener(null);
+		setPoolListListener(null);
 		if (this.pollTimeoutHandle) {
 			clearTimeout(this.pollTimeoutHandle);
 		}
@@ -137,6 +146,7 @@ export class TaskManagerApp extends LitElement implements DashboardApp {
 		if (this.stopped) return;
 		this.pollTimeoutHandle = setTimeout(() => {
 			sendBinary(WsProtocol.tasks.TaskManagerRequest.encode({ requestId: 0 }));
+			sendBinary(WsProtocol.tasks.PoolListRequest.encode({ requestId: 0 }));
 			this.scheduleNextPoll(POLL_INTERVAL_MS);
 		}, delayMs);
 	}
@@ -161,6 +171,24 @@ export class TaskManagerApp extends LitElement implements DashboardApp {
 				<canvas class="cpu-sparkline"></canvas>
 				<span>${this.receivedCount < 2 ? "–" : `${(task.cpuPermille / 10).toFixed(1)} %`}</span>
 			</span>
+		`;
+	}
+
+	// Gleiche Warn-/Fehler-Schwellen wie renderStackCell() -- ein Pool nahe seiner Kapazitaet ist
+	// dieselbe Art von Diagnosesignal wie ein Thread nahe seinem Stack-Limit.
+	private renderPoolRow(pool: WsProtocol.tasks.PoolInfo) {
+		const used = pool.capacity - pool.free;
+		const ratio = pool.capacity > 0 ? used / pool.capacity : 0;
+		const percentText = `${(ratio * 100).toFixed(0)}%`;
+		const cssClass =
+			ratio >= STACK_ERROR_RATIO ? "status-text status-error" : ratio >= STACK_WARNING_RATIO ? "status-text status-warning" : "";
+		return html`
+			<tr>
+				<td>${decodeName(pool.name)}</td>
+				<td>${pool.free}</td>
+				<td>${pool.capacity}</td>
+				<td><span class=${cssClass}>${percentText}</span></td>
+			</tr>
 		`;
 	}
 
@@ -230,6 +258,33 @@ export class TaskManagerApp extends LitElement implements DashboardApp {
 													</tr>
 												`
 											)}
+										</tbody>
+									</table>
+								</div>
+							`}
+				</div>
+
+				<div class="panel-section">
+					<div class="panel-label">Pools &amp; Heap</div>
+					${this.pools.length === 0
+						? html`<p class="panel-text">Noch keine Daten empfangen.</p>`
+						: html`
+								<div class="register-table-wrap">
+									<table class="register-table">
+										<thead>
+											<tr>
+												<th>Pool</th>
+												<th>Frei</th>
+												<th>Kapazität</th>
+												<th>Auslastung</th>
+											</tr>
+										</thead>
+										<tbody>
+											${this.pools.map((pool) => this.renderPoolRow(pool))}
+											<tr>
+												<td>newlib-Heap (B)</td>
+												<td colspan="3">${formatBytes(this.freeHeapBytes)} frei</td>
+											</tr>
 										</tbody>
 									</table>
 								</div>

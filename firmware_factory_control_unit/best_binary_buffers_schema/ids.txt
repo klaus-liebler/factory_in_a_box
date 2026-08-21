@@ -37,3 +37,5 @@ message modbus.WriteHoldingResponse 4
 message system.SystemInfoRequest 2
 message system.SystemInfoMessage 3
 namespace modbus 4
+message tasks.PoolListRequest 3
+message tasks.PoolListMessage 4

@@ -323,6 +323,10 @@ public:
                                     sessions_, sizeof(sessions_), thread_priority, NX_IP_PERIODIC_RATE);
     }
 
+    // Fuer task_monitor.cpp's Pool-/Heap-Instrumentierung (HandlePoolListRequest()) -- der Pool
+    // selbst bleibt sonst privat (packet_pool_), da normaler Anwendungscode ihn nicht braucht.
+    NX_PACKET_POOL *PacketPool() const { return packet_pool_; }
+
     UINT SecureConfigure(const NX_SECURE_TLS_CRYPTO *crypto_table, UCHAR *metadata_buffer, ULONG metadata_size,
                           UCHAR *packet_buffer, ULONG packet_buffer_size, NX_SECURE_X509_CERT *identity_certificate) {
         return nx_tcpserver_tls_setup(&tcp_server_, crypto_table, metadata_buffer, metadata_size,

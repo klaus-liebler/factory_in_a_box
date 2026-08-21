@@ -8,3 +8,8 @@
 // TaskListMessage::Payload.requestId zurueckgegeben (vom generierten Code automatisch zu jedem
 // Request/Response-Paar hinzugefuegt, s. Core/generated/ws_protocol.hh).
 void HandleTaskManagerRequest(Http::WebSocketConnection &conn, uint16_t request_id);
+
+// Beantwortet tasks.PoolListRequest mit einer tasks.PoolListMessage -- Momentaufnahme aller
+// ThreadX-Byte-/NetX-Packet-Pool-Belegungen plus des freien newlib-Heaps, s. HandlePoolListRequest()
+// in task_monitor.cpp fuer die Begruendung (schliesst das "Instrumentation gap" aus der RAM-Analyse).
+void HandlePoolListRequest(Http::WebSocketConnection &conn, uint16_t request_id);

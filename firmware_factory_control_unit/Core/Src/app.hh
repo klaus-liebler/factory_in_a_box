@@ -105,6 +105,10 @@ public:
     // OPC UA TCP-Server (libs/opcua_native), s. Core/Src/opcua_setup.cpp -- Member statt frueher
     // freistehendem g_server in opcua_setup.cpp, analog zu https_server oben.
     opcua::OpcUaTcpServer opcua_server;
+    // Analog zu packet_pool oben, aber fuer opcua_server -- Member statt frueher freistehendem
+    // g_opcuaPacketPool in opcua_setup.cpp, damit task_monitor.cpp seine Belegung auslesen kann
+    // (s. HandlePoolListRequest() in task_monitor.cpp).
+    NX_PACKET_POOL opcua_packet_pool;
     // Zusaetzlich auf dem virtuellen USB-Netzwerk-Interface aktiviert (s. net_setup.cpp) -- eine
     // zweite NX_MDNS-Instanz fuer einen eigenen festen Namen scheiterte an NX_PORT_UNAVAILABLE
     // (beide haetten denselben UDP-Port 5353 auf derselben NX_IP gebunden), daher weiterhin nur

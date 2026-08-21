@@ -19,6 +19,10 @@
 // funktioniert die darauf basierende High-Water-Mark-Suche ohne TX_ENABLE_STACK_CHECKING.
 extern "C" void _tx_thread_stack_analyze(TX_THREAD *thread_ptr);
 
+// Aus sysmem.c -- gleiche Deklaration wie in io.cpp/webserver.cpp genutzt, hier fuer
+// tasks.PoolListMessage.freeHeapBytes (s. HandlePoolListRequest() unten).
+extern "C" size_t GetFreeHeapBytes(void);
+
 namespace {
 
 constexpr size_t TASK_COUNT = 6;
@@ -99,6 +103,14 @@ void FillName(uint8_t out[32], const char *name) {
     memcpy(out, name, len);
 }
 
+void FillPoolName(uint8_t out[24], const char *name) {
+    memset(out, 0, 24);
+    if (name == nullptr) return;
+    size_t len = strlen(name);
+    if (len > 23) len = 23;
+    memcpy(out, name, len);
+}
+
 } // namespace
 
 void HandleTaskManagerRequest(Http::WebSocketConnection &conn, uint16_t request_id) {
@@ -165,6 +177,54 @@ void HandleTaskManagerRequest(Http::WebSocketConnection &conn, uint16_t request_
 
     uint8_t frame[512];
     size_t encoded = WsProtocol::tasks::TaskListMessage::Encode(payload, frame, sizeof(frame));
+    if (encoded > 0) {
+        conn.SendBinary(frame, encoded);
+    }
+}
+
+// Schliesst das in der RAM-Analyse gefundene Instrumentierungs-Loch: bislang war die Auslastung
+// von app.byte_pool/app.packet_pool/app.https_server/app.opcua_server nur aus dem Quellcode
+// geschaetzt, nie zur Laufzeit sichtbar. capacity/free direkt aus den (oeffentlichen) ThreadX-/
+// NetX-Struct-Feldern gelesen -- dasselbe Muster wie oben bei TX_THREAD (t->tx_thread_stack_size
+// etc.), keine eigene tx_byte_pool_info_get()/nx_packet_pool_info_get()-Aufruf-Indirektion noetig.
+void HandlePoolListRequest(Http::WebSocketConnection &conn, uint16_t request_id) {
+    App &app = App::Instance();
+
+    constexpr size_t POOL_COUNT = 4;
+    WsProtocol::tasks::PoolInfo pools[POOL_COUNT];
+
+    FillPoolName(pools[0].name, "App Bytes (B)");
+    pools[0].capacity = (uint32_t)app.byte_pool.tx_byte_pool_size;
+    pools[0].free = (uint32_t)app.byte_pool.tx_byte_pool_available;
+
+    FillPoolName(pools[1].name, "App Pkts (#)");
+    pools[1].capacity = (uint32_t)app.packet_pool.nx_packet_pool_total;
+    pools[1].free = (uint32_t)app.packet_pool.nx_packet_pool_available;
+
+    NX_PACKET_POOL *https_pool = app.https_server.PacketPool();
+    FillPoolName(pools[2].name, "HTTPS Pkts (#)");
+    pools[2].capacity = https_pool ? (uint32_t)https_pool->nx_packet_pool_total : 0;
+    pools[2].free = https_pool ? (uint32_t)https_pool->nx_packet_pool_available : 0;
+
+    FillPoolName(pools[3].name, "OPC UA Pkts (#)");
+    pools[3].capacity = (uint32_t)app.opcua_packet_pool.nx_packet_pool_total;
+    pools[3].free = (uint32_t)app.opcua_packet_pool.nx_packet_pool_available;
+
+    uint8_t element_buffer[POOL_COUNT * WsProtocol::tasks::PoolInfo_SIZE];
+    size_t element_pos = 0;
+    for (size_t i = 0; i < POOL_COUNT; i++) {
+        element_pos += WsProtocol::tasks::EncodePoolListMessagePoolsElement(
+            pools[i], element_buffer + element_pos, sizeof(element_buffer) - element_pos);
+    }
+
+    WsProtocol::tasks::PoolListMessage::Payload payload{};
+    payload.requestId = request_id;
+    payload.poolsData = element_buffer;
+    payload.poolsCount = POOL_COUNT;
+    payload.freeHeapBytes = (uint32_t)GetFreeHeapBytes();
+
+    uint8_t frame[WsProtocol::tasks::PoolListMessage::PoolListMessage_MAX_SIZE];
+    size_t encoded = WsProtocol::tasks::PoolListMessage::Encode(payload, frame, sizeof(frame));
     if (encoded > 0) {
         conn.SendBinary(frame, encoded);
     }

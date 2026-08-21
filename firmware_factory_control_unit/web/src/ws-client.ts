@@ -55,6 +55,15 @@ export function setTaskListListener(listener: TaskListListener | null): void {
 	taskListListener = listener;
 }
 
+type PoolListListener = (payload: WsProtocol.tasks.PoolListMessage.Payload) => void;
+let poolListListener: PoolListListener | null = null;
+
+// Gleiches Muster wie setTaskListListener() oben -- task-manager-app.ts sendet
+// tasks.PoolListRequest im selben Poll-Tick wie tasks.TaskManagerRequest.
+export function setPoolListListener(listener: PoolListListener | null): void {
+	poolListListener = listener;
+}
+
 // 1:1 auf die console-Funktion abgebildet, die dem Original-Log-Level entspricht -- WICHTIG:
 // console.debug() zaehlt in Chrome DevTools als "Verbose" und ist per Default AUSGEBLENDET, bis
 // man den Verbose-Filter aktiviert. Vorher landete INFO faelschlich ebenfalls auf console.debug,
@@ -166,6 +175,15 @@ function handleTasksMessage(view: DataView, typeId: number): void {
 					taskListListener(WsProtocol.tasks.TaskListMessage.decode(view, 0));
 				} catch (error) {
 					console.warn(`WS TaskListMessage decode fehlgeschlagen: ${(error as Error).message}`);
+				}
+			}
+			return;
+		case WsProtocol.tasks.PoolListMessage.TYPE_ID:
+			if (poolListListener) {
+				try {
+					poolListListener(WsProtocol.tasks.PoolListMessage.decode(view, 0));
+				} catch (error) {
+					console.warn(`WS PoolListMessage decode fehlgeschlagen: ${(error as Error).message}`);
 				}
 			}
 			return;

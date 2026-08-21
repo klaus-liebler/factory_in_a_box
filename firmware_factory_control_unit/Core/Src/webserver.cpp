@@ -520,11 +520,23 @@ static void handle_ws_message(void *, Http::WebSocketConnection &conn, bool is_b
             return;
         }
 
-        if (namespace_id == WsProtocol::tasks::NAMESPACE_ID &&
-            type_id == WsProtocol::tasks::TaskManagerRequest::TYPE_ID) {
-            WsProtocol::tasks::TaskManagerRequest::Payload request{};
-            if (WsProtocol::tasks::TaskManagerRequest::Decode(data, len, request)) {
-                HandleTaskManagerRequest(conn, request.requestId);
+        if (namespace_id == WsProtocol::tasks::NAMESPACE_ID) {
+            switch (type_id) {
+            case WsProtocol::tasks::TaskManagerRequest::TYPE_ID: {
+                WsProtocol::tasks::TaskManagerRequest::Payload request{};
+                if (WsProtocol::tasks::TaskManagerRequest::Decode(data, len, request)) {
+                    HandleTaskManagerRequest(conn, request.requestId);
+                }
+                break;
+            }
+            case WsProtocol::tasks::PoolListRequest::TYPE_ID: {
+                WsProtocol::tasks::PoolListRequest::Payload request{};
+                if (WsProtocol::tasks::PoolListRequest::Decode(data, len, request)) {
+                    HandlePoolListRequest(conn, request.requestId);
+                }
+                break;
+            }
+            default: break;
             }
             return;
         }

@@ -1,10 +1,27 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "../styles.css";
-import { fetchSystemInfo, type SystemInfo } from "../api.js";
+import { system } from "../../generated/ws-protocol.js";
+import { wsRequest } from "../ws-client.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import * as buildInfo from "../../generated/build-info.js";
 import { I2C_ADDRESS_CANDIDATES } from "../i2c-device-names.js";
+
+type SystemInfo = system.SystemInfoMessage.Payload;
+
+function formatOctets(bytes: readonly number[]): string {
+	return bytes.join(".");
+}
+
+// bytes ist ein 16-Byte-Bitfeld (128 Bit, LSB von Byte 0 = Adresse 0), s.
+// Core/Src/webserver.cpp PerformBootI2cScans()/HandleGetSystemInfo().
+function decodeI2cBitfield(bytes: readonly number[]): boolean[] {
+	const result: boolean[] = new Array(128);
+	for (let addr = 0; addr < 128; addr++) {
+		result[addr] = (bytes[Math.floor(addr / 8)] & (1 << addr % 8)) !== 0;
+	}
+	return result;
+}
 
 // Muss zu ResetCause in Core/Src/app.hh passen.
 const RESET_CAUSE_LABELS: Record<number, string> = {
@@ -105,7 +122,10 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 	private async refresh() {
 		this.loading = true;
 		try {
-			this.info = await fetchSystemInfo();
+			this.info = await wsRequest(
+				(requestId) => system.SystemInfoRequest.encode({ requestId }),
+				(view) => system.SystemInfoMessage.decode(view, 0),
+			);
 			this.statusMessage = `Verbunden -- zuletzt aktualisiert ${new Date().toLocaleTimeString("de-DE")}`;
 			this.statusVariant = "success";
 		} catch (error) {
@@ -121,7 +141,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 		return html`<tr><td>${name}</td><td>${value}</td></tr>`;
 	}
 
-	private renderPhySection(phy: SystemInfo["phy"]) {
+	private renderPhySection(phy: system.PhyRegisters) {
 		if (!phy.readOk) {
 			return html`<p class="panel-text status-error">PHY nicht erreichbar (MDIO-Lesefehler).</p>`;
 		}
@@ -255,8 +275,8 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 							? html`
 									<table class="register-table">
 										<tbody>
-											${this.row("IP-Adresse", info.ipAddress)}
-											${this.row("Netzmaske", info.netMask)}
+											${this.row("IP-Adresse", formatOctets(info.ipAddress))}
+											${this.row("Netzmaske", formatOctets(info.netMask))}
 										</tbody>
 									</table>
 									${this.renderPhySection(info.phy)}
@@ -268,9 +288,9 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 						<div class="panel-label">I2C Diagnostics</div>
 						${info
 							? html`
-									${this.renderI2cBusSection("I2C1", info.i2c.I2C_1)}
-									${this.renderI2cBusSection("I2C2", info.i2c.I2C_2)}
-									${this.renderI2cBusSection("I2C4", info.i2c.I2C_4)}
+									${this.renderI2cBusSection("I2C1", decodeI2cBitfield(info.i2c1Scan))}
+									${this.renderI2cBusSection("I2C2", decodeI2cBitfield(info.i2c2Scan))}
+									${this.renderI2cBusSection("I2C4", decodeI2cBitfield(info.i2c4Scan))}
 								`
 							: html`<p class="panel-text">Noch keine Daten geladen.</p>`}
 					</div>

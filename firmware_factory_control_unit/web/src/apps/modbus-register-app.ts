@@ -3,7 +3,7 @@ import { customElement, state } from "lit/decorators.js";
 import "../styles.css";
 import "../register-panel.js";
 import { REGIONS } from "../../generated/register-map.js";
-import { fetchRegisters, writeHolding, type RegisterValues } from "../api.js";
+import { fetchRegisters, writeHolding, type RegisterValues } from "../registers.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 
 const POLL_INTERVAL_MS = 1000;
@@ -47,9 +47,8 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 
 	// Bewusst NIE ueberlappend: der naechste Poll wird erst geplant, NACHDEM dieser
 	// abgeschlossen ist (siehe scheduleNextPoll), statt per setInterval fest im Takt zu
-	// feuern -- der kleine 4-Paket-Server-Pool und der einzelne HTTP-Server-Thread der
-	// Firmware koennen sonst von mehreren gleichzeitig laufenden Mehr-Paket-Antworten
-	// leergefegt werden und haengen bleiben.
+	// feuern -- vermeidet mehrere gleichzeitig ausstehende Requests auf derselben (einzigen)
+	// WebSocket-Verbindung.
 	private async poll() {
 		try {
 			this.values = await fetchRegisters();

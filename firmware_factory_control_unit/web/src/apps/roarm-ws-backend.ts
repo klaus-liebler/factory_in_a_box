@@ -4,7 +4,7 @@
 // roarm.*-Nachrichtentypen (web/generated/ws-protocol.ts) ueber die generischen Sende-/
 // Anfrage-/Abonnement-Helfer aus ws-client.ts -- kein eigenes Wire-Format-Wissen hier.
 import { roarm } from "../../generated/ws-protocol.js";
-import { sendRoArmEvent, roarmRequest, subscribeRoArmEvent } from "../ws-client.js";
+import { sendRoArmEvent, wsRequest, subscribeRoArmEvent } from "../ws-client.js";
 import { JOINT_COUNT, radToCentiDeg, type CartesianPose } from "./roarm-kinematics.js";
 import type { RoArmBackend, MissionStep, StoredMission } from "./roarm-backend.js";
 
@@ -40,7 +40,7 @@ export class WsRoArmBackend implements RoArmBackend {
 
 	async startTeachMode(): Promise<boolean> {
 		try {
-			const resp = await roarmRequest(
+			const resp = await wsRequest(
 				(requestId) => roarm.StartTeachModeRequest.encode({ requestId }),
 				(view) => roarm.StartTeachModeResponse.decode(view, 0),
 			);
@@ -52,7 +52,7 @@ export class WsRoArmBackend implements RoArmBackend {
 
 	async stopTeachMode(): Promise<boolean> {
 		try {
-			const resp = await roarmRequest(
+			const resp = await wsRequest(
 				(requestId) => roarm.StopTeachModeRequest.encode({ requestId }),
 				(view) => roarm.StopTeachModeResponse.decode(view, 0),
 			);
@@ -90,7 +90,7 @@ export class WsRoArmBackend implements RoArmBackend {
 
 	async getMissionGpioNames(): Promise<string[]> {
 		try {
-			const resp = await roarmRequest(
+			const resp = await wsRequest(
 				(requestId) => roarm.GetMissionGpioListRequest.encode({ requestId }),
 				(view) => roarm.GetMissionGpioListResponse.decode(view, 0),
 			);
@@ -102,7 +102,7 @@ export class WsRoArmBackend implements RoArmBackend {
 
 	async listMissions(): Promise<roarm.MissionSummary.Payload[]> {
 		try {
-			const resp = await roarmRequest(
+			const resp = await wsRequest(
 				(requestId) => roarm.ListMissionsRequest.encode({ requestId }),
 				(view) => roarm.ListMissionsResponse.decode(view, 0),
 			);
@@ -114,7 +114,7 @@ export class WsRoArmBackend implements RoArmBackend {
 
 	async getMission(missionIndex: number): Promise<StoredMission | null> {
 		try {
-			const resp = await roarmRequest(
+			const resp = await wsRequest(
 				(requestId) => roarm.GetMissionRequest.encode({ requestId, missionIndex }),
 				(view) => roarm.GetMissionResponse.decode(view, 0),
 			);
@@ -127,7 +127,7 @@ export class WsRoArmBackend implements RoArmBackend {
 
 	async saveMission(missionIndex: number, name: string, steps: MissionStep[]): Promise<{ success: boolean; errorCode: number }> {
 		try {
-			const resp = await roarmRequest(
+			const resp = await wsRequest(
 				(requestId) => roarm.SaveMissionRequest.encode({ requestId, missionIndex, name, steps }),
 				(view) => roarm.SaveMissionResponse.decode(view, 0),
 			);
@@ -139,7 +139,7 @@ export class WsRoArmBackend implements RoArmBackend {
 
 	async deleteMission(missionIndex: number): Promise<boolean> {
 		try {
-			const resp = await roarmRequest(
+			const resp = await wsRequest(
 				(requestId) => roarm.DeleteMissionRequest.encode({ requestId, missionIndex }),
 				(view) => roarm.DeleteMissionResponse.decode(view, 0),
 			);

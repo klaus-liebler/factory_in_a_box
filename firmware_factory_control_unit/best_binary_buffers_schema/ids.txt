@@ -30,3 +30,10 @@ namespace roarm 2
 message tasks.TaskManagerRequest 1
 message tasks.TaskListMessage 2
 namespace tasks 3
+message modbus.GetRegistersRequest 1
+message modbus.RegistersMessage 2
+message modbus.WriteHoldingRequest 3
+message modbus.WriteHoldingResponse 4
+message system.SystemInfoRequest 2
+message system.SystemInfoMessage 3
+namespace modbus 4

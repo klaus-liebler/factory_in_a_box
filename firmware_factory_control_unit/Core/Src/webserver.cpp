@@ -1,12 +1,16 @@
 // ============================================================================
 // Routen-Implementierung fuer den HTTPS/WebSocket-Server (s. webserver.hpp/
-// http_websocket_server.hpp). Bewusst kein JSON auf C++-Seite (weder Parser noch Encoder) --
-// /api/registers liefert alle Register voll binaer (2 Byte Little-Endian je Register, s.
-// register_binary_total_length()), /api/system liefert ein kompaktes festes Binaer-Struct (s.
-// fill_system_info()), das u.a. auch das Ergebnis des einmaligen I2C-Geraete-Scans beim Boot
-// enthaelt (s. PerformBootI2cScans(), aufgerufen aus Io::Setup()), /api/write-holding ist ein
-// GET mit Query-Parametern statt POST+JSON-Body. Unbekannte /api/*-Pfade bekommen automatisch
-// 404 von Http::WebServer (s. dortige DispatchRoute()), jeder andere Pfad die SPA-Shell.
+// http_websocket_server.hpp). Es gibt nur noch EINEN Anwendungskanal: den WebSocket-Endpunkt
+// "/ws" mit dem generierten BestBinaryBuffer-Wire-Format (s. best_binary_buffers_schema/*.cs,
+// Core/generated/ws_protocol.hh) -- Register-Snapshot/-Schreiben (modbus.cs) und Systeminfo inkl.
+// PHY-/I2C-Scan-Daten (system.cs) liefen frueher ueber eigene /api/registers|/api/system|
+// /api/write-holding-REST-Endpunkte, wurden aber auf denselben Kanal wie RoArm/Task-Manager
+// umgestellt (Projektentscheidung "einmalig SPA, dann nur noch binaere WebSockets" -- keine
+// zweite Transportart mehr fuer Anwendungsdaten). Die HTTPS-Seite liefert dementsprechend nur
+// noch die SPA-Shell aus (jeder Pfad faellt auf handle_spa_shell()); ein GET-basierter
+// REST-Client bleibt fuer kuenftige Anwendungen weiterhin moeglich (Http::WebServer unterstuetzt
+// das unveraendert), teilt sich dann aber dieselben wenigen HTTP-Sessions mit dem Browser statt
+// eigene zu reservieren.
 // ============================================================================
 #include <array>
 #include <cstdint>
@@ -24,7 +28,7 @@
 #include "setup_and_loops/roarm_mission_gpio.hh"
 
 // Aus sysmem.c -- gleiche Deklaration wie in io.cpp (FREE_HEAP_KIB-Register) genutzt, hier fuer
-// den free_heap_bytes-Wert in /api/system.
+// system.SystemInfoMessage.freeHeapBytes (s. HandleGetSystemInfo() unten).
 extern "C" size_t GetFreeHeapBytes(void);
 
 // Fuer PerformBootI2cScans() (s. weiter unten) -- dieselben drei Busse, die
@@ -42,52 +46,8 @@ static void write_from_flash_blob(void *context, char *dest, size_t want) {
     *cursor += want;
 }
 
-// Quelle fuer Response::SendStreamed(): alle Holding- (Index 0..HOLDING_REGISTER_MAX_INDEX)
-// dann alle Input-Register (0..INPUT_REGISTER_MAX_INDEX) als rohe 2-Byte-Little-Endian-Werte,
-// ohne jedes Trenn- oder Fuellzeichen -- die Anzahl je Bank ist auf beiden Seiten fix bekannt
-// (register-map.ts exportiert HOLDING_REGISTER_COUNT/INPUT_REGISTER_COUNT dafuer), ein
-// Laengenpraefix oder Trennzeichen erspart sich damit. Little-Endian ist explizit (Low-Byte
-// zuerst geschrieben) statt sich auf die Host-Byte-Order zu verlassen, damit api.ts auf der
-// JS-Seite mit DataView.getUint16(offset, /*littleEndian=*/true) exakt dazu passt.
-struct RegisterBinaryState {
-    Modbus::IModbusRegisterModel *register_model;
-    uint16_t holding_i = 0;
-    uint16_t input_i = 0;
-    uint8_t cell[2] = {0};
-    uint8_t cell_pos = 2;
-};
-
-static size_t register_binary_total_length() {
-    return (size_t)((ModbusRegisters::HOLDING_REGISTER_MAX_INDEX + 1) +
-                    (ModbusRegisters::INPUT_REGISTER_MAX_INDEX + 1)) * 2;
-}
-
-static void refill_register_binary_cell(RegisterBinaryState &st) {
-    uint16_t value;
-    if (st.holding_i <= ModbusRegisters::HOLDING_REGISTER_MAX_INDEX) {
-        value = st.register_model->GetHoldingRegister(st.holding_i);
-        st.holding_i++;
-    } else {
-        value = st.register_model->GetInputRegister(st.input_i);
-        st.input_i++;
-    }
-    st.cell[0] = (uint8_t)(value & 0xFF);
-    st.cell[1] = (uint8_t)(value >> 8);
-    st.cell_pos = 0;
-}
-
-static void write_register_binary_chunk(void *context, char *dest, size_t want) {
-    RegisterBinaryState *st = (RegisterBinaryState *)context;
-    size_t written = 0;
-    while (written < want) {
-        if (st->cell_pos == sizeof(st->cell)) {
-            refill_register_binary_cell(*st);
-        }
-        dest[written++] = (char)st->cell[st->cell_pos++];
-    }
-}
-
-// LAN8742-PHY-Register fuer /api/system (s. SystemInfoState-Layout unten) -- UNVERAENDERT roh
+// LAN8742-PHY-Register fuer die WS-Nachricht system.SystemInfoMessage (s. HandleGetSystemInfo()
+// unten und best_binary_buffers_schema/system.cs) -- UNVERAENDERT roh
 // weitergereicht, ohne jede Bit-Interpretation in C++: das Parsen/Interpretieren (Link-Status,
 // Speed/Duplex, ENERGYON, Auto-MDIX/Polaritaet, TDR-Kabeltyp/-Laenge) passiert im Web-UI
 // (web/src/api.ts/system-info-app.ts), analog zum PWR_*-Registermuster. Passive Reads (BSR/
@@ -161,95 +121,6 @@ static PhyRegisters read_phy_registers() {
     return r;
 }
 
-// Quelle fuer Response::SendStreamed(): ein einmalig (bei GET /api/system) zusammengestelltes,
-// festes Binaer-Struct mit Systeminformationen -- klein genug, um komplett in einen lokalen
-// Stack-Puffer geschrieben und in einem einzigen Chunk gesendet zu werden. Enthaelt bewusst NUR
-// echte Laufzeitwerte -- Firmware-Version, Board-Name, Hostname, Chip-UID und MAC-Adressen sind
-// Compile-Zeit-Konstanten (s. Core/Inc/constants.hh bzw. Core/generated/device_ids.hh) und werden
-// stattdessen einmalig beim Web-Build nach web/generated/build-info.ts eincompiliert (s.
-// builder/Phases/ReadGitStatus.cs) -- keine unnoetige Wire-Uebertragung bei jedem
-// Seitenaufruf. Layout (alle Mehrbyte-Felder Little-Endian, s. RegisterBinaryState-Kommentar
-// oben), von system-info-app.ts per DataView an exakt denselben Offsets wieder ausgelesen:
-//   Offset  Bytes  Feld
-//        0      4  uptime_seconds          (uint32)
-//        4      4  free_heap_bytes         (uint32)
-//        8      4  ip_address              (4x uint8, MSB-Oktett zuerst, wie IP_ADDR_FMT_ARGS)
-//       12      4  net_mask                (4x uint8, MSB-Oktett zuerst)
-//       16      1  reset_cause_code        (uint8, s. App::ResetCauseCode())
-//       17      1  phy_read_ok             (uint8 0/1, s. PhyRegisters::read_ok -- false: alle
-//                                            phy_*-Felder unten bedeutungslos)
-//       18      1  phy_tdr_available       (uint8 0/1, s. PhyRegisters::tdr_available -- false:
-//                                            phy_tcsr/phy_clr bedeutungslos)
-//       19      2  phy_bsr                 (uint16, LAN8742_BSR -- roh, Interpretation im Web-UI)
-//       21      2  phy_physcsr             (uint16, LAN8742_PHYSCSR -- roh)
-//       23      2  phy_mcsr                (uint16, LAN8742_MCSR -- roh)
-//       25      2  phy_secr                (uint16, LAN8742_SECR -- roh, s. read_phy_registers()-
-//                                            Kommentar zum Selbst-Loeschen beim Lesen)
-//       27      2  phy_scsir               (uint16, LAN8742_SCSIR -- roh)
-//       29      2  phy_tcsr                (uint16, LAN8742_TCSR nach TDR-Trigger -- roh)
-//       31      2  phy_clr                 (uint16, LAN8742_CLR -- roh)
-//       33     16  i2c1_scan               (Bitfeld, s. App::i2c1_scan)
-//       49     16  i2c2_scan               (Bitfeld, s. App::i2c2_scan)
-//       65     16  i2c4_scan               (Bitfeld, s. App::i2c4_scan)
-//       81          Gesamtlaenge
-struct SystemInfoState {
-    uint8_t buffer[81];
-    size_t pos = 0;
-};
-
-static void put_u16(uint8_t *dest, uint16_t v) {
-    dest[0] = (uint8_t)(v & 0xFF);
-    dest[1] = (uint8_t)(v >> 8);
-}
-
-static void put_u32(uint8_t *dest, uint32_t v) {
-    dest[0] = (uint8_t)(v & 0xFF);
-    dest[1] = (uint8_t)((v >> 8) & 0xFF);
-    dest[2] = (uint8_t)((v >> 16) & 0xFF);
-    dest[3] = (uint8_t)((v >> 24) & 0xFF);
-}
-
-static void put_ip_octets(uint8_t *dest, ULONG addr) {
-    dest[0] = (uint8_t)((addr >> 24) & 0xFF);
-    dest[1] = (uint8_t)((addr >> 16) & 0xFF);
-    dest[2] = (uint8_t)((addr >> 8) & 0xFF);
-    dest[3] = (uint8_t)(addr & 0xFF);
-}
-
-static void fill_system_info(SystemInfoState &st) {
-    App &app = App::Instance();
-    uint8_t *p = st.buffer;
-
-    put_u32(p + 0, (uint32_t)(tx_time_get() / TX_TIMER_TICKS_PER_SECOND));
-    put_u32(p + 4, (uint32_t)GetFreeHeapBytes());
-    put_ip_octets(p + 8, app.ip_address);
-    put_ip_octets(p + 12, app.net_mask);
-    p[16] = app.ResetCauseCode();
-
-    PhyRegisters phy = read_phy_registers();
-    p[17] = phy.read_ok ? 1 : 0;
-    p[18] = phy.tdr_available ? 1 : 0;
-    put_u16(p + 19, phy.bsr);
-    put_u16(p + 21, phy.physcsr);
-    put_u16(p + 23, phy.mcsr);
-    put_u16(p + 25, phy.secr);
-    put_u16(p + 27, phy.scsir);
-    put_u16(p + 29, phy.tcsr);
-    put_u16(p + 31, phy.clr);
-
-    memcpy(p + 33, app.i2c1_scan, 16);
-    memcpy(p + 49, app.i2c2_scan, 16);
-    memcpy(p + 65, app.i2c4_scan, 16);
-
-    st.pos = 0;
-}
-
-static void write_system_info_chunk(void *context, char *dest, size_t want) {
-    SystemInfoState *st = (SystemInfoState *)context;
-    memcpy(dest, st->buffer + st->pos, want);
-    st->pos += want;
-}
-
 // Einmaliger I2C-Geraete-Scan beim Boot (s. webserver.hpp PerformBootI2cScans() fuer die
 // Begruendung: ein per HTTP ausgeloester Scan schlug wiederholt fehl -- Verdacht auf
 // Netzwerk-Interruptlast waehrend der laufenden Anfrage, s. Commit 72033d9 "cross-peripheral
@@ -313,61 +184,97 @@ void PerformBootI2cScans() {
     scan_i2c_bus(4, &hi2c4, app.i2c4_scan);
 }
 
-// Sucht "key=value" in einer "&"-getrennten Query-String (s. /api/write-holding) und liefert den
-// Wert als vorzeichenlose Ganzzahl. Ersetzt das bisherige nx_web_http_server_query_get()
-// (dessen HTTP-Server-spezifische API mit dem neuen Http::WebServer entfaellt) durch eine
-// schlanke eigene Suche direkt auf dem bereits '\0'-terminierten Request::query-String.
-static bool find_query_uint(const char *query, const char *key, unsigned int *out_value) {
-    if (!query) return false;
-    size_t key_len = strlen(key);
-    const char *p = query;
-    while (*p) {
-        const char *eq = strchr(p, '=');
-        if (!eq) return false;
-        size_t name_len = (size_t)(eq - p);
-        const char *amp = strchr(eq, '&');
-        size_t value_len = amp ? (size_t)(amp - eq - 1) : strlen(eq + 1);
+// Nachfolger der frueheren GET /api/registers|/api/write-holding|/api/system REST-Endpunkte --
+// jetzt ueber denselben binaeren WebSocket-Kanal wie RoArm/Task-Manager (s. best_binary_buffers_
+// schema/modbus.cs, system.cs). Alle drei Puffer sind lokale Stack-Variablen (kein eigener
+// globaler Scratch-Puffer wie bei den RoArm-Handlern noetig): der Webserver-Thread hat 16 KB
+// Stack (SERVER_STACK, net_setup.cpp) und die groesste hier kodierte Nachricht
+// (RegistersMessage_MAX_SIZE) liegt bei unter 1 KB.
+void HandleGetRegisters(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::modbus::GetRegistersRequest::Payload req{};
+    if (!WsProtocol::modbus::GetRegistersRequest::Decode(data, len, req)) return;
+    Modbus::IModbusRegisterModel *model = App::Instance().register_model;
 
-        if (name_len == key_len && strncmp(p, key, key_len) == 0) {
-            char buf[24] = {0};
-            if (value_len >= sizeof(buf)) value_len = sizeof(buf) - 1;
-            memcpy(buf, eq + 1, value_len);
-            buf[value_len] = '\0';
-            *out_value = (unsigned int)strtoul(buf, nullptr, 10);
-            return true;
-        }
+    constexpr size_t kHoldingCount = (size_t)ModbusRegisters::HOLDING_REGISTER_MAX_INDEX + 1;
+    constexpr size_t kInputCount = (size_t)ModbusRegisters::INPUT_REGISTER_MAX_INDEX + 1;
+    uint8_t holdingBytes[kHoldingCount * WsProtocol::modbus::RegistersMessageHolding_ELEMENT_SIZE];
+    uint8_t inputBytes[kInputCount * WsProtocol::modbus::RegistersMessageInput_ELEMENT_SIZE];
 
-        p = amp ? amp + 1 : eq + 1 + value_len;
+    size_t holdingPos = 0;
+    for (uint16_t i = 0; i < kHoldingCount; i++) {
+        holdingPos += WsProtocol::modbus::EncodeRegistersMessageHoldingElement(
+            model->GetHoldingRegister(i), holdingBytes + holdingPos, sizeof(holdingBytes) - holdingPos);
     }
-    return false;
-}
-
-static void handle_registers(void *, const Http::Request &, Http::Response &resp) {
-    RegisterBinaryState state;
-    state.register_model = App::Instance().register_model;
-    resp.SendStreamed(200, "application/octet-stream", nullptr,
-                       register_binary_total_length(), write_register_binary_chunk, &state);
-}
-
-static void handle_system(void *, const Http::Request &, Http::Response &resp) {
-    SystemInfoState state;
-    fill_system_info(state);
-    resp.SendStreamed(200, "application/octet-stream", nullptr,
-                       sizeof(state.buffer), write_system_info_chunk, &state);
-}
-
-static void handle_write_holding(void *, const Http::Request &req, Http::Response &resp) {
-    unsigned int address = 0, value = 0;
-    const char *response_text = "ERROR";
-
-    if (find_query_uint(req.query, "address", &address) &&
-        find_query_uint(req.query, "value", &value) &&
-        address <= ModbusRegisters::HOLDING_REGISTER_MAX_INDEX && value <= UINT16_MAX) {
-        App::Instance().register_model->SetHoldingRegister((uint16_t)address, (uint16_t)value);
-        response_text = "OK";
+    size_t inputPos = 0;
+    for (uint16_t i = 0; i < kInputCount; i++) {
+        inputPos += WsProtocol::modbus::EncodeRegistersMessageInputElement(
+            model->GetInputRegister(i), inputBytes + inputPos, sizeof(inputBytes) - inputPos);
     }
 
-    resp.SendFixed(200, "OK", "text/plain", nullptr, (const uint8_t *)response_text, strlen(response_text));
+    WsProtocol::modbus::RegistersMessage::Payload resp{};
+    resp.requestId = req.requestId;
+    resp.holdingData = holdingBytes;
+    resp.holdingCount = kHoldingCount;
+    resp.inputData = inputBytes;
+    resp.inputCount = kInputCount;
+    uint8_t buf[WsProtocol::modbus::RegistersMessage::RegistersMessage_MAX_SIZE];
+    size_t n = WsProtocol::modbus::RegistersMessage::Encode(resp, buf, sizeof(buf));
+    if (n > 0) conn.SendBinary(buf, n);
+}
+
+void HandleWriteHolding(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::modbus::WriteHoldingRequest::Payload req{};
+    if (!WsProtocol::modbus::WriteHoldingRequest::Decode(data, len, req)) return;
+
+    WsProtocol::modbus::WriteHoldingResponse::Payload resp{};
+    resp.requestId = req.requestId;
+    resp.success = req.address <= ModbusRegisters::HOLDING_REGISTER_MAX_INDEX;
+    if (resp.success) {
+        App::Instance().register_model->SetHoldingRegister(req.address, req.value);
+    }
+    uint8_t buf[WsProtocol::modbus::WriteHoldingResponse::WriteHoldingResponse_MAX_SIZE];
+    size_t n = WsProtocol::modbus::WriteHoldingResponse::Encode(resp, buf, sizeof(buf));
+    if (n > 0) conn.SendBinary(buf, n);
+}
+
+void HandleGetSystemInfo(Http::WebSocketConnection &conn, const uint8_t *data, size_t len) {
+    WsProtocol::system::SystemInfoRequest::Payload req{};
+    if (!WsProtocol::system::SystemInfoRequest::Decode(data, len, req)) return;
+    App &app = App::Instance();
+
+    WsProtocol::system::SystemInfoMessage::Payload resp{};
+    resp.requestId = req.requestId;
+    resp.uptimeSeconds = (uint32_t)(tx_time_get() / TX_TIMER_TICKS_PER_SECOND);
+    resp.freeHeapBytes = (uint32_t)GetFreeHeapBytes();
+    // MSB-Oktett zuerst, wie IP_ADDR_FMT_ARGS -- s. best_binary_buffers_schema/system.cs.
+    resp.ipAddress[0] = (uint8_t)((app.ip_address >> 24) & 0xFF);
+    resp.ipAddress[1] = (uint8_t)((app.ip_address >> 16) & 0xFF);
+    resp.ipAddress[2] = (uint8_t)((app.ip_address >> 8) & 0xFF);
+    resp.ipAddress[3] = (uint8_t)(app.ip_address & 0xFF);
+    resp.netMask[0] = (uint8_t)((app.net_mask >> 24) & 0xFF);
+    resp.netMask[1] = (uint8_t)((app.net_mask >> 16) & 0xFF);
+    resp.netMask[2] = (uint8_t)((app.net_mask >> 8) & 0xFF);
+    resp.netMask[3] = (uint8_t)(app.net_mask & 0xFF);
+    resp.resetCauseCode = app.ResetCauseCode();
+
+    PhyRegisters phy = read_phy_registers();
+    resp.phy.readOk = phy.read_ok;
+    resp.phy.tdrAvailable = phy.tdr_available;
+    resp.phy.bsr = phy.bsr;
+    resp.phy.physcsr = phy.physcsr;
+    resp.phy.mcsr = phy.mcsr;
+    resp.phy.secr = phy.secr;
+    resp.phy.scsir = phy.scsir;
+    resp.phy.tcsr = phy.tcsr;
+    resp.phy.clr = phy.clr;
+
+    memcpy(resp.i2c1Scan, app.i2c1_scan, 16);
+    memcpy(resp.i2c2Scan, app.i2c2_scan, 16);
+    memcpy(resp.i2c4Scan, app.i2c4_scan, 16);
+
+    uint8_t buf[WsProtocol::system::SystemInfoMessage::SystemInfoMessage_MAX_SIZE];
+    size_t n = WsProtocol::system::SystemInfoMessage::Encode(resp, buf, sizeof(buf));
+    if (n > 0) conn.SendBinary(buf, n);
 }
 
 // Liefert fuer "/" UND jeden Client-seitigen Router-Pfad (s. web/src/shell/router.ts -- History-
@@ -621,6 +528,21 @@ static void handle_ws_message(void *, Http::WebSocketConnection &conn, bool is_b
             }
             return;
         }
+
+        if (namespace_id == WsProtocol::modbus::NAMESPACE_ID) {
+            switch (type_id) {
+            case WsProtocol::modbus::GetRegistersRequest::TYPE_ID: HandleGetRegisters(conn, data, len); break;
+            case WsProtocol::modbus::WriteHoldingRequest::TYPE_ID: HandleWriteHolding(conn, data, len); break;
+            default: break;
+            }
+            return;
+        }
+
+        if (namespace_id == WsProtocol::system::NAMESPACE_ID &&
+            type_id == WsProtocol::system::SystemInfoRequest::TYPE_ID) {
+            HandleGetSystemInfo(conn, data, len);
+            return;
+        }
     }
 
     if (is_binary) {
@@ -654,9 +576,6 @@ void RoArmBroadcastPoseFeedbackIfDue(uint32_t now) {
 }
 
 void webserver_register_routes(Http::WebServer &server) {
-    server.RegisterRoute(Http::Method::GET, "/api/registers", true, handle_registers, nullptr);
-    server.RegisterRoute(Http::Method::GET, "/api/system", true, handle_system, nullptr);
-    server.RegisterRoute(Http::Method::GET, "/api/write-holding", true, handle_write_holding, nullptr);
     server.SetDefaultHandler(handle_spa_shell, nullptr);
 
     server.SetWebSocketPath("/ws");

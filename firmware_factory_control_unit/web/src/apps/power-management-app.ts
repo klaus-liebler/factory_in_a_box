@@ -2,7 +2,7 @@ import { LitElement, html } from "lit";
 import { customElement, state, query } from "lit/decorators.js";
 import "../styles.css";
 import { REGIONS, type RegisterDef } from "../../generated/register-map.js";
-import { fetchRegisters, type RegisterValues } from "../api.js";
+import { fetchRegisters, type RegisterValues } from "../registers.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { drawLineChart } from "./line-chart.js";
 

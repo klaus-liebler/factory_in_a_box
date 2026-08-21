@@ -10,10 +10,12 @@
 // - system.LogMessage: reiner Server->Client-Log-Spiegel (kein Senden noetig).
 // - tasks.TaskListMessage (Antwort auf tasks.TaskManagerRequest, s. sendBinary()/
 //   setTaskListListener() unten, genutzt von web/src/apps/task-manager-app.ts).
-// - roarm.* Request/Response (StartTeachMode, Mission-CRUD, ...): das generierte Payload traegt
-//   als ERSTES Feld immer requestId (uint16, direkt hinter dem 4-Byte-Kopf) -- roarmRequest()
-//   nutzt das aus, um eine Antwort anhand ihrer requestId dem wartenden Promise zuzuordnen,
-//   unabhaengig vom konkreten Nachrichtentyp.
+// - Request/Response (roarm.* wie StartTeachMode/Mission-CRUD, modbus.* wie GetRegisters/
+//   WriteHolding, system.SystemInfoRequest/-Message): das generierte Payload traegt als ERSTES
+//   Feld immer requestId (uint16, direkt hinter dem 4-Byte-Kopf) -- wsRequest() nutzt das aus, um
+//   eine Antwort anhand ihrer requestId dem wartenden Promise zuzuordnen, unabhaengig vom
+//   konkreten Namespace/Nachrichtentyp (der gemeinsame requestId-Zaehler/pendingRequests-Map ist
+//   bewusst NICHT nach Namespace aufgeteilt).
 // - roarm.* Events (JointJogTarget/CartesianJogTarget als Client->Firmware, PoseFeedback als
 //   Firmware->Client): kein Umlauf/keine requestId -- sendRoArmEvent() fuers Senden,
 //   subscribeRoArmEvent() fuers laufende Empfangen (z.B. PoseFeedback waehrend Teach-Modus).
@@ -83,33 +85,92 @@ let nextRequestId = 1;
 const pendingRequests = new Map<number, { resolve: (view: DataView) => void; reject: (err: Error) => void; timer: number }>();
 const eventSubscribers = new Map<number, Set<(view: DataView) => void>>(); // key = typeId innerhalb roarm.NAMESPACE_ID
 
-function handleRoarmMessage(view: DataView, typeId: number): void {
-	const responseTypeIds: ReadonlySet<number> = new Set([
-		WsProtocol.roarm.StartTeachModeResponse.TYPE_ID,
-		WsProtocol.roarm.StopTeachModeResponse.TYPE_ID,
-		WsProtocol.roarm.ListMissionsResponse.TYPE_ID,
-		WsProtocol.roarm.GetMissionResponse.TYPE_ID,
-		WsProtocol.roarm.SaveMissionResponse.TYPE_ID,
-		WsProtocol.roarm.DeleteMissionResponse.TYPE_ID,
-		WsProtocol.roarm.GetMissionGpioListResponse.TYPE_ID,
-	]);
-
-	if (responseTypeIds.has(typeId)) {
-		// requestId liegt bei JEDER Response-Nachricht an derselben Stelle (erstes Feld nach dem
-		// 4-Byte-Kopf, s. Dateikommentar) -- generische Zuordnung ohne nachrichtentypspezifischen Code.
-		const requestId = view.getUint16(4, true);
-		const pending = pendingRequests.get(requestId);
-		if (pending) {
-			pendingRequests.delete(requestId);
-			clearTimeout(pending.timer);
-			pending.resolve(view);
-		}
-		return;
+// requestId liegt bei JEDER Response-Nachricht an derselben Stelle (erstes Feld nach dem 4-Byte-
+// Kopf, s. Dateikommentar) -- generische Zuordnung ohne nachrichtentyp-/namespacespezifischen Code.
+function resolvePendingRequest(view: DataView): void {
+	const requestId = view.getUint16(4, true);
+	const pending = pendingRequests.get(requestId);
+	if (pending) {
+		pendingRequests.delete(requestId);
+		clearTimeout(pending.timer);
+		pending.resolve(view);
 	}
+}
 
-	const subscribers = eventSubscribers.get(typeId);
-	if (subscribers) {
-		for (const cb of subscribers) cb(view);
+// Je Namespace EIN Handler, intern per switch/case auf messageTypeId verzweigend, mit
+// einheitlichem "unbekannter Typ"-Logging im default-Zweig -- s. handleMessage() fuer die
+// namespaceId-Ebene, die nach demselben Muster aufgebaut ist.
+
+function handleSystemMessage(view: DataView, typeId: number, data: ArrayBuffer): void {
+	switch (typeId) {
+		case WsProtocol.system.LogMessage.TYPE_ID:
+			try {
+				const msg = WsProtocol.system.LogMessage.decode(view, 0);
+				// Nachrichtentext bewusst als ERSTES Argument (nicht der Zeitstempel-Praefix davor) --
+				// eine lange Millisekundenzahl vor dem Text liess die ersten Zeichen der eigentlichen
+				// Meldung in der Konsole abgeschnitten wirken, s. Feedback.
+				consoleFnForLevel(msg.level)(msg.text, `(t=${msg.timestampMs}ms)`);
+			} catch (error) {
+				console.warn(`[diag] WS LogMessage decode FAILED: ${(error as Error).message}`, `frame length=${data.byteLength} bytes`, `\nhex=${hexDump(data)}`);
+			}
+			return;
+		case WsProtocol.system.SystemInfoMessage.TYPE_ID:
+			resolvePendingRequest(view);
+			return;
+		default:
+			console.debug(`WebSocket: unbekannte system-Nachricht typeId=${typeId}`);
+	}
+}
+
+function handleRoarmMessage(view: DataView, typeId: number): void {
+	switch (typeId) {
+		case WsProtocol.roarm.StartTeachModeResponse.TYPE_ID:
+		case WsProtocol.roarm.StopTeachModeResponse.TYPE_ID:
+		case WsProtocol.roarm.ListMissionsResponse.TYPE_ID:
+		case WsProtocol.roarm.GetMissionResponse.TYPE_ID:
+		case WsProtocol.roarm.SaveMissionResponse.TYPE_ID:
+		case WsProtocol.roarm.DeleteMissionResponse.TYPE_ID:
+		case WsProtocol.roarm.GetMissionGpioListResponse.TYPE_ID:
+			resolvePendingRequest(view);
+			return;
+		default: {
+			// Kein Request/Response, sondern ein Event (JointJogTarget/CartesianJogTarget als
+			// Client->Firmware werden hier nie ankommen; PoseFeedback als Firmware->Client schon) --
+			// s. subscribeRoArmEvent() unten.
+			const subscribers = eventSubscribers.get(typeId);
+			if (subscribers) {
+				for (const cb of subscribers) cb(view);
+			} else {
+				console.debug(`WebSocket: unbekannte roarm-Nachricht typeId=${typeId}`);
+			}
+		}
+	}
+}
+
+function handleModbusMessage(view: DataView, typeId: number): void {
+	switch (typeId) {
+		case WsProtocol.modbus.RegistersMessage.TYPE_ID:
+		case WsProtocol.modbus.WriteHoldingResponse.TYPE_ID:
+			resolvePendingRequest(view);
+			return;
+		default:
+			console.debug(`WebSocket: unbekannte modbus-Nachricht typeId=${typeId}`);
+	}
+}
+
+function handleTasksMessage(view: DataView, typeId: number): void {
+	switch (typeId) {
+		case WsProtocol.tasks.TaskListMessage.TYPE_ID:
+			if (taskListListener) {
+				try {
+					taskListListener(WsProtocol.tasks.TaskListMessage.decode(view, 0));
+				} catch (error) {
+					console.warn(`WS TaskListMessage decode fehlgeschlagen: ${(error as Error).message}`);
+				}
+			}
+			return;
+		default:
+			console.debug(`WebSocket: unbekannte tasks-Nachricht typeId=${typeId}`);
 	}
 }
 
@@ -122,39 +183,21 @@ function handleMessage(data: ArrayBuffer): void {
 	const namespaceId = view.getUint16(0, true);
 	const messageTypeId = view.getUint16(2, true);
 
-	if (namespaceId === WsProtocol.system.NAMESPACE_ID && messageTypeId === WsProtocol.system.LogMessage.TYPE_ID) {
-		try {
-			const msg = WsProtocol.system.LogMessage.decode(view, 0);
-			// Nachrichtentext bewusst als ERSTES Argument (nicht der Zeitstempel-Praefix davor) --
-			// eine lange Millisekundenzahl vor dem Text liess die ersten Zeichen der eigentlichen
-			// Meldung in der Konsole abgeschnitten wirken, s. Feedback.
-			consoleFnForLevel(msg.level)(msg.text, `(t=${msg.timestampMs}ms)`);
-		} catch (error) {
-			console.warn(`[diag] WS LogMessage decode FAILED: ${(error as Error).message}`, `frame length=${data.byteLength} bytes`, `\nhex=${hexDump(data)}`);
-		}
-		return;
+	switch (namespaceId) {
+		case WsProtocol.system.NAMESPACE_ID:
+			return handleSystemMessage(view, messageTypeId, data);
+		case WsProtocol.roarm.NAMESPACE_ID:
+			return handleRoarmMessage(view, messageTypeId);
+		case WsProtocol.modbus.NAMESPACE_ID:
+			return handleModbusMessage(view, messageTypeId);
+		case WsProtocol.tasks.NAMESPACE_ID:
+			return handleTasksMessage(view, messageTypeId);
+		default:
+			// Unbekannte namespaceId -- z.B. eine neuere Firmware-Version mit einer Nachricht, die
+			// dieser Web-UI-Build noch nicht kennt. Bewusst nur geloggt statt geworfen, damit ein
+			// einzelner unbekannter Nachrichtentyp nicht die ganze Verbindung stoert.
+			console.debug(`WebSocket: unbekannte Nachricht namespaceId=${namespaceId} messageTypeId=${messageTypeId}`);
 	}
-
-	if (namespaceId === WsProtocol.roarm.NAMESPACE_ID) {
-		handleRoarmMessage(view, messageTypeId);
-		return;
-	}
-
-	if (namespaceId === WsProtocol.tasks.NAMESPACE_ID && messageTypeId === WsProtocol.tasks.TaskListMessage.TYPE_ID) {
-		if (taskListListener) {
-			try {
-				taskListListener(WsProtocol.tasks.TaskListMessage.decode(view, 0));
-			} catch (error) {
-				console.warn(`WS TaskListMessage decode fehlgeschlagen: ${(error as Error).message}`);
-			}
-		}
-		return;
-	}
-
-	// Unbekannte (namespaceId, messageTypeId)-Kombination -- z.B. eine neuere Firmware-Version
-	// mit einer Nachricht, die dieser Web-UI-Build noch nicht kennt. Bewusst nur geloggt statt
-	// geworfen, damit ein einzelner unbekannter Nachrichtentyp nicht die ganze Verbindung stoert.
-	console.debug(`WebSocket: unbekannte Nachricht namespaceId=${namespaceId} messageTypeId=${messageTypeId}`);
 }
 
 function connect(): void {
@@ -194,10 +237,11 @@ export function sendRoArmEvent(bytes: Uint8Array): void {
 	socket?.send(bytes);
 }
 
-/** Request/Response mit generischer requestId-Zuordnung (s. Dateikommentar). 'encode' bekommt die
- * vom Aufrufer zu verwendende requestId (in das Payload-Objekt einzusetzen, bevor encode()
- * aufgerufen wird) und muss die fertigen Frame-Bytes zurueckgeben. */
-export function roarmRequest<TPayload>(requestId_encode: (requestId: number) => Uint8Array, decode: (view: DataView) => TPayload): Promise<TPayload> {
+/** Request/Response mit generischer requestId-Zuordnung (s. Dateikommentar), namespace-
+ * unabhaengig (roarm, modbus und system.SystemInfoRequest nutzen dieselbe Funktion). 'encode'
+ * bekommt die vom Aufrufer zu verwendende requestId (in das Payload-Objekt einzusetzen, bevor
+ * encode() aufgerufen wird) und muss die fertigen Frame-Bytes zurueckgeben. */
+export function wsRequest<TPayload>(requestId_encode: (requestId: number) => Uint8Array, decode: (view: DataView) => TPayload): Promise<TPayload> {
 	return new Promise((resolve, reject) => {
 		if (!socket || socket.readyState !== WebSocket.OPEN) {
 			reject(new Error("WebSocket nicht verbunden"));

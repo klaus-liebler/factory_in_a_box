@@ -31,7 +31,11 @@ namespace opcua {
 
 class OpcUaTcpServer {
 public:
-    static constexpr UINT MAX_SESSIONS = 4;
+    // War 4 (generisch bemessen); dieses Geraet erwartet real hoechstens einen einzelnen
+    // gleichzeitigen OPC-UA-Client (Engineering-Tool wie UAExpert oder ein SCADA-Poller, s.
+    // Projektentscheidung) -- 16,4 KB SessionState je Slot (RAW_BUFFER_SIZE*2), auf das
+    // tatsaechlich erwartete Nutzungsmuster verkleinert statt generisch vorzuhalten.
+    static constexpr UINT MAX_SESSIONS = 1;
     // Matches Connection::SEND_BUFFER_SIZE and the buffer sizes offered in Acknowledge --
     // must stay large enough for this server's biggest single response (currently: a Browse
     // result over the whole address space, comfortably under a few KB).

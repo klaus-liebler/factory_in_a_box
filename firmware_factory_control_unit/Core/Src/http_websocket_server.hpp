@@ -254,19 +254,17 @@ using WebSocketCloseHandler = void (*)(void *context, WebSocketConnection &conne
 
 class WebServer {
 public:
-    // War 3 (1 serielle HTTP-Verbindung + 2 gleichzeitige WebSocket-Verbindungen, s.
-    // Projektanforderung) -- zu knapp fuer echten Betrieb: ein einzelner Browser-Tab belegt
-    // bereits 2 der 3 Sessions (1 HTTP-Keep-Alive fuers Registerpolling + 1 WebSocket fuer den
-    // Log-Spiegel), sodass JEDE weitere gleichzeitige Verbindung (Reload waehrend die alte
-    // Session noch abbaut, zweiter Tab, ...) sofort scheitert. Live beobachtet 2026-08-19:
-    // wiederholte Testverbindungen (curl/openssl/Python) fuehrten zu haeufigen Connect-Timeouts
-    // und kaputten Antworten, konsistent mit einer erschoepften/evtl. leckenden Session-Tabelle
-    // im vendorierten nx_tcpserver (addons/web/nx_tcpserver.c, nicht projekteigen). Auf 6 erhoeht
-    // als guenstige Absicherung (RAM hat reichlich Reserve) -- behebt eine tatsaechliche
-    // Leckage in der Drittanbieter-Bibliothek nicht grundsaetzlich, vergroessert aber deutlich
-    // den Puffer, bevor sie sich bemerkbar macht.
-    static constexpr UINT MAX_SESSIONS = 6;
-    static constexpr UINT MAX_WEBSOCKET_CONNECTIONS = 2;
+    // War zwischenzeitlich 6 (1 serielle HTTP-Verbindung + bis zu 2 gleichzeitige WebSockets,
+    // plus Sicherheitsmarge gegen einen 2026-08-19 vermuteten Session-Tabellen-Leck im
+    // vendorierten nx_tcpserver, s. Commit-Historie) -- seither auf das Projektziel "einmalig
+    // SPA, danach GENAU EIN WebSocket" praezisiert: die Web-App haelt dauerhaft nur 1 WS-
+    // Verbindung, ein kuenftiger REST-Client teilt sich die verbleibenden Sessions mit dem
+    // Browser statt eigene zu reservieren. 2 Sessions = 1 WS-Slot + 1 freier HTTP-Slot fuer
+    // kurze Anfragen (Seitenaufruf, REST). Falls der 2026-08-19 vermutete nx_tcpserver-Leck-
+    // Effekt (haeufige Connect-Timeouts bei wiederholten Testverbindungen) bei dieser engeren
+    // Grenze erneut auftritt, hier zuerst nachsehen, bevor MAX_SESSIONS wieder erhoeht wird.
+    static constexpr UINT MAX_SESSIONS = 2;
+    static constexpr UINT MAX_WEBSOCKET_CONNECTIONS = 1;
     static constexpr size_t RAW_BUFFER_SIZE = 4096;
     static constexpr size_t MAX_HEADERS = 24;
     static constexpr size_t MAX_ROUTES = 16;

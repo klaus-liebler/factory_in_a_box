@@ -1,606 +1,504 @@
-// 3D-Modell des RoArm-M3 auf Basis von OGL (npm-Paket "ogl" -- s. Plan Abschnitt 9), an MoveIt2/
-// RViz' MotionPlanning-Anzeige angelehnt: heller Armkoerper mit dunklen Gelenkgehaeusen (statt
-// bunter Balken) plus ein 6-DOF-Interactive-Marker-Gizmo am Werkzeugkopf (3 RGB-Translationspfeile
-// + 2 Dreh-Ringe fuer Pitch/Roll -- KEIN dritter Ring fuer "Yaw am Kopf": dieser Arm hat dort
-// kinematisch keinen unabhaengigen 3. Rotationsfreiheitsgrad, die Werkzeug-Ausrichtung um die
-// Welt-Z-Achse ergibt sich zwingend aus der Basis-Drehung zur Zielposition, s.
-// roarm-kinematics.ts InverseKinematics()) plus je einen Dreh-Ring an jedem Gelenk der Kette.
+// 3D-Modell des RoArm-M3 auf Basis der echten Waveshare-URDF-Meshes (s. web/tools/roarm-meshes/,
+// robot-data.ts ist generiert -- Herkunft/Dekimierung dort dokumentiert) statt eines programmatisch
+// aus Primitiven aufgebauten Modells. IK, Gizmo (Canvas2D-Overlay ueber dem WebGL-Canvas) und die
+// Orbit/Pan/Dolly-Kamera sind ein direkter Port aus dem vom Nutzer bereits validierten Prototyp
+// C:\repos\playground\robot_ui_programmatic (Kinematik/IK) bzw. C:\repos\playground\robot_ui
+// (Mesh-Rendering, Vakuum-Sauggreifer-Endeffektor -- die reale Hardware traegt einen einfachen
+// Vakuum-Sauger statt des mechanischen Zangen-Greifers, s. primitives.ts' makeVacuumCup()).
 //
-// Die Verschachtelung der Transform-Knoten macht die eigentliche Vorwaertskinematik implizit
-// (jede Rotation/Translation vererbt sich an die Kinder) -- fuers Rendering wird keine der Formeln
-// aus roarm-kinematics.ts gebraucht, nur dieselben Linklaengen.
-//
-// Interaktion: Klick+Drag auf einen Gelenk-Ring dreht dieses eine Gelenk (Drag-Richtung = Tangente
-// der Rotationskreisbahn, aus Kamerablickrichtung projiziert, s. onPointerDown()); Klick+Drag auf
-// einen der 3 Kopf-Pfeile verschiebt die Werkzeugspitze entlang genau dieser einen Weltachse
-// (klassische Translations-Gizmo-Technik); Klick+Drag auf den Pitch-/Roll-Ring am Kopf dreht die
-// Werkzeug-Ausrichtung um genau diese Achse (dieselbe Tangenten-Technik wie bei den Gelenk-Ringen).
-// Jedes interaktive Element hat zusaetzlich einen unsichtbaren, groesseren "Hit-Proxy" (separates,
-// nicht gerendertes Mesh nur fuers Raycasting, s. hitProxySphere()/hitProxyCylinder()) -- ohne den
-// war das sichtbar duenne Ring-/Pfeil-Geometrie in der Praxis kaum zuverlaessig zu treffen.
-// Die tatsaechliche Umrechnung in Gelenkwinkel/kartesische IK-Ziele passiert NICHT hier, sondern im
-// Aufrufer (roarm-teach-app.ts) -- dieses Modul liefert nur rohe Deltas (Winkel bzw.
-// Szenen-Einheiten-Vektor), um kinematikfrei zu bleiben.
-import { Renderer, Camera, Transform, Mesh, Program, Cylinder, Torus, Sphere, Orbit, Vec3, Raycast } from "ogl";
-import { JOINT_COUNT } from "./roarm-kinematics.js";
+// Anders als das alte, primitivbasierte Modell laeuft die IK jetzt clientseitig (roarm3d/ik.ts,
+// geschlossene, nicht-iterative 3R-Planar-Loesung): der Gizmo zieht ein Ziel (Position + Tilt-Summe
+// bzw. Roll), jeder Frame loest solveIK() frisch dagegen und liefert die vollen Gelenkwinkel der
+// Kette. Der Aufrufer (roarm-teach-app.ts) bekommt ueber onJointAnglesPreview() nur noch fertige
+// Winkel (rad, direkt kompatibel mit roarm-kinematics.ts' Konvention -- selbe Linklaengen, selbe
+// Z-up-Achse, nur m statt mm) -- keine Szeneneinheiten-Umrechnung mehr noetig (die alte
+// SCENE_UNITS_PER_MM/sceneDeltaToKinematicsMm-Naeherung mit dokumentierter 10-15%-Abweichung faellt
+// damit komplett weg). Die tatsaechliche Bewegungsausfuehrung bleibt Sache des Backends (Firmware
+// bzw. Mock) -- der Gizmo-Drag ist weiterhin nur Eingabemethode, nicht Autoritaet ueber die exakte
+// Position.
+import { JOINT_COUNT } from './roarm-kinematics.js'
+import type { Vec3, Pose, Quat } from './roarm3d/math.js'
+import { add, clamp, quatFromAxisAngle, quatLookAt, quatMultiply, rotateVec3, sub, transformPoint } from './roarm3d/math.js'
+import { CHAIN, MESHES } from './roarm3d/robot-data.js'
+import { defaultAngles, forwardKinematics, type JointAngles } from './roarm3d/kinematics.js'
+import { solveIK, tiltSum, limitProximity } from './roarm3d/ik.js'
+import { Renderer as Overlay2D, makeGrid, type Camera as AppCamera } from './roarm3d/renderer.js'
+import { OglRenderer, type PartHandle } from './roarm3d/oglRenderer.js'
+import { Gizmo } from './roarm3d/gizmo.js'
+import { makeVacuumCup, VACUUM_CUP_TIP_OFFSET_M, makeBox, TRANSPORTED_CUBE_SIZE_M } from './roarm3d/primitives.js'
+import { createViewCube, type ViewCubeHandle } from './roarm3d/view-cube.js'
+import { createToggleSwitch } from './roarm3d/toggle-switch.js'
 
-// mm -> Szeneneinheiten (1 Einheit = 100mm), rein fuers handlichere Kamera-/Zoom-Werte. Von
-// roarm-teach-app.ts beim Umrechnen von Kopf-Drag-Deltas (Szeneneinheiten) in mm wiederverwendet.
-export const SCENE_UNITS_PER_MM = 1 / 100;
-const MM = SCENE_UNITS_PER_MM;
-const L1 = 126.06 * MM;
-const L2 = Math.hypot(236.82, 30.0) * MM;
-const L3 = 144.49 * MM;
-const LE = Math.hypot(171.67, 13.69) * MM;
-// Gesamthoehe (Base+L1+L2+L3+LE) ca. 7.1 Einheiten -- bestimmt Kamera-Framing weiter unten.
-const TOTAL_HEIGHT_ESTIMATE = 0.32 + L1 + L2 + L3 + LE;
+// Kamera darf beim freien Ziehen fast (aber nicht exakt) senkrecht stehen -- bei exakt 90 Grad
+// wird quatLookAt()s Kreuzprodukt mit dem Welt-Up-Vektor singulaer. Derselbe Grenzwert wie die
+// Oben/Unten-Ansichten des ViewCube (view-cube.ts), damit ein Klick auf "Oben"/"Unten" einen
+// Pitch erreicht, den man auch per Maus-Drag erreichen koennte (und der Folge-Drag danach nicht
+// ploetzlich am Clamp haengt).
+const MAX_ORBIT_PITCH = (Math.PI / 2) * 0.999
 
-const LINK_RADIUS_BOTTOM = 0.14;
-const LINK_RADIUS_TOP = 0.1;
-const JOINT_RADIUS = 0.19;
-const JOINT_HOUSING_LEN = 0.22;
-const BASE_HEIGHT = 0.32;
-const BASE_RADIUS = 0.55;
+// Lokaler Versatz von link5s Ursprung (Montagepunkt) zur Saugerspitze, entlang link5s eigener
+// Z-Achse -- Gizmo/IK-Ziel soll an der Spitze sitzen (das ist der Punkt, der ein Werkstueck
+// beruehrt), nicht am Wellenausgang. solveIK() erwartet weiterhin link5s Ursprungsposition, daher
+// Hin-/Rueckrechnung in syncTargetToRobot() bzw. vor jedem solveIK()-Aufruf waehrend eines Drags.
+const TIP_OFFSET_LOCAL: Vec3 = [0, 0, VACUUM_CUP_TIP_OFFSET_M]
 
-const JOINT_RING_RADIUS = JOINT_RADIUS + 0.08;
-const JOINT_RING_TUBE = 0.035;
-const JOINT_RING_HIT_RADIUS = JOINT_RING_RADIUS + 0.12; // s. hitProxySphere()-Kommentar
-const ARROW_SHAFT_LEN = 0.85;
-const ARROW_SHAFT_RADIUS = 0.035;
-const ARROW_TIP_LEN = 0.2;
-const ARROW_TIP_RADIUS = 0.08;
-const ARROW_HIT_RADIUS = 0.16;
-const HEAD_ORIENTATION_RING_RADIUS = 0.4;
-const HEAD_ORIENTATION_RING_TUBE = 0.035;
+function tipTargetToLink5Origin(tipPos: Vec3, quat: Pose['quat']): Vec3 {
+  return sub(tipPos, rotateVec3(quat, TIP_OFFSET_LOCAL))
+}
 
-const PITCH_ROLL_COLORS = { pitch: [0.85, 0.55, 0.15] as [number, number, number], roll: [0.6, 0.25, 0.85] as [number, number, number] };
+// Der Sauger "traegt" einen 2,5cm-Holzwuerfel (s. primitives.ts) -- vor allem, damit man den
+// Effekt von "Roll" ueberhaupt sieht (der Sauger selbst ist um seine eigene Achse
+// rotationssymmetrisch). Wuerfelmittelpunkt sitzt direkt an der Saugerspitze plus halbe
+// Kantenlaenge (beruehrt die Spitze, statt sie zu durchdringen).
+const CARGO_CENTER_OFFSET_LOCAL: Vec3 = [0, 0, VACUUM_CUP_TIP_OFFSET_M + TRANSPORTED_CUBE_SIZE_M / 2]
 
-// Panda-artige Farbgebung (helles Armgehaeuse, dunkle Gelenke/Greifer) statt bunter Glieder.
-const LINK_COLOR_A: [number, number, number] = [0.88, 0.88, 0.86];
-const LINK_COLOR_B: [number, number, number] = [0.83, 0.83, 0.81];
-const JOINT_HOUSING_COLOR: [number, number, number] = [0.17, 0.18, 0.2];
-const BASE_COLOR: [number, number, number] = [0.28, 0.29, 0.32];
-const GRIPPER_COLOR: [number, number, number] = [0.2, 0.2, 0.22];
+// Kette-Segmentnamen <-> Wire-Format-Index (roarm-kinematics.ts' JOINT_NAMES/JointIndex):
+// link1=Base(0), link2=Shoulder(1), link3=Elbow(2), link4=Wrist(3), link5=Roll(4). Gripper(5) hat
+// keinen Eintrag in CHAIN (Vakuum-Sauger hat keine eigene Gelenkachse) und wird von dieser Ansicht
+// weder dargestellt noch verstellt -- der Aufrufer haelt seinen zuletzt bekannten Wert selbst.
+const CHAIN_LINK_NAMES = ['link1', 'link2', 'link3', 'link4', 'link5'] as const
 
-const GIZMO_RING_COLOR: [number, number, number] = [0.98, 0.66, 0.12];
-const AXIS_COLORS: Record<"x" | "y" | "z", [number, number, number]> = {
-	x: [0.92, 0.18, 0.2],
-	y: [0.22, 0.82, 0.28],
-	z: [0.2, 0.45, 0.95],
-};
+function armAnglesToChainAngles(armAnglesRad: readonly number[]): JointAngles {
+  const angles: JointAngles = {}
+  for (let i = 0; i < CHAIN_LINK_NAMES.length; i++) angles[CHAIN_LINK_NAMES[i]] = armAnglesRad[i] ?? 0
+  return angles
+}
 
-const vertex = /* glsl */ `
-	attribute vec3 position;
-	attribute vec3 normal;
-	uniform mat4 modelViewMatrix;
-	uniform mat4 projectionMatrix;
-	uniform mat3 normalMatrix;
-	varying vec3 vNormal;
-	varying vec3 vViewPos;
-	void main() {
-		vNormal = normalize(normalMatrix * normal);
-		vec4 viewPos = modelViewMatrix * vec4(position, 1.0);
-		vViewPos = viewPos.xyz;
-		gl_Position = projectionMatrix * viewPos;
-	}
-`;
-
-// Zwei Richtungslichter (Haupt+Fuelllicht) + einfaches Blinn-Phong-Glanzlicht -- rein kosmetisch,
-// damit die Formen (insb. Zylinder) plastischer wirken als mit reiner Flat-/Normal-Shading.
-const fragment = /* glsl */ `
-	precision mediump float;
-	uniform vec3 uColor;
-	varying vec3 vNormal;
-	varying vec3 vViewPos;
-	void main() {
-		vec3 n = normalize(vNormal);
-		vec3 key = normalize(vec3(0.5, 0.9, 0.6));
-		vec3 fill = normalize(vec3(-0.6, 0.2, -0.4));
-		float diffuse = max(dot(n, key), 0.0) * 0.7 + max(dot(n, fill), 0.0) * 0.25;
-		vec3 viewDir = normalize(-vViewPos);
-		vec3 halfDir = normalize(key + viewDir);
-		float spec = pow(max(dot(n, halfDir), 0.0), 24.0) * 0.35;
-		float ambient = 0.32;
-		gl_FragColor = vec4(uColor * (ambient + diffuse) + vec3(spec), 1.0);
-	}
-`;
-
-// Halbtransparentes Gizmo-Material (Ringe/Pfeile) -- bewusst ohne Beleuchtungsrechnung (reine
-// Rim-Aufhellung), damit die Marker als "UI-Overlay" statt als Teil der Mechanik lesbar bleiben,
-// analog zu MoveIts durchscheinenden Interactive-Marker-Ringen/-Pfeilen.
-const gizmoFragment = /* glsl */ `
-	precision mediump float;
-	uniform vec3 uColor;
-	varying vec3 vNormal;
-	void main() {
-		float rim = 0.55 + 0.45 * max(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.0);
-		gl_FragColor = vec4(uColor * rim + vec3(0.1), 0.62);
-	}
-`;
-
-export type HandleId = { type: "joint"; jointIndex: number } | { type: "head" } | { type: "orientation"; axis: "pitch" };
+function chainAnglesToArmAngles(angles: JointAngles): number[] {
+  return CHAIN_LINK_NAMES.map((name) => angles[name] ?? 0)
+}
 
 export interface RoArm3DCallbacks {
-	onDragStart?(handle: HandleId): void;
-	/** deltaRad ist kumulativ seit onDragStart (nicht seit dem letzten Aufruf). */
-	onJointDrag?(jointIndex: number, deltaRadSinceDragStart: number): void;
-	/** In Szeneneinheiten (SCENE_UNITS_PER_MM), kumulativ seit onDragStart. */
-	onHeadDrag?(deltaSceneUnitsSinceDragStart: { x: number; y: number; z: number }): void;
-	/** Pitch-Ring am Kopf -- "Roll" am Kopf meldet sich stattdessen ueber onJointDrag(4, ...), s.
-	 * Moduskommentar (derselbe Rollgelenk-Freiheitsgrad, nur ein zweiter, bequemerer Anfasser). */
-	onHeadOrientationDrag?(axis: "pitch", deltaRadSinceDragStart: number): void;
-	onDragEnd?(): void;
+  onDragStart?(): void
+  /** Waehrend eines Gizmo-Drags kontinuierlich mit den 5 IK-geloesten Gelenkwinkeln (rad, Base..Roll,
+   * s. CHAIN_LINK_NAMES) aufgerufen -- der Aufrufer mischt das in seine eigene 6-elementige
+   * jointAnglesCentiDeg-Ablage (Gripper-Kanal bleibt unberuehrt) und schickt es ans Backend. */
+  onJointAnglesPreview?(armAnglesRad: readonly number[]): void
+  onDragEnd?(): void
 }
 
 export interface RoArm3DHandles {
-	setJointAnglesRad(anglesRad: readonly number[]): void;
-	/** Ausschliesslich fuers Kalibrieren/Verifizieren der Szene<->Kinematik-Achsenzuordnung (s.
-	 * roarm-teach-app.ts' sceneDeltaToKinematicsMm()) sowie als Drag-Basispunkt nuetzlich. */
-	getHeadWorldPositionSceneUnits(): { x: number; y: number; z: number };
-	resize(): void;
-	dispose(): void;
+  /** Volles 6-elementiges Winkel-Array (rad) wie vom Backend gemeldet -- Index 5 (Gripper) wird
+   * ignoriert (Vakuum-Sauger hat keine eigene Animation). */
+  setJointAnglesRad(anglesRad: readonly number[]): void
+  /** Ghost-Overlay (letzte aufgezeichnete Pose) ein-/ausblenden; null blendet aus. */
+  setGhostAnglesRad(anglesRad: readonly number[] | null): void
+  dispose(): void
 }
 
-function material(gl: WebGL2RenderingContext, color: [number, number, number]): Program {
-	return new Program(gl as any, { vertex, fragment, uniforms: { uColor: { value: color } } });
+// --- Material: schwarz pulverbeschichtetes Aluminium (Arm-Meshes) -- dielektrisch/matt, kein
+// Metallic-Glanz. Der Vakuum-Sauger ist dagegen mattes Gummi (anderes physisches Material). Ghost
+// bleibt bewusst neutral (Sichtbarkeit wichtiger als Material-Realismus, s. GHOST_MATERIAL).
+const ARM_COLOR: [number, number, number] = [24, 24, 26]
+const ARM_MATERIAL = { metallic: 0.05, roughness: 0.58 }
+const CUP_COLOR: [number, number, number] = [35, 35, 38]
+const CUP_MATERIAL = { metallic: 0, roughness: 0.8 }
+// Blau lackiertes Holz (das transportierte Werkstueck) -- eigenes Material, kein Metall, etwas
+// weniger rau als Gummi (lackierte Oberflaeche).
+const CARGO_COLOR: [number, number, number] = [45, 95, 175]
+const CARGO_MATERIAL = { metallic: 0, roughness: 0.5 }
+const GHOST_COLOR: [number, number, number] = [51, 148, 255]
+const GHOST_OPACITY = 0.25
+const GHOST_MATERIAL = { metallic: 0, roughness: 0.6 }
+
+// Bodenraster faerbt sich zur Bewegungsgrenze hin gelb, dann rot ein -- grau=weit von jeder
+// Gelenkgrenze entfernt, rot=an der Grenze bzw. das gezogene Ziel ist gerade unerreichbar (s.
+// limitProximity()/solveIK()'s reachable-Flag in ik.ts). Reine Rueckmeldung, kein hartes Limit an
+// sich -- solveIK() selbst verhindert schon, dass sich die Pose ueber die Grenze hinaus bewegt.
+const GRID_COLOR_NORMAL: [number, number, number] = [90, 92, 98]
+const GRID_COLOR_WARN: [number, number, number] = [235, 190, 40]
+const GRID_COLOR_LIMIT: [number, number, number] = [220, 60, 50]
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t
 }
 
-function gizmoMaterial(gl: WebGL2RenderingContext, color: [number, number, number]): Program {
-	return new Program(gl as any, { vertex, fragment: gizmoFragment, uniforms: { uColor: { value: color } }, transparent: true, depthWrite: false });
+function gridWarningColor(proximity: number): [number, number, number] {
+  const p = Math.max(0, Math.min(1, proximity))
+  const [from, to, t] = p < 0.5 ? [GRID_COLOR_NORMAL, GRID_COLOR_WARN, p * 2] : [GRID_COLOR_WARN, GRID_COLOR_LIMIT, (p - 0.5) * 2]
+  return [Math.round(lerp(from[0], to[0], t)), Math.round(lerp(from[1], to[1], t)), Math.round(lerp(from[2], to[2], t))]
 }
 
-// Zylindrisches Glied zwischen zwei Gelenken -- leicht konisch (Radius nimmt zur Spitze hin ab),
-// wirkt dadurch weniger wie ein blosser Balken als ein flacher Box-Querschnitt.
-function linkMesh(gl: WebGL2RenderingContext, length: number, color: [number, number, number]): Mesh {
-	const geometry = new Cylinder(gl as any, { radiusTop: LINK_RADIUS_TOP, radiusBottom: LINK_RADIUS_BOTTOM, height: length, radialSegments: 20 });
-	const mesh = new Mesh(gl as any, { geometry, program: material(gl, color) });
-	mesh.position.set(0, length / 2, 0);
-	return mesh;
+interface PartSet {
+  parts: { name: string; handle: PartHandle }[]
+  cup: PartHandle
+  cargo: PartHandle
 }
 
-// Servo-/Getriebe-Gehaeuse an einem Gelenk -- ein rotationssymmetrischer Zylinder um die
-// Drehachse ist unabhaengig vom aktuellen Gelenkwinkel immer gleich ausgerichtet, daher genuegt
-// eine feste lokale Rotation je nach Achse (Y bleibt Y, Z/X werden per 90Grad-Vorrotation aus der
-// Standard-Y-Achse der Cylinder-Geometrie erzeugt).
-function jointHousing(gl: WebGL2RenderingContext, axis: "x" | "y" | "z"): Mesh {
-	const geometry = new Cylinder(gl as any, { radiusTop: JOINT_RADIUS, radiusBottom: JOINT_RADIUS, height: JOINT_HOUSING_LEN, radialSegments: 24 });
-	const mesh = new Mesh(gl as any, { geometry, program: material(gl, JOINT_HOUSING_COLOR) });
-	if (axis === "z") mesh.rotation.x = Math.PI / 2;
-	if (axis === "x") mesh.rotation.z = Math.PI / 2;
-	return mesh;
-}
-
-// Halbtransparenter Dreh-Ring um ein Gelenk (Interactive-Marker-Stil) -- Torus liegt per Default
-// in der XY-Ebene (Lochachse = Z), daher dieselbe Vorrotations-Logik wie jointHousing().
-function jointRing(gl: WebGL2RenderingContext, axis: "x" | "y" | "z"): Mesh {
-	const geometry = new Torus(gl as any, { radius: JOINT_RING_RADIUS, tube: JOINT_RING_TUBE, radialSegments: 28, tubularSegments: 10 });
-	const mesh = new Mesh(gl as any, { geometry, program: gizmoMaterial(gl, GIZMO_RING_COLOR) });
-	if (axis === "y") mesh.rotation.x = Math.PI / 2;
-	if (axis === "x") mesh.rotation.y = Math.PI / 2;
-	return mesh;
-}
-
-// Ring + eigener, deutlich fetterer (aber gleich orientierter) Torus als Kollisionskoerper, fuer
-// die beiden Kopf-Orientierungsringe (Pitch/Roll) gebraucht: die dort verwendete Kugel-Hitbox
-// (s. hitProxySphere()) kann nicht zwischen zwei verschieden ausgerichteten Ringen AM SELBEN
-// Punkt unterscheiden (eine Kugel ist richtungslos) -- ein fetter Torus in exakt derselben Ebene
-// dagegen schon (seine Bounding-Box ist in Lochachsen-Richtung sehr flach, ein Klick weit
-// ausserhalb der Ringebene faellt so durch, s. Raycast.intersectBounds()' Box-Pfad).
-function ringWithFatHitProxy(
-	gl: WebGL2RenderingContext,
-	axis: "x" | "y" | "z",
-	radius: number,
-	tube: number,
-	color: [number, number, number],
-): { ring: Mesh; hit: Mesh } {
-	const ring = new Mesh(gl as any, {
-		geometry: new Torus(gl as any, { radius, tube, radialSegments: 28, tubularSegments: 10 }),
-		program: gizmoMaterial(gl, color),
-	});
-	const hit = new Mesh(gl as any, {
-		geometry: new Torus(gl as any, { radius, tube: tube + 0.16, radialSegments: 20, tubularSegments: 8 }),
-		program: gizmoMaterial(gl, color),
-	});
-	hit.visible = false;
-	if (axis === "y") {
-		ring.rotation.x = Math.PI / 2;
-		hit.rotation.x = Math.PI / 2;
-	}
-	if (axis === "x") {
-		ring.rotation.y = Math.PI / 2;
-		hit.rotation.y = Math.PI / 2;
-	}
-	return { ring, hit };
-}
-
-// Ein RGB-Translationspfeil (Schaft+Spitze) fuer den Kopf-Gizmo, Default zeigt entlang +Y wie die
-// zugrunde liegenden Cylinder-Geometrien; toWorldAxis dreht die ganze Gruppe auf die Zielachse.
-function translationArrow(gl: WebGL2RenderingContext, axis: "x" | "y" | "z"): { group: Transform; parts: Mesh[]; hit: Mesh } {
-	const color = AXIS_COLORS[axis];
-	const shaft = new Mesh(gl as any, {
-		geometry: new Cylinder(gl as any, { radiusTop: ARROW_SHAFT_RADIUS, radiusBottom: ARROW_SHAFT_RADIUS, height: ARROW_SHAFT_LEN, radialSegments: 12 }),
-		program: gizmoMaterial(gl, color),
-	});
-	shaft.position.set(0, ARROW_SHAFT_LEN / 2, 0);
-	const tip = new Mesh(gl as any, {
-		geometry: new Cylinder(gl as any, { radiusTop: 0, radiusBottom: ARROW_TIP_RADIUS, height: ARROW_TIP_LEN, radialSegments: 16 }),
-		program: gizmoMaterial(gl, color),
-	});
-	tip.position.set(0, ARROW_SHAFT_LEN + ARROW_TIP_LEN / 2, 0);
-
-	// Unsichtbarer, deutlich fetterer Kollisionskoerper ueber der vollen Pfeillaenge -- die
-	// duenne sichtbare Geometrie allein war in der Praxis kaum zuverlaessig zu treffen (s.
-	// Moduskommentar). visible=false blendet ihn vom Rendering aus, Raycast.intersectBounds()
-	// (s. weiter unten) ignoriert dieses Flag bewusst nicht, sondern arbeitet unabhaengig davon
-	// direkt auf der Geometrie -- genau das macht diesen Trick moeglich.
-	const hit = new Mesh(gl as any, {
-		geometry: new Cylinder(gl as any, { radiusTop: ARROW_HIT_RADIUS, radiusBottom: ARROW_HIT_RADIUS, height: ARROW_SHAFT_LEN + ARROW_TIP_LEN, radialSegments: 8 }),
-		program: gizmoMaterial(gl, color),
-	});
-	hit.position.set(0, (ARROW_SHAFT_LEN + ARROW_TIP_LEN) / 2, 0);
-	hit.visible = false;
-
-	const group = new Transform();
-	shaft.setParent(group);
-	tip.setParent(group);
-	hit.setParent(group);
-	if (axis === "x") group.rotation.z = -Math.PI / 2;
-	if (axis === "z") group.rotation.x = Math.PI / 2;
-	return { group, parts: [shaft, tip], hit };
-}
-
-// Unsichtbare Kollisions-Kugel fuer einen Dreh-Ring (Torus) -- exaktes, grosszuegiges
-// Kugel-Raycasting (geometry.raycast='sphere') statt der knappen Box-Naeherung, die ein duenner
-// Torus sonst bekaeme. Wird als eigenes Geschwister-Mesh (nicht als Kind) an denselben Transform
-// gehaengt wie der sichtbare Ring, s. Aufrufstellen.
-function hitProxySphere(gl: WebGL2RenderingContext, radius: number): Mesh {
-	const geometry = new Sphere(gl as any, { radius, widthSegments: 10, heightSegments: 8 });
-	(geometry as any).raycast = "sphere";
-	const mesh = new Mesh(gl as any, { geometry, program: gizmoMaterial(gl, [1, 1, 1]) });
-	mesh.visible = false;
-	return mesh;
+function frameCameraToChain(): { center: Vec3; distance: number } {
+  const { originPoses } = forwardKinematics(defaultAngles())
+  let minZ = Infinity
+  let maxZ = -Infinity
+  let maxR = 0
+  for (const p of originPoses) {
+    minZ = Math.min(minZ, p.pos[2])
+    maxZ = Math.max(maxZ, p.pos[2])
+    maxR = Math.max(maxR, Math.hypot(p.pos[0], p.pos[1]))
+  }
+  const center: Vec3 = [0, 0, (minZ + maxZ) / 2]
+  const distance = Math.max(maxZ - minZ, maxR * 2, 0.3) * 1.9
+  return { center, distance }
 }
 
 export function createRoArm3DView(container: HTMLElement, callbacks: RoArm3DCallbacks = {}): RoArm3DHandles {
-	const renderer = new Renderer({ dpr: Math.min(window.devicePixelRatio || 1, 2), alpha: true });
-	const gl = renderer.gl as WebGL2RenderingContext;
-	const canvasEl = gl.canvas as HTMLCanvasElement;
-	gl.clearColor(0, 0, 0, 0);
-	container.appendChild(canvasEl);
+  container.style.position = 'relative'
+  container.style.overflow = 'hidden'
 
-	// Kamera so platziert/ausgerichtet, dass die gesamte Kette INKLUSIVE des Kopf-Gizmos (Pfeile
-	// ragen ARROW_SHAFT_LEN+ARROW_TIP_LEN ueber den Kopf hinaus) ins Bild passt -- ohne den
-	// Gizmo-Zuschlag ragte der Pfeil-/Ring-Cluster bei einer nahezu vertikalen Pose deutlich ueber
-	// den oberen Bildrand hinaus (per Playwright-Klicktest gefunden: errechnete Bildschirm-Y-
-	// Koordinaten der Anfasser lagen ausserhalb des Canvas, s. Commit-Historie).
-	const gizmoMargin = ARROW_SHAFT_LEN + ARROW_TIP_LEN + HEAD_ORIENTATION_RING_RADIUS;
-	const effectiveHeight = TOTAL_HEIGHT_ESTIMATE + gizmoMargin;
-	const lookAtHeight = effectiveHeight * 0.5;
-	const camera = new Camera(gl as any, { fov: 38, near: 0.05, far: 60 });
-	camera.position.set(effectiveHeight * 1.05, lookAtHeight + effectiveHeight * 0.25, effectiveHeight * 1.05);
-	camera.lookAt(new Vec3(0, lookAtHeight, 0));
+  const canvasGl = document.createElement('canvas')
+  canvasGl.style.position = 'absolute'
+  canvasGl.style.inset = '0'
+  canvasGl.style.pointerEvents = 'none'
+  const canvas2d = document.createElement('canvas')
+  canvas2d.style.position = 'absolute'
+  canvas2d.style.inset = '0'
+  canvas2d.style.touchAction = 'none'
+  container.appendChild(canvasGl)
+  container.appendChild(canvas2d)
 
-	const controls = new Orbit(camera, { element: canvasEl, target: new Vec3(0, lookAtHeight, 0), minDistance: 2, maxDistance: 40 });
+  const glRenderer = new OglRenderer(canvasGl)
+  const overlay = new Overlay2D(canvas2d)
+  const gizmo = new Gizmo(overlay)
+  const vacuumCupMesh = makeVacuumCup()
+  const cargoCubeMesh = makeBox(TRANSPORTED_CUBE_SIZE_M, TRANSPORTED_CUBE_SIZE_M, TRANSPORTED_CUBE_SIZE_M)
 
-	const scene = new Transform();
+  // Bodenraster als echte, tiefengetestete WebGL-Geometrie (nicht auf dem 2D-Gizmo-Overlay) --
+  // sonst liegt es immer VOR dem Roboter statt vom Roboter verdeckt zu werden, wenn dieser aus
+  // Kamerasicht davor steht (verwirrend fuer ein Raster, das den Fussboden darstellen soll). Der
+  // Gizmo bleibt bewusst auf dem 2D-Overlay -- soll immer greifbar bleiben, auch "hinter" einem
+  // Armteil, uebliche Konvention in 3D-Tools.
+  const gridHandle = glRenderer.createLines(makeGrid(1.0, 20), GRID_COLOR_NORMAL, 0.9)
 
-	const groundMarker = new Mesh(gl as any, {
-		geometry: new Cylinder(gl as any, { radiusTop: 0.01, radiusBottom: 0.01, height: 1, radialSegments: 6 }),
-		program: material(gl, [0.65, 0.65, 0.65]),
-	});
-	groundMarker.rotation.z = Math.PI / 2;
-	groundMarker.scale.set(1, 10, 1);
-	groundMarker.setParent(scene);
+  const liveParts = buildLinkedPartSet(glRenderer, vacuumCupMesh, cargoCubeMesh, 1)
+  const ghostParts = buildLinkedPartSet(glRenderer, vacuumCupMesh, cargoCubeMesh, GHOST_OPACITY, GHOST_COLOR)
+  setPartSetVisible(ghostParts, false)
 
-	const base = new Mesh(gl as any, {
-		geometry: new Cylinder(gl as any, { radiusTop: BASE_RADIUS, radiusBottom: BASE_RADIUS * 1.08, height: BASE_HEIGHT, radialSegments: 28 }),
-		program: material(gl, BASE_COLOR),
-	});
-	base.position.set(0, BASE_HEIGHT / 2, 0);
-	base.setParent(scene);
+  let angles: JointAngles = defaultAngles()
+  let target: Pose = { pos: [0, 0, 0], quat: [0, 0, 0, 1] }
+  let targetTiltSum = 0
+  let suppressExternalResync = false // true while a gizmo drag is in progress
+  let dragUnreachable = false // letzter solveIK()-Aufruf waehrend eines Drags: reachable=false
+  // Waehrend eines Drehen-Drags fix auf die Spitzenposition beim Drag-Start eingefroren (s.
+  // onPointerDown/onPointerMove) -- der Drehpunkt SOLL die Sauger-Spitze sein, nicht "wo auch immer
+  // der letzte Frame gelandet ist", s. dortiger Kommentar zum eigentlichen Bug.
+  let rotateDragAnchorPos: Vec3 | null = null
 
-	// --- Gelenkkette: Base(Y) -> Shoulder(Z) -> Elbow(Z) -> Wrist(Z) -> Roll(X) -> Gripper ---
-	const baseJoint = new Transform();
-	baseJoint.position.set(0, BASE_HEIGHT, 0);
-	baseJoint.setParent(scene);
-	jointHousing(gl, "y").setParent(baseJoint);
+  function syncTargetToRobot(): void {
+    const { poses } = forwardKinematics(angles)
+    const wrist = poses[poses.length - 1] // link5 origin (Montagepunkt, nicht die Saugerspitze)
+    target = { pos: transformPoint(wrist, TIP_OFFSET_LOCAL), quat: wrist.quat }
+    targetTiltSum = tiltSum(angles)
+  }
 
-	const link1 = linkMesh(gl, L1, LINK_COLOR_A);
-	link1.setParent(baseJoint);
+  // Ausrichtung fuer den Tilt-Ring (rot) des Gizmos: target.quat MINUS die aktuelle Roll-Drehung
+  // (angles.link5), rausgerechnet durch Ruecknahme der zuletzt am Kettenende angewendeten
+  // Z-Rotation. Roll ist kinematisch das LETZTE Kettenglied -- es aendert nichts an der Achse, um
+  // die Tilt tatsaechlich kippt, sollte den Tilt-Ring also nicht optisch mitdrehen (ohne diese
+  // Korrektur drehte sich der rote Ring beim Ziehen von Blau/Roll sichtbar mit, obwohl seine
+  // Bedeutung unveraendert blieb). Der Roll-Ring selbst (blau) ist von dieser Korrektur unberuehrt
+  // -- ein Kreis um seine eigene Normalenachse sieht bei jeder Roll-Drehung ohnehin gleich aus.
+  function tiltRingQuat(): Quat {
+    return quatMultiply(target.quat, quatFromAxisAngle([0, 0, 1], -(angles.link5 ?? 0)))
+  }
+  syncTargetToRobot()
 
-	const shoulderJoint = new Transform();
-	shoulderJoint.position.set(0, L1, 0);
-	shoulderJoint.setParent(baseJoint);
-	jointHousing(gl, "z").setParent(shoulderJoint);
+  // --- Orbit/Pan/Dolly-Kamera (Maus: links=Gizmo/Orbit, rechts=Pan, Mitte/Rad=Zoom) -------------
+  const framing = frameCameraToChain()
+  let orbitCenter = framing.center
+  let orbitYaw = Math.PI * 0.28
+  let orbitPitch = Math.PI * 0.22
+  let orbitDistance = framing.distance
 
-	const link2 = linkMesh(gl, L2, LINK_COLOR_B);
-	link2.setParent(shoulderJoint);
+  function cameraPose(): Pose {
+    const cp = Math.cos(orbitPitch)
+    const eye: Vec3 = add(orbitCenter, [
+      Math.cos(orbitYaw) * cp * orbitDistance,
+      Math.sin(orbitYaw) * cp * orbitDistance,
+      Math.sin(orbitPitch) * orbitDistance,
+    ])
+    return { pos: eye, quat: quatLookAt(eye, orbitCenter, [0, 0, 1]) }
+  }
+  function camera(): AppCamera {
+    return { pose: cameraPose(), fovY: (50 * Math.PI) / 180 }
+  }
 
-	const elbowJoint = new Transform();
-	elbowJoint.position.set(0, L2, 0);
-	elbowJoint.setParent(shoulderJoint);
-	jointHousing(gl, "z").setParent(elbowJoint);
+  // --- Gizmo-Umschalter (zwei kleine Segmented-Toggles in der Viewport-Ecke) ----------------------
+  // Gemeinsamer Flex-Container statt zweier einzeln mit fixen top-Werten positionierter Elemente
+  // -- deren tatsaechliche Hoehe (Button-Padding/Zeilenhoehe) liess sich per Augenmass nicht exakt
+  // genug vorhersagen, zwei feste top-Werte fuehrten je nach Rendering zu Ueberlappung. Der
+  // Flex-Container mit gap uebernimmt den Abstand automatisch, und beide Schalter richten sich
+  // ueber align-items:flex-start an derselben linken Kante aus (start-align statt stretch, sonst
+  // wuerde der schmalere "Welt/Lokal"-Schalter auf die Breite des breiteren gestreckt).
+  const toggleStack = document.createElement('div')
+  toggleStack.style.cssText = 'position:absolute;top:8px;left:8px;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:6px;'
+  container.appendChild(toggleStack)
 
-	const link3 = linkMesh(gl, L3, LINK_COLOR_A);
-	link3.setParent(elbowJoint);
+  // "Bewegen" statt "Verschieben" -- Letzteres sprengte die Breite des Schalters (s.
+  // createToggleSwitch()s feste Button-Breite, die beide Umschalter gleich gross haelt).
+  const modeToggle = createToggleSwitch(['Bewegen', 'Drehen'], gizmo.mode === 'translate' ? 0 : 1, (i) => {
+    gizmo.mode = i === 0 ? 'translate' : 'rotate'
+  })
+  toggleStack.appendChild(modeToggle.el)
 
-	const wristJoint = new Transform();
-	wristJoint.position.set(0, L3, 0);
-	wristJoint.setParent(elbowJoint);
-	jointHousing(gl, "z").setParent(wristJoint);
+  // Ausrichtung der Verschieben-Pfeile: Welt-Achsen (Default) oder das eigene Koordinatensystem
+  // des Vakuumsaugers -- s. gizmo.ts' `space`-Feld. Betrifft nur den Verschieben-Modus (Drehen
+  // bleibt immer an Tilt/Roll des Werkzeugs gekoppelt, s. dortiger Kommentar).
+  const spaceToggle = createToggleSwitch(['Welt', 'Lokal'], gizmo.space === 'world' ? 0 : 1, (i) => {
+    gizmo.space = i === 0 ? 'world' : 'local'
+  })
+  toggleStack.appendChild(spaceToggle.el)
 
-	const link4 = linkMesh(gl, LE, LINK_COLOR_B);
-	link4.setParent(wristJoint);
+  // --- ViewCube (oben rechts) -- eigenes SVG-Widget (s. view-cube.ts), verwaltet Positionierung
+  // UND Klick-/Zug-Erkennung komplett selbst (echte DOM-Hit-Tests statt handgeschriebener
+  // Projektions-/Punkt-in-Polygon-Mathematik). Ruft bei Klick auf eine Flaeche onViewPreset auf,
+  // beim Ziehen onOrbitDrag -- dieselbe Orbit-Formel wie der Hauptviewport selbst (s. dessen
+  // 'orbit'-Zweig unten), damit sich der Wuerfel bei gleicher Zuggeste in dieselbe Richtung dreht.
+  function applyViewPreset(preset: { yaw: number | null; pitch: number }): void {
+    if (preset.yaw !== null) orbitYaw = preset.yaw
+    orbitPitch = clamp(preset.pitch, -MAX_ORBIT_PITCH, MAX_ORBIT_PITCH)
+  }
+  const viewCube: ViewCubeHandle = createViewCube(container, {
+    onViewPreset: (preset) => applyViewPreset(preset),
+    onOrbitDrag: (dx, dy) => {
+      orbitYaw -= dx * 0.008
+      orbitPitch = clamp(orbitPitch + dy * 0.008, -MAX_ORBIT_PITCH, MAX_ORBIT_PITCH)
+    },
+  })
 
-	const rollJoint = new Transform();
-	rollJoint.position.set(0, LE, 0);
-	rollJoint.setParent(wristJoint);
-	jointHousing(gl, "x").setParent(rollJoint);
+  // --- Pointer-Handling --------------------------------------------------------------------------
+  // Kein 'cube'-Zweig mehr: das ViewCube-SVG (s. oben) sitzt als eigenes DOM-Element ueber diesem
+  // Canvas und faengt Klicks/Zuege auf seinen Flaechen bereits selbst ab (echtes DOM-Hit-Testing) --
+  // ein Klick daneben (transparenter Zwischenraum im SVG) faellt automatisch zu diesem Canvas durch
+  // und wird hier ganz normal als Orbit behandelt, ohne dass roarm-3d-view.ts den Wuerfel selbst
+  // abfragen muss.
+  let dragMode: 'orbit' | 'gizmo' | 'pan' | 'dolly' | null = null
+  let lastMouse: [number, number] = [0, 0]
 
-	const gripperMount = new Mesh(gl as any, {
-		geometry: new Cylinder(gl as any, { radiusTop: 0.16, radiusBottom: 0.16, height: 0.1, radialSegments: 20 }),
-		program: material(gl, GRIPPER_COLOR),
-	});
-	gripperMount.position.set(0, 0.05, 0);
-	gripperMount.setParent(rollJoint);
+  canvas2d.addEventListener('contextmenu', (e) => e.preventDefault())
 
-	const fingerL = new Mesh(gl as any, {
-		geometry: new Cylinder(gl as any, { radiusTop: 0.02, radiusBottom: 0.05, height: 0.32, radialSegments: 10 }),
-		program: material(gl, GRIPPER_COLOR),
-	});
-	fingerL.position.set(-0.09, 0.1 + 0.16, 0);
-	fingerL.setParent(rollJoint);
-	const fingerR = new Mesh(gl as any, {
-		geometry: new Cylinder(gl as any, { radiusTop: 0.02, radiusBottom: 0.05, height: 0.32, radialSegments: 10 }),
-		program: material(gl, GRIPPER_COLOR),
-	});
-	fingerR.position.set(0.09, 0.1 + 0.16, 0);
-	fingerR.setParent(rollJoint);
+  function onPointerDown(e: PointerEvent): void {
+    const rect = canvas2d.getBoundingClientRect()
+    const mx = e.clientX - rect.left
+    const my = e.clientY - rect.top
 
-	// Kopf-Anker genau an der Werkzeugspitze (etwas ueber den Fingerspitzen) -- folgt der
-	// Gelenkkette automatisch (Kind von rollJoint). Traegt KEINE eigene Geometrie -- dient nur als
-	// Referenzpunkt, an den headGizmo (s.u., separat/nicht-rotierend) jeden Tick nachgefuehrt wird.
-	const headAnchor = new Transform();
-	headAnchor.position.set(0, 0.1 + 0.16 + 0.34, 0);
-	headAnchor.setParent(rollJoint);
+    if (e.button === 2) {
+      dragMode = 'pan'
+    } else if (e.button === 1) {
+      dragMode = 'dolly'
+    } else {
+      const axis = gizmo.hitTest(camera(), target, mx, my, tiltRingQuat())
+      if (axis !== null) {
+        dragMode = 'gizmo'
+        gizmo.beginDrag(camera(), target, axis, mx, my, tiltRingQuat())
+        if (gizmo.mode === 'rotate') rotateDragAnchorPos = target.pos
+        suppressExternalResync = true
+        callbacks.onDragStart?.()
+      } else {
+        dragMode = 'orbit'
+      }
+    }
+    lastMouse = [mx, my]
+    canvas2d.setPointerCapture(e.pointerId)
+  }
 
-	const headMarker = new Mesh(gl as any, {
-		geometry: new Sphere(gl as any, { radius: 0.05, widthSegments: 12, heightSegments: 8 }),
-		program: gizmoMaterial(gl, [0.9, 0.9, 0.9]),
-	});
-	headMarker.setParent(headAnchor);
+  function onPointerMove(e: PointerEvent): void {
+    const rect = canvas2d.getBoundingClientRect()
+    const mx = e.clientX - rect.left
+    const my = e.clientY - rect.top
+    const dx = mx - lastMouse[0]
+    const dy = my - lastMouse[1]
 
-	// Pitch-/Roll-Ring am Kopf: Kinder von headAnchor (folgen also automatisch dessen Position
-	// UND aktueller Orientierung). "Roll" ist geometrisch identisch mit dem Rollgelenk-Ring oben
-	// (headAnchor erbt exakt rollJoints Rotation, keine eigene) -- ein zweiter, bequemerer
-	// Anfasser fuer denselben Freiheitsgrad, s. Moduskommentar. "Pitch" liegt quer dazu (Y statt
-	// X als Lochachse) -- rein optisch; der tatsaechliche Drehsinn wird in onPointerDown() ueber
-	// die aktuelle Weltachse von wristJoint (s. dort) berechnet, nicht ueber diese lokale
-	// Ausrichtung (kann bei aktivem Roll dadurch leicht "schief" wirken, s. Datei-Kommentar zur
-	// vereinfachten Darstellung).
-	const rollAtHead = ringWithFatHitProxy(gl, "x", HEAD_ORIENTATION_RING_RADIUS, HEAD_ORIENTATION_RING_TUBE, GIZMO_RING_COLOR);
-	rollAtHead.ring.setParent(headAnchor);
-	rollAtHead.hit.setParent(headAnchor);
+    if (dragMode === 'gizmo') {
+      const result = gizmo.updateDrag(camera(), target, mx, my)
+      // Nur Achse 0 (rot, Tilt) und 2 (blau, Roll) sind ueberhaupt ziehbar (s.
+      // gizmo.ts' ROTATE_AXES) -- Achse 1 (gruen) gibt es als Ring nicht mehr, die Kette hat keine
+      // davon unabhaengige zweite Kippachse.
+      if (result.rotateAxis === 0) {
+        targetTiltSum += result.rotateAngle
+      } else if (result.rotateAxis === 2) {
+        angles.link5 = wrapPi((angles.link5 ?? 0) + result.rotateAngle)
+      }
+      if (result.changed) {
+        // Bei einem Drehen-Drag IMMER die beim Drag-Start eingefrorene Spitzenposition anpeilen
+        // (rotateDragAnchorPos), NICHT das jeweils letzte target.pos: solveIK() kann die vom Gizmo
+        // frei akkumulierte Orientierung (target.quat) nur naeherungsweise erreichen (die Kette hat
+        // nur 1 echten Tilt-Freiheitsgrad plus Roll, keine freie 3D-Drehung) -- die dadurch JEDEN
+        // Frame neu entstehende kleine Abweichung wurde vorher als neuer Ausgangspunkt fuer den
+        // NAECHSTEN Frame uebernommen und summierte sich ueber einen laengeren Zug zu mehreren
+        // Zentimetern Versatz auf (gemessen: ca. 7mm/Frame, bei 20 Frames schon 3.6cm) -- sichtbar
+        // als Drehpunkt, der sich sukzessive vom Sauger weg Richtung Handgelenk verschob. Mit dem
+        // fixen Anker bleibt jeder Frame unabhaengig nah am WIRKLICH gewuenschten Drehpunkt, Fehler
+        // koennen sich nicht mehr aufsummieren. Fuer Translate bleibt target.pos (bewusst bewegtes
+        // Ziel) unveraendert massgeblich.
+        const tipAnchor = rotateDragAnchorPos ?? target.pos
+        const link5OriginTarget = tipTargetToLink5Origin(tipAnchor, target.quat)
+        const solved = solveIK(angles, link5OriginTarget, targetTiltSum)
+        angles = solved.angles
+        dragUnreachable = !solved.reachable
+        const trueWrist = forwardKinematics(angles).poses[CHAIN.length - 1]
+        target = { pos: transformPoint(trueWrist, TIP_OFFSET_LOCAL), quat: trueWrist.quat }
+        callbacks.onJointAnglesPreview?.(chainAnglesToArmAngles(angles))
+      }
+    } else if (dragMode === 'orbit') {
+      orbitYaw -= dx * 0.008
+      orbitPitch = clamp(orbitPitch + dy * 0.008, -MAX_ORBIT_PITCH, MAX_ORBIT_PITCH)
+    } else if (dragMode === 'pan') {
+      const pose = cameraPose()
+      const right = rotateVec3(pose.quat, [1, 0, 0])
+      const up = rotateVec3(pose.quat, [0, 1, 0])
+      const worldPerPixel = (2 * orbitDistance * Math.tan(camera().fovY / 2)) / overlay.height
+      orbitCenter = add(orbitCenter, [
+        (-right[0] * dx + up[0] * dy) * worldPerPixel,
+        (-right[1] * dx + up[1] * dy) * worldPerPixel,
+        (-right[2] * dx + up[2] * dy) * worldPerPixel,
+      ])
+    } else if (dragMode === 'dolly') {
+      orbitDistance = clamp(orbitDistance * (1 + dy * 0.005), 0.15, 4)
+    } else {
+      const axis = gizmo.hitTest(camera(), target, mx, my, tiltRingQuat())
+      gizmo.setHover(axis)
+    }
+    lastMouse = [mx, my]
+  }
 
-	const pitchAtHead = ringWithFatHitProxy(gl, "y", HEAD_ORIENTATION_RING_RADIUS, HEAD_ORIENTATION_RING_TUBE, PITCH_ROLL_COLORS.pitch);
-	pitchAtHead.ring.setParent(headAnchor);
-	pitchAtHead.hit.setParent(headAnchor);
+  function endDrag(): void {
+    const wasGizmo = dragMode === 'gizmo'
+    dragMode = null
+    if (wasGizmo) {
+      gizmo.endDrag()
+      rotateDragAnchorPos = null
+      suppressExternalResync = false
+      dragUnreachable = false
+      callbacks.onDragEnd?.()
+    }
+  }
+  canvas2d.addEventListener('pointerdown', onPointerDown)
+  canvas2d.addEventListener('pointermove', onPointerMove)
+  canvas2d.addEventListener('pointerup', endDrag)
+  canvas2d.addEventListener('pointercancel', endDrag)
+  canvas2d.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault()
+      orbitDistance = clamp(orbitDistance * (1 + e.deltaY * 0.001), 0.15, 4)
+    },
+    { passive: false },
+  )
 
-	// Kopf-Gizmo (3 Translationspfeile): bewusst NICHT Kind von rollJoint/headAnchor, sondern ein
-	// eigener, nicht rotierender Transform-Knoten direkt unter scene -- die Pfeile sollen immer
-	// weltachsenparallel zeigen (nicht mit Handgelenk/Roll mitdrehen), nur die POSITION wird in
-	// setJointAnglesRad() an headAnchor nachgefuehrt.
-	const headGizmo = new Transform();
-	headGizmo.setParent(scene);
-	const arrowX = translationArrow(gl, "x");
-	const arrowY = translationArrow(gl, "y");
-	const arrowZ = translationArrow(gl, "z");
-	arrowX.group.setParent(headGizmo);
-	arrowY.group.setParent(headGizmo);
-	arrowZ.group.setParent(headGizmo);
+  function wrapPi(a: number): number {
+    return (((a + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) - Math.PI
+  }
 
-	const jointHandleDefs: { transform: Transform; axis: "x" | "y" | "z" }[] = [
-		{ transform: baseJoint, axis: "y" },
-		{ transform: shoulderJoint, axis: "z" },
-		{ transform: elbowJoint, axis: "z" },
-		{ transform: wristJoint, axis: "z" },
-		{ transform: rollJoint, axis: "x" },
-	];
-	const jointRingMeshes: Mesh[] = jointHandleDefs.flatMap((def, i) => {
-		const ring = jointRing(gl, def.axis);
-		ring.setParent(def.transform);
-		(ring as any).__roarmJointIndex = i;
-		const hit = hitProxySphere(gl, JOINT_RING_HIT_RADIUS);
-		hit.setParent(def.transform);
-		(hit as any).__roarmJointIndex = i;
-		return [ring, hit];
-	});
-	// Gripper (Joint 6) hat kein eigenes Scharnier-Gelenk in dieser vereinfachten Kette (Oeffnen/
-	// Schliessen wird ueber den Fingerabstand dargestellt, s. setJointAnglesRad) -- daher nur 5
-	// Dreh-Ringe (Base..Roll) statt 6.
-	for (const p of [...arrowX.parts, arrowX.hit]) (p as any).__roarmHeadAxis = "x";
-	for (const p of [...arrowY.parts, arrowY.hit]) (p as any).__roarmHeadAxis = "y";
-	for (const p of [...arrowZ.parts, arrowZ.hit]) (p as any).__roarmHeadAxis = "z";
-	(rollAtHead.hit as any).__roarmJointIndex = 4;
-	(pitchAtHead.hit as any).__roarmOrientation = "pitch";
-	const allHandleMeshes: Mesh[] = [...jointRingMeshes, arrowX.hit, arrowY.hit, arrowZ.hit, rollAtHead.hit, pitchAtHead.hit];
+  // --- Render-Loop ---------------------------------------------------------------------------
+  let disposed = false
+  function draw(): void {
+    if (disposed) return
+    requestAnimationFrame(draw)
+    const cam = camera()
 
-	function resize(): void {
-		const width = container.clientWidth || 1;
-		const height = container.clientHeight || 1;
-		renderer.setSize(width, height);
-		camera.perspective({ aspect: width / height });
-	}
-	resize();
+    posePartSet(liveParts, angles)
+    // Bodenraster als Naeherungs-an-die-Bewegungsgrenze-Warnung: wie nah ist die aktuelle Pose an
+    // irgendeiner Gelenkgrenze (limitProximity()), UND war das zuletzt angeforderte Gizmo-Ziel
+    // gerade unerreichbar (dragUnreachable, s. onPointerMove) -- je hoeher, desto roeter.
+    glRenderer.setColor(gridHandle, gridWarningColor(Math.max(limitProximity(angles), dragUnreachable ? 1 : 0)))
+    viewCube.updatePoses(cam) // SVG-Widget -- aktualisiert nur Polygon-Punkte, kein WebGL-Renderpass mehr noetig
+    glRenderer.render(cam)
 
-	let disposed = false;
-	function raf(): void {
-		if (disposed) return;
-		requestAnimationFrame(raf);
-		controls.update();
-		renderer.render({ scene, camera });
-	}
-	requestAnimationFrame(raf);
+    overlay.clear()
+    gizmo.render(cam, target, tiltRingQuat())
+  }
+  requestAnimationFrame(draw)
 
-	// --- Pointer-Handling fuer die Gizmo-Elemente (s. Moduskommentar oben) ---
-	const raycast = new Raycast();
+  function resize(): void {
+    const width = container.clientWidth || 1
+    const height = container.clientHeight || 1
+    const dpr = window.devicePixelRatio || 1
+    glRenderer.resize(width, height, dpr)
+    overlay.resize(width, height, dpr)
+  }
+  resize()
 
-	function ndcFromEvent(e: PointerEvent): [number, number] {
-		const rect = canvasEl.getBoundingClientRect();
-		const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-		const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-		return [x, y];
-	}
+  // ResizeObserver statt (nur) window 'resize' -- der Container kann seine Groesse auch OHNE ein
+  // Browserfenster-Resize aendern (Sidebar-Panel auf-/zugeklappt, Missionsliste waechst/schrumpft,
+  // ein Scrollbalken erscheint/verschwindet anderswo auf der Seite und verschiebt die verfuegbare
+  // Breite) -- ohne diese Beobachtung blieben WebGL-Canvas-Aufloesung UND die orthografische
+  // Overlay-Kamera (die das ViewCube-Hit-Testing benutzt, s. view-cube.ts' projectOrtho()) auf dem
+  // Stand des letzten ECHTEN Fenster-Resizes stehen, waehrend `canvas2d.getBoundingClientRect()`
+  // (fuer die Maus-Koordinaten in onPointerDown/onPointerMove) immer den AKTUELLEN Wert liefert --
+  // genau das Auseinanderlaufen von sichtbarer Wuerfelposition und klickbarem Bereich, das nur bei
+  // bestimmten Fenstergroessen/Zustaenden auffiel (je nachdem, ob seit dem letzten echten
+  // Fenster-Resize eine solche layoutgetriebene Groessenaenderung passiert war).
+  const resizeObserver = new ResizeObserver(() => resize())
+  resizeObserver.observe(container)
 
-	type DragState =
-		| { kind: "joint"; jointIndex: number; startX: number; startY: number; tangentPx: [number, number] }
-		| { kind: "head"; startX: number; startY: number; axisWorld: Vec3; axisPx: [number, number]; scale: number }
-		| { kind: "orientation"; axis: "pitch"; startX: number; startY: number; tangentPx: [number, number] };
-	let drag: DragState | null = null;
+  return {
+    setJointAnglesRad(anglesRad: readonly number[]): void {
+      // Waehrend eines Gizmo-Drags kommen weiterhin laufend PoseFeedback-Updates vom Backend rein
+      // (die reale/simulierte Bewegung hinkt dem Drag physikalisch begrenzt hinterher) -- wuerden
+      // die hier ungebremst uebernommen, ueberschreiben sie die soeben lokal geloeste IK-Vorschau
+      // jeden Frame wieder mit der (noch nicht angekommenen) alten Pose, und das Mesh scheint dem
+      // Gizmo gar nicht zu folgen. Waehrend des Drags hat also die lokale Vorschau Vorrang; sobald
+      // suppressExternalResync (s. onPointerDown/endDrag) wieder false ist, uebernimmt die Ist-Pose
+      // des Backends nahtlos wieder die Fuehrung.
+      if (suppressExternalResync) return
+      if (anglesRad.length < JOINT_COUNT) return
+      angles = armAnglesToChainAngles(anglesRad)
+      posePartSet(liveParts, angles)
+      syncTargetToRobot()
+    },
+    setGhostAnglesRad(anglesRad: readonly number[] | null): void {
+      if (!anglesRad) {
+        setPartSetVisible(ghostParts, false)
+        return
+      }
+      posePartSet(ghostParts, armAnglesToChainAngles(anglesRad))
+      setPartSetVisible(ghostParts, true)
+    },
+    dispose(): void {
+      disposed = true
+      resizeObserver.disconnect()
+      canvas2d.removeEventListener('pointerdown', onPointerDown)
+      canvas2d.removeEventListener('pointermove', onPointerMove)
+      canvas2d.removeEventListener('pointerup', endDrag)
+      canvas2d.removeEventListener('pointercancel', endDrag)
+      viewCube.dispose()
+      container.removeChild(toggleStack)
+      container.removeChild(canvasGl)
+      container.removeChild(canvas2d)
+    },
+  }
 
-	function worldMatrixColumn(m: Transform, col: number): Vec3 {
-		const wm = m.worldMatrix;
-		return new Vec3(wm[col * 4], wm[col * 4 + 1], wm[col * 4 + 2]);
-	}
+  // --- lokale Hilfsfunktionen (schliessen ueber glRenderer/vacuumCupMesh/cargoCubeMesh) ----------
+  function buildLinkedPartSet(
+    gl: OglRenderer,
+    cupMesh: ReturnType<typeof makeVacuumCup>,
+    cargoMesh: ReturnType<typeof makeBox>,
+    opacity: number,
+    tint?: [number, number, number],
+  ): PartSet {
+    const isGhost = tint !== undefined
+    const parts = CHAIN.filter((seg) => seg.mesh).map((seg) => ({
+      name: seg.name,
+      handle: gl.createPart(MESHES[seg.mesh!], tint ?? ARM_COLOR, opacity, isGhost ? GHOST_MATERIAL : ARM_MATERIAL),
+    }))
+    const cup = gl.createPart(cupMesh, tint ?? CUP_COLOR, opacity, isGhost ? GHOST_MATERIAL : CUP_MATERIAL)
+    const cargo = gl.createPart(cargoMesh, tint ?? CARGO_COLOR, opacity, isGhost ? GHOST_MATERIAL : CARGO_MATERIAL)
+    return { parts, cup, cargo }
+  }
 
-	// Mat4.getTranslation() (anders als z.B. Vec3.copy()) mutiert das uebergebene Vec3 und gibt
-	// zum Verketten "this" (das Mat4) zurueck, NICHT den Vec3 -- daher hier als eigene Hilfsfunktion
-	// statt des Rueckgabewerts direkt inline zu verwenden.
-	function worldTranslation(t: Transform): Vec3 {
-		const v = new Vec3();
-		t.worldMatrix.getTranslation(v);
-		return v;
-	}
+  function posePartSet(set: PartSet, forAngles: JointAngles): void {
+    const { poses } = forwardKinematics(forAngles)
+    for (let i = 0; i < CHAIN.length; i++) {
+      const part = set.parts.find((p) => p.name === CHAIN[i].name)
+      if (part) glRenderer.setPose(part.handle, poses[i])
+    }
+    const wrist = poses[poses.length - 1]
+    glRenderer.setPose(set.cup, wrist)
+    glRenderer.setPose(set.cargo, { pos: transformPoint(wrist, CARGO_CENTER_OFFSET_LOCAL), quat: wrist.quat })
+  }
 
-	function projectToPixels(worldPos: Vec3): [number, number] {
-		const clip = new Vec3(worldPos.x, worldPos.y, worldPos.z);
-		camera.project(clip);
-		return [((clip.x + 1) / 2) * canvasEl.clientWidth, ((1 - clip.y) / 2) * canvasEl.clientHeight];
-	}
-
-	// Projiziert 'axisWorld' (Richtung, an 'pivot' verankert) auf eine normierte 2D-Bildschirmrichtung
-	// -- gemeinsam genutzt fuer die Gelenk-Tangente UND die Kopf-Pfeilachsen.
-	function axisToScreenDirection(pivot: Vec3, axisWorld: Vec3): [number, number] {
-		const [px, py] = projectToPixels(pivot);
-		const [tx, ty] = projectToPixels(new Vec3().copy(pivot).add(new Vec3().copy(axisWorld).multiply(0.05)));
-		let dir: [number, number] = [tx - px, ty - py];
-		const len = Math.hypot(dir[0], dir[1]) || 1;
-		return [dir[0] / len, dir[1] / len];
-	}
-
-	// Tangente der Rotationskreisbahn um 'axisWorld' bei 'pivot', aus der aktuellen
-	// Kamerablickrichtung projiziert -- gemeinsam genutzt von Gelenk-Ringen UND den beiden
-	// Kopf-Orientierungsringen (Pitch/Roll), s. onPointerDown().
-	function rotationTangentPx(pivot: Vec3, axisWorld: Vec3): [number, number] {
-		const toCam = new Vec3().copy(camera.worldPosition).sub(pivot).normalize();
-		const tangentWorld = new Vec3().cross(axisWorld, toCam);
-		if (tangentWorld.len() < 1e-5) tangentWorld.set(1, 0, 0);
-		tangentWorld.normalize();
-		return axisToScreenDirection(pivot, tangentWorld);
-	}
-
-	function onPointerDown(e: PointerEvent): void {
-		const [ndcX, ndcY] = ndcFromEvent(e);
-		raycast.castMouse(camera, [ndcX, ndcY]);
-		const hits = raycast.intersectBounds(allHandleMeshes);
-		if (hits.length === 0) return;
-		const hit = hits[0] as any;
-
-		controls.enabled = false;
-		canvasEl.setPointerCapture(e.pointerId);
-
-		if (hit.__roarmHeadAxis) {
-			const axis = hit.__roarmHeadAxis as "x" | "y" | "z";
-			const axisWorld = axis === "x" ? new Vec3(1, 0, 0) : axis === "y" ? new Vec3(0, 1, 0) : new Vec3(0, 0, 1);
-			const pivot = worldTranslation(headGizmo);
-			const distance = camera.worldPosition.distance(pivot);
-			const k = (2 * distance * Math.tan(((camera.fov / 2) * Math.PI) / 180)) / canvasEl.clientHeight;
-			drag = { kind: "head", startX: e.clientX, startY: e.clientY, axisWorld, axisPx: axisToScreenDirection(pivot, axisWorld), scale: k };
-			callbacks.onDragStart?.({ type: "head" });
-		} else if (hit.__roarmOrientation === "pitch") {
-			// Pitch-Achse = aktuelle Weltachse von wristJoint (upstream von Roll, s.
-			// ringWithFatHitProxy()-Kommentar) -- NICHT headAnchors eigene Z-Achse, die sich mit
-			// dem Rollwinkel mitdreht und damit fuer "reines Pitch" ungeeignet waere.
-			const pivot = worldTranslation(headAnchor);
-			const axisWorld = worldMatrixColumn(wristJoint, 2).normalize();
-			drag = { kind: "orientation", axis: "pitch", startX: e.clientX, startY: e.clientY, tangentPx: rotationTangentPx(pivot, axisWorld) };
-			callbacks.onDragStart?.({ type: "orientation", axis: "pitch" });
-		} else {
-			const jointIndex: number = hit.__roarmJointIndex;
-			const def = jointHandleDefs[jointIndex];
-			const pivot = worldTranslation(def.transform);
-			const axisCol = def.axis === "x" ? 0 : def.axis === "y" ? 1 : 2;
-			const axisWorld = worldMatrixColumn(def.transform, axisCol).normalize();
-
-			drag = { kind: "joint", jointIndex, startX: e.clientX, startY: e.clientY, tangentPx: rotationTangentPx(pivot, axisWorld) };
-			callbacks.onDragStart?.({ type: "joint", jointIndex });
-		}
-		e.preventDefault();
-	}
-
-	const ANGLE_PER_PIXEL = 0.012; // rad/px -- ca. 0.7 Grad pro Pixel, per Augenmass abgestimmt.
-
-	function onPointerMove(e: PointerEvent): void {
-		if (!drag) return;
-		const dx = e.clientX - drag.startX;
-		const dy = e.clientY - drag.startY;
-
-		if (drag.kind === "joint") {
-			const along = dx * drag.tangentPx[0] + dy * drag.tangentPx[1];
-			callbacks.onJointDrag?.(drag.jointIndex, along * ANGLE_PER_PIXEL);
-		} else if (drag.kind === "orientation") {
-			const along = dx * drag.tangentPx[0] + dy * drag.tangentPx[1];
-			callbacks.onHeadOrientationDrag?.(drag.axis, along * ANGLE_PER_PIXEL);
-		} else {
-			const along = dx * drag.axisPx[0] + dy * drag.axisPx[1];
-			const worldDelta = new Vec3().copy(drag.axisWorld).multiply(along * drag.scale);
-			callbacks.onHeadDrag?.({ x: worldDelta.x, y: worldDelta.y, z: worldDelta.z });
-		}
-	}
-
-	function onPointerUp(e: PointerEvent): void {
-		if (!drag) return;
-		drag = null;
-		controls.enabled = true;
-		canvasEl.releasePointerCapture(e.pointerId);
-		callbacks.onDragEnd?.();
-	}
-
-	canvasEl.addEventListener("pointerdown", onPointerDown);
-	canvasEl.addEventListener("pointermove", onPointerMove);
-	canvasEl.addEventListener("pointerup", onPointerUp);
-	canvasEl.addEventListener("pointercancel", onPointerUp);
-
-	return {
-		setJointAnglesRad(anglesRad: readonly number[]): void {
-			if (anglesRad.length < JOINT_COUNT) return;
-			const [base_, shoulder, elbow, wrist, roll, gripper] = anglesRad;
-			baseJoint.rotation.y = base_;
-			shoulderJoint.rotation.z = shoulder;
-			elbowJoint.rotation.z = elbow;
-			wristJoint.rotation.z = wrist;
-			rollJoint.rotation.x = roll;
-			const opening = 0.02 + Math.max(0, Math.sin(gripper)) * 0.12;
-			fingerL.position.x = -0.09 - opening;
-			fingerR.position.x = 0.09 + opening;
-
-			scene.updateMatrixWorld();
-			headGizmo.position.copy(worldTranslation(headAnchor));
-		},
-		getHeadWorldPositionSceneUnits(): { x: number; y: number; z: number } {
-			scene.updateMatrixWorld();
-			const p = worldTranslation(headAnchor);
-			return { x: p.x, y: p.y, z: p.z };
-		},
-		resize,
-		dispose(): void {
-			disposed = true;
-			controls.remove();
-			canvasEl.removeEventListener("pointerdown", onPointerDown);
-			canvasEl.removeEventListener("pointermove", onPointerMove);
-			canvasEl.removeEventListener("pointerup", onPointerUp);
-			canvasEl.removeEventListener("pointercancel", onPointerUp);
-			container.removeChild(canvasEl);
-		},
-	};
+  function setPartSetVisible(set: PartSet, visible: boolean): void {
+    for (const p of set.parts) glRenderer.setVisible(p.handle, visible)
+    glRenderer.setVisible(set.cup, visible)
+    glRenderer.setVisible(set.cargo, visible)
+  }
 }

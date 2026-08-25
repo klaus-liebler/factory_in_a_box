@@ -10,10 +10,10 @@ import { customElement, state, query } from "lit/decorators.js";
 import "../styles.css";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { roarm } from "../../generated/ws-protocol.js";
-import { createRoArm3DView, SCENE_UNITS_PER_MM, type RoArm3DHandles, type HandleId } from "./roarm-3d-view.js";
-import { MockRoArmBackend, type RoArmBackend, type MissionStep } from "./roarm-backend.js";
+import { createRoArm3DView, type RoArm3DHandles } from "./roarm-3d-view.js";
+import { MockRoArmBackend, type RoArmBackend, type MissionStep, VACUUM_GPIO_ID, FOLDED_REST_POSE_CENTIDEG } from "./roarm-backend.js";
 import { WsRoArmBackend } from "./roarm-ws-backend.js";
-import { JOINT_NAMES, JOINT_COUNT, JOINT_LIMITS_RAD, centiDegToRad, radToCentiDeg } from "./roarm-kinematics.js";
+import { JOINT_NAMES, JOINT_COUNT, centiDegToRad, radToCentiDeg } from "./roarm-kinematics.js";
 
 // import.meta.env.DEV ist Vites eingebautes Dev/Prod-Flag (true unter "npm run dev", false im
 // echten "vite build", der als index.html.br ins Firmware-Flash eincompiliert wird, s.
@@ -25,33 +25,44 @@ function createBackend(): RoArmBackend {
 
 const DEFAULT_JOINT_MOVE_SPEED_DEG_PER_SEC = 60;
 const DEFAULT_DELAY_MS = 500;
+const GPIO_STEP_SIMULATED_DELAY_MS = 300; // Play-Wiedergabe: keine echte Hardware im Teach-Modus, s. playMission()
+const JOINT_ARRIVAL_TOLERANCE_CENTIDEG = 50; // Play-Wiedergabe: "angekommen" (0.5 Grad), s. waitForArrival()
+const JOINT_ARRIVAL_TIMEOUT_MS = 8000; // Play-Wiedergabe: Sicherheitsabbruch falls nie "angekommen", s. waitForArrival()
 
-// Umrechnung eines Kopf-Anfasser-Drags (Szeneneinheiten aus roarm-3d-view.ts, Y-up/Basis dreht um
-// Y) in ein kartesisches mm-Delta im Koordinatensystem von roarm-kinematics.ts (Z-up/Basis dreht
-// um den aequivalenten Z-Winkel). Achsen-Permutation+Vorzeichen empirisch ermittelt (isolierte
-// Shoulder- bzw. Base-Rotationstests: rollJoint-Weltposition in Szeneneinheiten gegen
-// forwardKinematics()-Ausgabe verglichen) -- OGL-Y (Hoehe) <-> kinematics Z (gleiches Vorzeichen),
-// OGL-Z <-> kinematics Y (gleiches Vorzeichen), OGL-X <-> kinematics X ABER VORZEICHENVERKEHRT.
-// Die Betraege stimmen dabei nur naeherungsweise (ca. 10-15% Abweichung): das vereinfachte 3D-
-// Modell bildet die kleinen, konstanten Knick-Winkel T2RAD/T3RAD/TERAD der echten Mechanik
-// (roarm-kinematics.ts) absichtlich NICHT nach (s. Kommentar in roarm-3d-view.ts) -- fuers
-// Ziehen des Kopf-Anfassers ausreichend, da die tatsaechliche Zielposition ohnehin ueber IK in
-// der (Mock-)Firmware entsteht und per PoseFeedback zurueckgemeldet wird; der Drag ist nur die
-// Eingabemethode, nicht die Autoritaet ueber die exakte Position.
-function sceneDeltaToKinematicsMm(d: { x: number; y: number; z: number }): { dxMm: number; dyMm: number; dzMm: number } {
-	const mmPerSceneUnit = 1 / SCENE_UNITS_PER_MM;
-	return { dxMm: -d.x * mmPerSceneUnit, dyMm: d.z * mmPerSceneUnit, dzMm: d.y * mmPerSceneUnit };
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Kein Greifer an diesem Arm (Vakuumsauger statt Zangen-Greifer) -- der 6. Kanal (JOINT_NAMES[5]
+// "Gripper") bleibt im Wire-Protokoll/roarm-kinematics.ts bestehen (keine Protokoll-Aenderung in
+// diesem Durchgang, s. Absprache), wird hier aber weder als Jogging-Slider noch als
+// Kartesisches-Ziel-Feld angezeigt.
+const JOGGABLE_JOINT_COUNT = 5;
+
+// Gelenkwinkel (centiDeg) des naechstgelegenen JointMoveStep AB fromIndex rueckwaerts -- fuers
+// Ghost-Overlay: zeigt an, wo der Arm vor der Einfuegeposition (s. insertAfterIndex) zuletzt
+// stand. Rueckwaerts statt einfach "letzter Schritt", weil der markierte Einfuegepunkt (Klick auf
+// einen Missionsschritt) auf einem Pause- oder Vakuum-Schritt OHNE eigene Pose liegen kann --
+// dann muss der Ghost sich auf die letzte Pose DAVOR beziehen, nicht auf den markierten Schritt
+// selbst oder das Ende der Liste.
+function lastJointMoveStepAngles(steps: readonly MissionStep[], fromIndex: number): number[] | null {
+	for (let i = Math.min(fromIndex, steps.length - 1); i >= 0; i--) {
+		const step = steps[i];
+		if (step.classId === roarm.JointMoveStep.CLASS_ID) return [...step.jointAnglesCentiDeg];
+	}
+	return null;
 }
 
 function stepSummary(step: MissionStep, gpioNames: readonly string[]): string {
 	switch (step.classId) {
 		case roarm.JointMoveStep.CLASS_ID: {
 			const degs = step.jointAnglesCentiDeg.map((c) => (c / 100).toFixed(0)).join(" / ");
-			return `Gelenkbewegung: ${degs}° @ ${step.maxSpeedDegPerSec}°/s`;
+			const kind = step.isWaypoint ? "Stützstelle" : "Exakte Pose";
+			return `${kind}: ${degs}° @ ${step.maxSpeedDegPerSec}°/s`;
 		}
 		case roarm.GpioStep.CLASS_ID: {
 			const name = gpioNames[step.gpioId] ?? `GPIO ${step.gpioId}`;
-			return `GPIO "${name}" -> ${step.state ? "EIN" : "AUS"}`;
+			return `${name} ${step.state ? "EIN" : "AUS"}`;
 		}
 		case roarm.DelayStep.CLASS_ID:
 			return `Warten ${step.durationMs} ms`;
@@ -67,32 +78,35 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 	private readonly backend: RoArmBackend = createBackend();
 	private view: RoArm3DHandles | null = null;
 	private unsubscribePose: (() => void) | null = null;
-	private readonly onResize = () => this.view?.resize();
-
-	// Schnappschuss bei Drag-Beginn (s. roarm-3d-view.ts' onDragStart) -- die Anfasser melden
-	// Deltas KUMULIERT seit Drag-Start, damit hier ohne Rundungsdrift immer "Startwert + Delta"
-	// gerechnet werden kann, statt viele kleine Deltas aufzuaddieren.
-	private dragStartJointAnglesCentiDeg: number[] | null = null;
-	private dragStartHeadPose: { xMm: number; yMm: number; zMm: number; pitchRad: number; rollRad: number; gripperRad: number } | null = null;
 
 	@query(".roarm-3d-container") private viewContainer!: HTMLDivElement;
 
-	@state() private jointAnglesCentiDeg: number[] = new Array(JOINT_COUNT).fill(0);
+	// Eingeknickte Ruhepose statt voll gestreckt (0/0/.../0) -- deckt sich mit MockRoArmBackends
+	// eigenem initialJointsRad-Default (s. dort), so dass die Ansicht nicht kurz die gestreckte
+	// Pose aufblitzt, bevor das erste PoseFeedback eintrifft.
+	@state() private jointAnglesCentiDeg: number[] = [...FOLDED_REST_POSE_CENTIDEG];
 	@state() private pose: roarm.PoseFeedback.Payload = this.backend.getLastPoseFeedback();
 	@state() private steps: MissionStep[] = [];
+	// Neue Schritte werden HINTER diesem Index eingefuegt (-1 = ganz an den Anfang) -- per Klick auf
+	// einen Missionsschritt verschiebbar (s. selectInsertPoint()), nicht zwingend das Ende der
+	// Liste. Default: ans Ende anhaengen (wird bei jeder Aenderung von `steps` nachgezogen, s.
+	// insertStep()/removeStep()/moveStep()).
+	@state() private insertAfterIndex = -1;
 	@state() private missionIndex = 1;
 	@state() private missionName = "";
 	@state() private missionList: roarm.MissionSummary.Payload[] = [];
 	@state() private gpioNames: string[] = [];
-	@state() private newGpioId = 0;
-	@state() private newGpioState = true;
 	@state() private newDelayMs = DEFAULT_DELAY_MS;
 	@state() private statusMessage = "";
 	@state() private statusVariant: "warning" | "success" | "error" = "warning";
+	@state() private dialogMode: "closed" | "open" | "save" = "closed";
+	@state() private dialogMissionIndex = 1;
+	@state() private dialogMissionName = "";
+	@state() private isPlaying = false;
+	private playbackCancelled = false;
 
 	onShow(): void {
 		this.ensureView();
-		window.addEventListener("resize", this.onResize);
 		this.unsubscribePose = this.backend.subscribePoseFeedback((feedback) => {
 			this.pose = feedback;
 			this.view?.setJointAnglesRad(feedback.jointAnglesCentiDeg.map(centiDegToRad));
@@ -103,7 +117,6 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 	}
 
 	onHide(): void {
-		window.removeEventListener("resize", this.onResize);
 		this.unsubscribePose?.();
 		this.unsubscribePose = null;
 		void this.backend.stopTeachMode();
@@ -112,17 +125,24 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 	private ensureView(): void {
 		if (this.view || !this.viewContainer) return;
 		this.view = createRoArm3DView(this.viewContainer, {
-			onDragStart: (handle: HandleId) => this.onHandleDragStart(handle),
-			onJointDrag: (jointIndex, deltaRad) => this.onHandleJointDrag(jointIndex, deltaRad),
-			onHeadDrag: (delta) => this.onHandleHeadDrag(delta),
-			onHeadOrientationDrag: (axis, deltaRad) => this.onHandleHeadOrientationDrag(axis, deltaRad),
-			onDragEnd: () => this.onHandleDragEnd(),
+			onJointAnglesPreview: (armAnglesRad) => this.onGizmoJointAnglesPreview(armAnglesRad),
 		});
 		this.view.setJointAnglesRad(this.jointAnglesCentiDeg.map(centiDegToRad));
+		this.view.setGhostAnglesRad(lastJointMoveStepAngles(this.steps, this.insertAfterIndex)?.map(centiDegToRad) ?? null);
 	}
 
 	protected firstUpdated(): void {
 		this.ensureView();
+	}
+
+	// Ghost-Overlay (letzte Pose VOR dem Einfuegepunkt, s. lastJointMoveStepAngles()) reaktiv mit
+	// `steps`/`insertAfterIndex` synchron halten -- deckt "Schritt hinzufuegen", Mission laden/
+	// Schritt loeschen UND einen neuen Einfuegepunkt anklicken ab, ohne dass jede Stelle, die eines
+	// der beiden aendert, das Overlay einzeln nachfuehren muss.
+	protected updated(changedProperties: Map<string, unknown>): void {
+		if (changedProperties.has("steps") || changedProperties.has("insertAfterIndex")) {
+			this.view?.setGhostAnglesRad(lastJointMoveStepAngles(this.steps, this.insertAfterIndex)?.map(centiDegToRad) ?? null);
+		}
 	}
 
 	private setStatus(message: string, variant: "warning" | "success" | "error"): void {
@@ -137,74 +157,14 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 		this.backend.setJointJogTargetCentiDeg(next);
 	}
 
-	// --- 3D-Anfasser (roarm-3d-view.ts) -- Gelenk-Drag dreht ein einzelnes Gelenk, Kopf-Drag
-	// verschiebt das kartesische Ziel. Beide melden ihr Delta kumuliert seit Drag-Start (s. dortiger
-	// Kommentar), daher hier ein Schnappschuss bei onDragStart statt fortlaufender Aufsummierung.
-	private onHandleDragStart(handle: HandleId): void {
-		// this.jointAnglesCentiDeg spiegelt normalerweise nur Slider-/Gelenk-Anfasser-Eingaben --
-		// nach einem rein kartesischen Kopf-Drag (Positions-Pfeile) waere es sonst veraltet
-		// (IK-bedingte Gelenkaenderungen laufen NICHT darueber). Vor jedem neuen Drag daher erst
-		// mit der zuletzt gemeldeten Ist-Pose abgleichen, damit ein direkt darauf folgender
-		// Gelenk-Ring-Drag nicht auf einen Stand VOR dem letzten Kopf-Drag zurueckfaellt.
-		this.jointAnglesCentiDeg = [...this.pose.jointAnglesCentiDeg];
-		this.dragStartJointAnglesCentiDeg = [...this.jointAnglesCentiDeg];
-		this.dragStartHeadPose = {
-			xMm: this.pose.xMm,
-			yMm: this.pose.yMm,
-			zMm: this.pose.zMm,
-			pitchRad: centiDegToRad(this.pose.pitchCentiDeg),
-			rollRad: centiDegToRad(this.pose.rollCentiDeg),
-			gripperRad: centiDegToRad(this.jointAnglesCentiDeg[5]),
-		};
-		void handle;
-	}
-
-	private onHandleJointDrag(jointIndex: number, deltaRad: number): void {
-		if (!this.dragStartJointAnglesCentiDeg) return;
-		const startRad = centiDegToRad(this.dragStartJointAnglesCentiDeg[jointIndex]);
-		const [min, max] = JOINT_LIMITS_RAD[jointIndex];
-		const nextRad = Math.min(max, Math.max(min, startRad + deltaRad));
+	// 3D-Gizmo (roarm-3d-view.ts) -- loest die IK jetzt clientseitig und meldet hier direkt fertige
+	// Gelenkwinkel (Base..Roll, rad) statt roher Deltas. Nur Index 5 (Gripper) bleibt unberuehrt --
+	// der Vakuum-Sauger-Endeffektor hat keine eigene Gelenkachse.
+	private onGizmoJointAnglesPreview(armAnglesRad: readonly number[]): void {
 		const next = [...this.jointAnglesCentiDeg];
-		next[jointIndex] = radToCentiDeg(nextRad);
+		for (let i = 0; i < armAnglesRad.length; i++) next[i] = radToCentiDeg(armAnglesRad[i]);
 		this.jointAnglesCentiDeg = next;
 		this.backend.setJointJogTargetCentiDeg(next);
-	}
-
-	private onHandleHeadDrag(deltaSceneUnits: { x: number; y: number; z: number }): void {
-		if (!this.dragStartHeadPose) return;
-		const { dxMm, dyMm, dzMm } = sceneDeltaToKinematicsMm(deltaSceneUnits);
-		const start = this.dragStartHeadPose;
-		this.backend.setCartesianJogTarget({
-			xMm: start.xMm + dxMm,
-			yMm: start.yMm + dyMm,
-			zMm: start.zMm + dzMm,
-			pitchRad: start.pitchRad,
-			rollRad: start.rollRad,
-			gripperRad: start.gripperRad,
-		});
-	}
-
-	// Pitch-Ring am Kopf -- "Roll" am Kopf kommt stattdessen ueber onHandleJointDrag(4, ...) rein
-	// (derselbe Rollgelenk-Freiheitsgrad, nur ein zweiter Anfasser, s. roarm-3d-view.ts-Kommentar).
-	// Nur X/Y/Z UND Roll bleiben beim Pitch-Ziehen auf dem Drag-Start-Wert fixiert -- sonst wuerde
-	// z.B. ein waehrenddessen laufendes Roll-Jogging durch das hier live() gelesene this.pose
-	// ueberschrieben.
-	private onHandleHeadOrientationDrag(axis: "pitch", deltaRad: number): void {
-		if (!this.dragStartHeadPose) return;
-		const start = this.dragStartHeadPose;
-		this.backend.setCartesianJogTarget({
-			xMm: start.xMm,
-			yMm: start.yMm,
-			zMm: start.zMm,
-			pitchRad: axis === "pitch" ? start.pitchRad + deltaRad : start.pitchRad,
-			rollRad: start.rollRad,
-			gripperRad: start.gripperRad,
-		});
-	}
-
-	private onHandleDragEnd(): void {
-		this.dragStartJointAnglesCentiDeg = null;
-		this.dragStartHeadPose = null;
 	}
 
 	private onCartesianApply(form: HTMLFormElement): void {
@@ -216,31 +176,58 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 			zMm: num("z"),
 			pitchRad: centiDegToRad(num("pitch") * 100),
 			rollRad: centiDegToRad(num("roll") * 100),
-			gripperRad: centiDegToRad(num("gripper") * 100),
+			gripperRad: 0, // kein Greifer an diesem Arm (Vakuumsauger statt Zangen-Greifer), kein Formularfeld dafuer
 		});
 	}
 
-	private addCurrentPoseAsStep(): void {
-		this.steps = [
-			...this.steps,
-			{
-				classId: roarm.JointMoveStep.CLASS_ID,
-				jointAnglesCentiDeg: [...this.pose.jointAnglesCentiDeg],
-				maxSpeedDegPerSec: DEFAULT_JOINT_MOVE_SPEED_DEG_PER_SEC,
-			},
-		];
+	// Fuegt hinter insertAfterIndex ein (nicht zwingend am Ende, s. Feld-Kommentar) und ruecht den
+	// Einfuegepunkt auf den neuen Schritt nach -- weitere Klicks auf "+"-Buttons ohne zwischenzeitliche
+	// Auswahl haengen so weiterhin fortlaufend hintereinander an, statt sich am urspruenglich
+	// angeklickten Schritt zu stapeln.
+	private insertStep(step: MissionStep): void {
+		const at = this.insertAfterIndex + 1;
+		this.steps = [...this.steps.slice(0, at), step, ...this.steps.slice(at)];
+		this.insertAfterIndex = at;
 	}
 
-	private addGpioStep(): void {
-		this.steps = [...this.steps, { classId: roarm.GpioStep.CLASS_ID, gpioId: this.newGpioId, state: this.newGpioState }];
+	private addCurrentPoseAsStep(isWaypoint: boolean): void {
+		this.insertStep({
+			classId: roarm.JointMoveStep.CLASS_ID,
+			jointAnglesCentiDeg: [...this.pose.jointAnglesCentiDeg],
+			maxSpeedDegPerSec: DEFAULT_JOINT_MOVE_SPEED_DEG_PER_SEC,
+			isWaypoint,
+		});
+	}
+
+	// Einziger Mission-GPIO auf diesem Arm ist der Vakuumsauger (VACUUM_GPIO_ID) -- keine generische
+	// Mehr-GPIO-Auswahl noetig, nur ein/aus.
+	private addVacuumStep(state: boolean): void {
+		this.insertStep({ classId: roarm.GpioStep.CLASS_ID, gpioId: VACUUM_GPIO_ID, state });
 	}
 
 	private addDelayStep(): void {
-		this.steps = [...this.steps, { classId: roarm.DelayStep.CLASS_ID, durationMs: this.newDelayMs }];
+		this.insertStep({ classId: roarm.DelayStep.CLASS_ID, durationMs: this.newDelayMs });
+	}
+
+	// Klick auf einen Missionsschritt (oder auf den "Anfang"-Platzhalter, index=-1): dieser Schritt
+	// wird zum neuen Einfuegepunkt fuer den naechsten hinzugefuegten Schritt UND der Arm faehrt dort
+	// hin (dieselbe Pose, die als Ghost angezeigt wird, s. lastJointMoveStepAngles()) -- so kann man
+	// von dieser Stelle aus mit Jogging/Gizmo weiterarbeiten, statt nur optisch zu vergleichen. Bei
+	// "Anfang" (index=-1) gibt es keine vorherige Pose, dort bewegt sich der Arm folgerichtig nicht.
+	private selectInsertPoint(index: number): void {
+		this.insertAfterIndex = index;
+		const angles = lastJointMoveStepAngles(this.steps, index);
+		if (angles) {
+			this.jointAnglesCentiDeg = angles;
+			this.backend.setJointJogTargetCentiDeg(angles);
+		}
 	}
 
 	private removeStep(index: number): void {
 		this.steps = this.steps.filter((_, i) => i !== index);
+		// War der Einfuegepunkt auf oder hinter dem geloeschten Schritt, ruecht er um eins nach --
+		// zeigt danach auf denselben (jetzt vorgerueckten) Nachbarn wie vorher.
+		if (index <= this.insertAfterIndex) this.insertAfterIndex -= 1;
 	}
 
 	private moveStep(index: number, delta: number): void {
@@ -249,6 +236,9 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 		const next = [...this.steps];
 		[next[index], next[target]] = [next[target], next[index]];
 		this.steps = next;
+		// Einfuegepunkt folgt demselben logischen Schritt durch die Vertauschung, nicht der Position.
+		if (this.insertAfterIndex === index) this.insertAfterIndex = target;
+		else if (this.insertAfterIndex === target) this.insertAfterIndex = index;
 	}
 
 	private async refreshMissionGpioNames(): Promise<void> {
@@ -259,14 +249,16 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 		this.missionList = await this.backend.listMissions();
 	}
 
-	private async saveMission(): Promise<void> {
-		if (this.missionIndex <= 0) {
+	private async saveMission(missionIndex: number, name: string): Promise<void> {
+		if (missionIndex <= 0) {
 			this.setStatus("Mission-Index muss > 0 sein", "error");
 			return;
 		}
-		const result = await this.backend.saveMission(this.missionIndex, this.missionName || `Mission ${this.missionIndex}`, this.steps);
+		const result = await this.backend.saveMission(missionIndex, name || `Mission ${missionIndex}`, this.steps);
 		if (result.success) {
-			this.setStatus(`Mission ${this.missionIndex} gespeichert`, "success");
+			this.missionIndex = missionIndex;
+			this.missionName = name;
+			this.setStatus(`Mission ${missionIndex} gespeichert`, "success");
 			void this.refreshMissionList();
 		} else {
 			this.setStatus(`Speichern fehlgeschlagen (Fehlercode ${result.errorCode})`, "error");
@@ -282,12 +274,96 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 		this.missionIndex = missionIndex;
 		this.missionName = mission.name;
 		this.steps = mission.steps;
+		this.insertAfterIndex = mission.steps.length - 1; // frisch geladen: Einfuegepunkt ans Ende
 		this.setStatus(`Mission ${missionIndex} geladen`, "success");
 	}
 
 	private async deleteMission(missionIndex: number): Promise<void> {
 		await this.backend.deleteMission(missionIndex);
 		void this.refreshMissionList();
+	}
+
+	// --- Speichern-/Oeffnen-Dialog (an klassische Datei-Dialoge angelehnt: Liste vorhandener
+	// Missionen + Index/Name-Feld, s. render()) -------------------------------------------------
+	private openSaveDialog(): void {
+		void this.refreshMissionList();
+		this.dialogMissionIndex = this.missionIndex;
+		this.dialogMissionName = this.missionName;
+		this.dialogMode = "save";
+	}
+
+	private openLoadDialog(): void {
+		void this.refreshMissionList();
+		this.dialogMissionIndex = this.missionList[0]?.missionIndex ?? this.missionIndex;
+		this.dialogMode = "open";
+	}
+
+	private closeDialog(): void {
+		this.dialogMode = "closed";
+	}
+
+	private selectDialogMission(m: roarm.MissionSummary.Payload): void {
+		this.dialogMissionIndex = m.missionIndex;
+		if (this.dialogMode === "save") this.dialogMissionName = m.name; // Ueberschreiben vorbereiten
+	}
+
+	private async deleteDialogMission(missionIndex: number): Promise<void> {
+		await this.deleteMission(missionIndex);
+	}
+
+	private async confirmDialog(): Promise<void> {
+		if (this.dialogMode === "save") {
+			await this.saveMission(this.dialogMissionIndex, this.dialogMissionName);
+		} else if (this.dialogMode === "open") {
+			await this.loadMission(this.dialogMissionIndex);
+		}
+		this.dialogMode = "closed";
+	}
+
+	// --- Play: fuehrt die aktuelle Mission clientseitig aus, ueber dasselbe RoArmBackend-Interface
+	// wie das interaktive Jogging (kein separater "Mission abspielen"-Kanal im Wire-Protokoll noetig).
+	// GpioStep hat KEINE eigene Live-Ansteuerung (nur innerhalb einer auf dem Board gespeicherten,
+	// dort ausgefuehrten Mission bedeutungsvoll) -- hier daher nur simuliert (Status-Text + kurze
+	// Pause), waehrend JointMoveStep/DelayStep echt ausgefuehrt werden (echtes Jogging bzw. echtes
+	// Warten).
+	private async playMission(): Promise<void> {
+		if (this.steps.length === 0 || this.isPlaying) return;
+		this.isPlaying = true;
+		this.playbackCancelled = false;
+		this.setStatus("Mission wird abgespielt …", "warning");
+		for (const step of this.steps) {
+			if (this.playbackCancelled) break;
+			if (step.classId === roarm.JointMoveStep.CLASS_ID) {
+				this.backend.setJointMoveTargetCentiDeg(step.jointAnglesCentiDeg, step.maxSpeedDegPerSec);
+				await this.waitForArrival(step.jointAnglesCentiDeg);
+			} else if (step.classId === roarm.GpioStep.CLASS_ID) {
+				const name = this.gpioNames[step.gpioId] ?? `GPIO ${step.gpioId}`;
+				this.setStatus(`${name} ${step.state ? "EIN" : "AUS"} (simuliert -- keine Live-GPIO-Ansteuerung im Teach-Modus)`, "warning");
+				await sleep(GPIO_STEP_SIMULATED_DELAY_MS);
+			} else if (step.classId === roarm.DelayStep.CLASS_ID) {
+				await sleep(step.durationMs);
+			}
+		}
+		this.isPlaying = false;
+		if (!this.playbackCancelled) this.setStatus("Mission-Wiedergabe abgeschlossen", "success");
+	}
+
+	private stopPlayback(): void {
+		this.playbackCancelled = true;
+	}
+
+	private waitForArrival(targetCentiDeg: readonly number[]): Promise<void> {
+		return new Promise((resolve) => {
+			const start = performance.now();
+			const check = () => {
+				if (this.playbackCancelled) return resolve();
+				const current = this.pose.jointAnglesCentiDeg;
+				const arrived = targetCentiDeg.every((t, i) => Math.abs((current[i] ?? 0) - t) <= JOINT_ARRIVAL_TOLERANCE_CENTIDEG);
+				if (arrived || performance.now() - start > JOINT_ARRIVAL_TIMEOUT_MS) return resolve();
+				requestAnimationFrame(check);
+			};
+			check();
+		});
 	}
 
 	render() {
@@ -299,113 +375,170 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 				</section>
 
 				<div class="roarm-layout">
-					<div class="panel-section roarm-view-panel">
-						<div class="panel-label">
-						3D-Vorschau (Maus: drehen/zoomen) -- goldene Ringe: Gelenke drehen, RGB-Pfeile am Kopf: Position ziehen, oranger/goldener Ring am Kopf: Pitch/Roll drehen
-					</div>
-						<div class="roarm-3d-container"></div>
-
+					<div class="panel-section roarm-controls-panel">
 						<div class="roarm-pose-readout">
 							Pose: X=${this.pose.xMm}mm Y=${this.pose.yMm}mm Z=${this.pose.zMm}mm
 							Pitch=${(this.pose.pitchCentiDeg / 100).toFixed(0)}° Roll=${(this.pose.rollCentiDeg / 100).toFixed(0)}°
 						</div>
 
-						<div class="panel-label">Gelenke (Jogging)</div>
-						${JOINT_NAMES.map(
-							(name, i) => html`
-								<div class="roarm-slider-row">
-									<span class="roarm-slider-label">${name}</span>
-									<input
-										type="range"
-										min="-90"
-										max="90"
-										step="1"
-										.value=${(this.jointAnglesCentiDeg[i] / 100).toString()}
-										@input=${(e: Event) => this.onJointSliderInput(i, Number((e.target as HTMLInputElement).value))}
-									/>
-									<span class="register-slider-value">${(this.jointAnglesCentiDeg[i] / 100).toFixed(0)}°</span>
-								</div>
-							`,
-						)}
+						<details class="roarm-collapsible" open>
+							<summary class="roarm-collapsible-summary">Gelenke (Jogging)</summary>
+							<div class="roarm-collapsible-body">
+								${JOINT_NAMES.slice(0, JOGGABLE_JOINT_COUNT).map(
+									(name, i) => html`
+										<div class="roarm-slider-row">
+											<span class="roarm-slider-label">${name}</span>
+											<input
+												type="range"
+												min="-90"
+												max="90"
+												step="1"
+												.value=${(this.jointAnglesCentiDeg[i] / 100).toString()}
+												@input=${(e: Event) => this.onJointSliderInput(i, Number((e.target as HTMLInputElement).value))}
+											/>
+											<span class="register-slider-value">${(this.jointAnglesCentiDeg[i] / 100).toFixed(0)}°</span>
+										</div>
+									`,
+								)}
+							</div>
+						</details>
 
-						<div class="panel-label">Kartesisches Ziel</div>
-						<form
-							class="roarm-cartesian-form"
-							@submit=${(e: SubmitEvent) => {
-								e.preventDefault();
-								this.onCartesianApply(e.target as HTMLFormElement);
-							}}
-						>
-							<label>X<input class="panel-input" type="number" name="x" value="200" /></label>
-							<label>Y<input class="panel-input" type="number" name="y" value="0" /></label>
-							<label>Z<input class="panel-input" type="number" name="z" value="150" /></label>
-							<label>Pitch<input class="panel-input" type="number" name="pitch" value="0" /></label>
-							<label>Roll<input class="panel-input" type="number" name="roll" value="0" /></label>
-							<label>Greifer<input class="panel-input" type="number" name="gripper" value="0" /></label>
-							<button type="submit">Anfahren</button>
-						</form>
+						<details class="roarm-collapsible" open>
+							<summary class="roarm-collapsible-summary">Kartesisches Ziel</summary>
+							<div class="roarm-collapsible-body">
+								<form
+									class="roarm-cartesian-form"
+									@submit=${(e: SubmitEvent) => {
+										e.preventDefault();
+										this.onCartesianApply(e.target as HTMLFormElement);
+									}}
+								>
+									<label>X<input class="panel-input" type="number" name="x" value="200" /></label>
+									<label>Y<input class="panel-input" type="number" name="y" value="0" /></label>
+									<label>Z<input class="panel-input" type="number" name="z" value="150" /></label>
+									<label>Pitch<input class="panel-input" type="number" name="pitch" value="0" /></label>
+									<label>Roll<input class="panel-input" type="number" name="roll" value="0" /></label>
+									<button type="submit">Anfahren</button>
+								</form>
+							</div>
+						</details>
+
+						<details class="roarm-collapsible roarm-mission-collapsible" open>
+							<summary class="roarm-collapsible-summary">Missionsplanung</summary>
+							<div class="roarm-collapsible-body">
+								<div class="roarm-mission-toolbar">
+									<button @click=${() => this.openSaveDialog()}>Speichern</button>
+									<button @click=${() => this.openLoadDialog()}>Öffnen</button>
+									${this.isPlaying
+										? html`<button @click=${() => this.stopPlayback()}>Stop</button>`
+										: html`<button ?disabled=${this.steps.length === 0} @click=${() => this.playMission()}>Play</button>`}
+								</div>
+
+								<div class="panel-label">Schritte hinzufügen</div>
+								<div class="roarm-addstep-row">
+									<button class="roarm-addstep-btn" @click=${() => this.addCurrentPoseAsStep(false)}>Exakte Pose</button>
+									<span class="roarm-addstep-data">${this.pose.xMm} / ${this.pose.yMm} / ${this.pose.zMm} mm</span>
+								</div>
+								<div class="roarm-addstep-row">
+									<button class="roarm-addstep-btn" @click=${() => this.addCurrentPoseAsStep(true)}>Stützstelle</button>
+									<span class="roarm-addstep-data">${this.pose.xMm} / ${this.pose.yMm} / ${this.pose.zMm} mm</span>
+								</div>
+								<div class="roarm-addstep-row">
+									<button class="roarm-addstep-btn" @click=${() => this.addVacuumStep(true)}>Vakuum ein</button>
+									<span class="roarm-addstep-data">–</span>
+								</div>
+								<div class="roarm-addstep-row">
+									<button class="roarm-addstep-btn" @click=${() => this.addVacuumStep(false)}>Vakuum aus</button>
+									<span class="roarm-addstep-data">–</span>
+								</div>
+								<div class="roarm-addstep-row">
+									<button class="roarm-addstep-btn" @click=${() => this.addDelayStep()}>Pause</button>
+									<input
+										class="panel-input roarm-addstep-data"
+										type="number"
+										min="0"
+										.value=${this.newDelayMs.toString()}
+										@input=${(e: Event) => (this.newDelayMs = Number((e.target as HTMLInputElement).value))}
+									/>
+								</div>
+
+								<div class="panel-label">Aktuelle Mission</div>
+								${this.steps.length === 0
+									? html`<div class="roarm-empty-hint">Diese Mission enthält noch keine Schritte.</div>`
+									: html`
+											<ol class="roarm-mission-list">
+												<li class="roarm-mission-cursor-slot ${this.insertAfterIndex === -1 ? "is-cursor" : ""}" @click=${() => this.selectInsertPoint(-1)}>▸ Anfang</li>
+												${this.steps.map(
+													(step, i) => html`
+														<li class="roarm-mission-step ${this.insertAfterIndex === i ? "is-cursor" : ""}" @click=${() => this.selectInsertPoint(i)}>
+															<span>${stepSummary(step, this.gpioNames)}</span>
+															<span class="roarm-step-row-actions">
+																<button @click=${(e: Event) => { e.stopPropagation(); this.moveStep(i, -1); }}>↑</button>
+																<button @click=${(e: Event) => { e.stopPropagation(); this.moveStep(i, 1); }}>↓</button>
+																<button @click=${(e: Event) => { e.stopPropagation(); this.removeStep(i); }}>✕</button>
+															</span>
+														</li>
+													`,
+												)}
+											</ol>
+										`}
+							</div>
+						</details>
 					</div>
 
-					<div class="panel-section roarm-steps-panel">
-						<div class="panel-label">Schritte</div>
-						<div class="roarm-step-toolbar">
-							<button @click=${() => this.addCurrentPoseAsStep()}>+ Aktuelle Pose</button>
-						</div>
-
-						<div class="roarm-step-toolbar">
-							<select class="panel-input" .value=${this.newGpioId.toString()} @change=${(e: Event) => (this.newGpioId = Number((e.target as HTMLSelectElement).value))}>
-								${this.gpioNames.map((name, i) => html`<option value=${i}>${name}</option>`)}
-							</select>
-							<select class="panel-input" .value=${this.newGpioState ? "1" : "0"} @change=${(e: Event) => (this.newGpioState = (e.target as HTMLSelectElement).value === "1")}>
-								<option value="1">EIN</option>
-								<option value="0">AUS</option>
-							</select>
-							<button @click=${() => this.addGpioStep()}>+ GPIO-Schritt</button>
-						</div>
-
-						<div class="roarm-step-toolbar">
-							<input class="panel-input" type="number" .value=${this.newDelayMs.toString()} @input=${(e: Event) => (this.newDelayMs = Number((e.target as HTMLInputElement).value))} />
-							<button @click=${() => this.addDelayStep()}>+ Delay (ms)</button>
-						</div>
-
-						<ol class="roarm-step-list">
-							${this.steps.map(
-								(step, i) => html`
-									<li class="roarm-step-row">
-										<span>${stepSummary(step, this.gpioNames)}</span>
-										<span class="roarm-step-row-actions">
-											<button @click=${() => this.moveStep(i, -1)}>↑</button>
-											<button @click=${() => this.moveStep(i, 1)}>↓</button>
-											<button @click=${() => this.removeStep(i)}>✕</button>
-										</span>
-									</li>
-								`,
-							)}
-						</ol>
-
-						<div class="panel-label">Mission speichern</div>
-						<div class="roarm-step-toolbar">
-							<input class="panel-input" type="number" min="1" .value=${this.missionIndex.toString()} @input=${(e: Event) => (this.missionIndex = Number((e.target as HTMLInputElement).value))} />
-							<input class="panel-input" type="text" placeholder="Name" .value=${this.missionName} @input=${(e: Event) => (this.missionName = (e.target as HTMLInputElement).value)} />
-							<button @click=${() => this.saveMission()}>Speichern</button>
-						</div>
-
-						<div class="panel-label">Gespeicherte Missionen</div>
-						<ul class="roarm-step-list">
-							${this.missionList.map(
-								(m) => html`
-									<li class="roarm-step-row">
-										<span>#${m.missionIndex} -- ${m.name}</span>
-										<span class="roarm-step-row-actions">
-											<button @click=${() => this.loadMission(m.missionIndex)}>Laden</button>
-											<button @click=${() => this.deleteMission(m.missionIndex)}>Löschen</button>
-										</span>
-									</li>
-								`,
-							)}
-						</ul>
+					<div class="roarm-view-panel">
+						<div class="roarm-3d-container"></div>
 					</div>
 				</div>
+
+				${this.dialogMode !== "closed"
+					? html`
+							<div class="roarm-modal-backdrop" @click=${() => this.closeDialog()}>
+								<div class="roarm-modal" @click=${(e: Event) => e.stopPropagation()}>
+									<div class="roarm-modal-title">${this.dialogMode === "save" ? "Mission speichern" : "Mission öffnen"}</div>
+									<ul class="roarm-modal-list">
+										${this.missionList.length === 0 ? html`<li class="roarm-modal-list-empty">Keine gespeicherten Missionen</li>` : ""}
+										${this.missionList.map(
+											(m) => html`
+												<li
+													class="roarm-modal-list-item ${this.dialogMissionIndex === m.missionIndex ? "is-selected" : ""}"
+													@click=${() => this.selectDialogMission(m)}
+													@dblclick=${() => this.confirmDialog()}
+												>
+													<span>#${m.missionIndex} — ${m.name}</span>
+													<button @click=${(e: Event) => { e.stopPropagation(); this.deleteDialogMission(m.missionIndex); }}>Löschen</button>
+												</li>
+											`,
+										)}
+									</ul>
+									<div class="roarm-modal-fields">
+										<label
+											>Index<input
+												class="panel-input"
+												type="number"
+												min="1"
+												.value=${this.dialogMissionIndex.toString()}
+												@input=${(e: Event) => (this.dialogMissionIndex = Number((e.target as HTMLInputElement).value))}
+										/></label>
+										${this.dialogMode === "save"
+											? html`<label
+													>Name<input
+														class="panel-input"
+														type="text"
+														placeholder="Name"
+														.value=${this.dialogMissionName}
+														@input=${(e: Event) => (this.dialogMissionName = (e.target as HTMLInputElement).value)}
+											/></label>`
+											: ""}
+									</div>
+									<div class="roarm-modal-actions">
+										<button @click=${() => this.closeDialog()}>Abbrechen</button>
+										<button @click=${() => this.confirmDialog()}>${this.dialogMode === "save" ? "Speichern" : "Öffnen"}</button>
+									</div>
+								</div>
+							</div>
+						`
+					: ""}
 			</div>
 		`;
 	}

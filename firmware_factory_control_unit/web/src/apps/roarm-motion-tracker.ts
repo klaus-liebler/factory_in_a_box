@@ -24,6 +24,14 @@ export class JointTracker {
 		return Math.abs(this.target - this.current) > 1e-4 || Math.abs(this.velocity) > 1e-4;
 	}
 
+	/// Ist- UND Zielwinkel sowie die Geschwindigkeit sofort setzen, ohne das Beschleunigungsprofil
+	/// zu durchlaufen -- s. MultiJointTracker.snapTo().
+	snapTo(value: number): void {
+		this.current = value;
+		this.target = value;
+		this.velocity = 0;
+	}
+
 	/// dtSeconds: seit dem letzten Tick vergangene Zeit. Bremsweg wird aus der aktuellen
 	/// Geschwindigkeit hergeleitet (v^2 / 2a), damit rechtzeitig vor dem Ziel abgebremst wird,
 	/// statt es zu ueberschwingen.
@@ -74,6 +82,24 @@ export class MultiJointTracker {
 		targetsRad.forEach((v, i) => {
 			this.trackers[i].target = v;
 		});
+	}
+
+	/// Wie setTargets(), aber mit einer je Aufruf vorgegebenen Hoechstgeschwindigkeit statt der
+	/// Konstruktor-Vorgabe -- fuer die Missions-Wiedergabe, wo jeder Schritt sein eigenes
+	/// maxSpeedDegPerSec mitbringt (s. playMission() in roarm-teach-app.ts).
+	setTargetsWithSpeed(targetsRad: readonly number[], maxVelocityRadPerSec: number): void {
+		targetsRad.forEach((v, i) => {
+			this.trackers[i].maxVelocityPerSec = maxVelocityRadPerSec;
+			this.trackers[i].target = v;
+		});
+	}
+
+	/// Setzt Ist- UND Zielwinkel sofort, ohne das beschleunigungsbegrenzte Profil zu durchlaufen --
+	/// fuers direkte Jogging/Gizmo-Ziehen gedacht (der Nutzer erwartet dort 1:1-Nachfuehren, keine
+	/// Traegheit), waehrend tick()/setTargets() fuer eine spaetere Missions-Wiedergabe-Simulation
+	/// mit realistischem Bewegungsgefuehl verfuegbar bleiben.
+	snapTo(anglesRad: readonly number[]): void {
+		anglesRad.forEach((v, i) => this.trackers[i].snapTo(v));
 	}
 
 	get isMoving(): boolean {

@@ -1,0 +1,149 @@
+<?xml version="1.0" ?>
+<!--
+  Cleaned, standalone URDF for the Waveshare RoArm-M3.
+  Source: https://github.com/waveshareteam/roarm_ws/tree/ros2-humble/src/roarm_main/roarm_description
+  Xacro includes (materials.xacro, roarm_m3.trans, roarm_m3.gazebo) have been resolved/dropped
+  since they only carry ros2_control and Gazebo simulation data, not needed for pure visualization.
+  Mesh filenames point at ./meshes/roarm_m3/*.stl (served from /urdf and /meshes in this app).
+-->
+<robot name="roarm_m3">
+
+<material name="silver">
+  <color rgba="0.700 0.700 0.700 1.000"/>
+</material>
+
+<link name="world"></link>
+
+<link name="base_link">
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="../meshes/roarm_m3/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+</link>
+
+<link name="link1">
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="../meshes/roarm_m3/link1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+</link>
+
+<link name="link2">
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="../meshes/roarm_m3/link2.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+</link>
+
+<link name="link3">
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="../meshes/roarm_m3/link3.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+</link>
+
+<link name="link4">
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="../meshes/roarm_m3/link4.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+</link>
+
+<link name="link5">
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="../meshes/roarm_m3/link5.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+</link>
+
+<link name="gripper_link">
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="../meshes/roarm_m3/gripper_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+</link>
+
+<link name="hand_tcp"></link>
+
+<joint name="world_to_base_link" type="fixed">
+  <origin xyz="0.0 0.0 0.0701" rpy="0 0 0"/>
+  <parent link="world"/>
+  <child link="base_link"/>
+</joint>
+
+<joint name="base_link_to_link1" type="revolute">
+  <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="link1"/>
+  <axis xyz="0.0 0.0 1.0"/>
+  <limit lower="-3.1416" upper="3.1416" effort="0" velocity="0" />
+</joint>
+
+<joint name="link1_to_link2" type="revolute">
+  <origin xyz="0.0 0.0 0.051959" rpy="-1.5708 -1.5708 0"/>
+  <parent link="link1"/>
+  <child link="link2"/>
+  <axis xyz="-0.0 0 1.0"/>
+  <limit lower="-1.5708" upper="1.5708" effort="0" velocity="0" />
+</joint>
+
+<joint name="link2_to_link3" type="revolute">
+  <origin xyz="0.236815 0.030002 0" rpy="0 0 1.5708"/>
+  <parent link="link2"/>
+  <child link="link3"/>
+  <axis xyz="0.0 0.0 1.0"/>
+  <limit lower="-1" upper="2.95" effort="0" velocity="0" />
+</joint>
+
+<joint name="link3_to_link4" type="revolute">
+  <origin xyz="0.0 -0.144586 0" rpy="0 0 0"/>
+  <parent link="link3"/>
+  <child link="link4"/>
+  <axis xyz="0.0 0.0 1.0"/>
+  <limit lower="-1.5708" upper="1.5708" effort="0" velocity="0" />
+</joint>
+
+<joint name="link4_to_link5" type="revolute">
+  <origin xyz="0.015147 -0.053653 0" rpy="1.5708 1.5708 0"/>
+  <parent link="link4"/>
+  <child link="link5"/>
+  <axis xyz="0.0 0.0 1.0"/>
+  <limit lower="-3.1416" upper="3.1416" effort="0" velocity="0" />
+</joint>
+
+<joint name="link5_to_gripper_link" type="revolute">
+  <origin xyz="0.00 0.018821 0.052035" rpy="-1.5708 -1.5708 0"/>
+  <parent link="link5"/>
+  <child link="gripper_link"/>
+  <axis xyz="0.0 -0.0 1.0"/>
+  <limit lower="0" upper="1.5" effort="0" velocity="0" />
+</joint>
+
+<joint name="link5_to_hand_tcp" type="fixed">
+  <origin xyz="0 0 0.115428" rpy="1.5708 -1.5708 0"/>
+  <parent link="link5"/>
+  <child link="hand_tcp"/>
+</joint>
+
+</robot>

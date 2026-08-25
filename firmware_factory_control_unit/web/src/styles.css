@@ -560,30 +560,83 @@ button:active {
 }
 
 /* ==========================================================================
-   RoArm-Teach-App: 3D-Vorschau (OGL) + Gelenk-/Cartesian-Jogging links,
-   Schritt-/Missionsliste rechts.
+   RoArm-Teach-App: alle Einstellungen kompakt+scrollbar in einer schmalen
+   linken Spalte, die 3D-Ansicht (roarm-3d-view.ts) nimmt den Rest der
+   verfuegbaren Hoehe/Breite ein statt einer festen Vorschaugroesse.
    ========================================================================== */
 
+/* roarm-teach-app selbst braucht eine definitive Hoehe, sonst loest .roarm-container{height:100%}
+   unten gegen "auto" auf (kein Effekt) -- die anderen App-Elemente (modbus-register-app etc., s.
+   gemeinsame Regel oben) bleiben bewusst bei ihrer natuerlichen, dokumentenfluss-basierten Hoehe
+   samt Seiten-Scroll in .app-shell-content, nur diese Seite bekommt eine feste, nicht scrollende
+   Vollhoehen-Ansicht (Steuerung scrollt stattdessen INNERHALB in .roarm-controls-panel, s.u.). */
+roarm-teach-app {
+	height: 100%;
+}
+
 .roarm-container {
-	max-width: 1400px;
+	max-width: none;
+	height: 100%;
+	/* .container (s.o.) bringt padding:12px 16px mit, aber kein box-sizing -- der Browser-Default
+	   content-box addiert dieses Padding OBEN AUF die 100% Hoehe drauf, statt es einzurechnen. Bei
+	   fixem px-Padding faellt das meist nicht auf, aber hier ist die Hoehe selbst relativ (100% des
+	   verfuegbaren .app-shell-content-Platzes) -- das Element wurde dadurch real 24px (= padding-top
+	   + padding-bottom) hoeher als sein Container, mit exakt diesem Betrag lief die Seite ueber und
+	   bekam eine vertikale Scrollbar (sichtbar u.a. daran, dass .roarm-3d-container's untere Kante
+	   unterhalb des sichtbaren Viewports lag). border-box rechnet das Padding in die 100% mit ein. */
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
 }
 
 .roarm-layout {
-	display: grid;
+	display: flex;
 	gap: 16px;
-	grid-template-columns: minmax(360px, 1fr) minmax(320px, 1fr);
-	align-items: start;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+/* display:flex (statt des von .panel-section geerbten display:grid, s. dort -- gleiche
+   Selektor-Spezifitaet, spaeter in der Kaskade gewinnt) -- damit die Missionsplanung unten (s.
+   .roarm-mission-collapsible) sich per flex-grow den kompletten verbleibenden vertikalen Platz
+   nehmen kann, waehrend Gelenke/Kartesisches-Ziel-Panels ihre natuerliche Groesse behalten.
+   overflow-y:auto bleibt als Sicherheitsnetz fuer sehr niedrige Viewports, in denen selbst die
+   fixen Panels nicht mehr reinpassen. */
+.roarm-controls-panel {
+	flex: 0 0 320px;
+	min-width: 0;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	overflow-y: auto;
+}
+
+.roarm-view-panel {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
 }
 
 @media (max-width: 900px) {
 	.roarm-layout {
-		grid-template-columns: 1fr;
+		flex-direction: column;
+	}
+
+	.roarm-controls-panel {
+		flex: 0 0 auto;
+		max-height: 40vh;
+	}
+
+	.roarm-view-panel {
+		min-height: 320px;
 	}
 }
 
 .roarm-3d-container {
+	flex: 1 1 auto;
 	width: 100%;
-	height: 320px;
+	min-height: 320px;
 	border-radius: var(--ui-radius-md);
 	background: linear-gradient(#eef2f7, #f7f9fb);
 	overflow: hidden;
@@ -603,18 +656,23 @@ button:active {
 
 .roarm-slider-row {
 	display: grid;
-	grid-template-columns: 90px 1fr 4em;
+	/* minmax(0, 1fr) statt 1fr: Grid-Items haben per Default min-width:auto, wodurch die mittlere
+	   Spur nicht unter die intrinsische Mindestbreite des <input type="range"> schrumpfen kann --
+	   die Zeile (und damit die ganze schmale linke Spalte) ragte dadurch ueber ihren Container
+	   hinaus. minmax(0, 1fr) erlaubt das Schrumpfen explizit. */
+	grid-template-columns: 90px minmax(0, 1fr) 4em;
 	align-items: center;
 	gap: 8px;
 }
 
 .roarm-slider-row input[type="range"] {
 	width: 100%;
+	min-width: 0;
 }
 
 .roarm-cartesian-form {
 	display: grid;
-	grid-template-columns: repeat(3, 1fr);
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 8px;
 }
 
@@ -668,4 +726,260 @@ button:active {
 	height: 26px;
 	padding: 0 8px;
 	font-size: 11px;
+}
+
+.roarm-mission-toolbar {
+	display: flex;
+	gap: 6px;
+}
+
+.roarm-mission-toolbar button {
+	flex: 1 1 0;
+}
+
+/* Alle Buttons gleich breit (fixe erste Spalte), Zusatzdaten rechts daneben. */
+.roarm-addstep-row {
+	display: grid;
+	grid-template-columns: 120px minmax(0, 1fr);
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+}
+
+.roarm-addstep-btn {
+	width: 100%;
+}
+
+.roarm-addstep-data {
+	font-size: var(--ui-font-size-sm);
+	color: var(--ui-color-text-secondary);
+	font-variant-numeric: tabular-nums;
+}
+
+.roarm-empty-hint {
+	font-size: var(--ui-font-size-sm);
+	color: var(--ui-color-text-muted);
+	font-style: italic;
+	padding: 8px 0;
+}
+
+/* Eigene Scrollbar fuer die Schrittliste statt fuer die ganze linke Spalte (.roarm-controls-panel)
+   -- bei vielen Missionsschritten soll man weiter scrollen koennen, ohne dass Slider/Buttons oben
+   aus dem sichtbaren Bereich verschwinden. Kein max-height mehr (war 260px fix) -- flex:1 1 auto
+   in einer flex-column-Kette (.roarm-mission-collapsible -> dessen .roarm-collapsible-body -> hier)
+   lässt die Liste stattdessen den gesamten verbleibenden Platz der Seitenspalte einnehmen und nur
+   scrollen, wenn selbst das nicht reicht. min-height als Untergrenze, damit sie bei wenig Platz
+   nicht komplett verschwindet.
+*/
+.roarm-mission-list {
+	list-style: none;
+	margin: 0;
+	padding: 4px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 1 1 auto;
+	min-height: 90px;
+	overflow-y: auto;
+	border: 1px solid var(--ui-color-border-soft);
+	border-radius: var(--ui-radius-sm);
+	background: var(--ui-color-bg-subtle);
+	box-sizing: border-box;
+}
+
+/* Einklappbare Abschnitte ("Gelenke (Jogging)", "Kartesisches Ziel", "Missionsplanung") -- natives
+   <details>/<summary> statt eigenem Auf/Zu-State, braucht dadurch keine zusaetzliche
+   Lit-@state()-Verwaltung. flex:0 0 auto als Baseline (natuerliche Groesse, nicht schrumpfen) --
+   .roarm-mission-collapsible unten durchbricht das gezielt fuer die Missionsplanung. */
+.roarm-collapsible {
+	flex: 0 0 auto;
+	border: 1px solid var(--ui-color-border-soft);
+	border-radius: var(--ui-radius-md);
+	padding: 8px 10px;
+	background: var(--ui-color-bg-surface);
+}
+
+/* Neuere Chromium-Versionen legen den Nicht-<summary>-Inhalt eines offenen <details> intern in eine
+   generierte ::details-content-Box (fuers Auf/Zu-Transition-Animieren) -- diese Box liegt zwischen
+   <details> und unserem eigenen .roarm-collapsible-body im Rendering-Baum und ist per UA-Default
+   NICHT Teil unseres Flex-Layouts (display:block), wodurch .roarm-collapsible-bodys eigenes
+   "flex:1 1 auto" ins Leere lief (der tatsaechliche Flex-Parent war diese Box, nicht <details>) --
+   sichtbar als Missionsliste, die trotz min-height:0-Kette in der Hoehe einfach durchwuchs statt
+   sich am verfuegbaren Platz zu orientieren. display:contents nimmt die Box aus dem Layout-Baum
+   heraus, macht .roarm-collapsible-body wieder zum direkten Flex-Kind von <details>.
+   WICHTIG: nur mit [open] qualifiziert -- das UA-Stylesheet versteckt den Inhalt eines
+   GESCHLOSSENEN <details> genau ueber diese ::details-content-Box (Hoehe 0 + content-visibility);
+   ein ungebundenes "display:contents" hier haette diesen Hide-Mechanismus fuer ALLE Zustaende
+   ausgehebelt, wodurch eingeklappte Panels ihren Inhalt trotzdem weiter anzeigten. Browser ohne
+   dieses Pseudo-Element ignorieren die Regel folgenlos (Selektor matcht dann einfach nichts). */
+.roarm-collapsible[open]::details-content {
+	display: contents;
+}
+
+.roarm-collapsible-summary {
+	font-weight: 600;
+	font-size: 15px;
+	color: var(--ui-color-text-primary);
+	cursor: pointer;
+	user-select: none;
+}
+
+.roarm-collapsible[open] > .roarm-collapsible-summary {
+	margin-bottom: 8px;
+}
+
+.roarm-collapsible-body {
+	display: grid;
+	gap: 10px;
+}
+
+/* Missionsplanung darf (im Gegensatz zu den anderen Panels) den kompletten verbleibenden
+   vertikalen Platz der Seitenspalte einnehmen, damit die Schrittliste (.roarm-mission-list) darin
+   moeglichst gross werden kann statt frueh auf eine kleine feste Hoehe gedeckelt zu sein. */
+.roarm-mission-collapsible {
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.roarm-mission-collapsible[open] {
+	min-height: 160px; /* auch bei knappem Platz noch als eigener Aufklapp-Block erkennbar */
+}
+
+.roarm-mission-collapsible > .roarm-collapsible-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.roarm-mission-cursor-slot {
+	padding: 3px 10px;
+	font-size: 11px;
+	color: var(--ui-color-text-muted);
+	border-radius: var(--ui-radius-sm);
+	cursor: pointer;
+	border: 1px dashed transparent;
+}
+
+.roarm-mission-cursor-slot:hover {
+	background: var(--ui-color-bg-muted);
+}
+
+/* Der Schritt, hinter dem der naechste neue Schritt eingefuegt wird -- s. insertAfterIndex. */
+.roarm-mission-cursor-slot.is-cursor,
+.roarm-mission-step.is-cursor {
+	border-color: #2f6fed;
+	background: #eaf1ff;
+}
+
+.roarm-mission-step {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 10px;
+	background: var(--ui-color-bg-surface);
+	border: 1px solid var(--ui-color-border-soft);
+	border-radius: var(--ui-radius-sm);
+	font-size: var(--ui-font-size-sm);
+	cursor: pointer;
+}
+
+.roarm-mission-step:hover {
+	background: var(--ui-color-bg-muted);
+}
+
+.roarm-modal-backdrop {
+	position: fixed;
+	inset: 0;
+	background: rgba(15, 20, 30, 0.45);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 10;
+}
+
+.roarm-modal {
+	width: 380px;
+	max-width: calc(100vw - 32px);
+	max-height: calc(100vh - 64px);
+	display: flex;
+	flex-direction: column;
+	background: var(--ui-color-bg-surface);
+	border-radius: var(--ui-radius-lg);
+	border: 1px solid var(--ui-color-border);
+	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+	padding: 16px;
+	gap: 12px;
+}
+
+.roarm-modal-title {
+	font-size: var(--ui-font-size-lg);
+	font-weight: 600;
+	color: var(--ui-color-text-primary);
+}
+
+.roarm-modal-list {
+	list-style: none;
+	margin: 0;
+	padding: 4px;
+	border: 1px solid var(--ui-color-border-soft);
+	border-radius: var(--ui-radius-sm);
+	background: var(--ui-color-bg-subtle);
+	overflow-y: auto;
+	min-height: 80px;
+	max-height: 220px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.roarm-modal-list-empty {
+	padding: 10px;
+	font-size: var(--ui-font-size-sm);
+	color: var(--ui-color-text-muted);
+	font-style: italic;
+}
+
+.roarm-modal-list-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: var(--ui-radius-sm);
+	font-size: var(--ui-font-size-sm);
+	cursor: pointer;
+}
+
+.roarm-modal-list-item:hover {
+	background: var(--ui-color-bg-muted);
+}
+
+.roarm-modal-list-item.is-selected {
+	background: #2f6fed;
+	color: #fff;
+}
+
+.roarm-modal-fields {
+	display: flex;
+	gap: 8px;
+}
+
+.roarm-modal-fields label {
+	flex: 1 1 0;
+	display: flex;
+	flex-direction: column;
+	font-size: var(--ui-font-size-sm);
+	color: var(--ui-color-text-secondary);
+	gap: 2px;
+}
+
+.roarm-modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
 }

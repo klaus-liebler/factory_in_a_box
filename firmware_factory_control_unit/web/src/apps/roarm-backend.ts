@@ -26,6 +26,11 @@ export interface RoArmBackend {
 	setJointJogTargetCentiDeg(jointAnglesCentiDeg: readonly number[]): void;
 	/** Wie oben, aber kartesisch -- die echte Firmware macht IK, der Mock macht es lokal (roarm-kinematics.ts). */
 	setCartesianJogTarget(pose: CartesianPose): void;
+	/** Fuer die Missions-Wiedergabe (Play): faehrt mit hoechstens maxSpeedDegPerSec statt sofort
+	 * zu springen, s. playMission() in roarm-teach-app.ts. Die echte Hardware ist ueber die
+	 * Servo-Ansteuerung ohnehin geschwindigkeitsbegrenzt, WsRoArmBackend delegiert daher einfach an
+	 * setJointJogTargetCentiDeg; der Mock simuliert die Rampe clientseitig ueber MultiJointTracker. */
+	setJointMoveTargetCentiDeg(jointAnglesCentiDeg: readonly number[], maxSpeedDegPerSec: number): void;
 
 	/** Liefert die zuletzt bekannte Pose sofort (fuer den initialen Render, vor der ersten PoseFeedback-Nachricht). */
 	getLastPoseFeedback(): roarm.PoseFeedback.Payload;
@@ -44,9 +49,18 @@ function mockDelay<T>(value: T): Promise<T> {
 	return new Promise((resolve) => setTimeout(() => resolve(value), MOCK_LATENCY_MS));
 }
 
-// Placeholder-Namen exakt wie das geplante Firmware-Pendant (Core/Src/setup_and_loops/
-// roarm_mission_gpio.hh) -- dort ohne zugewiesene Pins, bis feststeht, welche GPIOs frei sind.
-const MOCK_MISSION_GPIO_NAMES = ["Mission GPIO 1", "Mission GPIO 2", "Mission GPIO 3", "Mission GPIO 4"];
+// Nur ein einziger Mission-GPIO auf diesem Arm -- er traegt einen Vakuum-Sauger statt des
+// mechanischen Zangen-Greifers, es gibt also nur "Vakuumsauger ein/aus" zu schalten, keine
+// generische Mehr-GPIO-Auswahl (s. roarm-teach-app.ts' addVacuumStep()).
+export const VACUUM_GPIO_ID = 0;
+const MOCK_MISSION_GPIO_NAMES = ["Vakuumsauger"];
+
+// "Eingeknickte" Ruhepose statt der voll gestreckten Nullstellung (alle Winkel 0) -- die
+// Nullstellung liegt nahe der maximalen Reichweite (fast singulaer fuer die geschlossene
+// Gizmo-IK, s. roarm3d/ik.ts), dort sind schon kleine Gizmo-Drags kaum bewegbar. Dieselben Werte
+// wie robot_ui_programmatic's DEFAULT_ANGLES (link2=0.6/link3=1.5/link4=1 rad), auf
+// Shoulder/Elbow/Wrist gemappt.
+export const FOLDED_REST_POSE_CENTIDEG: readonly number[] = [0, 3438, 8594, 5730, 0, 0];
 
 // Bewusst grosszuegig (nicht aus der Referenzfirmware uebernommen, dort keine expliziten
 // Servo-Geschwindigkeits-/Beschleunigungswerte fuer die Ziel-Verfolgung) -- rein fuers lokale
@@ -64,7 +78,7 @@ export class MockRoArmBackend implements RoArmBackend {
 	private lastTickAtMs = performance.now();
 	private rafHandle = 0;
 
-	constructor(initialJointsRad: readonly number[] = new Array(JOINT_COUNT).fill(0)) {
+	constructor(initialJointsRad: readonly number[] = FOLDED_REST_POSE_CENTIDEG.map(centiDegToRad)) {
 		this.tracker = new MultiJointTracker(initialJointsRad, MOCK_MAX_VELOCITY_RAD_PER_SEC, MOCK_MAX_ACCEL_RAD_PER_SEC2);
 		this.lastPose = this.computeFeedback();
 		this.seedDemoMissions();
@@ -75,11 +89,11 @@ export class MockRoArmBackend implements RoArmBackend {
 		this.missions.set(1, {
 			name: "Demo: Pick & Place",
 			steps: [
-				{ classId: roarm.JointMoveStep.CLASS_ID, jointAnglesCentiDeg: [0, 0, 0, 0, 0, 0], maxSpeedDegPerSec: 60 },
-				{ classId: roarm.JointMoveStep.CLASS_ID, jointAnglesCentiDeg: [3000, -2000, 4000, 0, 0, 0], maxSpeedDegPerSec: 60 },
+				{ classId: roarm.JointMoveStep.CLASS_ID, jointAnglesCentiDeg: [0, 0, 0, 0, 0, 0], maxSpeedDegPerSec: 60, isWaypoint: false },
+				{ classId: roarm.JointMoveStep.CLASS_ID, jointAnglesCentiDeg: [3000, -2000, 4000, 0, 0, 0], maxSpeedDegPerSec: 60, isWaypoint: false },
 				{ classId: roarm.GpioStep.CLASS_ID, gpioId: 0, state: true },
 				{ classId: roarm.DelayStep.CLASS_ID, durationMs: 500 },
-				{ classId: roarm.JointMoveStep.CLASS_ID, jointAnglesCentiDeg: [0, 0, 0, 0, 0, 0], maxSpeedDegPerSec: 60 },
+				{ classId: roarm.JointMoveStep.CLASS_ID, jointAnglesCentiDeg: [0, 0, 0, 0, 0, 0], maxSpeedDegPerSec: 60, isWaypoint: false },
 				{ classId: roarm.GpioStep.CLASS_ID, gpioId: 0, state: false },
 			],
 		});
@@ -128,13 +142,22 @@ export class MockRoArmBackend implements RoArmBackend {
 		return mockDelay(true);
 	}
 
+	// snapTo() statt setTargets(): Jogging (Slider/Gizmo/kartesisches Ziel) ist direkte
+	// Handfuehrung -- der Nutzer erwartet 1:1-Nachfuehren ohne das beschleunigungsbegrenzte Profil
+	// dazwischen, das sonst wie ein "Glätten"/Nachlaufen der Bewegung wirkt. Der Tracker bleibt
+	// fuer eine spaetere Missions-Wiedergabe-Simulation nutzbar (dort ueber setTargets()+tick()).
 	setJointJogTargetCentiDeg(jointAnglesCentiDeg: readonly number[]): void {
-		this.tracker.setTargets(jointAnglesCentiDeg.map(centiDegToRad));
+		this.tracker.snapTo(jointAnglesCentiDeg.map(centiDegToRad));
 	}
 
 	setCartesianJogTarget(pose: CartesianPose): void {
 		const { jointsRad, isReachable } = inverseKinematics(pose);
-		if (isReachable) this.tracker.setTargets(jointsRad);
+		if (isReachable) this.tracker.snapTo(jointsRad);
+	}
+
+	setJointMoveTargetCentiDeg(jointAnglesCentiDeg: readonly number[], maxSpeedDegPerSec: number): void {
+		const maxVelocityRadPerSec = centiDegToRad(maxSpeedDegPerSec * 100);
+		this.tracker.setTargetsWithSpeed(jointAnglesCentiDeg.map(centiDegToRad), maxVelocityRadPerSec);
 	}
 
 	getLastPoseFeedback(): roarm.PoseFeedback.Payload {

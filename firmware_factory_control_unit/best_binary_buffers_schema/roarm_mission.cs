@@ -17,6 +17,12 @@ public class JointMoveStep : IMissionStep
     [BinaryCount(6)]
     public short[] jointAnglesCentiDeg = new short[6];
     public ushort maxSpeedDegPerSec;
+    /// <summary>true = Stuetzstelle (Zwischenpunkt fuer eine gleichmaessige Bewegung, muss nicht
+    /// exakt getroffen werden, kein Halt noetig); false = exakte Pose (muss exakt angefahren
+    /// werden, Referenz fuers spaetere Blending in roarm_motion.hh -- die eigentliche
+    /// Blend-Bewegungslogik ist noch nicht implementiert, dieses Feld transportiert vorerst nur
+    /// die Nutzer-Absicht).</summary>
+    public bool isWaypoint;
 }
 
 /// <summary>Schaltet einen Eintrag aus der Mission-GPIO-Tabelle (siehe roarm_mission_gpio.hh,

@@ -66,6 +66,13 @@ export class WsRoArmBackend implements RoArmBackend {
 		sendRoArmEvent(roarm.JointJogTarget.encode({ jointAnglesCentiDeg: [...jointAnglesCentiDeg] }));
 	}
 
+	// Die Servo-Ansteuerung auf dem echten Board ist ohnehin geschwindigkeitsbegrenzt (kein
+	// Sofort-Sprung wie im Mock ohne Rampe) -- maxSpeedDegPerSec ist daher hier nur fuer den Mock
+	// relevant, s. Interface-Kommentar in roarm-backend.ts.
+	setJointMoveTargetCentiDeg(jointAnglesCentiDeg: readonly number[]): void {
+		this.setJointJogTargetCentiDeg(jointAnglesCentiDeg);
+	}
+
 	setCartesianJogTarget(pose: CartesianPose): void {
 		sendRoArmEvent(
 			roarm.CartesianJogTarget.encode({

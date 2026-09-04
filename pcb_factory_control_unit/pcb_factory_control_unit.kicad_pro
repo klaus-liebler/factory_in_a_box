@@ -815,7 +815,7 @@
         "uuid": "9c57264a-0988-4c94-95c0-340e4ca73bd5"
       }
     ],
-    "used_designators": "H1-4",
+    "used_designators": "Leds3-4,#PWR45,#PWR201-202,J7",
     "variants": []
   },
   "sheets": [

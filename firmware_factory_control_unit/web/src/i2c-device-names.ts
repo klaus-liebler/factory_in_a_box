@@ -4,18 +4,17 @@
 // Reines Nachschlagewerk, wird nirgends von der Firmware gebraucht (die liefert nur, OB unter
 // einer Adresse ein Geraet geantwortet hat, s. Core/Src/webserver.cpp PerformBootI2cScans()).
 export const I2C_ADDRESS_CANDIDATES: readonly string[] = [
-	"reserved", // 0x00
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved", // 0x0a
-	"reserved",
+	"?", // 0x00
+	"?",
+	"?",
+	"?",
+	"?",
+	"?",
+	"?",
+	"?",
+	"?",
+	"?", // 0x0a
+	"?",
 	"AK8975",
 	"AK8975",
 	"MAG3110 AK8975 IST-8310",

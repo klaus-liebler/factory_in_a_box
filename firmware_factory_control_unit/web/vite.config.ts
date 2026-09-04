@@ -2,13 +2,20 @@ import { defineConfig } from "vite";
 import fs from "node:fs";
 import path from "node:path";
 import { visualizer } from "rollup-plugin-visualizer";
-import { singleFileFirmwareAssetPlugin } from "./build-tools/vite-plugin-single-file-firmware-asset.ts";
+import { singleFileFirmwareAssetPlugin } from "@klaus-liebler/vite-firmware-single-file";
 
-// singleFileFirmwareAssetPlugin() (s. dort) inlined JS+CSS in eine einzige dist/index.html,
-// entfernt zusaetzliche Leerzeichen und schreibt das Ergebnis direkt Brotli-komprimiert nach
-// ../build/assets/index.html.br (per objcopy/Linker-Section ins Firmware-Flash einkompiliert,
-// siehe CMakeLists.txt) -- ein einziger "vite build"-Aufruf genuegt, kein separater Embed-Schritt
-// mehr (s. docs/build-process.md Abschnitt 9).
+// singleFileFirmwareAssetPlugin() (geteiltes Plugin, s. npm-packages/@klaus-liebler/vite-firmware-single-file
+// -- frueher als build-tools/vite-plugin-single-file-firmware-asset.ts dupliziert, jetzt EIN
+// gemeinsamer Code fuer factory_in_a_box/sensact/labathome) inlined JS+CSS in eine einzige
+// dist/index.html, entfernt zusaetzliche Leerzeichen und schreibt das Ergebnis direkt
+// Brotli-komprimiert nach ../build/assets/index.html.br (per objcopy/Linker-Section ins
+// Firmware-Flash einkompiliert, siehe CMakeLists.txt) -- ein einziger "vite build"-Aufruf genuegt,
+// kein separater Embed-Schritt mehr (s. docs/build-process.md Abschnitt 9). Expliziter zweiter
+// Parameter (statt options.dir/Vites eigenem build.outDir): build/assets/ ist ein
+// board-uebergreifend GETEILTER Ordner (enthaelt auch von einer vorherigen Build-Phase dort
+// abgelegte device_certificate.der/device_key.der/root_ca.der), der NICHT von Vite geleert werden
+// darf -- s. Kommentar im geteilten Plugin.
+const ASSETS_DIR = path.join(import.meta.dirname, "..", "build", "assets");
 //
 // Im Dev-Server (npm run dev) werden /api/*-Anfragen an die echte Control-Unit weitergeleitet,
 // statt sie ebenfalls von Vite bedienen zu lassen (Vite hat keine Modbus-Bruecke) -- so laesst
@@ -46,7 +53,7 @@ export default defineConfig(({ mode }) => {
 				brotliSize: true,
 				open: true
 			}),
-			!isAnalyze && singleFileFirmwareAssetPlugin(),
+			!isAnalyze && singleFileFirmwareAssetPlugin("index.html.br", ASSETS_DIR),
 		].filter(Boolean),
 		build: {
 			target: "esnext"

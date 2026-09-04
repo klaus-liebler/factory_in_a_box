@@ -81,27 +81,28 @@ target_compile_definitions(stm32cubemx INTERFACE STM32H5 STM32H5xx)
 # aufhalten (bereits so gebaut: keine der Setup()-Routinen dieser Subsysteme haengt sich an
 # einem Error_Handler() auf, s. Kommentar bei tof_color_.Setup() in io.cpp).
 #
-# Der DEFAULT dieses option()-Aufrufs kommt, wenn vorhanden, automatisch aus
-# Core/generated/board-variant.json (vom builder/-Tool geschrieben, s.
+# Der DEFAULT dieses option()-Aufrufs kommt, wenn vorhanden, automatisch aus Core/generated/
+# board_info.json (unveraendert aus dem Board-Archiv kopiert, s. builder/-Tool,
 # FirmwareBuilder.Common/stm32/Stm32BoardProvisioningService.cs's GenerateDeviceArtifacts --
 # derselbe bereits funktionierende Chip-UID -> boardTypeName-Nachschlag, der auch BOARD_NAME
-# setzt, s. firmware_constants.hh) -- ein Mensch muss dadurch nicht mehr von Hand das passende
-# Preset waehlen (Ursache eines frueheren, session-langen Debugging-Vorfalls: falsches Preset auf
-# falsch angeschlossenem Board sah wie ein Hardware-Defekt aus, s. Projektgedaechtnis). Ein
-# expliziter Override (-DBOARD_NUCLEO_H563ZI=ON, oder das Debug-Nucleo-Preset ueber
+# setzt, s. firmware_constants.hh; keine eigene, schmalere Projektionsdatei mehr -- board_info.json
+# ist kompakt genug, um direkt gelesen zu werden) -- ein Mensch muss dadurch nicht mehr von Hand das
+# passende Preset waehlen (Ursache eines frueheren, session-langen Debugging-Vorfalls: falsches
+# Preset auf falsch angeschlossenem Board sah wie ein Hardware-Defekt aus, s. Projektgedaechtnis).
+# Ein expliziter Override (-DBOARD_NUCLEO_H563ZI=ON, oder das Debug-Nucleo-Preset ueber
 # cacheVariables) gewinnt weiterhin, z.B. fuer ein noch nicht provisioniertes Board ohne
 # Archiv-Eintrag -- option()'s Default wird nur beim ERSTEN Configure eines binaryDir
 # herangezogen, was hier genau der richtige Zeitpunkt ist (jedes Preset hat sein eigenes
 # build/<preset>-Verzeichnis).
-set(_board_variant_file "${CMAKE_SOURCE_DIR}/Core/generated/board-variant.json")
+set(_board_json_file "${CMAKE_SOURCE_DIR}/Core/generated/board_info.json")
 set(_detected_nucleo_default OFF)
-if(EXISTS "${_board_variant_file}")
-    file(READ "${_board_variant_file}" _board_variant_json)
-    string(JSON _board_type_name GET "${_board_variant_json}" "boardTypeName")
+if(EXISTS "${_board_json_file}")
+    file(READ "${_board_json_file}" _board_json)
+    string(JSON _board_type_name GET "${_board_json}" "boardTypeName")
     if(_board_type_name STREQUAL "NucleoH563ZI")
         set(_detected_nucleo_default ON)
     endif()
-    message(STATUS "Board-Variant erkannt (Core/generated/board-variant.json): ${_board_type_name}")
+    message(STATUS "Board-Typ erkannt (Core/generated/board_info.json): ${_board_type_name}")
 endif()
 option(BOARD_NUCLEO_H563ZI "Build for the STM32H563ZI Nucleo-144 eval board (UM3115) instead of the real Factory Control Unit PCB" ${_detected_nucleo_default})
 if(BOARD_NUCLEO_H563ZI)

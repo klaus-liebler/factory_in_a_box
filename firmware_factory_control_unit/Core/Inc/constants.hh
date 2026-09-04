@@ -3,8 +3,8 @@
 #include <string_view>
 
 // BOARD_NAME/FW_VERSION_MAJOR/MINOR/PATCH: generiert (nicht mehr von Hand gepflegt), s.
-// builder/Phases/ReadGitStatus.cs. BOARD_NAME kommt aus einem Board-Archiv-Nachschlag (board.json,
-// s. builder/BoardStore.cs) statt aus einem #ifdef BOARD_NUCLEO_H563ZI-Umschalter (Fallback:
+// builder/Phases/ReadGitStatus.cs. BOARD_NAME kommt aus einem Board-Archiv-Nachschlag
+// (board_info.json, s. builder/BoardStore.cs) statt aus einem #ifdef BOARD_NUCLEO_H563ZI-Umschalter (Fallback:
 // konfigurierter Default, s. docs/build-process.md Abschnitt 5); FW_VERSION_* aus
 // firmware-version.json (Repo-Root).
 #include "generated/firmware_constants.hh"

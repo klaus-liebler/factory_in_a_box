@@ -8,6 +8,7 @@ import "./apps/power-management-app.js";
 import "./apps/system-info-app.js";
 import "./apps/roarm-teach-app.js";
 import "./apps/task-manager-app.js";
+import "./apps/druckregelstrecke-app.js";
 import type { AppShell } from "./shell/app-shell.js";
 import { startWebSocketClient } from "./ws-client.js";
 
@@ -19,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	shell.RegisterApp("/system", "System", "🖥️", document.createElement("system-info-app"));
 	shell.RegisterApp("/roarm-teach", "RoArm Teach", "🦾", document.createElement("roarm-teach-app"));
 	shell.RegisterApp("/tasks", "Task Manager", "📋", document.createElement("task-manager-app"));
+	shell.RegisterApp("/druckregelstrecke", "Druckregelstrecke", "🌬️", document.createElement("druckregelstrecke-app"));
 
 	shell.Start();
 	startWebSocketClient();

@@ -414,8 +414,13 @@ void net_setup_start(App *app) {
     ULONG tls_metadata_size = 0;
     XASSERT(nx_secure_tls_metadata_size_calculate(&nx_crypto_tls_ciphers_ecc, &tls_metadata_size),
             "TLS metadata size calculate failed");
-    UCHAR *tls_metadata = new UCHAR[tls_metadata_size * Http::WebServer::MAX_SESSIONS];
-    UCHAR *tls_packet_buffer = new UCHAR[TLS_PACKET_BUFFER_SIZE];
+    void *tls_alloc_ptr = nullptr;
+    XASSERT(tx_byte_allocate(&app->byte_pool, &tls_alloc_ptr, tls_metadata_size * Http::WebServer::MAX_SESSIONS, TX_NO_WAIT),
+            "TLS metadata allocate failed");
+    UCHAR *tls_metadata = (UCHAR *)tls_alloc_ptr;
+    XASSERT(tx_byte_allocate(&app->byte_pool, &tls_alloc_ptr, TLS_PACKET_BUFFER_SIZE, TX_NO_WAIT),
+            "TLS packet buffer allocate failed");
+    UCHAR *tls_packet_buffer = (UCHAR *)tls_alloc_ptr;
 
     XASSERT(app->https_server.SecureConfigure(
         &nx_crypto_tls_ciphers_ecc,

@@ -77,6 +77,7 @@ void Io::processMembers(uint32_t now) {
     power_.Loop(now);
     roarm_.Loop(now);
     RoArmBroadcastPoseFeedbackIfDue(now);
+    PneumaticsBroadcastIfDue(now);
     tof_color_.Loop(now);
     scale_.Loop(now);
     stepper_.Loop(now);

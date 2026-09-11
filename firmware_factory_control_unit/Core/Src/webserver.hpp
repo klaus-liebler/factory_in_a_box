@@ -27,3 +27,12 @@ void PerformBootI2cScans();
 // Web-/Networking-Wissen, s. roarm.hh-Kommentar), analog zu PerformBootI2cScans() oben, das aus
 // demselben Grund schon jetzt hier statt in setup_and_loops/ lebt.
 void RoArmBroadcastPoseFeedbackIfDue(uint32_t now);
+
+// Sendet alle 500ms ein pneumatics.PressureControlFeedback-Event (Druck-Rohwert, Kompressor-PWM,
+// Ventilzustaende) an alle verbundenen WebSocket-Clients -- gedacht fuer den clientseitigen
+// Regler im Reglerbetrieb-Modus der Druckregelstrecke-Seite (s. docs/druckregelstrecke-modes.md),
+// der bei 500ms Zykluszeit nicht bei jedem Tick das komplette, mehrpaketige "/api/registers"
+// abfragen soll. Unbedingt (kein "ist irgendein Modus aktiv?"-Gate wie bei PoseFeedback) --
+// bewusst so kompakt gehalten (5 Nutzdaten-Bytes), dass ein Broadcast an alle Clients auch ohne
+// Interessenten-Tracking unproblematisch ist. Aufgerufen aus Io::processMembers() (io.cpp).
+void PneumaticsBroadcastIfDue(uint32_t now);

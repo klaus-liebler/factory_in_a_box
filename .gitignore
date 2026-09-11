@@ -19,3 +19,5 @@ firmware_factory_control_unit/tools/environment-config.mjs
 /firmware_factory_control_unit/assets/device_certificate.der
 /firmware_factory_control_unit/assets/device_key.der
 /pcb_factory_control_unit/.history
+/firmware_factory_control_unit/Core/RoArm-M3_example
+/firmware_factory_control_unit/Core/RoArm-M3_example

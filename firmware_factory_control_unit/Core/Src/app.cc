@@ -365,6 +365,18 @@ void App::AppThread() {
                      ptr, HEARTBEAT_THREAD_STACK_SIZE,
                      HEARTBEAT_THREAD_PRIORITY, HEARTBEAT_THREAD_PRIORITY,
                      TX_NO_TIME_SLICE, TX_AUTO_START), "Heartbeat thread create failed");
+
+    // Letzte Byte-Pool-Zuteilung im ganzen Boot-Ablauf -- ab hier ist bekannt, wie viel von den
+    // NX_APP_MEM_POOL_SIZE (256 KiB) tatsaechlich noch frei bleibt (u.a. seit die TLS-Metadata-/
+    // Paketpuffer in net_setup.cpp aus diesem Pool statt vom Heap kommen). available_bytes==0
+    // waere trotz erfolgreicher einzelner tx_byte_allocate()-Aufrufe ein Alarmsignal (Pool bereits
+    // bis auf Fragmentierungsreste ausgeschoepft).
+    ULONG byte_pool_available = 0;
+    ULONG byte_pool_fragments = 0;
+    if (tx_byte_pool_info_get(&this->byte_pool, nullptr, &byte_pool_available, &byte_pool_fragments, nullptr, nullptr, nullptr) == TX_SUCCESS) {
+        log_info("Byte Pool: %lu von %lu Byte frei (%lu Fragmente)",
+                  (unsigned long)byte_pool_available, (unsigned long)NX_APP_MEM_POOL_SIZE, (unsigned long)byte_pool_fragments);
+    }
 }
 
 void App::fillRegistersWithInitialValues() {

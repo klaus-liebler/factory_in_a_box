@@ -64,6 +64,21 @@ export function setPoolListListener(listener: PoolListListener | null): void {
 	poolListListener = listener;
 }
 
+// pneumatics.PressureControlFeedback (s. best_binary_buffers_schema/pneumatics.cs) -- alle 500ms
+// unbedingt von der Firmware gesendet (kein "Modus aktiv?"-Gate wie bei roarm.PoseFeedback), daher
+// als Set statt Einzel-Listener: sowohl der Freies-Experiment-Trend als auch der clientseitige
+// Regler (druckregelstrecke-app.ts) koennen unabhaengig voneinander mitlauschen. Bewusst NICHT
+// ueber eventSubscribers/subscribeRoArmEvent (das ist roarm-namespace-spezifisch, s. dessen
+// Kommentar "key = typeId innerhalb roarm.NAMESPACE_ID" -- eine andere Namespace-ID koennte
+// zufaellig denselben numerischen typeId-Wert tragen).
+type PressureControlFeedbackListener = (payload: WsProtocol.pneumatics.PressureControlFeedback.Payload) => void;
+const pressureControlFeedbackListeners = new Set<PressureControlFeedbackListener>();
+
+export function subscribePressureControlFeedback(cb: PressureControlFeedbackListener): () => void {
+	pressureControlFeedbackListeners.add(cb);
+	return () => pressureControlFeedbackListeners.delete(cb);
+}
+
 // 1:1 auf die console-Funktion abgebildet, die dem Original-Log-Level entspricht -- WICHTIG:
 // console.debug() zaehlt in Chrome DevTools als "Verbose" und ist per Default AUSGEBLENDET, bis
 // man den Verbose-Filter aktiviert. Vorher landete INFO faelschlich ebenfalls auf console.debug,
@@ -192,6 +207,21 @@ function handleTasksMessage(view: DataView, typeId: number): void {
 	}
 }
 
+function handlePneumaticsMessage(view: DataView, typeId: number): void {
+	switch (typeId) {
+		case WsProtocol.pneumatics.PressureControlFeedback.TYPE_ID:
+			try {
+				const payload = WsProtocol.pneumatics.PressureControlFeedback.decode(view, 0);
+				for (const cb of pressureControlFeedbackListeners) cb(payload);
+			} catch (error) {
+				console.warn(`WS PressureControlFeedback decode fehlgeschlagen: ${(error as Error).message}`);
+			}
+			return;
+		default:
+			console.debug(`WebSocket: unbekannte pneumatics-Nachricht typeId=${typeId}`);
+	}
+}
+
 function handleMessage(data: ArrayBuffer): void {
 	if (data.byteLength < 4) {
 		console.warn(`[diag] WS frame too short for even the 4-byte header: ${data.byteLength} bytes, hex=${hexDump(data)}`);
@@ -210,6 +240,8 @@ function handleMessage(data: ArrayBuffer): void {
 			return handleModbusMessage(view, messageTypeId);
 		case WsProtocol.tasks.NAMESPACE_ID:
 			return handleTasksMessage(view, messageTypeId);
+		case WsProtocol.pneumatics.NAMESPACE_ID:
+			return handlePneumaticsMessage(view, messageTypeId);
 		default:
 			// Unbekannte namespaceId -- z.B. eine neuere Firmware-Version mit einer Nachricht, die
 			// dieser Web-UI-Build noch nicht kennt. Bewusst nur geloggt statt geworfen, damit ein

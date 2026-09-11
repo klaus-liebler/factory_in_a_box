@@ -587,6 +587,27 @@ void RoArmBroadcastPoseFeedbackIfDue(uint32_t now) {
     if (n > 0) app.https_server.Broadcast(buffer, n);
 }
 
+// s. Deklaration in webserver.hpp. "now" wie bei RoArmBroadcastPoseFeedbackIfDue() oben in ms.
+void PneumaticsBroadcastIfDue(uint32_t now) {
+    static uint32_t last_broadcast_ms = 0;
+    if (now - last_broadcast_ms < 500) return;
+    last_broadcast_ms = now;
+
+    App &app = App::Instance();
+    ModbusRegisterModel *reg = app.register_model;
+
+    WsProtocol::pneumatics::PressureControlFeedback::Payload payload{};
+    payload.pressureRaw = reg->GetInputRegister(ModbusRegisters::Input::PRESSURE_RAW);
+    payload.compressorPwmPermille = reg->GetHoldingRegister(ModbusRegisters::Holding::COMPRESSOR_PWM);
+    payload.valve1Open = reg->GetHoldingRegister(ModbusRegisters::Holding::VALVE1) != 0;
+    payload.valve2Open = reg->GetHoldingRegister(ModbusRegisters::Holding::VALVE2) != 0;
+    payload.valve3Open = reg->GetHoldingRegister(ModbusRegisters::Holding::VALVE3) != 0;
+
+    uint8_t buffer[16];
+    size_t n = WsProtocol::pneumatics::PressureControlFeedback::Encode(payload, buffer, sizeof(buffer));
+    if (n > 0) app.https_server.Broadcast(buffer, n);
+}
+
 void webserver_register_routes(Http::WebServer &server) {
     server.SetDefaultHandler(handle_spa_shell, nullptr);
 

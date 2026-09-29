@@ -1,7 +1,7 @@
 using Builder;
 using FirmwareBuilder.Common;
 
-BuildStepRunner.Run(args, a => new Stm32BuildContext(a), typeof(Builder.Program));
+BuildStepRunner.Run(args, a => Stm32Toolchain.CreateBuildContext(a, x => new Stm32BuildContext(x)), typeof(Builder.Program));
 
 namespace Builder
 {
@@ -14,18 +14,11 @@ namespace Builder
 		public static void GitStatus(IBuildContextStm32 ctx) => BuilderConsoleReport.WriteGitStatus(ctx.Git);
 
 		[BuildStep]
-		public static void PrepareContextWithRealHardware(IBuildContextStm32 ctx)
-		{
-			var request = new ReadHardwareIdsRequest(
-				BoardStorage: BuilderSettings.Current.BoardStorage,
-				Stm32Programmer: ctx.Stm32Programmer,
-				BuildDir: ctx.BuildDir,
-				BoardIdCacheFile: Stm32BuildContext.BoardIdCacheFile,
-				RootDir: ctx.RootDir,
-				DefaultBoardTypeName: BuilderSettings.Current.BoardDefaults.DefaultBoardTypeName,
-				ResolveBoardTypeNameByBoardId: boardId => BoardStateStore.TryGetBoardTypeName(BuilderSettings.Current.BoardStorage, boardId));
-			Stm32BoardProvisioningService.ReadHardwareIds(request);
-		}
+		public static void PrepareContextWithRealHardware(IBuildContextStm32 ctx) =>
+			Stm32BoardProvisioningService.ReadHardwareIds(
+				ctx,
+				defaultBoardTypeName: BuilderSettings.Current.BoardDefaults.DefaultBoardTypeName,
+				resolveBoardTypeNameByBoardId: boardId => BoardStateStore.TryGetBoardTypeName(BuilderSettings.Current.BoardStorage, boardId));
 
 		// Offline-Pendant: baut die Board-Identitaet ohne angeschlossene Hardware rein aus --board auf
 		// (das Flag existierte vorher schon als Override fuer BEREITS archivierte Boards -- hier wird
@@ -39,37 +32,21 @@ namespace Builder
 				throw new InvalidOperationException(
 					$"Kein Board-Archiv unter {ctx.BoardArchiveDir} -- \"--board {ctx.BoardUid}\" ist unbekannt (noch nie erfolgreich geflasht?).");
 			}
-			BoardArchiveContext.WriteCachedBoardId(ctx.BuildDir, Stm32BuildContext.BoardIdCacheFile, ctx.BoardUid);
+			BoardArchiveContext.WriteCachedBoardId(ctx.BuildDir, ctx.BoardIdCacheFile, ctx.BoardUid);
 			Console.WriteLine($"Board-Kontext aus --board uebernommen: {ctx.BoardUid} ({ctx.BoardArchiveDir})");
 		}
 
 		[BuildStep]
 		public static void GenerateCertificatesLazy(IBuildContextStm32 ctx) =>
-			Stm32BoardProvisioningService.GenerateCertificates(new GenerateCertificatesRequest(
-				BoardStorage: BuilderSettings.Current.BoardStorage,
-				Certificates: ctx.Certificates,
-				BoardIdCacheFile: Stm32BuildContext.BoardIdCacheFile,
-				RootDir: ctx.RootDir,
-				ExplicitBoardId: Cli.GetOptionalArgValue(ctx.Args, "--board"),
-				Force: false));
+			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: false);
 
 		[BuildStep]
 		public static void GenerateCertificatesForced(IBuildContextStm32 ctx) =>
-			Stm32BoardProvisioningService.GenerateCertificates(new GenerateCertificatesRequest(
-				BoardStorage: BuilderSettings.Current.BoardStorage,
-				Certificates: ctx.Certificates,
-				BoardIdCacheFile: Stm32BuildContext.BoardIdCacheFile,
-				RootDir: ctx.RootDir,
-				ExplicitBoardId: Cli.GetOptionalArgValue(ctx.Args, "--board"),
-				Force: true));
+			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: true);
 
 		[BuildStep]
 		public static void GenerateDeviceArtifacts(IBuildContextStm32 ctx) =>
-			Stm32BoardProvisioningService.GenerateDeviceArtifacts(new GenerateDeviceArtifactsRequest(
-				BoardStorage: BuilderSettings.Current.BoardStorage,
-				BoardIdCacheFile: Stm32BuildContext.BoardIdCacheFile,
-				CoreGeneratedDir: ctx.FirmwareGeneratedDir,
-				ExplicitBoardId: Cli.GetOptionalArgValue(ctx.Args, "--board")));
+			Stm32BoardProvisioningService.GenerateDeviceArtifacts(ctx);
 
 		[BuildStep]
 		public static void GenerateRegisterAccessFiles(IBuildContextStm32 ctx) =>
@@ -94,17 +71,12 @@ namespace Builder
 		public static void ReadGitStatusAndGenerateFiles(IBuildContextStm32 ctx)
 		{
 			var fw = FirmwareVersionReader.Read(Path.Combine(ctx.RootDir, "firmware-version.json"));
-			GitBuildArtifactsService.Generate(new GitBuildArtifactsRequest(
-				BoardStorage: BuilderSettings.Current.BoardStorage,
-				BoardIdCacheFile: Stm32BuildContext.BoardIdCacheFile,
-				RootDir: ctx.RootDir,
-				CoreGeneratedDir: ctx.FirmwareGeneratedDir,
-				WebGeneratedDir: ctx.WebGeneratedDir,
-				DefaultBoardTypeName: BuilderSettings.Current.BoardDefaults.DefaultBoardTypeName,
-				FirmwareVersionMajor: fw.Major,
-				FirmwareVersionMinor: fw.Minor,
-				FirmwareVersionPatch: fw.Patch,
-				ExplicitBoardId: Cli.GetOptionalArgValue(ctx.Args, "--board")));
+			GitBuildArtifactsService.Generate(
+				ctx,
+				defaultBoardTypeName: BuilderSettings.Current.BoardDefaults.DefaultBoardTypeName,
+				firmwareVersionMajor: fw.Major,
+				firmwareVersionMinor: fw.Minor,
+				firmwareVersionPatch: fw.Patch);
 		}
 
 		// Nur noch fuer die Zertifikat-Ausnahme (DER-Dateien) -- device_ids.hh/gitconstants.hh/
@@ -114,16 +86,12 @@ namespace Builder
 		// nur im Projekt"), brauchen also keinen Kopierschritt aus dem Board-Archiv mehr.
 		[BuildStep]
 		public static void CopyGeneratedFilesToBuildDirectory(IBuildContextStm32 ctx) =>
-			GeneratedArtifactsCopyService.CopyToBuildDirectories(new GeneratedArtifactsCopyRequest(
-				BoardStorage: BuilderSettings.Current.BoardStorage,
-				BoardIdCacheFile: Stm32BuildContext.BoardIdCacheFile,
-				ExplicitBoardId: Cli.GetOptionalArgValue(ctx.Args, "--board"),
-				CoreGeneratedDir: ctx.FirmwareGeneratedDir,
-				WebGeneratedDir: ctx.WebGeneratedDir,
-				AssetsDir: Stm32BuildContext.AssetsDir,
-				CoreFiles: [],
-				WebFiles: [],
-				AssetFiles: ["device_certificate.der", "device_key.der", "root_ca.der"]));
+			GeneratedArtifactsCopyService.CopyToBuildDirectories(
+				ctx,
+				assetsDir: Stm32BuildContext.AssetsDir,
+				coreFiles: [],
+				webFiles: [],
+				assetFiles: ["device_certificate.der", "device_key.der", "root_ca.der"]);
 
 		[BuildStep]
 		public static void BuildWebApp(IBuildContextStm32 ctx) => WebAppBuildService.Run(
@@ -135,16 +103,7 @@ namespace Builder
 		public static void BuildFirmware(IBuildContextStm32 ctx) => CmakeFirmwareBuildService.Run(ctx);
 
 		[BuildStep]
-		public static void FlashFirmware(IBuildContextStm32 ctx) =>
-			FlashFirmwarePipelineService.Run(new FlashFirmwarePipelineRequest(
-				BoardStorage: BuilderSettings.Current.BoardStorage,
-				Stm32Programmer: ctx.Stm32Programmer,
-				RootDir: ctx.RootDir,
-				BoardIdCacheFile: Stm32BuildContext.BoardIdCacheFile,
-				BuildOutputDirectory: ctx.BuildDir,
-				Preset: ctx.Preset,
-				DefaultBoardTypeName: BuilderSettings.Current.BoardDefaults.DefaultBoardTypeName,
-				ExplicitBoardId: Cli.GetOptionalArgValue(ctx.Args, "--board")));
+		public static void FlashFirmware(IBuildContextStm32 ctx) => FlashFirmwarePipelineService.Run(ctx);
 
 		[BuildStep]
 		public static void PipelineLazy(IBuildContextStm32 ctx)

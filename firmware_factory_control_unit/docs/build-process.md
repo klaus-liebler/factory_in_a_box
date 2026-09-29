@@ -165,8 +165,8 @@ flowchart TD
 ```
 builder/
 ├── builder.csproj                   # net10.0 Console-App, Microsoft.Extensions.Configuration(.Json/.Binder)
-├── Program.cs                       # Einstiegspunkt + ein [BuildStep] pro Schritt (s. Abschnitt 3): dispatcht per BuildStepRunner.Run(args, ctx => new Stm32BuildContext(ctx), typeof(Program)); Pipelines rufen andere Schritte per BuildStepRunner.Invoke seriell auf
-├── Stm32BuildContext.cs             # implementiert IBuildContextStm32 (FirmwareBuilder.Common) -- Pfade/Git/Board-Identitaet/BoardSettings etc.
+├── Program.cs                       # Einstiegspunkt + ein [BuildStep] pro Schritt (s. Abschnitt 3): dispatcht per BuildStepRunner.Run(args, a => Stm32Toolchain.CreateBuildContext(a, x => new Stm32BuildContext(x)), typeof(Program)); Pipelines rufen andere Schritte per BuildStepRunner.Invoke seriell auf
+├── Stm32BuildContext.cs             # projekteigene Pfade auf Basis von Stm32BuildContextBase (FirmwareBuilder.Common) -- die chip-generische IBuildContextStm32-Logik (Board-Identitaet/BoardSettings etc.) liegt dort
 ├── appsettings.json                  # gitignored: persönliche Maschinenpfade (STM32CubeProgrammer, OneDrive-Ordner, CA, Default-Board-Type)
 ├── appsettings.json.template         # getrackte Vorlage; wird von einem MSBuild-Target (EnsureAppSettings) automatisch angelegt
 ├── BuilderSettings.cs                # appsettings.json gebunden an getrennte typsichere Konfigurationsklassen

@@ -5,7 +5,7 @@ namespace Builder;
 // BoardStorageOptions/Stm32ProgrammerOptions/CertificateAuthorityOptions sind zentralisiert in
 // FirmwareBuilder.Common (BoardsDirectoryOptions/Stm32ProgrammerOptions/CertificateAuthorityOptions) --
 // nur noch BoardDefaultsOptions ist projekt-lokal (STM32-spezifische Board-Typ-Defaults).
-public sealed class BoardDefaultsOptions
+public sealed class BoardDefaultsOptions : IBoardDefaultsOptions
 {
     public string DefaultBoardTypeName { get; set; } = "FactoryControlUnit";
 
@@ -14,7 +14,7 @@ public sealed class BoardDefaultsOptions
     public string DefaultBoardTypeVersion { get; set; } = "1.0.0";
 }
 
-public sealed class BuilderSettings : IBuilderAppSettings
+public sealed class BuilderSettings : IBuilderAppSettingsStm32
 {
     public BoardsDirectoryOptions BoardStorage { get; set; } = new();
     public Stm32ProgrammerOptions Stm32Programmer { get; set; } = new();
@@ -23,6 +23,8 @@ public sealed class BuilderSettings : IBuilderAppSettings
 
     IBoardsDirectoryOptions IBuilderAppSettings.BoardStorage => BoardStorage;
     ICertificateAuthorityOptions IBuilderAppSettings.Certificates => Certificates;
+    IStm32ProgrammerOptions IBuilderAppSettingsStm32.Stm32Programmer => Stm32Programmer;
+    IBoardDefaultsOptions IBuilderAppSettingsStm32.BoardDefaults => BoardDefaults;
 
     private static readonly Lazy<BuilderSettings> LazyCurrent = new(Load);
 

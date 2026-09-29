@@ -20,7 +20,8 @@
       "{hostname}",
       "{hostname}.local",
       "{hostname}.fritz.box"
-    ]
+    ],
+    "RootCaCommonName": "factory-control-unit-root-ca"
   },
   "BoardDefaults": {
     "DefaultBoardTypeName": "FactoryControlUnit"

@@ -2,8 +2,10 @@
 // ThreadX Application Wiring -- erzeugt alle Pools/Threads (tx_application_define(), laeuft
 // vor dem Scheduler) und orchestriert danach den Boot-Ablauf (App::AppThread(), der einzige
 // Thread mit TX_AUTO_START). Fuenf ThreadX-Threads insgesamt:
-//   - app_main_thread: einmaliger Boot-Orchestrator (FileX/TLS/HTTP/DHCP/Modbus-Setup, dann
-//     Start der uebrigen Threads)
+//   - app_main_thread: einmaliger Boot-Orchestrator -- wartet zuerst auf ausreichende
+//     Versorgungsspannung (WaitForSupplyVoltage(), ggf. per USB-PD), initialisiert erst dann die
+//     stromhungrige Peripherie (MX_Init_PowerConsumers(), ETH-PHY), danach FileX/TLS/HTTP/DHCP/
+//     Modbus-Setup und Start der uebrigen Threads
 //   - modbus_tcp_server_thread: blockierender TCP-Accept-Loop (ModbusTcpServer::run())
 //   - modbus_rtu_thread: blockierender Lese-/Verarbeitungs-/Sende-Loop fuer Modbus-RTU-ueber-
 //     USB-CDC (App::ModbusRtuThread(), s. app.cc -- ModbusRtuServer selbst enthaelt nur noch die
@@ -146,7 +148,8 @@ public:
     uint8_t i2c2_scan[16] = {0};
     uint8_t i2c4_scan[16] = {0};
 
-    void SetupBeforeThreadX();
+    void InitIdentityAndRegisterModel();
+    void WaitForSupplyVoltage();
     void AppThread();
     void ModbusTcpServerThread();
     [[noreturn]] void ModbusRtuThread();

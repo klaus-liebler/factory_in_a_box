@@ -91,8 +91,8 @@ constexpr uint32_t NX_APP_DEFAULT_NET_MASK = 0;
 // Http::WebServer::SecureConfigure()) teilt diesen Gesamtpuffer gleichmaessig auf alle
 // Http::WebServer::MAX_SESSIONS Sessions auf -- 24 KB / 3 Sessions = 8 KB je Session, etwas
 // grosszuegiger als der alte, auf eine Session bezogene 17-KB-Wert (der intern bereits durch
-// NX_WEB_HTTP_SERVER_SESSION_MAX=2 geteilt wurde). Kommt per new[] vom freien Heap (nicht vom
-// knappen nx_app_byte_pool), ausreichend SRAM ist vorhanden (STM32H563: 640 KiB gesamt).
+// NX_WEB_HTTP_SERVER_SESSION_MAX=2 geteilt wurde). Kommt aus app->byte_pool (s. net_setup_start(),
+// damit in der Byte-Pool-Statistik sichtbar), NX_APP_MEM_POOL_SIZE ist entsprechend bemessen.
 constexpr uint32_t TLS_PACKET_BUFFER_SIZE = 24 * 1024;
 constexpr UINT MDNS_THREAD_PRIORITY = 14;
 constexpr uint32_t MDNS_STACK_SIZE = 2 * 1024;
@@ -150,8 +150,9 @@ static void mdns_probing_notify(NX_MDNS *mdns_ptr, UCHAR *name, UINT state) {
 }
 
 void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
-    // MUSS vor dem nx_ip_interface_attach()-Aufruf weiter unten laufen: dieser ruft synchron
-    // (noch hier in tx_application_define(), also VOR Scheduler-Start) den generischen
+    // Laeuft im App-Main-Thread nach der Versorgungsspannungspruefung (s. App::AppThread()),
+    // frueher in tx_application_define() -- in jedem Fall aber VOR UsbdDeviceThread.
+    // MUSS vor dem nx_ip_interface_attach()-Aufruf weiter unten laufen: dieser ruft synchron den generischen
     // ux_network_driver mit NX_LINK_INTERFACE_ATTACH/_INITIALIZE/_ENABLE auf, die dessen internes
     // usb_network_devices[]-Tabellenfeld (ip_instance/interface_ptr) befuellen. usbd_device_setup()
     // (in usbd_device.c) ruft ux_network_driver_init() ebenfalls auf -- aber ERST spaeter aus
@@ -249,9 +250,9 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
 
     // --- HTTPS (NetX Secure TLS) Setup ---
     // nx_secure_x509_certificate_initialize()/nx_secure_tls_metadata_size_calculate() sind
-    // NX_THREADS_ONLY_CALLER_CHECKING-beschraenkt (kein laufender Thread hier in
-    // tx_application_define()). Deshalb passiert die eigentliche TLS-Konfiguration erst in
-    // net_setup_start(), s. dort.
+    // NX_THREADS_ONLY_CALLER_CHECKING-beschraenkt. Die eigentliche TLS-Konfiguration passiert
+    // (noch aus der Zeit, als diese Funktion in tx_application_define() ohne laufenden Thread
+    // lief) erst in net_setup_start(), s. dort.
 
     // --- mDNS Setup ---
     // Publiziert DEVICE_HOSTNAME (identisch zum Zertifikats-CN, siehe device_certificate.h)
@@ -282,10 +283,10 @@ void net_setup_create(App *app, TX_BYTE_POOL *nx_app_byte_pool) {
     // aus der NX_IP-Instanz) -- das hier verwendete app->ip_instance/app->packet_pool ist
     // ausschliesslich fuer Interface 0 (echtes Ethernet) sowie den DHCP-Server unten relevant.
 
-    // nx_ip_interface_attach() (anders als die x509/TLS-Aufrufe oben) ist HIER, in
-    // tx_application_define(), zulaessig: wird vor Start des IP-Threads aufgerufen, holt die
-    // eigentliche Treiber-Initialisierung/-Freischaltung automatisch waehrend dessen eigenem
-    // Boot-Vorgang nach (s. _nx_ip_interface_attach()-Doku). _ux_network_driver_entry (s.
+    // nx_ip_interface_attach() funktioniert unabhaengig davon, ob der IP-Thread schon gelaufen
+    // ist: davor holt dieser die Treiber-Initialisierung/-Freischaltung waehrend seines eigenen
+    // Boot-Vorgangs nach, danach (nx_ip_initialize_done) ruft _nx_ip_interface_attach() den
+    // Treiber direkt mit ATTACH/INITIALIZE/ENABLE auf. _ux_network_driver_entry (s.
     // ux_network_driver.h-Include oben) ist USBX' eigener, generischer NX_IP_DRIVER -- dieselbe
     // Funktion wird spaeter von der CDC-NCM-Klasse intern wiederverwendet, um sich an genau
     // dieses Interface zu binden (ueber deren ncm_activate()/_ux_network_driver_activate(),
@@ -382,10 +383,9 @@ void net_setup_start(App *app) {
     // NX_NULL/0). nx_secure_x509_certificate_initialize()/nx_secure_tls_metadata_size_calculate()
     // sind NX_THREADS_ONLY_CALLER_CHECKING-beschraenkt, muessen also von einem laufenden Thread aus
     // aufgerufen werden -- dieser Thread ist der einzige mit TX_AUTO_START (siehe
-    // tx_application_define()), daher hier statt in net_setup_create(). Puffer kommen bewusst
-    // vom Heap (new[]) statt aus nx_app_byte_pool: dieser Pool ist als lokale Variable auf
-    // tx_application_define() beschraenkt, waehrend der Heap seit malloc_lock_init() (s.
-    // dort) threadsicher ist -- selbes Muster wie beim ModbusTcpServer.
+    // tx_application_define()). Puffer kommen aus
+    // app->byte_pool (der App-Member, nicht der nur in net_setup_create() sichtbare
+    // nx_app_byte_pool-Parameter -- es ist derselbe Pool).
     const USHORT device_cert_der_len = (USHORT)(_binary_device_certificate_der_end - _binary_device_certificate_der_start);
     const USHORT device_key_der_len = (USHORT)(_binary_device_key_der_end - _binary_device_key_der_start);
     XASSERT(nx_secure_x509_certificate_initialize(

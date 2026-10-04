@@ -14,8 +14,10 @@
 // dessen Basistypen (UX_SLAVE_INTERFACE, UX_MUTEX, ...) voraussetzt, ohne es selbst einzubinden.
 #include "ux_api.h"
 #include "ux_device_class_cdc_acm.h"
+#include "ina226.hpp"
 
 extern "C" ADC_HandleTypeDef hadc1;
+extern "C" I2C_HandleTypeDef hi2c4;
 
 constexpr uint32_t DEFAULT_MEMORY_SIZE = 1024;
 constexpr uint32_t DEFAULT_PRIORITY = 5;
@@ -74,10 +76,6 @@ extern "C" void __malloc_unlock(struct _reent *reent){
     tx_mutex_put(&malloc_mutex);
 }
 
-extern "C" void AppSetupBeforeThreadX() {
-    App::Instance().SetupBeforeThreadX();
-}
-
 extern "C" void tx_application_define(void *first_unused_memory) {
     (void)first_unused_memory;
     auto& app = App::Instance();
@@ -91,17 +89,12 @@ extern "C" void tx_application_define(void *first_unused_memory) {
     log_set_lock(log_lock);
     log_set_level(LOG_INFO);
     opcua::InitClockSync();
-    app.register_model->ArmForMultithreadingWithMutex();
 
     log_info("tx_application_define() called, first_unused_memory=%p", first_unused_memory);
 
     static UCHAR byte_pool_buffer[NX_APP_MEM_POOL_SIZE] __attribute__((aligned(4)));
     XASSERT(tx_byte_pool_create(&app.byte_pool, _C("Byte Pool"),
                                  byte_pool_buffer, NX_APP_MEM_POOL_SIZE), "Byte Pool create failed");
-    fx_system_initialize();
-    nx_system_initialize();
-    net_setup_create(&app, &app.byte_pool);
-
     void *ptr = nullptr;
     XASSERT(tx_byte_allocate(&app.byte_pool, &ptr, NX_APP_THREAD_STACK_SIZE, TX_NO_WAIT), "App Main Thread stack allocate failed");
     XASSERT(tx_thread_create(&app.app_main_thread, _C("App Main Thread"),
@@ -211,7 +204,7 @@ void App::IOThread() {
 
 // serial_string/net_mac/net_mac_string kommen fix-und-fertig aus Core/generated/
 // device_ids.hh -- nicht mehr wie frueher (s. Commit-Historie) hier aus this->chip_uid
-// abgeleitet (App::SetupBeforeThreadX() prueft bereits beim Boot, dass DEVICE_CHIP_UID_W0/1/2
+// abgeleitet (App::InitIdentityAndRegisterModel() prueft bereits beim Boot, dass DEVICE_CHIP_UID_W0/1/2
 // zur tatsaechlichen Chip-UID passen, s. dort).
 [[noreturn]] void App::UsbdDeviceThread() {
     usbd_device_setup(DEVICE_USB_SERIAL_STRING, DEVICE_USB_NCM_MAC, DEVICE_USB_NCM_MAC_STRING);
@@ -285,6 +278,29 @@ void App::AppThread() {
     // Thread ist der einzige mit TX_AUTO_START), tx_thread_sleep() ist somit ab jetzt ueberall
     // im Programm zulaessig -- s. hal_tick_threadx.c/HAL_Delay().
     hal_tick_threadx_mark_running();
+
+    InitIdentityAndRegisterModel();
+
+    // Erst wenn die Versorgung steht, die stromhungrige Peripherie und alles, was darauf
+    // aufbaut -- s. WaitForSupplyVoltage() und main.c (USER CODE 2/4).
+    WaitForSupplyVoltage();
+    MX_Init_PowerConsumers();
+
+    // Reset-Pin des LAN8720-Phy kurz auf LOW, damit er sauber startet (s. LAN8720-Datenblatt).
+    // MX_GPIO_Init() haelt ihn ohnehin seit dem Boot im Reset -- erst hier freigeben.
+    HAL_GPIO_WritePin(ETH_RESET_GPIO_Port, ETH_RESET_Pin, GPIO_PIN_RESET);
+    HAL_Delay(10);
+    HAL_GPIO_WritePin(ETH_RESET_GPIO_Port, ETH_RESET_Pin, GPIO_PIN_SET);
+    HAL_Delay(10);
+
+    // ADC1 Continuous-Conversion-Modus starten
+    HAL_ADC_Start(&hadc1);
+
+    // Frueher in tx_application_define() -- jetzt hier, weil der ETH-Treiber (nx_ip_create() mit
+    // nx_stm32_eth_driver) MX_ETH_Init() und einen aus dem Reset entlassenen PHY braucht.
+    fx_system_initialize();
+    nx_system_initialize();
+    net_setup_create(this, &this->byte_pool);
 
     net_setup_start(this);
 
@@ -367,7 +383,7 @@ void App::AppThread() {
                      TX_NO_TIME_SLICE, TX_AUTO_START), "Heartbeat thread create failed");
 
     // Letzte Byte-Pool-Zuteilung im ganzen Boot-Ablauf -- ab hier ist bekannt, wie viel von den
-    // NX_APP_MEM_POOL_SIZE (256 KiB) tatsaechlich noch frei bleibt (u.a. seit die TLS-Metadata-/
+    // NX_APP_MEM_POOL_SIZE (s. constants.hh) tatsaechlich noch frei bleibt (u.a. seit die TLS-Metadata-/
     // Paketpuffer in net_setup.cpp aus diesem Pool statt vom Heap kommen). available_bytes==0
     // waere trotz erfolgreicher einzelner tx_byte_allocate()-Aufrufe ein Alarmsignal (Pool bereits
     // bis auf Fragmentierungsreste ausgeschoepft).
@@ -419,20 +435,25 @@ void App::greeting() {
     LOG_ML(" -> Reset:    %s", reset_cause());
     __HAL_RCC_CLEAR_RESET_FLAGS();
 
-    LOG_ML(" -> MAC:      S%02X:%02X:%02X:%02X:%02X:%02X",
-            heth.Init.MACAddr[0], heth.Init.MACAddr[1], heth.Init.MACAddr[2],
-            heth.Init.MACAddr[3], heth.Init.MACAddr[4], heth.Init.MACAddr[5]);
+    // Direkt aus DEVICE_ETH_MAC statt aus heth.Init.MACAddr: MX_ETH_Init() (das letzteres
+    // befuellt) laeuft erst nach der Versorgungsspannungspruefung, s. App::AppThread().
+    LOG_ML(" -> MAC:      %02X:%02X:%02X:%02X:%02X:%02X",
+            DEVICE_ETH_MAC[0], DEVICE_ETH_MAC[1], DEVICE_ETH_MAC[2],
+            DEVICE_ETH_MAC[3], DEVICE_ETH_MAC[4], DEVICE_ETH_MAC[5]);
     LOG_ML("============================================");
     LOG_ML_END();
 }
 
-void App::SetupBeforeThreadX() {
+// Erster Schritt im App-Main-Thread (s. AppThread()) -- frueher als SetupBeforeThreadX() vor
+// tx_kernel_enter(), wofuer es aber keinen Grund gibt: zu diesem Zeitpunkt laeuft noch kein
+// anderer Thread, das kurze Abschalten des ICACHE fuer die UID-Lesezugriffe stoert also niemanden.
+void App::InitIdentityAndRegisterModel() {
     HAL_ICACHE_Disable();
     this->chip_uid[0] = HAL_GetUIDw0();
     this->chip_uid[1] = HAL_GetUIDw1();
     this->chip_uid[2] = HAL_GetUIDw2();
     HAL_ICACHE_Enable();
-
+weise 
     // Board-Identitaetscheck: DEVICE_CHIP_UID_W0/1/2 (Core/generated/device_ids.hh) sind
     // fuer genau EIN physisches Board eincompiliert (s.
     // builder/Phases/ReadHardwareIds.cs) -- USB-Seriennummer und NCM-MAC-Adresse
@@ -454,20 +475,83 @@ void App::SetupBeforeThreadX() {
     greeting();
     
     this->register_model = BuildModbusRegisterModel();
-
-    // Ganz zuerst: falls ein USB-PD-Netzteil die Versorgung uebernimmt:
-    // Blockieren, bis Spannung=20V
+    // Sofort "scharf" schalten: noch greift nur dieser Thread zu, aber alle weiteren Threads
+    // (IO, Modbus, Webserver, ...) entstehen erst danach in AppThread().
+    this->register_model->ArmForMultithreadingWithMutex();
     this->usb_pd_control = new USBPDControl(this->register_model);
-    this->usb_pd_control->EarlySetup(20000);
-    
     fillRegistersWithInitialValues();
+}
 
-    // Reset-Pin des LAN8720-Phy kurz auf LOW, damit er sauber startet (s. LAN8720-Datenblatt).
-    HAL_GPIO_WritePin(ETH_RESET_GPIO_Port, ETH_RESET_Pin, GPIO_PIN_RESET);
-    HAL_Delay(10);
-    HAL_GPIO_WritePin(ETH_RESET_GPIO_Port, ETH_RESET_Pin, GPIO_PIN_SET);
-    HAL_Delay(10);
+// Mindestspannung, ab der die stromhungrigen Verbraucher (Stepper-Endstufen, ETH-PHY, ...)
+// initialisiert werden duerfen. USB-PD wird mit 20V angefordert, der Hohlstecker-Eingang liefert
+// ebenfalls ~20V -- 18V lassen Spielraum fuer Messtoleranz und Leitungsverluste.
+constexpr int32_t SUPPLY_MIN_MV = 18000;
+constexpr int PD_REQUEST_MV = 20000;
+// Wie in PowerSetupAndLoop (setup_and_loops/power.hh) -- fuer die reine Busspannung ohne Belang,
+// muss aber fuer INA226::Init() (Kalibrierregister) sinnvoll gesetzt sein.
+constexpr double SUPPLY_SHUNT_MILLIOHM = 10.0;
+constexpr uint32_t SUPPLY_MAX_EXPECTED_CURRENT_MA = 8000;
+constexpr int SUPPLY_MAX_CONSECUTIVE_READ_FAILURES = 5;
+constexpr ULONG SUPPLY_WAIT_LOG_INTERVAL_TICKS = 5 * TX_TIMER_TICKS_PER_SECOND;
 
-    // ADC1 Continuous-Conversion-Modus starten
-    HAL_ADC_Start(&hadc1);
+// Spannungs-Gate vor allen stromhungrigen Verbrauchern: misst per INA226 (I2C4) die
+// Versorgungsspannung. Liegen bereits >18V an (Hohlstecker, oder ein PD-Netzteil, das schon von
+// einem vorherigen Boot her 20V liefert), geht es sofort weiter. Sonst wird USB-PD gestartet,
+// 20V angefordert und blockiert, bis der INA226 >18V misst -- bewusst ohne Timeout (ohne
+// ausreichende Versorgung soll nichts Weiteres laufen). Antwortet der INA226 nicht, kann die
+// Versorgung nicht geprueft werden -- dann harter Stopp.
+void App::WaitForSupplyVoltage() {
+#ifdef BOARD_NUCLEO_H563ZI
+    // Test-Rig ohne INA226 und ohne 20V-Versorgung (nur ST-Link-USB) -- dort gibt es weder etwas
+    // zu messen noch stromhungrige Verbraucher, die geschuetzt werden muessten.
+    log_info("Versorgung: Nucleo-Board -- keine Spannungspruefung, USB-PD wird nicht gestartet");
+    this->usb_pd_control->UpdatePdStatusRegister();
+    return;
+#endif
+    ina226::INA226 monitor{&hi2c4, SUPPLY_SHUNT_MILLIOHM, SUPPLY_MAX_EXPECTED_CURRENT_MA};
+    if (!(monitor.Probe() && monitor.Init())) {
+        log_error("INA226 (I2C4, addr 0x40) nicht erkannt -- Versorgungsspannung nicht pruefbar, Abbruch");
+        Error_Handler();
+    }
+    // Erste Wandlung abwarten: 4 Samples x (1.1ms Bus + 1.1ms Shunt), s. ina226.cpp CONFIG_VALUE.
+    tx_thread_sleep(2);
+
+    int consecutive_failures = 0;
+    auto read_bus_mv = [&]() -> int32_t {
+        ina226::Measurement m;
+        while (!monitor.Read(&m)) {
+            if (++consecutive_failures >= SUPPLY_MAX_CONSECUTIVE_READ_FAILURES) {
+                log_error("INA226: %d Lesefehler in Folge -- Versorgungsspannung nicht pruefbar, Abbruch",
+                          consecutive_failures);
+                Error_Handler();
+            }
+            tx_thread_sleep(1);
+        }
+        consecutive_failures = 0;
+        return m.bus_voltage_mv;
+    };
+
+    int32_t bus_mv = read_bus_mv();
+    if (bus_mv >= SUPPLY_MIN_MV) {
+        log_info("Versorgung: %ld mV liegen bereits an -- USB-PD wird nicht gestartet", (long)bus_mv);
+        this->usb_pd_control->UpdatePdStatusRegister();
+        return;
+    }
+
+    log_info("Versorgung: nur %ld mV -- starte USB-PD und warte auf >= %ld mV",
+             (long)bus_mv, (long)SUPPLY_MIN_MV);
+    this->usb_pd_control->Start(PD_REQUEST_MV);
+    ULONG last_log = tx_time_get();
+    while (bus_mv < SUPPLY_MIN_MV) {
+        this->usb_pd_control->Loop();
+        tx_thread_sleep(1);
+        bus_mv = read_bus_mv();
+        if (tx_time_get() - last_log >= SUPPLY_WAIT_LOG_INTERVAL_TICKS) {
+            last_log = tx_time_get();
+            log_warn("Versorgung: warte weiterhin auf >= %ld mV, aktuell %ld mV",
+                     (long)SUPPLY_MIN_MV, (long)bus_mv);
+        }
+    }
+    this->usb_pd_control->Loop();
+    log_info("Versorgung: %ld mV erreicht", (long)bus_mv);
 }

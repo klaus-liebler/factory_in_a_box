@@ -66,7 +66,9 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-
+// Initialisiert alle Peripherien, die erst nach bestaetigter Versorgungsspannung (>18V) laufen
+// sollen -- s. main.c (USER CODE 4) und App::AppThread().
+void MX_Init_PowerConsumers(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

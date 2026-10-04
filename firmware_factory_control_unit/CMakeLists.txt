@@ -423,6 +423,13 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 add_subdirectory(../stm32_libs/common_stm32 ${CMAKE_BINARY_DIR}/stm32_libs/common_stm32)
 add_subdirectory(../stm32_libs/tmc2209 ${CMAKE_BINARY_DIR}/stm32_libs/tmc2209)
 add_subdirectory(../stm32_libs/usb_pd ${CMAKE_BINARY_DIR}/stm32_libs/usb_pd)
+# TaskScheduler.cpp leitet seine us-Zeitbasis aus ThreadX ab (tx_time_get() + SysTick->VAL,
+# s. TaskScheduler::now()) -- ThreadX-Header wie bei opcua_native oben hier im Projekt
+# hinzufuegen statt projektspezifische Pfade in stm32_libs/usb_pd/CMakeLists.txt einzutragen.
+target_include_directories(usb_pd PRIVATE
+    libs/ST/threadx/common/inc
+    libs/ST/threadx/ports/cortex_m33/gnu/inc
+)
 # USBX (anders als TinyUSB) wird nicht als eigenes stm32_libs-Wrapper-Target eingebunden,
 # sondern direkt als GLOB in target_sources()/target_include_directories() oben, analog zu
 # ThreadX/FileX/NetX Duo -- s. USBX_SOURCES-Kommentar weiter oben zur Begruendung.

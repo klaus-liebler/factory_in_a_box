@@ -3,8 +3,10 @@
 // (nx_secure_x509_certificate_initialize(), nx_tcp_server_socket_listen() ueber
 // ModbusTcpServer::initialize()) NX_THREADS_ONLY_CALLER_CHECKING-beschraenkt sind und daher
 // erst aus einem laufenden Thread heraus aufgerufen werden duerfen:
-//   - net_setup_create(): laeuft in tx_application_define() (kein Thread aktiv), erzeugt nur
-//     Objekte/Pools/Server-Handles, ohne sie zu starten.
+//   - net_setup_create(): erzeugt nur Objekte/Pools/Server-Handles, ohne sie zu starten. Laeuft
+//     (wie net_setup_start()) im App Main Thread, nach der Versorgungsspannungspruefung und
+//     MX_Init_PowerConsumers() (der ETH-Treiber braucht MX_ETH_Init() und einen PHY ausserhalb
+//     des Resets), s. App::AppThread().
 //   - net_setup_start(): laeuft in app_main_thread_entry() (App Main Thread, der einzige mit
 //     TX_AUTO_START), startet FileX/TLS/HTTP/DHCP tatsaechlich.
 #include "tx_api.h"

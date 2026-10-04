@@ -21,5 +21,10 @@ constexpr uint32_t FX_APP_MEM_POOL_SIZE = 10 * 1024;
 // ("OPC UA TCP server thread stack allocate failed", live beobachtet 2026-08-19). RAM hat nach
 // wie vor reichlich Platz (STM32H563: 640 KiB gesamt), daher hier wieder grosszuegige statt
 // exakt bemessene Reserve.
-constexpr uint32_t NX_APP_MEM_POOL_SIZE = 256 * 1024;
+// Von 256 KB auf 288 KB angehoben, als net_setup.cpp's TLS-Metadata- und 24-KB-TLS-Paketpuffer
+// vom Heap in diesen Pool umzogen -- danach scheiterte die IO-Thread-Stack-Allokation in
+// App::AppThread() ("IO Thread stack allocate failed", status 0x10, live beobachtet 2026-10-04).
+// Gemessener Bedarf (Boot-Log "Byte Pool: ... frei", alle Allokationen erfolgen beim Boot, keine
+// zur Laufzeit): 269384 Byte inkl. Overhead -> ~25 KB Reserve fuer kuenftige Erweiterungen.
+constexpr uint32_t NX_APP_MEM_POOL_SIZE = 288 * 1024;
 

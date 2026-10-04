@@ -115,7 +115,7 @@ private:
     std::array<uint16_t, ModbusRegisters::INPUT_REGISTER_MAX_INDEX + 1> input_registers_{};
 };
 
-// Factory statt direkter Konstruktion an der Aufrufstelle (App::SetupBeforeThreadX()): das
+// Factory statt direkter Konstruktion an der Aufrufstelle (App::InitIdentityAndRegisterModel()): das
 // Modell muss auf dem Heap leben (App haelt nur einen Zeiger, referenziert von ModbusTcpServer/
 // Io/den SetupAndLoop-Klassen ueber das gemeinsame Modbus::IModbusRegisterModel-Interface).
 inline ModbusRegisterModel* BuildModbusRegisterModel() {

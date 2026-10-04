@@ -26,7 +26,7 @@
 #include "tx_api.h"
 #include "generated/device_ids.hh"
 
-void AppSetupBeforeThreadX(void);
+void enable_dwt_cycle_counter(void); // common_stm32/common.cc
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -140,12 +140,11 @@ int main(void)
   // DWT-Zykluszaehler ganz am Anfang aktivieren (nicht erst in _tx_initialize_low_level(), das
   // erst mit tx_kernel_enter() weit unten laeuft) -- hal_tick_threadx.c braucht ihn schon fuer
   // HAL_Delay()/HAL_GetTick()-Aufrufe, die VOR dem ThreadX-Kernelstart passieren (z.B.
-  // App::SetupBeforeThreadX()'s ETH-PHY-Reset). Dieselben zwei Register wie in
-  // tx_initialize_low_level.S, hier nur redundant vorgezogen -- doppeltes Setzen von
-  // CYCCNTENA/TRCENA ist harmlos.
-  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-  DWT->CYCCNT = 0;
-  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  // SystemClock_Config() und die MX_*_Init()-Timeouts) und fuer die CPU-Zeit-Statistik
+  // (tx_execution_profile.c).
+  // tx_initialize_low_level.S setzt dieselben Enable-Bits spaeter nochmals -- harmlos, setzt
+  // CYCCNT dort nicht zurueck. Nur hier, genau einmal aufrufen (s. common.cc).
+  enable_dwt_cycle_counter();
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -166,34 +165,21 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  /* USER CODE BEGIN 2 */
+  // Alle MX_*_Init() ausser MX_GPIO_Init() stehen in der .ioc auf "Do Not Generate Function
+  // Call" -- hier nur, was VOR der Versorgungsspannungspruefung (App::WaitForSupplyVoltage(),
+  // s. app.cc) gebraucht wird: Caches/Flash/DMA als Basis, USART3 fuers Log, I2C4 fuer den
+  // INA226, UCPD1 fuer USB-PD. Alle stromhungrigen Peripherien (ETH, Stepper-UART/-Timer, SD,
+  // USB-Device, ...) initialisiert erst MX_Init_PowerConsumers() unten, aufgerufen aus dem
+  // App-Main-Thread, sobald >18V anliegen. MX_GPIO_Init() oben laesst STEPPER_EN (Low-aktiv)
+  // HIGH und den ETH-PHY im Reset (ETH_RESET LOW) -- die Verbraucher bleiben bis dahin aus.
   MX_GPDMA1_Init();
   MX_DCACHE1_Init();
   MX_USART3_UART_Init();
-  MX_ETH_Init();
   MX_FLASH_Init();
-  MX_I2C1_Init();
-  MX_I2C2_Init();
   MX_I2C4_Init();
-  MX_SDMMC1_SD_Init();
-  MX_SPI2_Init();
-  MX_TIM2_Init();
-  MX_TIM3_Init();
-  MX_TIM4_Init();
-  MX_TIM15_Init();
-  MX_UART7_Init();
   MX_UCPD1_Init();
-  MX_USB_PCD_Init();
-  MX_FDCAN1_Init();
-  MX_SPI4_Init();
-  MX_OCTOSPI1_Init();
-  MX_TIM16_Init();
-  MX_TIM17_Init();
-  MX_UART12_Init();
-  MX_ADC1_Init();
-  MX_UART5_Init();
   MX_ICACHE_Init();
-  /* USER CODE BEGIN 2 */
-  AppSetupBeforeThreadX();
   tx_kernel_enter();
   /* USER CODE END 2 */
 
@@ -1487,7 +1473,7 @@ static void MX_GPIO_Init(void)
                           |STEPPER2_DIR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(STEPPER_EN_GPIO_Port, STEPPER_EN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(STEPPER_EN_GPIO_Port, STEPPER_EN_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : SYNC1_Pin PE0_Pin */
   GPIO_InitStruct.Pin = SYNC1_Pin|PE0_Pin;
@@ -1579,7 +1565,31 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+// Gegenstueck zu den fruehen MX_*_Init()-Aufrufen in main() (USER CODE 2): alle restlichen
+// Peripherien in der urspruenglich von CubeMX generierten Reihenfolge. Hier statt in einer
+// anderen Datei, weil die MX_*_Init()-Funktionen static sind (Visibility in der .ioc).
+void MX_Init_PowerConsumers(void)
+{
+  MX_ETH_Init();
+  MX_I2C1_Init();
+  MX_I2C2_Init();
+  MX_SDMMC1_SD_Init();
+  MX_SPI2_Init();
+  MX_TIM2_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
+  MX_TIM15_Init();
+  MX_UART7_Init();
+  MX_USB_PCD_Init();
+  MX_FDCAN1_Init();
+  MX_SPI4_Init();
+  MX_OCTOSPI1_Init();
+  MX_TIM16_Init();
+  MX_TIM17_Init();
+  MX_UART12_Init();
+  MX_ADC1_Init();
+  MX_UART5_Init();
+}
 /* USER CODE END 4 */
 
 /**

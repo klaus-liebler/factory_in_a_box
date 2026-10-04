@@ -27,9 +27,9 @@ void USBPDControl::HandleUsbPDEvent(PDSinkEventType eventType) {
             break;
         case PDSinkEventType::voltageChanged:
             log_info("USB-PD: active supply now %d mV / %d mA", PowerSink.activeVoltage, PowerSink.activeCurrent);
-            // register_model existiert bereits beim allerersten EarlySetup()-Aufruf (wird in
-            // App::SetupBeforeThreadX() vor der USBPDControl-Konstruktion angelegt, s. app.cc)
-            // -- auch die blockierende 20V-Anforderung dort kann also schon Register schreiben.
+            // register_model existiert bereits beim Start() (wird in
+            // App::InitIdentityAndRegisterModel() angelegt, s. app.cc) -- Events waehrend App::WaitForSupplyVoltage() koennen also
+            // schon Register schreiben.
             register_model->SetInputRegister(ModbusRegisters::Input::PWR_PD_VOLTAGE_MV, (uint16_t)PowerSink.activeVoltage);
             register_model->SetInputRegister(ModbusRegisters::Input::PWR_PD_CURRENT_MA, (uint16_t)PowerSink.activeCurrent);
             UpdatePdStatusRegister();
@@ -42,51 +42,23 @@ void USBPDControl::HandleUsbPDEvent(PDSinkEventType eventType) {
 }
 
 
-// Rein elektrische CC-Anschlusserkennung (PowerController.ccPin != 0, s. PDSink::reset())
-// laesst PowerSink.isConnected() sofort false bleiben, wenn am USB-C-Port ueberhaupt nichts
-// angeschlossen ist -- kein Warten auf einen PD-Protokoll-Timeout in diesem Fall. Ist dagegen
-// etwas angeschlossen, das (noch) nicht antwortet, deckt dieses Fenster die interne Retry-/
-// Hard-Reset-Kaskade ab (PDSink.cpp: 100ms initiale Anfrage + bis zu 3x 200ms Retry vor einem
-// selbstausgeloesten Hard Reset, der die Kaskade neu beginnt).
-constexpr uint32_t PD_SOURCE_DETECT_TIMEOUT_MS = 2000;
-
-void USBPDControl::EarlySetup(int target_voltage_mv) {
+void USBPDControl::Start(int target_voltage_mv) {
     target_voltage_mv_ = target_voltage_mv;
 
-    // PowerSink.start() enables the scheduler timer (TIM7) and initializes the UCPD1
-    // PHY (clocks/GPIO/DMA/NVIC) -- plain register-level setup, unlike the NetX calls
-    // it has no running-thread requirement, so it's safe to call from tx_application_define().
-    // "this" is the IUsbPdEventHandler: USBPDControl implements HandleUsbPDEvent() itself.
-    PowerSink.start(this);
-
-    // Ganz frueh (vor allen anderen io_setup()-Schritten, s. io_thread.cpp) pruefen, ob ein
-    // USB-PD-Netzteil die Versorgung uebernimmt: ohne aktive Anforderung liefert ein PD-
-    // Netzteil per Spec nur die 5V-Default-Spannung -- an einer 20V-Verbraucherlast (Stepper-
-    // Endstufen etc.) waere das kein harmloser Normalzustand, sondern eine Unterspannung.
-    uint32_t detect_start = HAL_GetTick();
-    while (!PowerSink.isConnected() && (HAL_GetTick() - detect_start) < PD_SOURCE_DETECT_TIMEOUT_MS) {
-        PowerSink.Loop();
-        HAL_Delay(1);
-    }
-
-    if (!PowerSink.isConnected()) {
-        log_info("USB-PD: no source detected within %lums - assuming separate/conventional power supply",
-                 (unsigned long)PD_SOURCE_DETECT_TIMEOUT_MS);
-        UpdatePdStatusRegister();
-        return;
-    }
-
-    log_info("USB-PD: source detected, requesting %d mV...", target_voltage_mv);
+    // Zielspannung VOR dem Start hinterlegen (PDSink::desiredVoltage, Default 5000): ohne Quelle
+    // gibt requestPower() nur notConnected zurueck, merkt sich den Wert aber -- sobald
+    // Source_Capabilities eintreffen, fordert PDSink::onSourceCapabilities() direkt diese
+    // Spannung an statt 5V. Vor start() aufgerufen, damit keine bereits per ISR eintreffenden
+    // Capabilities mit dem alten 5V-Default beantwortet werden koennen.
     PowerSink.requestPower(target_voltage_mv);
-    // Absichtlich unbegrenztes Warten: sobald feststeht, dass ein PD-Netzteil die Versorgung
-    // uebernimmt, darf io_setup() (und alles danach, insbesondere stepper_setup()) sich erst
-    // fortsetzen, wenn PD_TARGET_VOLTAGE_MV tatsaechlich anliegt -- kein Fallback-Timeout hier,
-    // sonst liefe die restliche Initialisierung ggf. auf einer Unterspannung weiter.
-    while (PowerSink.activeVoltage < target_voltage_mv) {
-        PowerSink.Loop();
-        HAL_Delay(1);
-    }
-    log_info("USB-PD: %d mV confirmed active.", PowerSink.activeVoltage);
+
+    // PowerSink.start() aktiviert den Scheduler-Timer (TIM7) und initialisiert den UCPD1-PHY
+    // (Takte/GPIO/DMA/NVIC); "this" ist der IUsbPdEventHandler. Nicht blockierend -- ob die
+    // Zielspannung tatsaechlich anliegt, prueft der Aufrufer (App::WaitForSupplyVoltage(), s.
+    // app.cc) per INA226 und ruft dabei regelmaessig Loop() auf, damit die Events zugestellt
+    // werden.
+    PowerSink.start(this);
+    log_info("USB-PD: gestartet, fordere %d mV an", target_voltage_mv);
     UpdatePdStatusRegister();
 }
 

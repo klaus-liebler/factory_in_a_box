@@ -65,41 +65,15 @@
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 extern UART_HandleTypeDef huart3;
-/* USER CODE END 0 */
 
-/* External variables --------------------------------------------------------*/
-extern ETH_HandleTypeDef heth;
-extern SD_HandleTypeDef hsd1;
-extern DMA_HandleTypeDef handle_GPDMA1_Channel1;
-extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
-extern SPI_HandleTypeDef hspi2;
-extern DMA_HandleTypeDef handle_GPDMA1_Channel3;
-extern DMA_HandleTypeDef handle_GPDMA1_Channel2;
-extern UART_HandleTypeDef huart5;
-/* USER CODE BEGIN EV */
+// "naked" per vorgezogener Deklaration statt direkt an der (von CubeMX generierten und bei jeder
+// Regenerierung neu geschriebenen) Definition von HardFault_Handler() weiter unten -- GCC
+// uebernimmt Attribute einer frueheren Deklaration in die spaetere Definition. Die Definition
+// selbst bleibt damit exakt im CubeMX-Generatorformat, nur das Trampolin steht in deren
+// USER-CODE-Block HardFault_IRQn 0 (endet mit "b HardFault_Handler_C", die generierte
+// while(1)-Schleife dahinter wird nie erreicht).
+void HardFault_Handler(void) __attribute__((naked));
 
-
-/* USER CODE END EV */
-
-/******************************************************************************/
-/*           Cortex Processor Interruption and Exception Handlers          */
-/******************************************************************************/
-/**
-  * @brief This function handles Non maskable interrupt.
-  */
-void NMI_Handler(void)
-{
-  /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-
-  /* USER CODE END NonMaskableInt_IRQn 0 */
-  /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
-   while (1)
-  {
-  }
-  /* USER CODE END NonMaskableInt_IRQn 1 */
-}
-
-/* USER CODE BEGIN HardFault_Handler_C */
 // Rohes, HAL-freies Polling-Transmit fuer den Fault-Handler: HAL_UART_Transmit() (wie es sonst
 // ueberall in diesem Projekt genutzt wird, s. syscalls.c::_write()) haengt __HAL_LOCK()/
 // __HAL_UNLOCK() um sich herum -- traf der Fault WAEHREND eine vorherige HAL_UART_Transmit()
@@ -163,12 +137,44 @@ void HardFault_Handler_C(uint32_t *stacked_regs)
     {
     }
 }
-/* USER CODE END HardFault_Handler_C */
+/* USER CODE END 0 */
+
+/* External variables --------------------------------------------------------*/
+extern ETH_HandleTypeDef heth;
+extern SD_HandleTypeDef hsd1;
+extern DMA_HandleTypeDef handle_GPDMA1_Channel1;
+extern DMA_HandleTypeDef handle_GPDMA1_Channel0;
+extern SPI_HandleTypeDef hspi2;
+extern DMA_HandleTypeDef handle_GPDMA1_Channel3;
+extern DMA_HandleTypeDef handle_GPDMA1_Channel2;
+extern UART_HandleTypeDef huart5;
+/* USER CODE BEGIN EV */
+
+
+/* USER CODE END EV */
+
+/******************************************************************************/
+/*           Cortex Processor Interruption and Exception Handlers          */
+/******************************************************************************/
+/**
+  * @brief This function handles Non maskable interrupt.
+  */
+void NMI_Handler(void)
+{
+  /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
+
+  /* USER CODE END NonMaskableInt_IRQn 0 */
+  /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
+   while (1)
+  {
+  }
+  /* USER CODE END NonMaskableInt_IRQn 1 */
+}
 
 /**
   * @brief This function handles Hard fault interrupt.
   */
-__attribute__((naked)) void HardFault_Handler(void)
+void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
   __asm volatile(
@@ -184,6 +190,11 @@ __attribute__((naked)) void HardFault_Handler(void)
     "b    HardFault_Handler_C \n"
   );
   /* USER CODE END HardFault_IRQn 0 */
+  while (1)
+  {
+    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
+    /* USER CODE END W1_HardFault_IRQn 0 */
+  }
 }
 
 /**

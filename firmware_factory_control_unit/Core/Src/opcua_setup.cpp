@@ -52,7 +52,7 @@ void OpcUaServerSetup(App *app) {
     // opcua_registers_generated.hh -- one shared callback per base type, driven by a per-register
     // RegisterContext) to the runtime register storage. Must happen before AddressSpaceInstance()
     // is handed to the server below; app->register_model already exists at this point (created in
-    // App::SetupBeforeThreadX(), long before AppThread()/OpcUaServerSetup() run).
+    // App::InitIdentityAndRegisterModel(), the first step of AppThread()).
     GeneratedOpcUa::SetRegisterModel(app->register_model);
 
     const USHORT device_cert_der_len =

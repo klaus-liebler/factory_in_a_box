@@ -11,7 +11,7 @@ extern "C" {
 // normalen Thread ausfuehrt (z.B. als allererste Zeile in App::AppThread(), dem einzigen
 // TX_AUTO_START-Thread) -- NICHT aus tx_application_define()/vor tx_kernel_enter() heraus, da
 // dort noch kein echter Thread-Kontext existiert und tx_thread_sleep() dort undefiniert waere.
-// Vorher (Boot, App::SetupBeforeThreadX(), etc.) liefert tx_time_get() nur eine konstante 0 --
+// Vorher (main(), tx_application_define()) liefert tx_time_get() nur eine konstante 0 --
 // HAL_GetTick()/HAL_Delay() weichen bis zu diesem Aufruf automatisch auf den DWT-Zykluszaehler
 // aus (von main.c ganz am Boot-Anfang aktiviert).
 void hal_tick_threadx_mark_running(void);

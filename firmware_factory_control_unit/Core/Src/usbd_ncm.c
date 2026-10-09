@@ -483,42 +483,66 @@ static UINT ncm_control_request(UX_SLAVE_CLASS_COMMAND *command) {
         return UX_ERROR;
     }
 
+    // EP0-Konventionen wie bei USBX' eigenen Klassen (CDC-ACMs GET_LINE_CODING in
+    // ux_device_class_cdc_acm_control_request.c, ux_device_stack_descriptor_send.c):
+    // - IN-Antworten werden in den EP0-eigenen Puffer KOPIERT, NICHT per Umbiegen von
+    //   ux_slave_transfer_request_data_pointer -- dieser Zeiger ist der EINE, von
+    //   ux_device_stack_initialize() allokierte Control-Puffer, in den USBX alle spaeteren
+    //   EP0-Antworten (z.B. String-Deskriptoren) per memcpy() schreibt. Eine fruehere Fassung zeigte
+    //   ihn dauerhaft auf static-const-Daten im Flash; jede danach angefragte Deskriptor-Antwort
+    //   waere wirkungslos "in den Flash" geschrieben und mit den NTB-Parameter-Bytes beantwortet
+    //   worden.
+    // - ux_slave_transfer_request_phase wird explizit auf UX_TRANSFER_PHASE_DATA_OUT (USBX-Sicht:
+    //   Daten verlassen das Geraet) gesetzt: _ux_device_stack_transfer_request() setzt die Phase
+    //   nur fuer Nicht-Control-Endpunkte selbst, fuer EP0 waehlt _ux_dcd_stm32_transfer_arm()
+    //   allein daran zwischen HAL_PCD_EP_Transmit()/_Receive() -- ohne Setzen gilt zufaellig die
+    //   Phase des vorherigen Requests.
+    // - Requests ohne IN-Datenphase stossen KEINEN eigenen Transfer an (s. die SET_*-Faelle).
     switch (bRequest) {
         case NCM_GET_NTB_PARAMETERS: {
             static ncm_ntb_parameters_t const params = {
                 sizeof(ncm_ntb_parameters_t),
                 0x01u,  // bmNtbFormatsSupported: nur NTB16
                 NCM_NTB_MAX_SIZE,
-                1u, 0u, 4u, 0u,
+                // wNdpInDivisor=4 (statt des spec-konformen 1): Windows' usbncm.sys lehnt seit
+                // KB5124008 (September 2026) Divisoren < 4 bzw. keine Zweierpotenz mit
+                // STATUS_DEVICE_HARDWARE_ERROR ab (Geraete-Manager Code 10, noch in
+                // SelectConfiguration(), vor jedem SET_INTERFACE) -- s. TinyUSB PR #3914. Der
+                // Sendepfad (ncm_bulkin_thread_entry) legt jedes Datagramm ohnehin auf eine
+                // 4-Byte-Grenze (Header 56 Byte + align_offset), erfuellt Divisor 4/Rest 0 also.
+                4u, 0u, 4u, 0u,
                 NCM_NTB_MAX_SIZE,
-                1u, 0u, 4u,
+                4u, 0u, 4u,  // wNdpOutDivisor=4: s.o., der Empfangspfad setzt keine Ausrichtung voraus
                 NCM_XMIT_MAX_DATAGRAMS,
             };
-            transfer_request->ux_slave_transfer_request_data_pointer = (UCHAR *)(void const *)&params;
+            _ux_utility_memory_copy(transfer_request->ux_slave_transfer_request_data_pointer, (VOID *)(void const *)&params, sizeof(params));
+            transfer_request->ux_slave_transfer_request_phase = UX_TRANSFER_PHASE_DATA_OUT;
             _ux_device_stack_transfer_request(transfer_request, sizeof(params), wLength);
             return UX_SUCCESS;
         }
 
         case NCM_SET_ETHERNET_PACKET_FILTER:
             // Kein eigener Multicast-/Promiscuous-Filter -- der virtuelle Link empfaengt ohnehin
-            // alles, was der Host sendet. Reine Status-ACK-Quittierung.
-            _ux_device_stack_transfer_request(transfer_request, 0, 0);
+            // alles, was der Host sendet. Kein eigener Transfer: Requests ohne Datenphase quittiert
+            // der STM32-DCD selbst mit dem Status-ZLP, sobald hier UX_SUCCESS zurueckkommt (s.
+            // _ux_dcd_stm32_setup_status() in ux_dcd_stm32_callback.c).
             return UX_SUCCESS;
 
         case NCM_GET_NTB_INPUT_SIZE: {
-            static uint32_t const dw_ntb_in_max_size = NCM_NTB_MAX_SIZE;
-            transfer_request->ux_slave_transfer_request_data_pointer = (UCHAR *)(void const *)&dw_ntb_in_max_size;
-            _ux_device_stack_transfer_request(transfer_request, sizeof(dw_ntb_in_max_size), wLength);
+            ULONG const dw_ntb_in_max_size = NCM_NTB_MAX_SIZE;
+            _ux_utility_long_put(transfer_request->ux_slave_transfer_request_data_pointer, dw_ntb_in_max_size);
+            transfer_request->ux_slave_transfer_request_phase = UX_TRANSFER_PHASE_DATA_OUT;
+            _ux_device_stack_transfer_request(transfer_request, sizeof(uint32_t), wLength);
             return UX_SUCCESS;
         }
 
         case NCM_SET_NTB_INPUT_SIZE:
             // bmCapabilities=0 im Deskriptor (kein NTB_INPUT_SIZE-Capability-Bit) -- der Host
-            // sollte dies laut Spezifikation gar nicht erst senden. Falls doch: Datenphase
-            // schlucken (Wert selbst bleibt fest bei NCM_NTB_MAX_SIZE) und mit STATUS-ACK
-            // quittieren statt zu stallen -- manche Hosts fragen diesen Request unabhaengig von
-            // der beworbenen Capability ab.
-            _ux_device_stack_transfer_request(transfer_request, 0, wLength);
+            // sollte dies laut Spezifikation gar nicht erst senden. Falls doch: mit STATUS-ACK
+            // quittieren statt zu stallen (Wert selbst bleibt fest bei NCM_NTB_MAX_SIZE). Die
+            // OUT-Datenphase hat der STM32-DCD zu diesem Zeitpunkt bereits vollstaendig in den
+            // EP0-Puffer empfangen und sendet den Status-ZLP ebenfalls selbst -- kein eigener
+            // Transfer hier.
             return UX_SUCCESS;
 
         default:

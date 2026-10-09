@@ -12,16 +12,18 @@ export interface RegisterValues {
 
 export async function fetchRegisters(): Promise<RegisterValues> {
 	const resp = await wsRequest(
+		modbus.NAMESPACE_ID,
 		(requestId) => modbus.GetRegistersRequest.encode({ requestId }),
-		(view) => modbus.RegistersMessage.decode(view, 0),
+		modbus.RegistersMessage,
 	);
 	return { holding: resp.holding, input: resp.input };
 }
 
 export async function writeHolding(address: number, value: number): Promise<void> {
 	const resp = await wsRequest(
+		modbus.NAMESPACE_ID,
 		(requestId) => modbus.WriteHoldingRequest.encode({ requestId, address, value }),
-		(view) => modbus.WriteHoldingResponse.decode(view, 0),
+		modbus.WriteHoldingResponse,
 	);
 	if (!resp.success) {
 		throw new Error(`Schreiben von Holding-Register ${address} fehlgeschlagen`);

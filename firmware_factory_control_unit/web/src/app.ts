@@ -11,6 +11,7 @@ import "./apps/task-manager-app.js";
 import "./apps/druckregelstrecke-app.js";
 import type { AppShell } from "./shell/app-shell.js";
 import { startWebSocketClient } from "./ws-client.js";
+import { startSystemLogListener } from "./system-log-listener.js";
 
 document.addEventListener("DOMContentLoaded", () => {
 	const shell = document.querySelector("app-shell") as AppShell;
@@ -23,5 +24,6 @@ document.addEventListener("DOMContentLoaded", () => {
 	shell.RegisterApp("/druckregelstrecke", "Druckregelstrecke", "🌬️", document.createElement("druckregelstrecke-app"));
 
 	shell.Start();
+	startSystemLogListener();
 	startWebSocketClient();
 });

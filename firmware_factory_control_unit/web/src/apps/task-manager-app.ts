@@ -2,7 +2,7 @@ import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "../styles.css";
 import * as WsProtocol from "../../generated/ws-protocol.js";
-import { sendBinary, setTaskListListener, setPoolListListener } from "../ws-client.js";
+import { registerWsProtocolListener, sendBinary, type WsProtocolListener } from "../ws-client.js";
 import { drawSparkline } from "./sparkline.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 
@@ -77,7 +77,7 @@ function formatBytes(bytes: number): string {
 }
 
 @customElement("task-manager-app")
-export class TaskManagerApp extends LitElement implements DashboardApp {
+export class TaskManagerApp extends LitElement implements DashboardApp, WsProtocolListener {
 	protected createRenderRoot() {
 		return this;
 	}
@@ -101,6 +101,22 @@ export class TaskManagerApp extends LitElement implements DashboardApp {
 	// onHide()-Zyklen hinweg (wie "samples" bei power-management-app.ts), damit ein kurzer Abstecher
 	// auf eine andere Seite und zurueck nicht die ganze Verlaufskurve verwirft.
 	private readonly cpuHistory = new Map<string, number[]>();
+
+	private unregisterWsListener: (() => void) | null = null;
+
+	// WsProtocolListener fuer den tasks-Namespace -- nur zwischen onShow() und onHide() registriert.
+	onWsMessage(messageTypeId: number, view: DataView): void {
+		switch (messageTypeId) {
+			case WsProtocol.tasks.TaskListMessage.TYPE_ID:
+				this.onTaskList(WsProtocol.tasks.TaskListMessage.decode(view, 0));
+				return;
+			case WsProtocol.tasks.PoolListMessage.TYPE_ID:
+				this.onPoolList(WsProtocol.tasks.PoolListMessage.decode(view, 0));
+				return;
+			default:
+				console.debug(`WebSocket: unbekannte tasks-Nachricht typeId=${messageTypeId}`);
+		}
+	}
 
 	private readonly onTaskList = (payload: WsProtocol.tasks.TaskListMessage.Payload) => {
 		this.tasks = payload.items;
@@ -128,15 +144,14 @@ export class TaskManagerApp extends LitElement implements DashboardApp {
 
 	onShow(): void {
 		this.stopped = false;
-		setTaskListListener(this.onTaskList);
-		setPoolListListener(this.onPoolList);
+		this.unregisterWsListener = registerWsProtocolListener(WsProtocol.tasks.NAMESPACE_ID, this);
 		this.scheduleNextPoll(0);
 	}
 
 	onHide(): void {
 		this.stopped = true;
-		setTaskListListener(null);
-		setPoolListListener(null);
+		this.unregisterWsListener?.();
+		this.unregisterWsListener = null;
 		if (this.pollTimeoutHandle) {
 			clearTimeout(this.pollTimeoutHandle);
 		}

@@ -22,9 +22,9 @@ import { LitElement, html } from "lit";
 import { customElement, state, query } from "lit/decorators.js";
 import "../styles.css";
 import { REGIONS, type RegisterDef } from "../../generated/register-map.js";
-import type { pneumatics } from "../../generated/ws-protocol.js";
+import { pneumatics } from "../../generated/ws-protocol.js";
 import { fetchRegisters, writeHolding, type RegisterValues } from "../registers.js";
-import { subscribePressureControlFeedback } from "../ws-client.js";
+import { registerWsProtocolListener, type WsProtocolListener } from "../ws-client.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { createDruckregelstreckeView, type DruckregelstreckeViewHandles, type ValveIndex } from "./druckregelstrecke-view.js";
 import { drawTrendChart, drawCharacteristicChart, type TrendSample, type CharacteristicCurve } from "./druckregelstrecke-charts.js";
@@ -83,7 +83,7 @@ function valveComboLabel(key: string): string {
 }
 
 @customElement("druckregelstrecke-app")
-export class DruckregelstreckeApp extends LitElement implements DashboardApp {
+export class DruckregelstreckeApp extends LitElement implements DashboardApp, WsProtocolListener {
 	protected createRenderRoot() {
 		return this;
 	}
@@ -104,7 +104,7 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp {
 	private lastNonZeroPwm = DEFAULT_COMPRESSOR_PWM_ON;
 
 	// --- Gemeinsame Messwert-Quelle (pneumatics.PressureControlFeedback, s. Dateikommentar) ---
-	private unsubscribeFeedback: (() => void) | null = null;
+	private unregisterWsListener: (() => void) | null = null;
 	private latestFeedback: pneumatics.PressureControlFeedback.Payload | null = null;
 	private trendSamples: TrendSample[] = [];
 
@@ -144,14 +144,14 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp {
 		this.stopped = false;
 		this.ensureView();
 		this.scheduleNextPoll(0);
-		this.unsubscribeFeedback = subscribePressureControlFeedback((p) => this.onPressureFeedback(p));
+		this.unregisterWsListener = registerWsProtocolListener(pneumatics.NAMESPACE_ID, this);
 	}
 
 	onHide(): void {
 		this.stopped = true;
 		if (this.pollTimeoutHandle) clearTimeout(this.pollTimeoutHandle);
-		this.unsubscribeFeedback?.();
-		this.unsubscribeFeedback = null;
+		this.unregisterWsListener?.();
+		this.unregisterWsListener = null;
 		// Sicherheitsabschaltung: ein laufender clientseitiger Regelkreis soll nicht unsichtbar
 		// weiterlaufen, nur weil die Seite gerade nicht angezeigt wird.
 		if (this.reglerOn) this.toggleRegler(false);
@@ -200,6 +200,17 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp {
 			valveOpen: VALVE_REGS.map((reg) => (readRegister(this.values, reg) ?? 0) !== 0) as [boolean, boolean, boolean],
 			compressorPwmPromille: readRegister(this.values, COMPRESSOR_PWM_REG) ?? 0,
 		});
+	}
+
+	// WsProtocolListener fuer den pneumatics-Namespace -- nur zwischen onShow() und onHide() registriert.
+	onWsMessage(messageTypeId: number, view: DataView): void {
+		switch (messageTypeId) {
+			case pneumatics.PressureControlFeedback.TYPE_ID:
+				this.onPressureFeedback(pneumatics.PressureControlFeedback.decode(view, 0));
+				return;
+			default:
+				console.debug(`WebSocket: unbekannte pneumatics-Nachricht typeId=${messageTypeId}`);
+		}
 	}
 
 	// Zentrale Senke fuer JEDEN eintreffenden pneumatics.PressureControlFeedback-Tick (500ms) --

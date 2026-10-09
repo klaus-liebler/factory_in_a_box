@@ -1,25 +1,23 @@
 // Bidirektionale binaere WebSocket-Verbindung zum Server (s. docs/websocket-protocol.md,
 // Core/Src/http_websocket_server.hpp) -- mittelfristig der einzige Kanal fuer laufenden
 // Datenaustausch zwischen Browser und Firmware; HTTP GET dient nur noch dem einmaligen Laden
-// dieser Seite. Jede Binaerframe traegt genau eine Nachricht, deren 4-Byte-Kopf
-// (namespaceId/messageTypeId, s. ws-protocol/*.json) hier ausgewertet und an den passenden
-// Decoder aus dem generierten web/generated/ws-protocol.ts weitergereicht wird (decode() erwartet
-// den KOMPLETTEN Frame inkl. Kopf plus offset=0, s. docs/websocket-protocol.md).
+// dieser Seite. Jede Binaerframe traegt genau eine Nachricht mit 4-Byte-Kopf
+// (namespaceId/messageTypeId, s. ws-protocol/*.json); decode() der generierten Typen aus
+// web/generated/ws-protocol.ts erwartet den KOMPLETTEN Frame inkl. Kopf plus offset=0.
 //
-// Mehrere Nachrichten-"Formen" werden unterschieden:
-// - system.LogMessage: reiner Server->Client-Log-Spiegel (kein Senden noetig).
-// - tasks.TaskListMessage (Antwort auf tasks.TaskManagerRequest, s. sendBinary()/
-//   setTaskListListener() unten, genutzt von web/src/apps/task-manager-app.ts).
-// - Request/Response (roarm.* wie StartTeachMode/Mission-CRUD, modbus.* wie GetRegisters/
-//   WriteHolding, system.SystemInfoRequest/-Message): das generierte Payload traegt als ERSTES
-//   Feld immer requestId (uint16, direkt hinter dem 4-Byte-Kopf) -- wsRequest() nutzt das aus, um
-//   eine Antwort anhand ihrer requestId dem wartenden Promise zuzuordnen, unabhaengig vom
-//   konkreten Namespace/Nachrichtentyp (der gemeinsame requestId-Zaehler/pendingRequests-Map ist
-//   bewusst NICHT nach Namespace aufgeteilt).
-// - roarm.* Events (JointJogTarget/CartesianJogTarget als Client->Firmware, PoseFeedback als
-//   Firmware->Client): kein Umlauf/keine requestId -- sendRoArmEvent() fuers Senden,
-//   subscribeRoArmEvent() fuers laufende Empfangen (z.B. PoseFeedback waehrend Teach-Modus).
-import * as WsProtocol from "../generated/ws-protocol.js";
+// Dieses Modul ist reiner, App-neutraler Transport -- es kennt keinen einzigen konkreten
+// Nachrichtentyp:
+// - Eingehende Nachrichten werden ausschliesslich anhand ihrer namespaceId an den EINEN dafuer
+//   registrierten WsProtocolListener weitergereicht (registerWsProtocolListener()). Decodieren,
+//   Verteilen innerhalb der App und Behandeln unbekannter messageTypeIds ist Sache der App, die
+//   den Namespace besitzt (z.B. roarm -> WsRoArmBackend, tasks -> task-manager-app.ts).
+// - Request/Response (wsRequest()): das generierte Payload jeder Request- und Response-Nachricht
+//   traegt als ERSTES Feld requestId (uint16, direkt hinter dem 4-Byte-Kopf). Die Zuordnung einer
+//   Antwort zum wartenden Promise braucht daher nur requestId plus die vom Aufrufer genannte
+//   erwartete (namespaceId, TYPE_ID) -- Antworten auf laufende wsRequest()-Aufrufe erreichen den
+//   Namespace-Listener nicht.
+// - Fire-and-forget (Events wie roarm.JointJogTarget, Polls wie tasks.TaskManagerRequest):
+//   sendBinary().
 
 // Reconnect-Backoff bewusst simpel/fest (kein exponentielles Backoff): das Board ist im
 // bestimmungsgemaessen Betrieb dauerhaft im selben Netz erreichbar, ein kurzer fester Abstand
@@ -27,199 +25,83 @@ import * as WsProtocol from "../generated/ws-protocol.js";
 // tatsaechlich dauerhaft nicht erreichbaren Board die Konsole mit Reconnect-Versuchen zu fluten.
 const RECONNECT_DELAY_MS = 2000;
 const REQUEST_TIMEOUT_MS = 3000;
+// Wie lange wsRequest() auf eine (noch) nicht offene Verbindung wartet, bevor es aufgibt. Der
+// WebSocket-Aufbau kostet einen kompletten TLS-Handshake (RSA-2048-Signatur in Software, keine
+// PKA auf dem H563) -- direkt nach dem Seitenladen fragen Screens (z.B. system-info-app.ts in
+// onShow()) schon an, bevor der Socket offen ist; ein sofortiges "nicht verbunden" liess diese
+// erste Anfrage ohne jede Wiederholung scheitern.
+const CONNECT_WAIT_TIMEOUT_MS = 10000;
+
+/** Von einer App fuer IHREN Namespace implementiert (s. registerWsProtocolListener()). */
+export interface WsProtocolListener {
+	/** Jede eingehende Nachricht des registrierten Namespaces, ausser Antworten auf laufende
+	 * wsRequest()-Aufrufe. 'view' umfasst den kompletten Frame inkl. 4-Byte-Kopf (direkt an das
+	 * generierte decode(view, 0) weiterreichbar). */
+	onWsMessage(messageTypeId: number, view: DataView): void;
+}
+
+/** Generierte Response-Nachricht (z.B. system.SystemInfoMessage) -- nur die fuer wsRequest()
+ * noetigen Teile. */
+export interface WsResponseType<TPayload> {
+	readonly TYPE_ID: number;
+	decode(view: DataView, offset: number): TPayload;
+}
 
 function wsUrl(): string {
 	return `wss://${location.host}/ws`;
 }
 
-// Nur waehrend eine Verbindung offen ist gesetzt (s. connect() unten) -- sendBinary() ist damit
-// aus jedem Aufrufer gefahrlos jederzeit aufrufbar, auch waehrend eines Reconnects.
-let activeSocket: WebSocket | null = null;
+let socket: WebSocket | null = null;
+let nextRequestId = 1;
+// Auf das naechste "open" wartende wsRequest()-Aufrufe (s. waitForOpen()).
+let openWaiters: Array<() => void> = [];
+const listeners = new Map<number, WsProtocolListener>(); // key = namespaceId
+const pendingRequests = new Map<
+	number, // key = requestId
+	{ namespaceId: number; typeId: number; resolve: (view: DataView) => void; timer: number }
+>();
 
-// Kein Queueing bei fehlender Verbindung (bewusst, s. RECONNECT_DELAY_MS-Kommentar unten): der
-// naechste Aufruf (z.B. der naechste Poll-Tick von task-manager-app.ts) greift ohnehin von
-// selbst wieder, ein einzelner verlorener Request ist fuer eine Diagnose-Seite unerheblich.
-export function sendBinary(data: Uint8Array): void {
-	if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
-		activeSocket.send(data);
+function isOpen(): boolean {
+	return socket !== null && socket.readyState === WebSocket.OPEN;
+}
+
+/** Registriert den einzigen Abnehmer fuer alle Nachrichten eines Namespaces. Rueckgabewert meldet
+ * ihn wieder ab. Eine zweite Registrierung fuer denselben Namespace ist ein Programmierfehler
+ * (wirft), damit nicht stillschweigend eine App einer anderen die Nachrichten wegnimmt. */
+export function registerWsProtocolListener(namespaceId: number, listener: WsProtocolListener): () => void {
+	if (listeners.has(namespaceId)) {
+		throw new Error(`WebSocket: fuer namespaceId=${namespaceId} ist bereits ein Listener registriert`);
 	}
+	listeners.set(namespaceId, listener);
+	return () => {
+		if (listeners.get(namespaceId) === listener) listeners.delete(namespaceId);
+	};
 }
 
-type TaskListListener = (payload: WsProtocol.tasks.TaskListMessage.Payload) => void;
-let taskListListener: TaskListListener | null = null;
-
-// Registriert/deregistriert (via null) den einzigen Abnehmer fuer tasks.TaskListMessage --
-// bewusst kein genereller Event-Bus fuer (aktuell) genau einen Nachrichtentyp, s.
-// task-manager-app.ts onShow()/onHide().
-export function setTaskListListener(listener: TaskListListener | null): void {
-	taskListListener = listener;
-}
-
-type PoolListListener = (payload: WsProtocol.tasks.PoolListMessage.Payload) => void;
-let poolListListener: PoolListListener | null = null;
-
-// Gleiches Muster wie setTaskListListener() oben -- task-manager-app.ts sendet
-// tasks.PoolListRequest im selben Poll-Tick wie tasks.TaskManagerRequest.
-export function setPoolListListener(listener: PoolListListener | null): void {
-	poolListListener = listener;
-}
-
-// pneumatics.PressureControlFeedback (s. best_binary_buffers_schema/pneumatics.cs) -- alle 500ms
-// unbedingt von der Firmware gesendet (kein "Modus aktiv?"-Gate wie bei roarm.PoseFeedback), daher
-// als Set statt Einzel-Listener: sowohl der Freies-Experiment-Trend als auch der clientseitige
-// Regler (druckregelstrecke-app.ts) koennen unabhaengig voneinander mitlauschen. Bewusst NICHT
-// ueber eventSubscribers/subscribeRoArmEvent (das ist roarm-namespace-spezifisch, s. dessen
-// Kommentar "key = typeId innerhalb roarm.NAMESPACE_ID" -- eine andere Namespace-ID koennte
-// zufaellig denselben numerischen typeId-Wert tragen).
-type PressureControlFeedbackListener = (payload: WsProtocol.pneumatics.PressureControlFeedback.Payload) => void;
-const pressureControlFeedbackListeners = new Set<PressureControlFeedbackListener>();
-
-export function subscribePressureControlFeedback(cb: PressureControlFeedbackListener): () => void {
-	pressureControlFeedbackListeners.add(cb);
-	return () => pressureControlFeedbackListeners.delete(cb);
-}
-
-// 1:1 auf die console-Funktion abgebildet, die dem Original-Log-Level entspricht -- WICHTIG:
-// console.debug() zaehlt in Chrome DevTools als "Verbose" und ist per Default AUSGEBLENDET, bis
-// man den Verbose-Filter aktiviert. Vorher landete INFO faelschlich ebenfalls auf console.debug,
-// wodurch praktisch jede Log-Zeile (die meisten sind INFO) ohne Verbose-Filter unsichtbar war.
-// console.info() zaehlt dagegen als "Info" und ist per Default sichtbar -- TRACE/DEBUG bleiben
-// bewusst auf console.debug (nur bei Bedarf/Verbose sichtbar), das entspricht ihrer Rolle im
-// Original (log_set_level() blendet sie im UART-Log ohnehin meist ganz aus).
-function consoleFnForLevel(level: WsProtocol.system.LogLevel): (...args: unknown[]) => void {
-	switch (level) {
-		case WsProtocol.system.LogLevel.LOG_WARN:
-			return console.warn;
-		case WsProtocol.system.LogLevel.LOG_ERROR:
-		case WsProtocol.system.LogLevel.LOG_FATAL:
-			return console.error;
-		case WsProtocol.system.LogLevel.LOG_INFO:
-			return console.info;
-		default:
-			return console.debug;
-	}
+/** Feuert-und-vergisst -- kein Queueing bei fehlender Verbindung (bewusst): Polls und Jog-Events
+ * kommen ohnehin in Kuerze erneut, ein einzelner verlorener Frame ist unkritisch. Liefert, ob
+ * gesendet wurde. */
+export function sendBinary(bytes: Uint8Array): boolean {
+	if (!isOpen()) return false;
+	socket!.send(bytes);
+	return true;
 }
 
 function hexDump(data: ArrayBuffer): string {
 	return Array.from(new Uint8Array(data), (b) => b.toString(16).padStart(2, "0")).join(" ");
 }
 
-let socket: WebSocket | null = null;
-let nextRequestId = 1;
-const pendingRequests = new Map<number, { resolve: (view: DataView) => void; reject: (err: Error) => void; timer: number }>();
-const eventSubscribers = new Map<number, Set<(view: DataView) => void>>(); // key = typeId innerhalb roarm.NAMESPACE_ID
-
-// requestId liegt bei JEDER Response-Nachricht an derselben Stelle (erstes Feld nach dem 4-Byte-
-// Kopf, s. Dateikommentar) -- generische Zuordnung ohne nachrichtentyp-/namespacespezifischen Code.
-function resolvePendingRequest(view: DataView): void {
+// requestId liegt bei JEDER Response an derselben Stelle (erstes Feld nach dem 4-Byte-Kopf, s.
+// Dateikommentar). true = Nachricht war die erwartete Antwort und ist damit verbraucht.
+function tryResolvePendingRequest(view: DataView, namespaceId: number, messageTypeId: number): boolean {
+	if (view.byteLength < 6) return false;
 	const requestId = view.getUint16(4, true);
 	const pending = pendingRequests.get(requestId);
-	if (pending) {
-		pendingRequests.delete(requestId);
-		clearTimeout(pending.timer);
-		pending.resolve(view);
-	}
-}
-
-// Je Namespace EIN Handler, intern per switch/case auf messageTypeId verzweigend, mit
-// einheitlichem "unbekannter Typ"-Logging im default-Zweig -- s. handleMessage() fuer die
-// namespaceId-Ebene, die nach demselben Muster aufgebaut ist.
-
-function handleSystemMessage(view: DataView, typeId: number, data: ArrayBuffer): void {
-	switch (typeId) {
-		case WsProtocol.system.LogMessage.TYPE_ID:
-			try {
-				const msg = WsProtocol.system.LogMessage.decode(view, 0);
-				// Nachrichtentext bewusst als ERSTES Argument (nicht der Zeitstempel-Praefix davor) --
-				// eine lange Millisekundenzahl vor dem Text liess die ersten Zeichen der eigentlichen
-				// Meldung in der Konsole abgeschnitten wirken, s. Feedback.
-				consoleFnForLevel(msg.level)(msg.text, `(t=${msg.timestampMs}ms)`);
-			} catch (error) {
-				console.warn(`[diag] WS LogMessage decode FAILED: ${(error as Error).message}`, `frame length=${data.byteLength} bytes`, `\nhex=${hexDump(data)}`);
-			}
-			return;
-		case WsProtocol.system.SystemInfoMessage.TYPE_ID:
-			resolvePendingRequest(view);
-			return;
-		default:
-			console.debug(`WebSocket: unbekannte system-Nachricht typeId=${typeId}`);
-	}
-}
-
-function handleRoarmMessage(view: DataView, typeId: number): void {
-	switch (typeId) {
-		case WsProtocol.roarm.StartTeachModeResponse.TYPE_ID:
-		case WsProtocol.roarm.StopTeachModeResponse.TYPE_ID:
-		case WsProtocol.roarm.ListMissionsResponse.TYPE_ID:
-		case WsProtocol.roarm.GetMissionResponse.TYPE_ID:
-		case WsProtocol.roarm.SaveMissionResponse.TYPE_ID:
-		case WsProtocol.roarm.DeleteMissionResponse.TYPE_ID:
-		case WsProtocol.roarm.GetMissionGpioListResponse.TYPE_ID:
-			resolvePendingRequest(view);
-			return;
-		default: {
-			// Kein Request/Response, sondern ein Event (JointJogTarget/CartesianJogTarget als
-			// Client->Firmware werden hier nie ankommen; PoseFeedback als Firmware->Client schon) --
-			// s. subscribeRoArmEvent() unten.
-			const subscribers = eventSubscribers.get(typeId);
-			if (subscribers) {
-				for (const cb of subscribers) cb(view);
-			} else {
-				console.debug(`WebSocket: unbekannte roarm-Nachricht typeId=${typeId}`);
-			}
-		}
-	}
-}
-
-function handleModbusMessage(view: DataView, typeId: number): void {
-	switch (typeId) {
-		case WsProtocol.modbus.RegistersMessage.TYPE_ID:
-		case WsProtocol.modbus.WriteHoldingResponse.TYPE_ID:
-			resolvePendingRequest(view);
-			return;
-		default:
-			console.debug(`WebSocket: unbekannte modbus-Nachricht typeId=${typeId}`);
-	}
-}
-
-function handleTasksMessage(view: DataView, typeId: number): void {
-	switch (typeId) {
-		case WsProtocol.tasks.TaskListMessage.TYPE_ID:
-			if (taskListListener) {
-				try {
-					taskListListener(WsProtocol.tasks.TaskListMessage.decode(view, 0));
-				} catch (error) {
-					console.warn(`WS TaskListMessage decode fehlgeschlagen: ${(error as Error).message}`);
-				}
-			}
-			return;
-		case WsProtocol.tasks.PoolListMessage.TYPE_ID:
-			if (poolListListener) {
-				try {
-					poolListListener(WsProtocol.tasks.PoolListMessage.decode(view, 0));
-				} catch (error) {
-					console.warn(`WS PoolListMessage decode fehlgeschlagen: ${(error as Error).message}`);
-				}
-			}
-			return;
-		default:
-			console.debug(`WebSocket: unbekannte tasks-Nachricht typeId=${typeId}`);
-	}
-}
-
-function handlePneumaticsMessage(view: DataView, typeId: number): void {
-	switch (typeId) {
-		case WsProtocol.pneumatics.PressureControlFeedback.TYPE_ID:
-			try {
-				const payload = WsProtocol.pneumatics.PressureControlFeedback.decode(view, 0);
-				for (const cb of pressureControlFeedbackListeners) cb(payload);
-			} catch (error) {
-				console.warn(`WS PressureControlFeedback decode fehlgeschlagen: ${(error as Error).message}`);
-			}
-			return;
-		default:
-			console.debug(`WebSocket: unbekannte pneumatics-Nachricht typeId=${typeId}`);
-	}
+	if (!pending || pending.namespaceId !== namespaceId || pending.typeId !== messageTypeId) return false;
+	pendingRequests.delete(requestId);
+	clearTimeout(pending.timer);
+	pending.resolve(view);
+	return true;
 }
 
 function handleMessage(data: ArrayBuffer): void {
@@ -231,22 +113,20 @@ function handleMessage(data: ArrayBuffer): void {
 	const namespaceId = view.getUint16(0, true);
 	const messageTypeId = view.getUint16(2, true);
 
-	switch (namespaceId) {
-		case WsProtocol.system.NAMESPACE_ID:
-			return handleSystemMessage(view, messageTypeId, data);
-		case WsProtocol.roarm.NAMESPACE_ID:
-			return handleRoarmMessage(view, messageTypeId);
-		case WsProtocol.modbus.NAMESPACE_ID:
-			return handleModbusMessage(view, messageTypeId);
-		case WsProtocol.tasks.NAMESPACE_ID:
-			return handleTasksMessage(view, messageTypeId);
-		case WsProtocol.pneumatics.NAMESPACE_ID:
-			return handlePneumaticsMessage(view, messageTypeId);
-		default:
-			// Unbekannte namespaceId -- z.B. eine neuere Firmware-Version mit einer Nachricht, die
-			// dieser Web-UI-Build noch nicht kennt. Bewusst nur geloggt statt geworfen, damit ein
-			// einzelner unbekannter Nachrichtentyp nicht die ganze Verbindung stoert.
-			console.debug(`WebSocket: unbekannte Nachricht namespaceId=${namespaceId} messageTypeId=${messageTypeId}`);
+	if (tryResolvePendingRequest(view, namespaceId, messageTypeId)) return;
+
+	const listener = listeners.get(namespaceId);
+	if (!listener) {
+		// Kein Abnehmer -- z.B. ein Namespace, dessen App gerade nicht angezeigt wird, oder eine
+		// neuere Firmware mit einem dieser Web-UI unbekannten Namespace. Nur geloggt, damit ein
+		// einzelner unerwarteter Frame nicht die ganze Verbindung stoert.
+		console.debug(`WebSocket: kein Listener fuer namespaceId=${namespaceId} (messageTypeId=${messageTypeId})`);
+		return;
+	}
+	try {
+		listener.onWsMessage(messageTypeId, view);
+	} catch (error) {
+		console.warn(`WebSocket: Listener fuer namespaceId=${namespaceId} warf bei messageTypeId=${messageTypeId}: ${(error as Error).message}`, `\nhex=${hexDump(data)}`);
 	}
 }
 
@@ -256,7 +136,9 @@ function connect(): void {
 	socket = ws;
 
 	ws.addEventListener("open", () => {
-		activeSocket = ws;
+		const waiters = openWaiters;
+		openWaiters = [];
+		for (const w of waiters) w();
 	});
 
 	ws.addEventListener("message", (event) => {
@@ -267,7 +149,6 @@ function connect(): void {
 
 	ws.addEventListener("close", () => {
 		if (socket === ws) socket = null;
-		if (activeSocket === ws) activeSocket = null;
 		setTimeout(connect, RECONNECT_DELAY_MS);
 	});
 	ws.addEventListener("error", () => {
@@ -279,43 +160,54 @@ export function startWebSocketClient(): void {
 	connect();
 }
 
-/** Feuert-und-vergisst (Event-Nachrichten wie JointJogTarget/CartesianJogTarget) -- kein Fehler,
- * falls die Verbindung gerade nicht steht (z.B. waehrend eines Reconnects); die naechste
- * Jog-Nachricht kommt ohnehin in Kuerze wieder, ein einzelner verlorener Zwischenschritt ist
- * fuer ein Live-Jogging unkritisch. */
-export function sendRoArmEvent(bytes: Uint8Array): void {
-	socket?.send(bytes);
+function waitForOpen(timeoutMs: number): Promise<void> {
+	if (isOpen()) return Promise.resolve();
+	return new Promise((resolve, reject) => {
+		const waiter = () => {
+			window.clearTimeout(timer);
+			resolve();
+		};
+		const timer = window.setTimeout(() => {
+			openWaiters = openWaiters.filter((w) => w !== waiter);
+			reject(new Error("WebSocket nicht verbunden"));
+		}, timeoutMs);
+		openWaiters.push(waiter);
+	});
 }
 
-/** Request/Response mit generischer requestId-Zuordnung (s. Dateikommentar), namespace-
- * unabhaengig (roarm, modbus und system.SystemInfoRequest nutzen dieselbe Funktion). 'encode'
- * bekommt die vom Aufrufer zu verwendende requestId (in das Payload-Objekt einzusetzen, bevor
- * encode() aufgerufen wird) und muss die fertigen Frame-Bytes zurueckgeben. */
-export function wsRequest<TPayload>(requestId_encode: (requestId: number) => Uint8Array, decode: (view: DataView) => TPayload): Promise<TPayload> {
+/** Request/Response mit generischer requestId-Zuordnung (s. Dateikommentar). 'encode' bekommt die
+ * zu verwendende requestId (in das Payload-Objekt einzusetzen) und muss die fertigen Frame-Bytes
+ * zurueckgeben; 'response' ist der generierte Antworttyp im Namespace 'namespaceId'. Wartet bei
+ * noch nicht offener Verbindung bis zu CONNECT_WAIT_TIMEOUT_MS auf das Oeffnen. */
+export async function wsRequest<TPayload>(
+	namespaceId: number,
+	encode: (requestId: number) => Uint8Array,
+	response: WsResponseType<TPayload>,
+): Promise<TPayload> {
+	await waitForOpen(CONNECT_WAIT_TIMEOUT_MS);
 	return new Promise((resolve, reject) => {
-		if (!socket || socket.readyState !== WebSocket.OPEN) {
+		if (!isOpen()) {
 			reject(new Error("WebSocket nicht verbunden"));
 			return;
 		}
 		const requestId = nextRequestId++ & 0xffff;
-		const bytes = requestId_encode(requestId);
+		const bytes = encode(requestId);
 		const timer = window.setTimeout(() => {
 			pendingRequests.delete(requestId);
 			reject(new Error("Zeitüberschreitung bei WS-Anfrage"));
 		}, REQUEST_TIMEOUT_MS);
-		pendingRequests.set(requestId, { resolve: (view) => resolve(decode(view)), reject, timer });
-		socket.send(bytes);
+		pendingRequests.set(requestId, {
+			namespaceId,
+			typeId: response.TYPE_ID,
+			resolve: (view) => {
+				try {
+					resolve(response.decode(view, 0));
+				} catch (error) {
+					reject(error as Error);
+				}
+			},
+			timer,
+		});
+		socket!.send(bytes);
 	});
-}
-
-/** Laufende Push-Nachrichten (aktuell nur roarm.PoseFeedback) -- Rueckgabewert ist eine
- * Unsubscribe-Funktion. */
-export function subscribeRoArmEvent(typeId: number, cb: (view: DataView) => void): () => void {
-	let set = eventSubscribers.get(typeId);
-	if (!set) {
-		set = new Set();
-		eventSubscribers.set(typeId, set);
-	}
-	set.add(cb);
-	return () => set!.delete(cb);
 }

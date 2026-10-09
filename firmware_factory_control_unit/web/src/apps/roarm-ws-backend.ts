@@ -2,9 +2,11 @@
 // MockRoArmBackend, sobald die Firmware-Seite existiert (WS-Handler in webserver.cpp,
 // RoArmSetupAndLoop in Core/Src/setup_and_loops/roarm.hh). Uebersetzt 1:1 auf die generierten
 // roarm.*-Nachrichtentypen (web/generated/ws-protocol.ts) ueber die generischen Sende-/
-// Anfrage-/Abonnement-Helfer aus ws-client.ts -- kein eigenes Wire-Format-Wissen hier.
+// Anfrage-Helfer aus ws-client.ts -- kein eigenes Wire-Format-Wissen hier. Besitzt den
+// roarm-Namespace: als dessen WsProtocolListener empfaengt es alle roarm-Push-Nachrichten
+// (aktuell PoseFeedback) und verteilt sie selbst an seine Abonnenten.
 import { roarm } from "../../generated/ws-protocol.js";
-import { sendRoArmEvent, wsRequest, subscribeRoArmEvent } from "../ws-client.js";
+import { registerWsProtocolListener, sendBinary, wsRequest, type WsProtocolListener } from "../ws-client.js";
 import { JOINT_COUNT, radToCentiDeg, type CartesianPose } from "./roarm-kinematics.js";
 import type { RoArmBackend, MissionStep, StoredMission } from "./roarm-backend.js";
 
@@ -20,29 +22,40 @@ function emptyPoseFeedback(): roarm.PoseFeedback.Payload {
 	};
 }
 
-export class WsRoArmBackend implements RoArmBackend {
+export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 	private lastPose: roarm.PoseFeedback.Payload = emptyPoseFeedback();
 	private readonly poseListeners = new Set<(feedback: roarm.PoseFeedback.Payload) => void>();
-	private readonly unsubscribeInternal: () => void;
+	private readonly unregisterListener: () => void;
 
 	constructor() {
-		this.unsubscribeInternal = subscribeRoArmEvent(roarm.PoseFeedback.TYPE_ID, (view) => {
-			this.lastPose = roarm.PoseFeedback.decode(view, 0);
-			for (const cb of this.poseListeners) cb(this.lastPose);
-		});
+		this.unregisterListener = registerWsProtocolListener(roarm.NAMESPACE_ID, this);
 	}
 
-	/** Loest das interne PoseFeedback-Abonnement -- fuer den seltenen Fall, dass eine Seite dieses
+	/** Meldet den roarm-Namespace-Listener wieder ab -- fuer den seltenen Fall, dass eine Seite dieses
 	 * Backend nicht mehr braucht (aktuell lebt es fuer die gesamte Seitenlebensdauer, s. roarm-teach-app.ts). */
 	dispose(): void {
-		this.unsubscribeInternal();
+		this.unregisterListener();
+	}
+
+	// Responses (StartTeachModeResponse usw.) landen hier nie -- die ordnet ws-client.ts direkt dem
+	// wartenden wsRequest() zu. JointJogTarget/CartesianJogTarget gehen nur Client->Firmware.
+	onWsMessage(messageTypeId: number, view: DataView): void {
+		switch (messageTypeId) {
+			case roarm.PoseFeedback.TYPE_ID:
+				this.lastPose = roarm.PoseFeedback.decode(view, 0);
+				for (const cb of this.poseListeners) cb(this.lastPose);
+				return;
+			default:
+				console.debug(`WebSocket: unbekannte roarm-Nachricht typeId=${messageTypeId}`);
+		}
 	}
 
 	async startTeachMode(): Promise<boolean> {
 		try {
 			const resp = await wsRequest(
+				roarm.NAMESPACE_ID,
 				(requestId) => roarm.StartTeachModeRequest.encode({ requestId }),
-				(view) => roarm.StartTeachModeResponse.decode(view, 0),
+				roarm.StartTeachModeResponse,
 			);
 			return resp.success;
 		} catch {
@@ -53,8 +66,9 @@ export class WsRoArmBackend implements RoArmBackend {
 	async stopTeachMode(): Promise<boolean> {
 		try {
 			const resp = await wsRequest(
+				roarm.NAMESPACE_ID,
 				(requestId) => roarm.StopTeachModeRequest.encode({ requestId }),
-				(view) => roarm.StopTeachModeResponse.decode(view, 0),
+				roarm.StopTeachModeResponse,
 			);
 			return resp.success;
 		} catch {
@@ -63,7 +77,7 @@ export class WsRoArmBackend implements RoArmBackend {
 	}
 
 	setJointJogTargetCentiDeg(jointAnglesCentiDeg: readonly number[]): void {
-		sendRoArmEvent(roarm.JointJogTarget.encode({ jointAnglesCentiDeg: [...jointAnglesCentiDeg] }));
+		sendBinary(roarm.JointJogTarget.encode({ jointAnglesCentiDeg: [...jointAnglesCentiDeg] }));
 	}
 
 	// Die Servo-Ansteuerung auf dem echten Board ist ohnehin geschwindigkeitsbegrenzt (kein
@@ -74,7 +88,7 @@ export class WsRoArmBackend implements RoArmBackend {
 	}
 
 	setCartesianJogTarget(pose: CartesianPose): void {
-		sendRoArmEvent(
+		sendBinary(
 			roarm.CartesianJogTarget.encode({
 				xMm: Math.round(pose.xMm),
 				yMm: Math.round(pose.yMm),
@@ -98,8 +112,9 @@ export class WsRoArmBackend implements RoArmBackend {
 	async getMissionGpioNames(): Promise<string[]> {
 		try {
 			const resp = await wsRequest(
+				roarm.NAMESPACE_ID,
 				(requestId) => roarm.GetMissionGpioListRequest.encode({ requestId }),
-				(view) => roarm.GetMissionGpioListResponse.decode(view, 0),
+				roarm.GetMissionGpioListResponse,
 			);
 			return resp.names;
 		} catch {
@@ -110,8 +125,9 @@ export class WsRoArmBackend implements RoArmBackend {
 	async listMissions(): Promise<roarm.MissionSummary.Payload[]> {
 		try {
 			const resp = await wsRequest(
+				roarm.NAMESPACE_ID,
 				(requestId) => roarm.ListMissionsRequest.encode({ requestId }),
-				(view) => roarm.ListMissionsResponse.decode(view, 0),
+				roarm.ListMissionsResponse,
 			);
 			return resp.missions.map((m) => ({ missionIndex: m.missionIndex, name: m.name }));
 		} catch {
@@ -122,8 +138,9 @@ export class WsRoArmBackend implements RoArmBackend {
 	async getMission(missionIndex: number): Promise<StoredMission | null> {
 		try {
 			const resp = await wsRequest(
+				roarm.NAMESPACE_ID,
 				(requestId) => roarm.GetMissionRequest.encode({ requestId, missionIndex }),
-				(view) => roarm.GetMissionResponse.decode(view, 0),
+				roarm.GetMissionResponse,
 			);
 			if (!resp.found) return null;
 			return { name: resp.name, steps: resp.steps as MissionStep[] };
@@ -135,8 +152,9 @@ export class WsRoArmBackend implements RoArmBackend {
 	async saveMission(missionIndex: number, name: string, steps: MissionStep[]): Promise<{ success: boolean; errorCode: number }> {
 		try {
 			const resp = await wsRequest(
+				roarm.NAMESPACE_ID,
 				(requestId) => roarm.SaveMissionRequest.encode({ requestId, missionIndex, name, steps }),
-				(view) => roarm.SaveMissionResponse.decode(view, 0),
+				roarm.SaveMissionResponse,
 			);
 			return { success: resp.success, errorCode: resp.errorCode };
 		} catch {
@@ -147,8 +165,9 @@ export class WsRoArmBackend implements RoArmBackend {
 	async deleteMission(missionIndex: number): Promise<boolean> {
 		try {
 			const resp = await wsRequest(
+				roarm.NAMESPACE_ID,
 				(requestId) => roarm.DeleteMissionRequest.encode({ requestId, missionIndex }),
-				(view) => roarm.DeleteMissionResponse.decode(view, 0),
+				roarm.DeleteMissionResponse,
 			);
 			return resp.success;
 		} catch {

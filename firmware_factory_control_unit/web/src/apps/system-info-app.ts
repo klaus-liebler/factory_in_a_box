@@ -123,8 +123,9 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 		this.loading = true;
 		try {
 			this.info = await wsRequest(
+				system.NAMESPACE_ID,
 				(requestId) => system.SystemInfoRequest.encode({ requestId }),
-				(view) => system.SystemInfoMessage.decode(view, 0),
+				system.SystemInfoMessage,
 			);
 			this.statusMessage = `Verbunden -- zuletzt aktualisiert ${new Date().toLocaleTimeString("de-DE")}`;
 			this.statusVariant = "success";

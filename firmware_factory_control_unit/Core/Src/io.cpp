@@ -154,7 +154,12 @@ void Io::Setup() {
 
 void Io::Loop() {
     while (true) {
-        uint32_t now = tx_time_get();
+        // Millisekunden (HAL_GetTick() = tx_time_get() * 10, s. hal_tick_threadx.c), NICHT rohe
+        // ThreadX-Ticks: alle Loop(now)-Nutzer rechnen in ms (roarm.hh dt/Delay-Schritte gegen
+        // HAL_GetTick(), PneumaticsBroadcastIfDue() 500 ms, RoArmBroadcastPoseFeedbackIfDue()
+        // 100 ms, LED-Blinkmuster) -- mit Ticks (bis 2026-10-09) lief all das 10x zu langsam bzw.
+        // Mission-Delay-Schritte endeten sofort (Tick- gegen ms-Zeitstempel verglichen).
+        uint32_t now = HAL_GetTick();
         readInputs(now);
         processMembers(now);
         updateOutputs(now);

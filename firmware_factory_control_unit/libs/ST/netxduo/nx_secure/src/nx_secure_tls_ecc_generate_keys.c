@@ -789,6 +789,50 @@ USHORT                     signature_algorithm_id;
             }
             if (auth_method -> nx_crypto_operation != NX_NULL)
             {
+                /* PROJECT PATCH (factory_in_a_box, 2026-10-07): use the Chinese Remainder Theorem
+                   variant when P and Q are available, exactly like nx_secure_process_client_key_exchange.c
+                   already does for RSA key exchange. Upstream signs the ECDHE ServerKeyExchange with the
+                   plain (non-CRT) private exponent -- ~2.5 s per TLS handshake on a 160 MHz Cortex-M33
+                   without PKA, the dominant cost of every browser connection. */
+                if (certificate -> nx_secure_x509_private_key.rsa_private_key.nx_secure_rsa_private_prime_p != NX_NULL &&
+                    certificate -> nx_secure_x509_private_key.rsa_private_key.nx_secure_rsa_private_prime_q != NX_NULL)
+                {
+                    status = auth_method -> nx_crypto_operation(NX_CRYPTO_SET_PRIME_P,
+                                                                handler,
+                                                                (NX_CRYPTO_METHOD *)auth_method,
+                                                                NX_NULL,
+                                                                0,
+                                                                (VOID *)certificate -> nx_secure_x509_private_key.rsa_private_key.nx_secure_rsa_private_prime_p,
+                                                                certificate -> nx_secure_x509_private_key.rsa_private_key.nx_secure_rsa_private_prime_p_length,
+                                                                NX_NULL,
+                                                                NX_NULL,
+                                                                0,
+                                                                public_auth_metadata,
+                                                                public_auth_metadata_size,
+                                                                NX_NULL, NX_NULL);
+                    if (status != NX_CRYPTO_SUCCESS)
+                    {
+                        return(status);
+                    }
+                    status = auth_method -> nx_crypto_operation(NX_CRYPTO_SET_PRIME_Q,
+                                                                handler,
+                                                                (NX_CRYPTO_METHOD *)auth_method,
+                                                                NX_NULL,
+                                                                0,
+                                                                (VOID *)certificate -> nx_secure_x509_private_key.rsa_private_key.nx_secure_rsa_private_prime_q,
+                                                                certificate -> nx_secure_x509_private_key.rsa_private_key.nx_secure_rsa_private_prime_q_length,
+                                                                NX_NULL,
+                                                                NX_NULL,
+                                                                0,
+                                                                public_auth_metadata,
+                                                                public_auth_metadata_size,
+                                                                NX_NULL, NX_NULL);
+                    if (status != NX_CRYPTO_SUCCESS)
+                    {
+                        return(status);
+                    }
+                }
+
                 /* Sign the hash we just generated using our local RSA private key (associated with our local cert). */
                 status = auth_method -> nx_crypto_operation(NX_CRYPTO_DECRYPT,
                                                             handler,

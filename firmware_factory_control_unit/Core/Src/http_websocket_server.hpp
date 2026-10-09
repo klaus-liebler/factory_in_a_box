@@ -86,6 +86,9 @@ struct Request {
 // vorliegende Antworten, SendStreamed() fuer grosse Antworten (SPA-Blob, Register-Dump), die
 // haeppchenweise per ChunkWriter-Callback erzeugt werden, ohne die Gesamtgroesse jemals im
 // Speicher zu halten (identisches Muster wie die alte send_streamed_response()).
+// Keep-Alive-Header-Hinweis an den Browser, muss zu WebServer::HTTP_KEEPALIVE_IDLE_SECONDS passen.
+#define HTTP_KEEPALIVE_IDLE_SECONDS_STR "3"
+
 class Response {
 public:
     using ChunkWriter = void (*)(void *context, char *dest, size_t want);
@@ -99,7 +102,7 @@ public:
         int header_len = snprintf(header, sizeof(header),
             "HTTP/1.1 %u %s\r\nContent-Type: %s\r\nContent-Length: %u\r\nConnection: %s\r\n%s\r\n",
             (unsigned)status, status_text, content_type, (unsigned)body_len,
-            keep_alive_ ? "keep-alive" : "close", extra_headers ? extra_headers : "");
+            keep_alive_ ? "keep-alive\r\nKeep-Alive: timeout=" HTTP_KEEPALIVE_IDLE_SECONDS_STR : "close", extra_headers ? extra_headers : "");
         if (header_len < 0) return;
 
         NX_PACKET *packet;
@@ -126,7 +129,7 @@ public:
         int header_len = snprintf(header, sizeof(header),
             "HTTP/1.1 %u OK\r\nContent-Type: %s\r\nContent-Length: %u\r\nConnection: %s\r\n%s\r\n",
             (unsigned)status, content_type, (unsigned)total_length,
-            keep_alive_ ? "keep-alive" : "close", extra_headers ? extra_headers : "");
+            keep_alive_ ? "keep-alive\r\nKeep-Alive: timeout=" HTTP_KEEPALIVE_IDLE_SECONDS_STR : "close", extra_headers ? extra_headers : "");
         if (header_len < 0) return;
 
         NX_PACKET *packet;
@@ -265,6 +268,10 @@ public:
     // Grenze erneut auftritt, hier zuerst nachsehen, bevor MAX_SESSIONS wieder erhoeht wird.
     static constexpr UINT MAX_SESSIONS = 2;
     static constexpr UINT MAX_WEBSOCKET_CONNECTIONS = 1;
+    // Leerlauf-Frist einer HTTP-Keep-Alive-Verbindung nach der letzten Antwort (s. Ende von
+    // TryProcessOneHttpRequest()), in Sekunden (Takt von nx_tcpservers Timeout-Timer). Muss zu
+    // HTTP_KEEPALIVE_IDLE_SECONDS_STR (Keep-Alive-Header an den Browser) passen.
+    static constexpr ULONG HTTP_KEEPALIVE_IDLE_SECONDS = 3;
     static constexpr size_t RAW_BUFFER_SIZE = 4096;
     static constexpr size_t MAX_HEADERS = 24;
     static constexpr size_t MAX_ROUTES = 16;
@@ -785,6 +792,15 @@ private:
             RequestClose(session);
             return StepResult::Closed;
         }
+        // Leerlaufende Keep-Alive-Verbindung schnell freigeben: bei nur MAX_SESSIONS=2 hielten die
+        // vom Browser offen gehaltenen HTTP-Verbindungen (alte Seite + neue Seite nach einem Reload)
+        // sonst beide Slots bis zum 30-s-Session-Timeout belegt -- der WebSocket-SYN der neu
+        // geladenen Seite blieb so lange unbeantwortet (nachgemessen: ~30 s, ERR_CONNECTION_TIMED_OUT).
+        // nx_tcpserver setzt nx_tcp_session_expiration bei jedem Datenempfang wieder auf den vollen
+        // Timeout (VOR diesem Callback), direkt folgende Requests (Favicon o.ae.) nutzen die
+        // Verbindung also weiter. WebSocket-Sessions sind nicht betroffen (oben bereits
+        // zurueckgekehrt), sie werden ueber SendKeepalivePings() am Leben gehalten.
+        session->nx_tcp_session_expiration = HTTP_KEEPALIVE_IDLE_SECONDS;
         return StepResult::Progressed;
     }
 
@@ -807,15 +823,27 @@ private:
 
     // Gemeinsame Iteration ueber alle aktuell verbundenen WebSocket-Sessions fuer Broadcast()
     // (Daten-Frame) und SendKeepalivePings() (Ping-Frame) -- s. dortige Kommentare.
+    // Wirklich nicht-blockierend (Voraussetzung von ws_log_bridge.cpp, das hier mit gehaltenem
+    // Log-Mutex hineinruft): NX_NO_WAIT allein reicht NICHT -- nx_secure_tls_packet_allocate()/
+    // nx_secure_tls_session_send() holen intern den GLOBALEN _nx_secure_tls_protection-Mutex mit
+    // TX_WAIT_FOREVER, und den haelt der nx_tcpserver-Thread waehrend eines kompletten TLS-
+    // Handshake-Schritts (inkl. RSA-Signatur, mehrere hundert ms). Ohne diesen Try-Lock blockierte
+    // jedes log_info() systemweit fuer die Dauer jedes Handshakes (bzw. verklemmte sich, sobald
+    // irgendetwas unter dem TLS-Mutex loggt). ThreadX-Mutexe sind fuer den Besitzer rekursiv, das
+    // innere tx_mutex_get() in NetX Secure kehrt daher sofort zurueck. Ist der Mutex gerade
+    // belegt, wird der Frame verworfen (Log-Spiegelung/Keepalive-Ping sind verlustbehaftet ok).
     void BroadcastFrame(uint8_t opcode, const uint8_t *data, size_t len) {
-        tx_mutex_get(&ws_registry_mutex_, TX_WAIT_FOREVER);
-        for (UINT i = 0; i < MAX_SESSIONS; i++) {
-            if (sessions_state_[i].mode != SessionState::Mode::WebSocket || sessions_state_[i].cleanup_done) {
-                continue;
+        if (tx_mutex_get(&_nx_secure_tls_protection, TX_NO_WAIT) != TX_SUCCESS) return;
+        if (tx_mutex_get(&ws_registry_mutex_, TX_NO_WAIT) == TX_SUCCESS) {
+            for (UINT i = 0; i < MAX_SESSIONS; i++) {
+                if (sessions_state_[i].mode != SessionState::Mode::WebSocket || sessions_state_[i].cleanup_done) {
+                    continue;
+                }
+                SendWebSocketFrame(&sessions_[i], packet_pool_, opcode, data, len, NX_NO_WAIT);
             }
-            SendWebSocketFrame(&sessions_[i], packet_pool_, opcode, data, len, NX_NO_WAIT);
+            tx_mutex_put(&ws_registry_mutex_);
         }
-        tx_mutex_put(&ws_registry_mutex_);
+        tx_mutex_put(&_nx_secure_tls_protection);
     }
 
     // RFC6455 Abschnitt 5.2: liest genau EIN Frame (Basis-Header, ggf. erweiterte

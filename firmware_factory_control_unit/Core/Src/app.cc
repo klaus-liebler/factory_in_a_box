@@ -14,6 +14,7 @@
 // dessen Basistypen (UX_SLAVE_INTERFACE, UX_MUTEX, ...) voraussetzt, ohne es selbst einzubinden.
 #include "ux_api.h"
 #include "ux_device_class_cdc_acm.h"
+#include "nx_secure_tls_api.h"
 #include "ina226.hpp"
 
 extern "C" ADC_HandleTypeDef hadc1;
@@ -300,6 +301,11 @@ void App::AppThread() {
     // nx_stm32_eth_driver) MX_ETH_Init() und einen aus dem Reset entlassenen PHY braucht.
     fx_system_initialize();
     nx_system_initialize();
+    // Legt u.a. NetX Secures globalen _nx_secure_tls_protection-Mutex an. Fehlte bis 2026-10-07:
+    // ohne ihn scheiterte jedes interne tx_mutex_get() still mit TX_MUTEX_ERROR, TLS lief also
+    // komplett ungeschuetzt -- obwohl Http::WebServer::Broadcast() (Log-Spiegelung) aus beliebigen
+    // Threads auf dieselben TLS-Sessions sendet wie der nx_tcpserver-Thread.
+    nx_secure_tls_initialize();
     net_setup_create(this, &this->byte_pool);
 
     net_setup_start(this);
@@ -453,7 +459,6 @@ void App::InitIdentityAndRegisterModel() {
     this->chip_uid[1] = HAL_GetUIDw1();
     this->chip_uid[2] = HAL_GetUIDw2();
     HAL_ICACHE_Enable();
-weise 
     // Board-Identitaetscheck: DEVICE_CHIP_UID_W0/1/2 (Core/generated/device_ids.hh) sind
     // fuer genau EIN physisches Board eincompiliert (s.
     // builder/Phases/ReadHardwareIds.cs) -- USB-Seriennummer und NCM-MAC-Adresse

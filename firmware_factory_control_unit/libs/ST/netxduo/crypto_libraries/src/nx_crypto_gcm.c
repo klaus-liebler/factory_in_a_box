@@ -199,51 +199,100 @@ USHORT result;
 /*                                            resulting in version 6.1    */
 /*                                                                        */
 /**************************************************************************/
-NX_CRYPTO_KEEP static VOID _nx_crypto_gcm_multi(UCHAR *x, UCHAR *y, UCHAR *output)
+/* PROJECT PATCH (factory_in_a_box, 2026-10-09): 4-bit table GHASH (Shoup's method, same
+   algorithm as mbedTLS gcm_mult()) instead of the original bit-serial multiplication (128
+   iterations of a byte-wise 16-byte shift per block). The bit-serial version cost ~1600 CPU
+   cycles per byte on a 160 MHz Cortex-M33 and was the entire ~1 s transfer time of the 91 KB web
+   UI over TLS. The table depends only on H and is rebuilt per _nx_crypto_gcm_ghash_update() call
+   (on the stack, a few hundred cycles), so no state is added to the GCM metadata and the code stays
+   reentrant. */
+typedef struct
+{
+    ULONG64 hl[16];
+    ULONG64 hh[16];
+} NX_CRYPTO_GCM_GHASH_TABLE;
+
+static const ULONG64 _nx_crypto_gcm_last4[16] =
+{
+    0x0000, 0x1c20, 0x3840, 0x2460, 0x7080, 0x6ca0, 0x48c0, 0x54e0,
+    0xe100, 0xfd20, 0xd940, 0xc560, 0x9180, 0x8da0, 0xa9c0, 0xb5e0
+};
+
+static ULONG64 _nx_crypto_gcm_load_be64(const UCHAR *b)
+{
+    return ((ULONG64)b[0] << 56) | ((ULONG64)b[1] << 48) | ((ULONG64)b[2] << 40) | ((ULONG64)b[3] << 32) |
+           ((ULONG64)b[4] << 24) | ((ULONG64)b[5] << 16) | ((ULONG64)b[6] << 8) | (ULONG64)b[7];
+}
+
+static VOID _nx_crypto_gcm_store_be64(UCHAR *b, ULONG64 v)
 {
 UINT i;
-INT j;
-UCHAR v[NX_CRYPTO_GCM_BLOCK_SIZE];
-UCHAR lsb;
-UCHAR mask;
 
-    NX_CRYPTO_MEMSET(output, 0, NX_CRYPTO_GCM_BLOCK_SIZE);
-    NX_CRYPTO_MEMCPY(v, y, NX_CRYPTO_GCM_BLOCK_SIZE); /* Use case of memcpy is verified. */
-
-    mask = 0x80;
-    for (i = 0; i < NX_CRYPTO_GCM_BLOCK_SIZE_BITS; i++)
+    for (i = 0; i < 8; i++)
     {
+        b[i] = (UCHAR)(v >> (56 - 8 * i));
+    }
+}
 
-        /* output = output xor v when the ith bit of x is set. */
-        if (*x & mask)
+NX_CRYPTO_KEEP static VOID _nx_crypto_gcm_table_init(const UCHAR *h, NX_CRYPTO_GCM_GHASH_TABLE *t)
+{
+ULONG64 vh = _nx_crypto_gcm_load_be64(h);
+ULONG64 vl = _nx_crypto_gcm_load_be64(h + 8);
+ULONG64 carry;
+UINT i, j;
+
+    t -> hl[0] = 0;
+    t -> hh[0] = 0;
+    t -> hl[8] = vl;
+    t -> hh[8] = vh;
+    for (i = 4; i > 0; i >>= 1)
+    {
+        carry = (vl & 1) ? ((ULONG64)0xe1000000 << 32) : 0;
+        vl = (vh << 63) | (vl >> 1);
+        vh = (vh >> 1) ^ carry;
+        t -> hl[i] = vl;
+        t -> hh[i] = vh;
+    }
+    for (i = 2; i <= 8; i *= 2)
+    {
+        for (j = 1; j < i; j++)
         {
-            _nx_crypto_gcm_xor(output, v, output);
-        }
-
-        /* Store the LSB before shift right. */
-        j = NX_CRYPTO_GCM_BLOCK_SIZE - 1;
-        lsb = v[j];
-
-        /* v = v >> 1 */
-        for (; j > 0; j--)
-        {
-            v[j] = (UCHAR)((v[j] >> 1) | (v[j - 1] << 7));
-        }
-        v[0] = v[0] >> 1;
-
-        /* v = v xor R when LSB of v is set. */
-        if (lsb & 1)
-        {
-            v[0] = v[0] ^ 0xe1;
-        }
-
-        mask = mask >> 1;
-        if (!mask)
-        {
-            mask = 0x80;
-            x++;
+            t -> hh[i + j] = t -> hh[i] ^ t -> hh[j];
+            t -> hl[i + j] = t -> hl[i] ^ t -> hl[j];
         }
     }
+}
+
+/* output = x * H, H given by its precomputed table. x and output may alias. */
+NX_CRYPTO_KEEP static VOID _nx_crypto_gcm_multi(const NX_CRYPTO_GCM_GHASH_TABLE *t, const UCHAR *x, UCHAR *output)
+{
+UCHAR lo, hi, rem;
+ULONG64 zh, zl;
+INT i;
+
+    lo = (UCHAR)(x[15] & 0xf);
+    zh = t -> hh[lo];
+    zl = t -> hl[lo];
+    for (i = 15; i >= 0; i--)
+    {
+        lo = (UCHAR)(x[i] & 0xf);
+        hi = (UCHAR)((x[i] >> 4) & 0xf);
+        if (i != 15)
+        {
+            rem = (UCHAR)(zl & 0xf);
+            zl = (zh << 60) | (zl >> 4);
+            zh = (zh >> 4) ^ (_nx_crypto_gcm_last4[rem] << 48);
+            zh ^= t -> hh[lo];
+            zl ^= t -> hl[lo];
+        }
+        rem = (UCHAR)(zl & 0xf);
+        zl = (zh << 60) | (zl >> 4);
+        zh = (zh >> 4) ^ (_nx_crypto_gcm_last4[rem] << 48);
+        zh ^= t -> hh[hi];
+        zl ^= t -> hl[hi];
+    }
+    _nx_crypto_gcm_store_be64(output, zh);
+    _nx_crypto_gcm_store_be64(output + 8, zl);
 }
 
 /**************************************************************************/
@@ -294,28 +343,29 @@ UCHAR mask;
 NX_CRYPTO_KEEP static VOID _nx_crypto_gcm_ghash_update(UCHAR *hkey, UCHAR *input, UINT input_length, UCHAR *output)
 {
 UCHAR tmp_block[NX_CRYPTO_GCM_BLOCK_SIZE];
+NX_CRYPTO_GCM_GHASH_TABLE table;
 UINT i, n;
 
+    /* PROJECT PATCH: table-based multiplication, see _nx_crypto_gcm_multi(). */
+    _nx_crypto_gcm_table_init(hkey, &table);
+
+    /* Divide the input into blocks.  */
     n = input_length >> NX_CRYPTO_GCM_BLOCK_SIZE_SHIFT;
     for (i = 0; i < n; i++)
     {
-
-        /* output = (output xor input) multi hkey */
         _nx_crypto_gcm_xor(output, input, tmp_block);
-        _nx_crypto_gcm_multi(tmp_block, hkey, output);
+        _nx_crypto_gcm_multi(&table, tmp_block, output);
         input += NX_CRYPTO_GCM_BLOCK_SIZE;
     }
-
     input_length -= n << NX_CRYPTO_GCM_BLOCK_SIZE_SHIFT;
+
+    /* Pad the last (partial) block with zeros.  */
     if (input_length > 0)
     {
-
-        /* Pad the block with zeros when the input length is not
-            multiple of the block size. */
         NX_CRYPTO_MEMCPY(tmp_block, input, input_length); /* Use case of memcpy is verified. */
         NX_CRYPTO_MEMSET(&tmp_block[input_length], 0, sizeof(tmp_block) - input_length);
         _nx_crypto_gcm_xor(output, tmp_block, tmp_block);
-        _nx_crypto_gcm_multi(tmp_block, hkey, output);
+        _nx_crypto_gcm_multi(&table, tmp_block, output);
     }
 }
 

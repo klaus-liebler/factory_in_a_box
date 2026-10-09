@@ -36,6 +36,12 @@ import { createToggleSwitch } from './roarm3d/toggle-switch.js'
 // ploetzlich am Clamp haengt).
 const MAX_ORBIT_PITCH = (Math.PI / 2) * 0.999
 
+// s. releasedTarget in createRoArm3DView(). Toleranz deckt die centiDeg-Rundung des Wire-Formats
+// ab; Timeout = Notausstieg, falls das Backend das Ziel nie erreicht (z.B. anders geklemmt) --
+// dann uebernimmt wie bisher die gemeldete Ist-Pose.
+const RELEASE_HOLD_TOLERANCE_RAD = (1 * Math.PI) / 180
+const RELEASE_HOLD_TIMEOUT_MS = 5000
+
 // Lokaler Versatz von link5s Ursprung (Montagepunkt) zur Saugerspitze, entlang link5s eigener
 // Z-Achse -- Gizmo/IK-Ziel soll an der Spitze sitzen (das ist der Punkt, der ein Werkstueck
 // beruehrt), nicht am Wellenausgang. solveIK() erwartet weiterhin link5s Ursprungsposition, daher
@@ -176,6 +182,12 @@ export function createRoArm3DView(container: HTMLElement, callbacks: RoArm3DCall
   let target: Pose = { pos: [0, 0, 0], quat: [0, 0, 0, 1] }
   let targetTiltSum = 0
   let suppressExternalResync = false // true while a gizmo drag is in progress
+  // Nach dem Loslassen: die zuletzt per onJointAnglesPreview() geschickte Pose, bis das Backend-
+  // Feedback sie eingeholt hat (s. setJointAnglesRad()) -- sonst sprang das Modell beim Loslassen
+  // auf die (geschwindigkeitsbegrenzt hinterherfahrende) Zwischenpose zurueck und fuhr erst dann
+  // wieder zum gezogenen Ziel.
+  let releasedTarget: number[] | null = null
+  let releasedTargetDeadline = 0
   let dragUnreachable = false // letzter solveIK()-Aufruf waehrend eines Drags: reachable=false
   // Waehrend eines Drehen-Drags fix auf die Spitzenposition beim Drag-Start eingefroren (s.
   // onPointerDown/onPointerMove) -- der Drehpunkt SOLL die Sauger-Spitze sein, nicht "wo auch immer
@@ -368,6 +380,8 @@ export function createRoArm3DView(container: HTMLElement, callbacks: RoArm3DCall
       rotateDragAnchorPos = null
       suppressExternalResync = false
       dragUnreachable = false
+      releasedTarget = chainAnglesToArmAngles(angles)
+      releasedTargetDeadline = performance.now() + RELEASE_HOLD_TIMEOUT_MS
       callbacks.onDragEnd?.()
     }
   }
@@ -441,6 +455,12 @@ export function createRoArm3DView(container: HTMLElement, callbacks: RoArm3DCall
       // des Backends nahtlos wieder die Fuehrung.
       if (suppressExternalResync) return
       if (anglesRad.length < JOINT_COUNT) return
+      if (releasedTarget) {
+        const target = releasedTarget
+        const caughtUp = target.every((t, i) => Math.abs(anglesRad[i] - t) <= RELEASE_HOLD_TOLERANCE_RAD)
+        if (!caughtUp && performance.now() < releasedTargetDeadline) return
+        releasedTarget = null
+      }
       angles = armAnglesToChainAngles(anglesRad)
       posePartSet(liveParts, angles)
       syncTargetToRobot()

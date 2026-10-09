@@ -35,17 +35,21 @@ inline constexpr double kLEB = kL4B;
 inline const double kLE = std::hypot(kLEA, kLEB);
 inline const double kTERad = std::atan2(kLEB, kLEA);
 
-// Konservative Platzhalter-Gelenkgrenzen aus der Referenz (ARM_*_LIMIT_MIN/MAX_RAD) --
-// ausdruecklich NICHT gegen die reale Hardware verifiziert. Wrist/Roll hatten in der Referenz
-// keine eigenen Grenzwerte -- hier mit demselben Platzhalter (+-90deg) uebernommen, bis reale
-// Werte feststehen.
+// Gelenkgrenzen = Schnittmenge aus (a) dem, was die Servo-Umrechnung in roarm.hh
+// (*PosFromRad(), 1:1 aus RoArmM3_*JointCtrlRad() der Referenz) ueberhaupt ansteuern kann, und
+// (b) den Grenzen der Waveshare-URDF, gegen die die 3D-Teach-Seite ihre IK loest (web/src/apps/
+// roarm3d/robot-data.ts) -- MUSS mit JOINT_LIMITS_RAD in web/src/apps/roarm-kinematics.ts
+// uebereinstimmen. Frueher pauschal +-90deg fuer alle Gelenke (ARM_*_LIMIT der Referenz, dort nur
+// fuer deren eigene IK gedacht): die Teach-Seite schickte z.B. Elbow > 90deg (schon die gefaltete
+// Ruhepose liegt bei 86deg) oder Base/Roll > 90deg, die Firmware klemmte jedes Gelenk einzeln --
+// der Arm landete in einer voellig anderen Pose als im 3D-Modell gezogen.
 inline constexpr std::array<std::array<double, 2>, kJointCount> kJointLimitsRad = {{
-    {-M_PI / 2, M_PI / 2}, // Base
-    {-M_PI / 2, M_PI / 2}, // Shoulder
-    {-M_PI / 2, M_PI / 2}, // Elbow
-    {-M_PI / 2, M_PI / 2}, // Wrist
-    {-M_PI / 2, M_PI / 2}, // Roll
-    {-M_PI / 2, M_PI / 2}, // Gripper
+    {-M_PI, M_PI},         // Base     (Servo +-pi, URDF +-pi)
+    {-M_PI / 2, M_PI / 2}, // Shoulder (Servo +-pi/2, URDF +-pi/2)
+    {0.0, 2.95},           // Elbow    (Servo-Counts 1024..3071 = 0..pi, URDF -1..2.95)
+    {-M_PI / 2, M_PI / 2}, // Wrist    (Servo +-pi/2, URDF +-pi/2)
+    {-M_PI, M_PI},         // Roll     (Servo +-pi, URDF +-pi)
+    {-M_PI / 2, M_PI / 2}, // Gripper  (kein Greifer verbaut, unveraendert)
 }};
 
 inline double ClampJointRad(int jointIndex, double angleRad) {

@@ -13,7 +13,7 @@ import { roarm } from "../../generated/ws-protocol.js";
 import { createRoArm3DView, type RoArm3DHandles } from "./roarm-3d-view.js";
 import { MockRoArmBackend, type RoArmBackend, type MissionStep, VACUUM_GPIO_ID, FOLDED_REST_POSE_CENTIDEG } from "./roarm-backend.js";
 import { WsRoArmBackend } from "./roarm-ws-backend.js";
-import { JOINT_NAMES, JOINT_COUNT, centiDegToRad, radToCentiDeg } from "./roarm-kinematics.js";
+import { JOINT_NAMES, JOINT_COUNT, JOINT_LIMITS_RAD, centiDegToRad, radToCentiDeg } from "./roarm-kinematics.js";
 
 // import.meta.env.DEV ist Vites eingebautes Dev/Prod-Flag (true unter "npm run dev", false im
 // echten "vite build", der als index.html.br ins Firmware-Flash eincompiliert wird, s.
@@ -390,8 +390,8 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 											<span class="roarm-slider-label">${name}</span>
 											<input
 												type="range"
-												min="-90"
-												max="90"
+												min=${Math.ceil((JOINT_LIMITS_RAD[i][0] * 180) / Math.PI)}
+												max=${Math.floor((JOINT_LIMITS_RAD[i][1] * 180) / Math.PI)}
 												step="1"
 												.value=${(this.jointAnglesCentiDeg[i] / 100).toString()}
 												@input=${(e: Event) => this.onJointSliderInput(i, Number((e.target as HTMLInputElement).value))}

@@ -1,6 +1,7 @@
 import type { Vec3 } from './math.js'
 import { CHAIN } from './robot-data.js'
 import type { JointAngles } from './kinematics.js'
+import { JOINT_LIMITS_RAD } from '../roarm-kinematics.js'
 
 /**
  * Closed-form (non-iterative) inverse kinematics for the RoArm-M3's 3
@@ -121,12 +122,23 @@ function angleDiff(a: number, b: number): number {
   return Math.abs(wrapAngle(a - b))
 }
 
+// URDF-Grenze (CHAIN[].limit) geschnitten mit der Firmware-Klemmung (JOINT_LIMITS_RAD, Index
+// 0..4 = link1..link5) -- die URDF erlaubt z.B. Elbow bis -1 rad, die Servo-Ansteuerung aber erst
+// ab 0. Ohne den Schnitt bot der Gizmo Posen an, die die Firmware gelenkweise wegklemmte, und der
+// Arm sprang nach dem Loslassen in eine ganz andere Pose.
+const EFFECTIVE_LIMITS: ReadonlyMap<string, readonly [number, number]> = new Map(
+  CHAIN.filter((seg) => seg.limit).map((seg, i) => {
+    const urdf = seg.limit!
+    const fw = JOINT_LIMITS_RAD[i]
+    return [seg.name, fw ? [Math.max(urdf[0], fw[0]), Math.min(urdf[1], fw[1])] : urdf] as const
+  }),
+)
+
 function withinLimits(c: Candidate): boolean {
-  for (const seg of CHAIN) {
-    if (!seg.limit) continue
-    const v = (c as unknown as Record<string, number>)[seg.name]
+  for (const [name, limit] of EFFECTIVE_LIMITS) {
+    const v = (c as unknown as Record<string, number>)[name]
     if (v === undefined) continue
-    if (v < seg.limit[0] - 1e-6 || v > seg.limit[1] + 1e-6) return false
+    if (v < limit[0] - 1e-6 || v > limit[1] + 1e-6) return false
   }
   return true
 }
@@ -143,10 +155,8 @@ const LIMIT_WARNING_ZONE = 0.12 // Anteil des Gelenkbereichs, ab dem die Warnung
 
 export function limitProximity(angles: JointAngles): number {
   let maxProximity = 0
-  for (const seg of CHAIN) {
-    if (!seg.limit) continue
-    const v = angles[seg.name] ?? 0
-    const [min, max] = seg.limit
+  for (const [name, [min, max]] of EFFECTIVE_LIMITS) {
+    const v = angles[name] ?? 0
     const range = max - min
     if (range <= 1e-6) continue
     const distToNearestLimit = Math.min(v - min, max - v)

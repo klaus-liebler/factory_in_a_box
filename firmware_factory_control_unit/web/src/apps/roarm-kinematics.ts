@@ -37,16 +37,16 @@ const LEB = L4B;
 const LE = Math.hypot(LEA, LEB);
 const TERAD = Math.atan2(LEB, LEA);
 
-/// Konservative Platzhalter-Gelenkgrenzen aus der Referenz (ARM_*_LIMIT_MIN/MAX_RAD) --
-/// ausdruecklich NICHT gegen die reale Hardware verifiziert (siehe Plan-Kontext). Wrist/Roll
-/// hatten in der Referenz keine eigenen Grenzwerte -- hier mit demselben Platzhalter (+-90deg)
-/// uebernommen, bis reale Werte feststehen.
+/// Gelenkgrenzen, auf die die Firmware jedes Jog-Ziel klemmt -- 1:1 Spiegel von kJointLimitsRad
+/// in Core/Src/setup_and_loops/roarm_kinematics.hh (Begruendung der Werte dort), MUSS mit ihr
+/// uebereinstimmen. Die Gizmo-IK (roarm3d/ik.ts) schneidet ihre URDF-Grenzen hiermit, damit sie
+/// nie eine Pose anbietet, die die Firmware anschliessend wegklemmt.
 export const JOINT_LIMITS_RAD: ReadonlyArray<readonly [number, number]> = [
-	[-Math.PI / 2, Math.PI / 2], // Base
+	[-Math.PI, Math.PI], // Base
 	[-Math.PI / 2, Math.PI / 2], // Shoulder
-	[-Math.PI / 2, Math.PI / 2], // Elbow
+	[0, 2.95], // Elbow
 	[-Math.PI / 2, Math.PI / 2], // Wrist
-	[-Math.PI / 2, Math.PI / 2], // Roll
+	[-Math.PI, Math.PI], // Roll
 	[-Math.PI / 2, Math.PI / 2], // Gripper
 ];
 

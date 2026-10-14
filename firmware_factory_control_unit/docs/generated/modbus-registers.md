@@ -2,7 +2,7 @@
 
 # Modbus-Register
 
-Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben): Funktionscodes 03/06/16. Adressen sind 0-basiert (PDU-Adresse). Mehrwort-Werte belegen aufeinanderfolgende Register.
+Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben): Funktionscodes 03/06/16. Adressen sind 0-basiert (PDU-Adresse). Mehrwort-Werte belegen aufeinanderfolgende Register[^byteorder].
 
 | Bank | Anzahl Register-Definitionen | Adressbereich |
 |---|---|---|
@@ -15,9 +15,9 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
-| `CAN_TX_COUNT` | Input (R) | 50..51 | 2 | uint32 |  |  |  | decimal |  | ns=1;i=5000 | Gesendete CAN-Frames |
-| `CAN_RX_COUNT` | Input (R) | 52..53 | 2 | uint32 |  |  |  | decimal |  | ns=1;i=5001 | Empfangene CAN-Frames |
-| `CAN_ERROR_COUNT` | Input (R) | 54..55 | 2 | uint32 |  |  |  | decimal |  | ns=1;i=5002 | CAN-Fehlerzaehler |
+| `CAN_TX_COUNT` | Input (R) | 50..51 | 2 | uint32[^byteorder] |  |  |  | decimal |  | ns=1;i=5000 | Gesendete CAN-Frames |
+| `CAN_RX_COUNT` | Input (R) | 52..53 | 2 | uint32[^byteorder] |  |  |  | decimal |  | ns=1;i=5001 | Empfangene CAN-Frames |
+| `CAN_ERROR_COUNT` | Input (R) | 54..55 | 2 | uint32[^byteorder] |  |  |  | decimal |  | ns=1;i=5002 | CAN-Fehlerzaehler |
 | `CAN_LAST_ERROR` | Input (R) | 56 | 1 | uint16 |  |  |  | decimal |  | ns=1;i=5003 | Letzter CAN-Fehlercode |
 | `CAN_BUS_STATE` | Input (R) | 57 | 1 | uint16 |  |  |  | decimal |  | ns=1;i=5004 | CAN-Bus-Zustand |
 
@@ -35,7 +35,7 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
 | `HEALTH_STATE` | Input (R) | 0 | 1 | Bitfeld (HealthBits) |  |  |  | binary |  | ns=1;i=5009 | Health-Bitfeld (siehe HealthBits) |
-| `CHIP_ID` | Input (R) | 1..6 | 6 | Struct (Uid96) |  |  |  | hex |  | ns=1;i=5010 | 96-Bit Chip-UID |
+| `CHIP_ID` | Input (R) | 1..6 | 6 | Struct (Uid96)[^byteorder] |  |  |  | hex |  | ns=1;i=5010 | 96-Bit Chip-UID |
 | `FW_VERSION_MAJOR` | Input (R) | 7 | 1 | uint16 |  |  |  | decimal |  | ns=1;i=5011 | Firmware-Version Major |
 | `FW_VERSION_MINOR` | Input (R) | 8 | 1 | uint16 |  |  |  | decimal |  | ns=1;i=5012 | Firmware-Version Minor |
 | `FW_VERSION_PATCH` | Input (R) | 9 | 1 | uint16 |  |  |  | decimal |  | ns=1;i=5013 | Firmware-Version Patch |
@@ -50,9 +50,9 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | `ETH_LINK_STATUS` | Input (R) | 80 | 1 | uint16 |  |  |  | bool |  | ns=1;i=5017 | 0 = down, 1 = up |
 | `ETH_LINK_SPEED` | Input (R) | 81 | 1 | uint16 | Mbit/s |  |  | decimal |  | ns=1;i=5018 | Verbindungsgeschwindigkeit (0 = kein Link) |
 | `ETH_LINK_DUPLEX` | Input (R) | 82 | 1 | uint16 |  |  |  | bool |  | ns=1;i=5019 | 0=half, 1=full |
-| `ETH_TX_COUNT` | Input (R) | 83..84 | 2 | uint32 |  |  |  | decimal |  | ns=1;i=5020 | Gesendete Ethernet-Frames |
-| `ETH_RX_COUNT` | Input (R) | 85..86 | 2 | uint32 |  |  |  | decimal |  | ns=1;i=5021 | Empfangene Ethernet-Frames |
-| `ETH_ERROR_COUNT` | Input (R) | 87..88 | 2 | uint32 |  |  |  | decimal |  | ns=1;i=5022 | Ethernet-Fehlerzaehler |
+| `ETH_TX_COUNT` | Input (R) | 83..84 | 2 | uint32[^byteorder] |  |  |  | decimal |  | ns=1;i=5020 | Gesendete Ethernet-Frames |
+| `ETH_RX_COUNT` | Input (R) | 85..86 | 2 | uint32[^byteorder] |  |  |  | decimal |  | ns=1;i=5021 | Empfangene Ethernet-Frames |
+| `ETH_ERROR_COUNT` | Input (R) | 87..88 | 2 | uint32[^byteorder] |  |  |  | decimal |  | ns=1;i=5022 | Ethernet-Fehlerzaehler |
 | `ETH_LAST_ERROR` | Input (R) | 89 | 1 | uint16 |  |  |  | decimal |  | ns=1;i=5023 | Letzter Ethernet/PHY-Fehlercode |
 
 ### Lichtschranken
@@ -112,9 +112,9 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
-| `SCALE_A_WEIGHT` | Input (R) | 220..221 | 2 | int32 |  |  |  | decimal |  | ns=1;i=5047 | Gewicht Waegezelle A |
+| `SCALE_A_WEIGHT` | Input (R) | 220..221 | 2 | int32[^byteorder] |  |  |  | decimal |  | ns=1;i=5047 | Gewicht Waegezelle A |
 | `SCALE_A_STATUS` | Input (R) | 222 | 1 | uint16 |  |  |  | status |  | ns=1;i=5048 | 0 = ok, ungleich 0 = Fehler (aktuell: 1 = keine gueltige Messung) |
-| `SCALE_B_RAW` | Input (R) | 223..224 | 2 | uint32 |  |  |  | decimal |  | ns=1;i=5049 | Rohwert Waegezelle B (Reserve/Erweiterung) |
+| `SCALE_B_RAW` | Input (R) | 223..224 | 2 | uint32[^byteorder] |  |  |  | decimal |  | ns=1;i=5049 | Rohwert Waegezelle B (Reserve/Erweiterung) |
 | `SCALE_B_STATUS` | Input (R) | 225 | 1 | uint16 |  |  |  | status |  | ns=1;i=5050 | 0 = ok, ungleich 0 = Fehler -- auf dieser Platinen-Revision nicht bestueckt, Register bleibt ungeschrieben (zeigt daher immer 0) |
 
 ### Stepper-Steuerung
@@ -122,10 +122,10 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
 | `STEPPER_ENABLE` | Holding (R/W) | 60 | 1 | uint16 |  |  |  | bool | PB7 | ns=1;i=5051 | Stepper-Treiber global freigeben |
-| `STEPPER1_TARGET` | Holding (R/W) | 61..62 | 2 | int32 |  |  |  | decimal |  | ns=1;i=5052 | Zielposition Stepper 1 |
+| `STEPPER1_TARGET` | Holding (R/W) | 61..62 | 2 | int32[^byteorder] |  |  |  | decimal |  | ns=1;i=5052 | Zielposition Stepper 1 |
 | `STEPPER1_SPEED` | Holding (R/W) | 63 | 1 | uint16 | Schritte/s |  |  | decimal |  | ns=1;i=5053 | Geschwindigkeit Stepper 1 |
 | `STEPPER1_ACCEL` | Holding (R/W) | 64 | 1 | uint16 | Schritte/s^2 |  |  | decimal |  | ns=1;i=5054 | Beschleunigung Stepper 1 |
-| `STEPPER2_TARGET` | Holding (R/W) | 65..66 | 2 | int32 |  |  |  | decimal |  | ns=1;i=5055 | Zielposition Stepper 2 |
+| `STEPPER2_TARGET` | Holding (R/W) | 65..66 | 2 | int32[^byteorder] |  |  |  | decimal |  | ns=1;i=5055 | Zielposition Stepper 2 |
 | `STEPPER2_SPEED` | Holding (R/W) | 67 | 1 | uint16 | Schritte/s |  |  | decimal |  | ns=1;i=5056 | Geschwindigkeit Stepper 2 |
 | `STEPPER2_ACCEL` | Holding (R/W) | 68 | 1 | uint16 | Schritte/s^2 |  |  | decimal |  | ns=1;i=5057 | Beschleunigung Stepper 2 |
 | `STEPPER1_START_HOMING` | Holding (R/W) | 69 | 1 | uint16 |  | 0 | 255 | decimal |  | ns=1;i=5058 | 1=Homing starten (stoppt Stepper1, sensorloses Homing per StallGuard), 0=erfolgreich beendet, >1=Fehlercode |
@@ -135,9 +135,9 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
-| `STEPPER1_POSITION` | Input (R) | 240..241 | 2 | int32 |  |  |  | decimal |  | ns=1;i=5060 | Aktuelle Position Stepper 1 |
+| `STEPPER1_POSITION` | Input (R) | 240..241 | 2 | int32[^byteorder] |  |  |  | decimal |  | ns=1;i=5060 | Aktuelle Position Stepper 1 |
 | `STEPPER1_STATUS` | Input (R) | 242 | 1 | uint16 |  |  |  | binary |  | ns=1;i=5061 | Bit0 Enabled, Bit1 Moving, Bit2 Error/StallGuard, Bit3 InPosition |
-| `STEPPER2_POSITION` | Input (R) | 243..244 | 2 | int32 |  |  |  | decimal |  | ns=1;i=5062 | Aktuelle Position Stepper 2 |
+| `STEPPER2_POSITION` | Input (R) | 243..244 | 2 | int32[^byteorder] |  |  |  | decimal |  | ns=1;i=5062 | Aktuelle Position Stepper 2 |
 | `STEPPER2_STATUS` | Input (R) | 245 | 1 | uint16 |  |  |  | binary |  | ns=1;i=5063 | Bit0 Enabled, Bit1 Moving, Bit2 Error/StallGuard, Bit3 InPosition |
 
 ### ToF-Sensoren
@@ -171,24 +171,24 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | Adresse | Worte | Gruppe | Bezeichnung | Typ | Einheit |
 |---:|---:|---|---|---|---|
 | 0 | 1 | Diagnostik | `HEALTH_STATE` | Bitfeld (HealthBits) |  |
-| 1..6 | 6 | Diagnostik | `CHIP_ID` | Struct (Uid96) |  |
+| 1..6 | 6 | Diagnostik | `CHIP_ID` | Struct (Uid96)[^byteorder] |  |
 | 7 | 1 | Diagnostik | `FW_VERSION_MAJOR` | uint16 |  |
 | 8 | 1 | Diagnostik | `FW_VERSION_MINOR` | uint16 |  |
 | 9 | 1 | Diagnostik | `FW_VERSION_PATCH` | uint16 |  |
 | 10 | 1 | Diagnostik | `TIMER_TICK` | uint16 | ticks |
 | 11 | 1 | Diagnostik | `FREE_HEAP_KIB` | uint16 | KiB |
 | 12 | 1 | Diagnostik | `CPU_TEMPERATURE_C` | int16 | C |
-| 50..51 | 2 | CAN-Bus | `CAN_TX_COUNT` | uint32 |  |
-| 52..53 | 2 | CAN-Bus | `CAN_RX_COUNT` | uint32 |  |
-| 54..55 | 2 | CAN-Bus | `CAN_ERROR_COUNT` | uint32 |  |
+| 50..51 | 2 | CAN-Bus | `CAN_TX_COUNT` | uint32[^byteorder] |  |
+| 52..53 | 2 | CAN-Bus | `CAN_RX_COUNT` | uint32[^byteorder] |  |
+| 54..55 | 2 | CAN-Bus | `CAN_ERROR_COUNT` | uint32[^byteorder] |  |
 | 56 | 1 | CAN-Bus | `CAN_LAST_ERROR` | uint16 |  |
 | 57 | 1 | CAN-Bus | `CAN_BUS_STATE` | uint16 |  |
 | 80 | 1 | Ethernet | `ETH_LINK_STATUS` | uint16 |  |
 | 81 | 1 | Ethernet | `ETH_LINK_SPEED` | uint16 | Mbit/s |
 | 82 | 1 | Ethernet | `ETH_LINK_DUPLEX` | uint16 |  |
-| 83..84 | 2 | Ethernet | `ETH_TX_COUNT` | uint32 |  |
-| 85..86 | 2 | Ethernet | `ETH_RX_COUNT` | uint32 |  |
-| 87..88 | 2 | Ethernet | `ETH_ERROR_COUNT` | uint32 |  |
+| 83..84 | 2 | Ethernet | `ETH_TX_COUNT` | uint32[^byteorder] |  |
+| 85..86 | 2 | Ethernet | `ETH_RX_COUNT` | uint32[^byteorder] |  |
+| 87..88 | 2 | Ethernet | `ETH_ERROR_COUNT` | uint32[^byteorder] |  |
 | 89 | 1 | Ethernet | `ETH_LAST_ERROR` | uint16 |  |
 | 110 | 1 | Stromversorgung | `PWR_BUS_VOLTAGE_MV` | uint16 | mV |
 | 111 | 1 | Stromversorgung | `PWR_SHUNT_VOLTAGE_UV` | int16 | uV |
@@ -212,13 +212,13 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | 181 | 1 | Lichtschranken | `LIGHTBARRIER2` | uint16 |  |
 | 182 | 1 | Lichtschranken | `LIGHTBARRIER3` | uint16 |  |
 | 200 | 1 | Drucksensor | `PRESSURE_RAW` | uint16 |  |
-| 220..221 | 2 | Waegezelle | `SCALE_A_WEIGHT` | int32 |  |
+| 220..221 | 2 | Waegezelle | `SCALE_A_WEIGHT` | int32[^byteorder] |  |
 | 222 | 1 | Waegezelle | `SCALE_A_STATUS` | uint16 |  |
-| 223..224 | 2 | Waegezelle | `SCALE_B_RAW` | uint32 |  |
+| 223..224 | 2 | Waegezelle | `SCALE_B_RAW` | uint32[^byteorder] |  |
 | 225 | 1 | Waegezelle | `SCALE_B_STATUS` | uint16 |  |
-| 240..241 | 2 | Stepper-Status | `STEPPER1_POSITION` | int32 |  |
+| 240..241 | 2 | Stepper-Status | `STEPPER1_POSITION` | int32[^byteorder] |  |
 | 242 | 1 | Stepper-Status | `STEPPER1_STATUS` | uint16 |  |
-| 243..244 | 2 | Stepper-Status | `STEPPER2_POSITION` | int32 |  |
+| 243..244 | 2 | Stepper-Status | `STEPPER2_POSITION` | int32[^byteorder] |  |
 | 245 | 1 | Stepper-Status | `STEPPER2_STATUS` | uint16 |  |
 | 250 | 1 | RoArm-M3 Status | `STATUS` | Bitfeld (RoArmStatusBits) |  |
 | 251 | 1 | RoArm-M3 Status | `RO_ARM_ACTIVE_MISSION` | int16 |  |
@@ -239,10 +239,10 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | 40 | 1 | Motor-PWM | `CONVEYOR_PWM` | uint16 | Promille |
 | 41 | 1 | Motor-PWM | `COMPRESSOR_PWM` | uint16 | Promille |
 | 60 | 1 | Stepper-Steuerung | `STEPPER_ENABLE` | uint16 |  |
-| 61..62 | 2 | Stepper-Steuerung | `STEPPER1_TARGET` | int32 |  |
+| 61..62 | 2 | Stepper-Steuerung | `STEPPER1_TARGET` | int32[^byteorder] |  |
 | 63 | 1 | Stepper-Steuerung | `STEPPER1_SPEED` | uint16 | Schritte/s |
 | 64 | 1 | Stepper-Steuerung | `STEPPER1_ACCEL` | uint16 | Schritte/s^2 |
-| 65..66 | 2 | Stepper-Steuerung | `STEPPER2_TARGET` | int32 |  |
+| 65..66 | 2 | Stepper-Steuerung | `STEPPER2_TARGET` | int32[^byteorder] |  |
 | 67 | 1 | Stepper-Steuerung | `STEPPER2_SPEED` | uint16 | Schritte/s |
 | 68 | 1 | Stepper-Steuerung | `STEPPER2_ACCEL` | uint16 | Schritte/s^2 |
 | 69 | 1 | Stepper-Steuerung | `STEPPER1_START_HOMING` | uint16 |  |
@@ -277,3 +277,12 @@ RoArm-Status-Bitfeld (siehe RoArmStatus.Status) -- Bit-Positionen, keine Registe
 | 1 | `Moving` |
 | 2 | `Error` |
 | 3 | `TeachModeActive` |
+
+[^byteorder]: Byte-Order durchgehend Big-Endian ("ABCD"): Jedes Register wird High-Byte zuerst uebertragen (Modbus-Standard), und bei 32-Bit-Werten liegt das hoeherwertige Wort (High-Word) auf der niedrigeren Adresse, das niederwertige Wort (Low-Word) auf der Adresse +1. Vorzeichenbehaftete Werte (int32) sind im Zweierkomplement codiert. Structs bestehen aus 32-Bit-Feldern in Deklarationsreihenfolge, jedes Feld ebenfalls High-Word zuerst.
+
+    Beispiel: `SCALE_A_WEIGHT` (int32, Input-Register 220..221) mit dem Wert -100000 = 0xFFFE7960 (Zweierkomplement):
+
+    - Register 220 (High-Word) = 0xFFFE, Register 221 (Low-Word) = 0x7960
+    - Datenbytes in der FC04-Antwort (ab Startadresse 220, Anzahl 2): `FF FE 79 60`
+    - Zusammensetzen: `(0xFFFE << 16) | 0x7960` = 0xFFFE7960, als int32 interpretiert -100000
+    - Bei Clients mit einstellbarer Wort-Reihenfolge (z. B. "Word Swap"/"CDAB") also KEINEN Wort-Tausch waehlen.

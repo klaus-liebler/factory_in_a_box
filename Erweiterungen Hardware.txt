@@ -1,0 +1,7 @@
+Einen RGB-Ausgang weg
+Dafür PWM-Steuerausgang für Vakuum-Pumpe -->passt eins zu eins, oder? Frequenz? ggf für Vakuum keine PWM, sondern knallhartes On/Off?
+Wie viele Ventile haben wir jetzt eigentlich
+	- Umschaltung für Schieber
+	- Vakuum-Auflösung für Sauger
+	- 2 oder 3 "Störventile 
+

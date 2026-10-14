@@ -4534,17 +4534,17 @@
 	)
 	(global_label "ETH_TXD0"
 		(shape bidirectional)
-		(at 85.09 62.23 180)
+		(at 85.09 62.23 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify right)
+			(justify left)
 		)
 		(uuid "1bb350c8-d9a3-4cf7-9a47-4a623aaed02a")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 71.9222 62.23 0)
+			(at 98.2578 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -4552,7 +4552,7 @@
 				(font
 					(size 1.27 1.27)
 				)
-				(justify right)
+				(justify left)
 			)
 		)
 	)
@@ -4654,17 +4654,17 @@
 	)
 	(global_label "ETH_MDC"
 		(shape bidirectional)
-		(at 55.88 82.55 180)
+		(at 55.88 82.55 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify right)
+			(justify left)
 		)
 		(uuid "7fd2b9fd-c410-4db0-8ce6-d3410eb93df2")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 43.3774 82.55 0)
+			(at 68.3826 82.55 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -4672,7 +4672,7 @@
 				(font
 					(size 1.27 1.27)
 				)
-				(justify right)
+				(justify left)
 			)
 		)
 	)

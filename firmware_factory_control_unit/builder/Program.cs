@@ -55,7 +55,8 @@ namespace Builder
 				DefaultSchemaDirectory: Stm32BuildContext.RegisterMapSchemaDir,
 				CoreGeneratedDir: ctx.FirmwareGeneratedDir,
 				WebGeneratedDir: ctx.WebGeneratedDir,
-				Sources: []));
+				Sources: [],
+				DocsGeneratedDir: Path.Combine(ctx.RootDir, "docs", "generated")));
 
 		[BuildStep]
 		public static void GenerateBestBinaryBufferFiles(IBuildContextStm32 ctx) =>

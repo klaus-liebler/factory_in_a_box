@@ -114,7 +114,7 @@ Abschnitt 6) -- die bleiben im Board-Archiv bzw. werden von dort unveraendert ge
 | 2 | `GenerateCertificatesLazy` | nein | Board-Archiv (Ausnahme, s.o.) -- erzeugt/aktualisiert PEM+DER nur falls noch nicht vorhanden; schreibt `certificate-info.json`. |
 | 3 | `GenerateCertificatesForced` | nein | Board-Archiv (Ausnahme) -- wie 2, aber immer neu erzeugen (CA-Rotation, Ablauf). |
 | 4 | `GenerateDeviceArtifacts` | nein | `Core/generated/` -- `hardware-identity.json` + `certificate-info.json` (Board-Archiv) -> `device_ids.hh` + `device-ids.json`; kopiert zusaetzlich `board_info.json` (Archiv-Root, Ausnahme) unveraendert dorthin. |
-| 5 | `GenerateRegisterAccessFiles` | nein | `Core/generated/` + `web/generated/` -- `register_map_schema/*.cs` -> `modbus_registers_generated.hh` + `opcua_registers_generated.hh` + `register-map.ts` (universal_register_access). |
+| 5 | `GenerateRegisterAccessFiles` | nein | `Core/generated/` + `web/generated/` + `docs/generated/` -- `register_map_schema/*.cs` -> `modbus_registers_generated.hh` + `opcua_registers_generated.hh` + `register-map.ts` + `modbus-registers.md` (tabellarische Register-Uebersicht nach Gruppe und nach Adresse) (universal_register_access). |
 | 6 | `GenerateBestBinaryBufferFiles` | nein | `Core/generated/` + `web/generated/` -- `best_binary_buffers_schema/*.cs` (wiederholbares `--best-binary-buffer-schema-path` fuer weitere Quellen) -> `ws_protocol.hh` + `ws-protocol.ts` (ueber das geteilte WsProtocolBuildService, s. Abschnitt 4). |
 | 7 | `ReadGitStatusAndGenerateFiles` | nein | `Core/generated/` + `web/generated/` -- `gitconstants.hh`, `firmware_constants.hh` (BOARD_NAME/FW_VERSION_*, s. Abschnitt 6), `build-info.ts` aus Git-Abfrage + `firmware-version.json` + `device-ids.json` (Core/generated/); `gitstatus.json` (Ausnahme) zusaetzlich ins Board-Archiv. |
 | 8 | `CopyGeneratedFilesToBuildDirectory` | nein | `build/assets/` -- kopiert nur noch die Zertifikat-DER-Dateien (Ausnahme) aus dem Board-Archiv; alles andere generiert bereits direkt im Projekt. |
@@ -240,7 +240,8 @@ firmware_factory_control_unit/
 │   └── Debug/, Release/, Debug-Nucleo/   # je Preset ein eigener CMake-Binärordner
 ├── best_binary_buffers_schema/      # C#-Protokollschema (BestBinaryBuffers) + ids.txt
 └── docs/
-    └── build-process.md
+    ├── build-process.md
+    └── generated/                 # eingecheckt: modbus-registers.md (Register-Uebersicht, s. Abschnitt 3)
 ```
 
 Board-Archiv (`C:\Users\<user>\OneDrive - HSOS\stm32_boards\`, Pfad aus `builder/appsettings.json`,

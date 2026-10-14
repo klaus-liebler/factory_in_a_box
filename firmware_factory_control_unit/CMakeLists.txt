@@ -70,7 +70,7 @@ target_compile_definitions(stm32cubemx INTERFACE STM32H5 STM32H5xx)
 # --- Test-Rig-Umschaltung: STM32H5 Nucleo-144 (NUCLEO-H563ZI, siehe UM3115) statt der echten
 # Factory-Control-Unit-Platine -- fuer Bring-up/Test, wenn das eigentliche Board (noch) nicht
 # verfuegbar ist. Aktivieren per "cmake --preset Debug-Nucleo" (s. CMakePresets.json) oder
-# "-DBOARD_NUCLEO_H563ZI=ON". Betrifft nur die Pins, die zwischen beiden Boards tatsaechlich
+# "-DBOARD_NUCLEO_H563ZI_OVERRIDE=ON". Betrifft nur die Pins, die zwischen beiden Boards tatsaechlich
 # unterschiedlich verdrahtet sind (Ethernet TX_EN/TXD0, s. HAL_ETH_MspInit in
 # stm32h5xx_hal_msp.c) plus zwei neue Ersatzsignale (Board-Taste B1 simuliert LIGHTBARRIER1,
 # Board-LED LD1 simuliert CONVEYOR, s. main.h/main.c/io.cpp) -- USB (PA11/PA12, interner
@@ -89,22 +89,43 @@ target_compile_definitions(stm32cubemx INTERFACE STM32H5 STM32H5xx)
 # ist kompakt genug, um direkt gelesen zu werden) -- ein Mensch muss dadurch nicht mehr von Hand das
 # passende Preset waehlen (Ursache eines frueheren, session-langen Debugging-Vorfalls: falsches
 # Preset auf falsch angeschlossenem Board sah wie ein Hardware-Defekt aus, s. Projektgedaechtnis).
-# Ein expliziter Override (-DBOARD_NUCLEO_H563ZI=ON, oder das Debug-Nucleo-Preset ueber
+# Ein expliziter Override (-DBOARD_NUCLEO_H563ZI_OVERRIDE=ON, oder das Debug-Nucleo-Preset ueber
 # cacheVariables) gewinnt weiterhin, z.B. fuer ein noch nicht provisioniertes Board ohne
 # Archiv-Eintrag -- option()'s Default wird nur beim ERSTEN Configure eines binaryDir
 # herangezogen, was hier genau der richtige Zeitpunkt ist (jedes Preset hat sein eigenes
 # build/<preset>-Verzeichnis).
+#
+# NACHTRAG 2026-10-05: Der obige option()-Default griff tatsaechlich nur beim ERSTEN Configure --
+# danach blieb der Wert im CMakeCache.txt kleben, egal welches Board seitdem angeschlossen war
+# (live beobachtet: build/Release hatte BOARD_NUCLEO_H563ZI=ON aus einer frueheren Nucleo-Sitzung,
+# die echte Platine bootete mit Nucleo-ETH-Pins und uebersprungenem Spannungs-Gate). Deshalb wird
+# die Erkennung jetzt bei JEDEM Configure neu ausgewertet, und ein expliziter Override laeuft ueber
+# eine eigene Cache-Variable BOARD_NUCLEO_H563ZI_OVERRIDE (AUTO/ON/OFF, Default AUTO; das
+# Debug-Nucleo-Preset setzt ON). board_info.json ist CMAKE_CONFIGURE_DEPENDS: kopiert der Builder
+# die Datei eines anderen Boards hinein, konfiguriert der naechste Build automatisch neu.
 set(_board_json_file "${CMAKE_SOURCE_DIR}/Core/generated/board_info.json")
-set(_detected_nucleo_default OFF)
+set(_detected_nucleo OFF)
 if(EXISTS "${_board_json_file}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_board_json_file}")
     file(READ "${_board_json_file}" _board_json)
     string(JSON _board_type_name GET "${_board_json}" "boardTypeName")
     if(_board_type_name STREQUAL "NucleoH563ZI")
-        set(_detected_nucleo_default ON)
+        set(_detected_nucleo ON)
     endif()
     message(STATUS "Board-Typ erkannt (Core/generated/board_info.json): ${_board_type_name}")
 endif()
-option(BOARD_NUCLEO_H563ZI "Build for the STM32H563ZI Nucleo-144 eval board (UM3115) instead of the real Factory Control Unit PCB" ${_detected_nucleo_default})
+set(BOARD_NUCLEO_H563ZI_OVERRIDE "AUTO" CACHE STRING
+    "AUTO = Board-Typ aus Core/generated/board_info.json; ON/OFF = Nucleo-144-Test-Rig erzwingen/abschalten")
+set_property(CACHE BOARD_NUCLEO_H563ZI_OVERRIDE PROPERTY STRINGS AUTO ON OFF)
+# Alte Cache-Variable aus der option()-Zeit entfernen, damit sie nicht mehr verwirrt (sie wuerde
+# von der normalen Variable unten ohnehin ueberdeckt).
+unset(BOARD_NUCLEO_H563ZI CACHE)
+if(BOARD_NUCLEO_H563ZI_OVERRIDE STREQUAL "AUTO")
+    set(BOARD_NUCLEO_H563ZI ${_detected_nucleo})
+else()
+    set(BOARD_NUCLEO_H563ZI ${BOARD_NUCLEO_H563ZI_OVERRIDE})
+    message(STATUS "Board-Typ per BOARD_NUCLEO_H563ZI_OVERRIDE=${BOARD_NUCLEO_H563ZI_OVERRIDE} uebersteuert")
+endif()
 if(BOARD_NUCLEO_H563ZI)
     message(STATUS "Board target: STM32H563ZI Nucleo-144 (test rig)")
     target_compile_definitions(stm32cubemx INTERFACE BOARD_NUCLEO_H563ZI)
@@ -444,3 +465,4 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
 )
+

@@ -3696,8 +3696,8 @@
 		)
 	)
 	(rectangle
-		(start 236.22 44.45)
-		(end 281.94 69.85)
+		(start 237.49 72.39)
+		(end 283.21 97.79)
 		(stroke
 			(width 0)
 			(type dash)
@@ -3780,8 +3780,8 @@
 		(uuid "684102de-5744-46b2-ba75-fee6e7513652")
 	)
 	(rectangle
-		(start 236.22 73.66)
-		(end 281.94 97.79)
+		(start 237.49 15.24)
+		(end 283.21 39.37)
 		(stroke
 			(width 0)
 			(type dash)
@@ -3804,8 +3804,8 @@
 		(uuid "972e2d9c-83ad-42f3-84e6-801852e3b06a")
 	)
 	(rectangle
-		(start 236.22 15.24)
-		(end 281.94 40.64)
+		(start 237.49 43.18)
+		(end 283.21 68.58)
 		(stroke
 			(width 0)
 			(type dash)
@@ -3840,7 +3840,7 @@
 	)
 	(text "Disturbance Valve 1"
 		(exclude_from_sim no)
-		(at 236.22 15.24 0)
+		(at 237.49 43.18 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3884,7 +3884,7 @@
 	)
 	(text "Disturbance Valve 2"
 		(exclude_from_sim no)
-		(at 236.22 44.45 0)
+		(at 237.49 72.39 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3939,7 +3939,7 @@
 	)
 	(text "Cylinder Valve"
 		(exclude_from_sim no)
-		(at 236.22 73.66 0)
+		(at 237.49 15.24 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3949,13 +3949,13 @@
 		(uuid "e750ea55-eedb-4c34-aee1-8cb9ab93447d")
 	)
 	(junction
-		(at 254 30.48)
+		(at 255.27 58.42)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "030134f3-85b6-476f-a946-0b461efbca5a")
 	)
 	(junction
-		(at 261.62 38.1)
+		(at 262.89 66.04)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "08f72df4-f64f-4618-aa01-405802ddda83")
@@ -4003,13 +4003,13 @@
 		(uuid "25d3d664-00a3-43aa-b856-e0d82c1343dd")
 	)
 	(junction
-		(at 261.62 46.99)
+		(at 262.89 74.93)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "2923e8c3-547c-4c3c-a1bc-b481226a43b7")
 	)
 	(junction
-		(at 254 88.9)
+		(at 255.27 30.48)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "31d7ef53-7147-4902-87b3-a03d960b5b19")
@@ -4021,7 +4021,7 @@
 		(uuid "3a426b43-d2f0-453a-a59a-d6a7429cc6b3")
 	)
 	(junction
-		(at 261.62 76.2)
+		(at 262.89 17.78)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "478cfe3c-ce20-4d31-8157-c71e52e41482")
@@ -4033,7 +4033,7 @@
 		(uuid "4b85f7d2-869f-4f4e-9893-8b49e7c68d50")
 	)
 	(junction
-		(at 261.62 17.78)
+		(at 262.89 45.72)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "4d0a773d-6127-4919-becf-53ff4679db81")
@@ -4045,7 +4045,7 @@
 		(uuid "528e392e-b87f-4956-8f94-d77aa2cf6255")
 	)
 	(junction
-		(at 254 38.1)
+		(at 255.27 66.04)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "5b033f48-121b-43a7-89fa-399c4bc5d1f7")
@@ -4087,7 +4087,7 @@
 		(uuid "7ffcc2f3-b241-4d43-bdc1-eff606c07e75")
 	)
 	(junction
-		(at 261.62 67.31)
+		(at 262.89 95.25)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "933eb233-fd14-4b82-b38a-f108b616e63b")
@@ -4153,25 +4153,25 @@
 		(uuid "ad5ba5ca-f07e-4b56-b3f8-d42ff0f0c234")
 	)
 	(junction
-		(at 254 59.69)
+		(at 255.27 87.63)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "bfd25632-29db-4b6e-a4d9-b225daf6c279")
 	)
 	(junction
-		(at 254 67.31)
+		(at 255.27 95.25)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "c4e33d6a-1102-44c3-bc9c-be6acbfd8f3b")
 	)
 	(junction
-		(at 261.62 54.61)
+		(at 262.89 82.55)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "c8fd5611-5460-4ee1-b77f-cb5abdb26a7f")
 	)
 	(junction
-		(at 261.62 83.82)
+		(at 262.89 25.4)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "cf885e91-799b-409b-9676-a19158cf69b9")
@@ -4195,7 +4195,7 @@
 		(uuid "d25d6fc8-607c-4f01-a9af-b72c3e64ca12")
 	)
 	(junction
-		(at 261.62 93.98)
+		(at 262.89 35.56)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "d26a67a5-8ec3-4ce5-a55b-d8cbc336c950")
@@ -4219,13 +4219,13 @@
 		(uuid "d8c54fe7-6234-45eb-bb50-bbcba9f09448")
 	)
 	(junction
-		(at 261.62 25.4)
+		(at 262.89 53.34)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "d909c993-8edb-4979-b3f9-b1659d667426")
 	)
 	(junction
-		(at 254 96.52)
+		(at 255.27 38.1)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "e05271c4-972f-4068-a0f7-9c9576fcac01")
@@ -4241,6 +4241,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "e4776e4c-e544-4434-89eb-39a078a711f4")
+	)
+	(junction
+		(at 194.31 115.57)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "e60e946d-7863-48bc-96eb-6feb034f08d8")
 	)
 	(junction
 		(at 209.55 110.49)
@@ -4304,6 +4310,16 @@
 	)
 	(wire
 		(pts
+			(xy 193.04 115.57) (xy 194.31 115.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "00106f74-ed57-4733-9f22-e8284181853b")
+	)
+	(wire
+		(pts
 			(xy 111.76 34.29) (xy 111.76 31.75)
 		)
 		(stroke
@@ -4364,7 +4380,7 @@
 	)
 	(wire
 		(pts
-			(xy 246.38 52.07) (xy 254 52.07)
+			(xy 247.65 80.01) (xy 255.27 80.01)
 		)
 		(stroke
 			(width 0)
@@ -4474,7 +4490,7 @@
 	)
 	(wire
 		(pts
-			(xy 246.38 81.28) (xy 254 81.28)
+			(xy 247.65 22.86) (xy 255.27 22.86)
 		)
 		(stroke
 			(width 0)
@@ -4534,7 +4550,7 @@
 	)
 	(wire
 		(pts
-			(xy 261.62 76.2) (xy 267.97 76.2)
+			(xy 262.89 17.78) (xy 269.24 17.78)
 		)
 		(stroke
 			(width 0)
@@ -4544,7 +4560,7 @@
 	)
 	(wire
 		(pts
-			(xy 261.62 38.1) (xy 261.62 35.56)
+			(xy 262.89 66.04) (xy 262.89 63.5)
 		)
 		(stroke
 			(width 0)
@@ -4554,7 +4570,7 @@
 	)
 	(wire
 		(pts
-			(xy 246.38 96.52) (xy 254 96.52)
+			(xy 247.65 38.1) (xy 255.27 38.1)
 		)
 		(stroke
 			(width 0)
@@ -4564,7 +4580,7 @@
 	)
 	(wire
 		(pts
-			(xy 261.62 46.99) (xy 266.7 46.99)
+			(xy 262.89 74.93) (xy 267.97 74.93)
 		)
 		(stroke
 			(width 0)
@@ -4574,7 +4590,7 @@
 	)
 	(wire
 		(pts
-			(xy 246.38 38.1) (xy 254 38.1)
+			(xy 247.65 66.04) (xy 255.27 66.04)
 		)
 		(stroke
 			(width 0)
@@ -4584,7 +4600,7 @@
 	)
 	(wire
 		(pts
-			(xy 256.54 96.52) (xy 254 96.52)
+			(xy 257.81 38.1) (xy 255.27 38.1)
 		)
 		(stroke
 			(width 0)
@@ -4614,7 +4630,7 @@
 	)
 	(wire
 		(pts
-			(xy 261.62 64.77) (xy 261.62 67.31)
+			(xy 262.89 92.71) (xy 262.89 95.25)
 		)
 		(stroke
 			(width 0)
@@ -4634,7 +4650,7 @@
 	)
 	(wire
 		(pts
-			(xy 266.7 78.74) (xy 266.7 83.82)
+			(xy 267.97 20.32) (xy 267.97 25.4)
 		)
 		(stroke
 			(width 0)
@@ -4644,7 +4660,7 @@
 	)
 	(wire
 		(pts
-			(xy 254 67.31) (xy 261.62 67.31)
+			(xy 255.27 95.25) (xy 262.89 95.25)
 		)
 		(stroke
 			(width 0)
@@ -4694,7 +4710,7 @@
 	)
 	(wire
 		(pts
-			(xy 261.62 54.61) (xy 266.7 54.61)
+			(xy 262.89 82.55) (xy 267.97 82.55)
 		)
 		(stroke
 			(width 0)
@@ -4724,7 +4740,7 @@
 	)
 	(wire
 		(pts
-			(xy 246.38 22.86) (xy 254 22.86)
+			(xy 247.65 50.8) (xy 255.27 50.8)
 		)
 		(stroke
 			(width 0)
@@ -4794,7 +4810,7 @@
 	)
 	(wire
 		(pts
-			(xy 256.54 93.98) (xy 256.54 96.52)
+			(xy 257.81 35.56) (xy 257.81 38.1)
 		)
 		(stroke
 			(width 0)
@@ -4834,7 +4850,7 @@
 	)
 	(wire
 		(pts
-			(xy 266.7 83.82) (xy 261.62 83.82)
+			(xy 267.97 25.4) (xy 262.89 25.4)
 		)
 		(stroke
 			(width 0)
@@ -4974,7 +4990,7 @@
 	)
 	(wire
 		(pts
-			(xy 266.7 20.32) (xy 266.7 25.4)
+			(xy 267.97 48.26) (xy 267.97 53.34)
 		)
 		(stroke
 			(width 0)
@@ -4994,7 +5010,7 @@
 	)
 	(wire
 		(pts
-			(xy 266.7 49.53) (xy 266.7 54.61)
+			(xy 267.97 77.47) (xy 267.97 82.55)
 		)
 		(stroke
 			(width 0)
@@ -5024,7 +5040,7 @@
 	)
 	(wire
 		(pts
-			(xy 266.7 25.4) (xy 261.62 25.4)
+			(xy 267.97 53.34) (xy 262.89 53.34)
 		)
 		(stroke
 			(width 0)
@@ -5044,7 +5060,7 @@
 	)
 	(wire
 		(pts
-			(xy 246.38 67.31) (xy 254 67.31)
+			(xy 247.65 95.25) (xy 255.27 95.25)
 		)
 		(stroke
 			(width 0)
@@ -5074,7 +5090,7 @@
 	)
 	(wire
 		(pts
-			(xy 267.97 78.74) (xy 266.7 78.74)
+			(xy 269.24 20.32) (xy 267.97 20.32)
 		)
 		(stroke
 			(width 0)
@@ -5154,7 +5170,7 @@
 	)
 	(wire
 		(pts
-			(xy 254 38.1) (xy 261.62 38.1)
+			(xy 255.27 66.04) (xy 262.89 66.04)
 		)
 		(stroke
 			(width 0)
@@ -5164,7 +5180,7 @@
 	)
 	(wire
 		(pts
-			(xy 261.62 93.98) (xy 256.54 93.98)
+			(xy 262.89 35.56) (xy 257.81 35.56)
 		)
 		(stroke
 			(width 0)
@@ -5184,7 +5200,7 @@
 	)
 	(wire
 		(pts
-			(xy 261.62 17.78) (xy 266.7 17.78)
+			(xy 262.89 45.72) (xy 267.97 45.72)
 		)
 		(stroke
 			(width 0)
@@ -5204,7 +5220,7 @@
 	)
 	(wire
 		(pts
-			(xy 260.35 46.99) (xy 261.62 46.99)
+			(xy 261.62 74.93) (xy 262.89 74.93)
 		)
 		(stroke
 			(width 0)
@@ -5312,7 +5328,7 @@
 	)
 	(global_label "VALVE3"
 		(shape input)
-		(at 246.38 52.07 180)
+		(at 247.65 80.01 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -5322,7 +5338,7 @@
 		)
 		(uuid "1cf7aec0-c523-4b45-b9e8-90c970dc7344")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 236.7424 52.07 0)
+			(at 238.0124 80.01 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5360,7 +5376,7 @@
 	)
 	(global_label "VALVE1"
 		(shape input)
-		(at 246.38 81.28 180)
+		(at 247.65 22.86 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -5370,7 +5386,7 @@
 		)
 		(uuid "31aae96e-9197-4bef-9d90-2d1e2cfa51cd")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 236.7424 81.28 0)
+			(at 238.0124 22.86 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5552,7 +5568,7 @@
 	)
 	(global_label "VALVE2"
 		(shape input)
-		(at 246.38 22.86 180)
+		(at 247.65 50.8 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -5562,7 +5578,7 @@
 		)
 		(uuid "75a686be-b4fa-4a9c-8f99-e5c95fe723e5")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 236.7424 22.86 0)
+			(at 238.0124 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6142,7 +6158,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 254 34.29 180)
+		(at 255.27 62.23 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -6152,7 +6168,7 @@
 		(dnp no)
 		(uuid "0127d028-4129-4663-9cc6-6c0beec40d73")
 		(property "Reference" "R73"
-			(at 256.54 34.29 90)
+			(at 257.81 62.23 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -6162,7 +6178,7 @@
 			)
 		)
 		(property "Value" "10k"
-			(at 254 34.29 90)
+			(at 255.27 62.23 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -6172,7 +6188,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 255.778 34.29 90)
+			(at 257.048 62.23 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6183,7 +6199,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 254 34.29 0)
+			(at 255.27 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6194,7 +6210,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 254 34.29 0)
+			(at 255.27 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6205,7 +6221,7 @@
 			)
 		)
 		(property "MPN" "0201WMF1002TEE"
-			(at 254 34.29 0)
+			(at 255.27 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6216,7 +6232,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 254 34.29 0)
+			(at 255.27 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6321,7 +6337,7 @@
 	)
 	(symbol
 		(lib_id "Device:LED")
-		(at 246.38 34.29 90)
+		(at 247.65 62.23 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -6331,7 +6347,7 @@
 		(dnp no)
 		(uuid "03bdef3d-0f5d-4a38-9bec-736f732ec1ad")
 		(property "Reference" "D12"
-			(at 246.38 31.75 90)
+			(at 247.65 59.69 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -6342,7 +6358,7 @@
 			)
 		)
 		(property "Value" "Disturbance1"
-			(at 243.84 25.4 0)
+			(at 245.11 53.34 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -6353,7 +6369,7 @@
 			)
 		)
 		(property "Footprint" "LED_SMD:LED_1206_3216Metric_ReverseMount_Hole1.8x2.4mm"
-			(at 246.38 34.29 0)
+			(at 247.65 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6364,7 +6380,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 246.38 34.29 0)
+			(at 247.65 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6375,7 +6391,7 @@
 			)
 		)
 		(property "Description" "Light emitting diode"
-			(at 246.38 34.29 0)
+			(at 247.65 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6386,7 +6402,7 @@
 			)
 		)
 		(property "MPN" "LTST-C230KRKT"
-			(at 246.38 34.29 0)
+			(at 247.65 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6397,7 +6413,7 @@
 			)
 		)
 		(property "Manufacturer" "Lite-On"
-			(at 246.38 34.29 0)
+			(at 247.65 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6408,7 +6424,7 @@
 			)
 		)
 		(property "Sim.Pins" "1=K 2=A"
-			(at 246.38 34.29 0)
+			(at 247.65 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7167,7 +7183,7 @@
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x02")
-		(at 271.78 46.99 0)
+		(at 273.05 74.93 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -7177,7 +7193,7 @@
 		(dnp no)
 		(uuid "155610d5-9fa5-4fc1-a21e-400a7d7f89ba")
 		(property "Reference" "J27"
-			(at 267.97 52.07 0)
+			(at 269.24 80.01 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7188,7 +7204,7 @@
 			)
 		)
 		(property "Value" "Disturbance2"
-			(at 267.97 54.61 0)
+			(at 269.24 82.55 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7199,7 +7215,7 @@
 			)
 		)
 		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical"
-			(at 271.78 46.99 0)
+			(at 273.05 74.93 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7210,7 +7226,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 271.78 46.99 0)
+			(at 273.05 74.93 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7221,7 +7237,7 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 271.78 46.99 0)
+			(at 273.05 74.93 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7248,7 +7264,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 261.62 38.1 90)
+		(at 262.89 66.04 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -7258,7 +7274,7 @@
 		(dnp no)
 		(uuid "18d46b68-8281-484e-b220-f16756adfc8f")
 		(property "Reference" "#PWR0154"
-			(at 267.97 38.1 0)
+			(at 269.24 66.04 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7269,7 +7285,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 266.7 38.1 90)
+			(at 267.97 66.04 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7279,7 +7295,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 261.62 38.1 0)
+			(at 262.89 66.04 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7290,7 +7306,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 261.62 38.1 0)
+			(at 262.89 66.04 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7301,7 +7317,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 261.62 38.1 0)
+			(at 262.89 66.04 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7587,7 +7603,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 246.38 26.67 180)
+		(at 247.65 54.61 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -7597,7 +7613,7 @@
 		(dnp no)
 		(uuid "1cbf0c91-b356-45e7-8bf0-75f4ecdcb582")
 		(property "Reference" "R70"
-			(at 248.92 26.67 90)
+			(at 250.19 54.61 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7607,7 +7623,7 @@
 			)
 		)
 		(property "Value" "1k"
-			(at 246.38 26.67 90)
+			(at 247.65 54.61 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7617,7 +7633,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 248.158 26.67 90)
+			(at 249.428 54.61 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7628,7 +7644,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 246.38 26.67 0)
+			(at 247.65 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7639,7 +7655,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 246.38 26.67 0)
+			(at 247.65 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7650,7 +7666,7 @@
 			)
 		)
 		(property "MPN" "0402WGF1001TCE"
-			(at 246.38 26.67 0)
+			(at 247.65 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7661,7 +7677,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 246.38 26.67 0)
+			(at 247.65 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7920,7 +7936,7 @@
 	)
 	(symbol
 		(lib_id "Diode:SS34")
-		(at 261.62 80.01 270)
+		(at 262.89 21.59 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -7930,7 +7946,7 @@
 		(dnp no)
 		(uuid "23fecf5e-783c-4981-af32-0eee99cd005e")
 		(property "Reference" "D8"
-			(at 261.62 77.47 90)
+			(at 262.89 19.05 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7941,7 +7957,7 @@
 			)
 		)
 		(property "Value" "SS34"
-			(at 261.62 82.55 90)
+			(at 262.89 24.13 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7952,7 +7968,7 @@
 			)
 		)
 		(property "Footprint" "Diode_SMD:D_SMA"
-			(at 257.175 80.01 0)
+			(at 258.445 21.59 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7963,7 +7979,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.vishay.com/docs/88751/ss32.pdf"
-			(at 261.62 80.01 0)
+			(at 262.89 21.59 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7974,7 +7990,7 @@
 			)
 		)
 		(property "Description" "40V 3A Schottky Diode, SMA"
-			(at 261.62 80.01 0)
+			(at 262.89 21.59 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8296,7 +8312,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 254 63.5 180)
+		(at 255.27 91.44 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -8306,7 +8322,7 @@
 		(dnp no)
 		(uuid "29d4061e-9136-44aa-9e62-373b0b5f8853")
 		(property "Reference" "R75"
-			(at 256.54 63.5 90)
+			(at 257.81 91.44 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8316,7 +8332,7 @@
 			)
 		)
 		(property "Value" "10k"
-			(at 254 63.5 90)
+			(at 255.27 91.44 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8326,7 +8342,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 255.778 63.5 90)
+			(at 257.048 91.44 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8337,7 +8353,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 254 63.5 0)
+			(at 255.27 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8348,7 +8364,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 254 63.5 0)
+			(at 255.27 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8359,7 +8375,7 @@
 			)
 		)
 		(property "MPN" "0201WMF1002TEE"
-			(at 254 63.5 0)
+			(at 255.27 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8370,7 +8386,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 254 63.5 0)
+			(at 255.27 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10510,7 +10526,7 @@
 	)
 	(symbol
 		(lib_id "power:+24V")
-		(at 261.62 17.78 90)
+		(at 262.89 45.72 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -10520,7 +10536,7 @@
 		(dnp no)
 		(uuid "554799db-cd6a-4da7-bc75-5158074ed196")
 		(property "Reference" "#PWR0153"
-			(at 265.43 17.78 0)
+			(at 266.7 45.72 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10531,7 +10547,7 @@
 			)
 		)
 		(property "Value" "+24V"
-			(at 255.27 17.78 90)
+			(at 256.54 45.72 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -10541,7 +10557,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 261.62 17.78 0)
+			(at 262.89 45.72 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10552,7 +10568,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 261.62 17.78 0)
+			(at 262.89 45.72 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10563,7 +10579,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+24V\""
-			(at 261.62 17.78 0)
+			(at 262.89 45.72 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11477,7 +11493,7 @@
 	)
 	(symbol
 		(lib_id "Diode:SS34")
-		(at 261.62 50.8 270)
+		(at 262.89 78.74 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -11487,7 +11503,7 @@
 		(dnp no)
 		(uuid "75c688dd-ee65-4c9d-8ceb-7d90ea728645")
 		(property "Reference" "D15"
-			(at 261.62 48.26 90)
+			(at 262.89 76.2 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -11498,7 +11514,7 @@
 			)
 		)
 		(property "Value" "SS34"
-			(at 261.62 53.34 90)
+			(at 262.89 81.28 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -11509,7 +11525,7 @@
 			)
 		)
 		(property "Footprint" "Diode_SMD:D_SMA"
-			(at 257.175 50.8 0)
+			(at 258.445 78.74 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11520,7 +11536,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.vishay.com/docs/88751/ss32.pdf"
-			(at 261.62 50.8 0)
+			(at 262.89 78.74 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11531,7 +11547,7 @@
 			)
 		)
 		(property "Description" "40V 3A Schottky Diode, SMA"
-			(at 261.62 50.8 0)
+			(at 262.89 78.74 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13219,7 +13235,7 @@
 	)
 	(symbol
 		(lib_id "Transistor_FET:IRLML0030")
-		(at 259.08 30.48 0)
+		(at 260.35 58.42 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -13229,7 +13245,7 @@
 		(dnp no)
 		(uuid "a13a4f37-5568-44a4-8f05-76581b52b137")
 		(property "Reference" "Q7"
-			(at 264.16 30.48 0)
+			(at 265.43 58.42 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -13240,7 +13256,7 @@
 			)
 		)
 		(property "Value" "AO3400"
-			(at 264.16 33.02 0)
+			(at 265.43 60.96 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -13251,7 +13267,7 @@
 			)
 		)
 		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 264.16 32.385 0)
+			(at 265.43 60.325 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13264,7 +13280,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
-			(at 259.08 30.48 0)
+			(at 260.35 58.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13276,7 +13292,7 @@
 			)
 		)
 		(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
-			(at 259.08 30.48 0)
+			(at 260.35 58.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13287,7 +13303,7 @@
 			)
 		)
 		(property "MPN" "AO3400"
-			(at 259.08 30.48 0)
+			(at 260.35 58.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13298,7 +13314,7 @@
 			)
 		)
 		(property "Manufacturer" "GOODWORK"
-			(at 259.08 30.48 0)
+			(at 260.35 58.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13972,7 +13988,7 @@
 	)
 	(symbol
 		(lib_id "Device:LED")
-		(at 246.38 92.71 90)
+		(at 247.65 34.29 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -13982,7 +13998,7 @@
 		(dnp no)
 		(uuid "a722f5c7-f32a-4ad2-982b-9d02205b8dd1")
 		(property "Reference" "D4"
-			(at 246.38 90.17 90)
+			(at 247.65 31.75 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -13993,7 +14009,7 @@
 			)
 		)
 		(property "Value" "Valve"
-			(at 242.824 89.662 0)
+			(at 244.094 31.242 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14004,7 +14020,7 @@
 			)
 		)
 		(property "Footprint" "LED_SMD:LED_1206_3216Metric_ReverseMount_Hole1.8x2.4mm"
-			(at 246.38 92.71 0)
+			(at 247.65 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14015,7 +14031,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 246.38 92.71 0)
+			(at 247.65 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14026,7 +14042,7 @@
 			)
 		)
 		(property "Description" "Light emitting diode"
-			(at 246.38 92.71 0)
+			(at 247.65 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14037,7 +14053,7 @@
 			)
 		)
 		(property "MPN" "LTST-C230KRKT"
-			(at 246.38 92.71 0)
+			(at 247.65 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14048,7 +14064,7 @@
 			)
 		)
 		(property "Manufacturer" "Lite-On"
-			(at 246.38 92.71 0)
+			(at 247.65 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14059,7 +14075,7 @@
 			)
 		)
 		(property "Sim.Pins" "1=K 2=A"
-			(at 246.38 92.71 0)
+			(at 247.65 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14734,7 +14750,7 @@
 	)
 	(symbol
 		(lib_id "Device:LED")
-		(at 246.38 63.5 90)
+		(at 247.65 91.44 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -14744,7 +14760,7 @@
 		(dnp no)
 		(uuid "b42e7e99-b6a6-48c8-aacc-2b0cf87dcdfe")
 		(property "Reference" "D13"
-			(at 246.38 60.96 90)
+			(at 247.65 88.9 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14755,7 +14771,7 @@
 			)
 		)
 		(property "Value" "Disturbance2"
-			(at 243.84 54.61 0)
+			(at 245.11 82.55 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14766,7 +14782,7 @@
 			)
 		)
 		(property "Footprint" "LED_SMD:LED_1206_3216Metric_ReverseMount_Hole1.8x2.4mm"
-			(at 246.38 63.5 0)
+			(at 247.65 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14777,7 +14793,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 246.38 63.5 0)
+			(at 247.65 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14788,7 +14804,7 @@
 			)
 		)
 		(property "Description" "Light emitting diode"
-			(at 246.38 63.5 0)
+			(at 247.65 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14799,7 +14815,7 @@
 			)
 		)
 		(property "MPN" "LTST-C230KRKT"
-			(at 246.38 63.5 0)
+			(at 247.65 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14810,7 +14826,7 @@
 			)
 		)
 		(property "Manufacturer" "Lite-On"
-			(at 246.38 63.5 0)
+			(at 247.65 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14821,7 +14837,7 @@
 			)
 		)
 		(property "Sim.Pins" "1=K 2=A"
-			(at 246.38 63.5 0)
+			(at 247.65 91.44 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15032,7 +15048,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 254 92.71 180)
+		(at 255.27 34.29 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15042,7 +15058,7 @@
 		(dnp no)
 		(uuid "b98fc22e-6928-44a0-a164-1e1dac401082")
 		(property "Reference" "R60"
-			(at 256.54 92.71 90)
+			(at 257.81 34.29 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15052,7 +15068,7 @@
 			)
 		)
 		(property "Value" "10k"
-			(at 254 92.71 90)
+			(at 255.27 34.29 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15062,7 +15078,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 255.778 92.71 90)
+			(at 257.048 34.29 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15073,7 +15089,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 254 92.71 0)
+			(at 255.27 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15084,7 +15100,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 254 92.71 0)
+			(at 255.27 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15095,7 +15111,7 @@
 			)
 		)
 		(property "MPN" "0201WMF1002TEE"
-			(at 254 92.71 0)
+			(at 255.27 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15106,7 +15122,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 254 92.71 0)
+			(at 255.27 34.29 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15133,7 +15149,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 261.62 67.31 90)
+		(at 262.89 95.25 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15143,7 +15159,7 @@
 		(dnp no)
 		(uuid "ba01ee45-70e2-4208-807a-52c201c3ae5c")
 		(property "Reference" "#PWR0155"
-			(at 267.97 67.31 0)
+			(at 269.24 95.25 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15154,7 +15170,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 265.43 67.31 0)
+			(at 266.7 95.25 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15164,7 +15180,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 261.62 67.31 0)
+			(at 262.89 95.25 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15175,7 +15191,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 261.62 67.31 0)
+			(at 262.89 95.25 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15186,7 +15202,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 261.62 67.31 0)
+			(at 262.89 95.25 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15289,7 +15305,7 @@
 	)
 	(symbol
 		(lib_id "Transistor_FET:IRLML0030")
-		(at 259.08 88.9 0)
+		(at 260.35 30.48 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15299,7 +15315,7 @@
 		(dnp no)
 		(uuid "bb0f1876-38a9-42ec-9d5b-36650b9ddeb3")
 		(property "Reference" "Q3"
-			(at 257.81 83.82 0)
+			(at 259.08 25.4 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15310,7 +15326,7 @@
 			)
 		)
 		(property "Value" "AO3400"
-			(at 265.43 95.25 90)
+			(at 266.7 36.83 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15321,7 +15337,7 @@
 			)
 		)
 		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 264.16 90.805 0)
+			(at 265.43 32.385 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15334,7 +15350,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
-			(at 259.08 88.9 0)
+			(at 260.35 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15346,7 +15362,7 @@
 			)
 		)
 		(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
-			(at 259.08 88.9 0)
+			(at 260.35 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15357,7 +15373,7 @@
 			)
 		)
 		(property "MPN" "AO3400"
-			(at 259.08 88.9 0)
+			(at 260.35 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15368,7 +15384,7 @@
 			)
 		)
 		(property "Manufacturer" "GOODWORK"
-			(at 259.08 88.9 0)
+			(at 260.35 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15501,7 +15517,7 @@
 	)
 	(symbol
 		(lib_id "Transistor_FET:IRLML0030")
-		(at 259.08 59.69 0)
+		(at 260.35 87.63 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15511,7 +15527,7 @@
 		(dnp no)
 		(uuid "be230fbe-4606-4750-8b89-d35c32b9f0f2")
 		(property "Reference" "Q8"
-			(at 264.16 59.69 0)
+			(at 265.43 87.63 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15522,7 +15538,7 @@
 			)
 		)
 		(property "Value" "AO3400"
-			(at 264.16 62.23 0)
+			(at 265.43 90.17 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15533,7 +15549,7 @@
 			)
 		)
 		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 264.16 61.595 0)
+			(at 265.43 89.535 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15546,7 +15562,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
-			(at 259.08 59.69 0)
+			(at 260.35 87.63 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15558,7 +15574,7 @@
 			)
 		)
 		(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
-			(at 259.08 59.69 0)
+			(at 260.35 87.63 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15569,7 +15585,7 @@
 			)
 		)
 		(property "MPN" "AO3400"
-			(at 259.08 59.69 0)
+			(at 260.35 87.63 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15580,7 +15596,7 @@
 			)
 		)
 		(property "Manufacturer" "GOODWORK"
-			(at 259.08 59.69 0)
+			(at 260.35 87.63 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15713,7 +15729,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 254 26.67 180)
+		(at 255.27 54.61 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15723,7 +15739,7 @@
 		(dnp no)
 		(uuid "c0627e1d-91b7-4edf-b4da-05aa207548ac")
 		(property "Reference" "R72"
-			(at 256.54 26.67 90)
+			(at 257.81 54.61 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15733,7 +15749,7 @@
 			)
 		)
 		(property "Value" "1k"
-			(at 254 26.67 90)
+			(at 255.27 54.61 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15743,7 +15759,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 255.778 26.67 90)
+			(at 257.048 54.61 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15754,7 +15770,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 254 26.67 0)
+			(at 255.27 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15765,7 +15781,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 254 26.67 0)
+			(at 255.27 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15776,7 +15792,7 @@
 			)
 		)
 		(property "MPN" "0402WGF1001TCE"
-			(at 254 26.67 0)
+			(at 255.27 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15787,7 +15803,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 254 26.67 0)
+			(at 255.27 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15893,7 +15909,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 246.38 85.09 180)
+		(at 247.65 26.67 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15903,7 +15919,7 @@
 		(dnp no)
 		(uuid "c0d63919-9ff9-4623-82cc-19e7ec8e8b3d")
 		(property "Reference" "R58"
-			(at 248.92 85.09 90)
+			(at 250.19 26.67 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15913,7 +15929,7 @@
 			)
 		)
 		(property "Value" "1k"
-			(at 246.38 85.09 90)
+			(at 247.65 26.67 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15923,7 +15939,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 248.158 85.09 90)
+			(at 249.428 26.67 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15934,7 +15950,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 246.38 85.09 0)
+			(at 247.65 26.67 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15945,7 +15961,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 246.38 85.09 0)
+			(at 247.65 26.67 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15956,7 +15972,7 @@
 			)
 		)
 		(property "MPN" "0402WGF1001TCE"
-			(at 246.38 85.09 0)
+			(at 247.65 26.67 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15967,7 +15983,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 246.38 85.09 0)
+			(at 247.65 26.67 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15994,7 +16010,7 @@
 	)
 	(symbol
 		(lib_id "power:+24V")
-		(at 261.62 76.2 90)
+		(at 262.89 17.78 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -16004,7 +16020,7 @@
 		(dnp no)
 		(uuid "c656bcb6-5748-48bd-82cc-ca94630439c4")
 		(property "Reference" "#PWR0142"
-			(at 265.43 76.2 0)
+			(at 266.7 17.78 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16015,7 +16031,7 @@
 			)
 		)
 		(property "Value" "+24V"
-			(at 256.54 76.2 90)
+			(at 257.81 17.78 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16025,7 +16041,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 261.62 76.2 0)
+			(at 262.89 17.78 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16036,7 +16052,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 261.62 76.2 0)
+			(at 262.89 17.78 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16047,7 +16063,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+24V\""
-			(at 261.62 76.2 0)
+			(at 262.89 17.78 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16251,7 +16267,7 @@
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x02")
-		(at 271.78 17.78 0)
+		(at 273.05 45.72 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -16261,7 +16277,7 @@
 		(dnp no)
 		(uuid "cb4ba6cf-02a9-497b-b201-0ab4ff215f75")
 		(property "Reference" "J26"
-			(at 267.97 22.86 0)
+			(at 269.24 50.8 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16272,7 +16288,7 @@
 			)
 		)
 		(property "Value" "Disturbance1"
-			(at 267.97 25.4 0)
+			(at 269.24 53.34 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16283,7 +16299,7 @@
 			)
 		)
 		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical"
-			(at 271.78 17.78 0)
+			(at 273.05 45.72 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16294,7 +16310,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 271.78 17.78 0)
+			(at 273.05 45.72 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16305,7 +16321,7 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 271.78 17.78 0)
+			(at 273.05 45.72 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16332,7 +16348,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 254 55.88 180)
+		(at 255.27 83.82 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -16342,7 +16358,7 @@
 		(dnp no)
 		(uuid "d4bd9e7f-2b2f-4e23-8e70-685762426caa")
 		(property "Reference" "R74"
-			(at 256.54 55.88 90)
+			(at 257.81 83.82 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16352,7 +16368,7 @@
 			)
 		)
 		(property "Value" "1k"
-			(at 254 55.88 90)
+			(at 255.27 83.82 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16362,7 +16378,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 255.778 55.88 90)
+			(at 257.048 83.82 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16373,7 +16389,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 254 55.88 0)
+			(at 255.27 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16384,7 +16400,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 254 55.88 0)
+			(at 255.27 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16395,7 +16411,7 @@
 			)
 		)
 		(property "MPN" "0402WGF1001TCE"
-			(at 254 55.88 0)
+			(at 255.27 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16406,7 +16422,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 254 55.88 0)
+			(at 255.27 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16717,7 +16733,7 @@
 	)
 	(symbol
 		(lib_id "Diode:SS34")
-		(at 261.62 21.59 270)
+		(at 262.89 49.53 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -16727,7 +16743,7 @@
 		(dnp no)
 		(uuid "e051615a-4d92-4316-b6dc-59dd1fe3e8c9")
 		(property "Reference" "D14"
-			(at 261.62 19.05 90)
+			(at 262.89 46.99 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16738,7 +16754,7 @@
 			)
 		)
 		(property "Value" "SS34"
-			(at 261.62 24.13 90)
+			(at 262.89 52.07 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16749,7 +16765,7 @@
 			)
 		)
 		(property "Footprint" "Diode_SMD:D_SMA"
-			(at 257.175 21.59 0)
+			(at 258.445 49.53 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16760,7 +16776,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.vishay.com/docs/88751/ss32.pdf"
-			(at 261.62 21.59 0)
+			(at 262.89 49.53 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16771,7 +16787,7 @@
 			)
 		)
 		(property "Description" "40V 3A Schottky Diode, SMA"
-			(at 261.62 21.59 0)
+			(at 262.89 49.53 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17423,7 +17439,7 @@
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x02")
-		(at 273.05 76.2 0)
+		(at 274.32 17.78 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -17433,7 +17449,7 @@
 		(dnp no)
 		(uuid "e75c689a-b864-4cc7-975b-fca09b2ee662")
 		(property "Reference" "J21"
-			(at 271.78 81.28 0)
+			(at 273.05 22.86 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17444,7 +17460,7 @@
 			)
 		)
 		(property "Value" "Cylinder Valve"
-			(at 267.97 83.82 0)
+			(at 269.24 25.4 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17455,7 +17471,7 @@
 			)
 		)
 		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical"
-			(at 273.05 76.2 0)
+			(at 274.32 17.78 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17466,7 +17482,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 273.05 76.2 0)
+			(at 274.32 17.78 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17477,7 +17493,7 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 273.05 76.2 0)
+			(at 274.32 17.78 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17504,7 +17520,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 254 85.09 180)
+		(at 255.27 26.67 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -17514,7 +17530,7 @@
 		(dnp no)
 		(uuid "e7f8bd27-c2ca-4c3d-a48c-490562d3fa68")
 		(property "Reference" "R59"
-			(at 256.54 85.09 90)
+			(at 257.81 26.67 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17524,7 +17540,7 @@
 			)
 		)
 		(property "Value" "1k"
-			(at 254 85.09 90)
+			(at 255.27 26.67 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17534,7 +17550,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 255.778 85.09 90)
+			(at 257.048 26.67 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17545,7 +17561,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 254 85.09 0)
+			(at 255.27 26.67 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17556,7 +17572,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 254 85.09 0)
+			(at 255.27 26.67 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17567,7 +17583,7 @@
 			)
 		)
 		(property "MPN" "0402WGF1001TCE"
-			(at 254 85.09 0)
+			(at 255.27 26.67 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17578,7 +17594,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 254 85.09 0)
+			(at 255.27 26.67 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18101,7 +18117,7 @@
 	)
 	(symbol
 		(lib_id "power:+24V")
-		(at 260.35 46.99 90)
+		(at 261.62 74.93 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -18111,7 +18127,7 @@
 		(dnp no)
 		(uuid "f7ca4851-41ee-44e6-8f10-d68e8fe7af09")
 		(property "Reference" "#PWR0152"
-			(at 264.16 46.99 0)
+			(at 265.43 74.93 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18122,7 +18138,7 @@
 			)
 		)
 		(property "Value" "+24V"
-			(at 255.27 46.99 90)
+			(at 256.54 74.93 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -18132,7 +18148,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 260.35 46.99 0)
+			(at 261.62 74.93 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18143,7 +18159,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 260.35 46.99 0)
+			(at 261.62 74.93 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18154,7 +18170,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+24V\""
-			(at 260.35 46.99 0)
+			(at 261.62 74.93 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18514,7 +18530,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 261.62 93.98 0)
+		(at 262.89 35.56 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -18524,7 +18540,7 @@
 		(dnp no)
 		(uuid "fbcea8aa-7333-47dd-bb9b-439c36c97c4b")
 		(property "Reference" "#PWR0143"
-			(at 261.62 100.33 0)
+			(at 262.89 41.91 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18535,7 +18551,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 259.08 96.52 0)
+			(at 260.35 38.1 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -18545,7 +18561,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 261.62 93.98 0)
+			(at 262.89 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18556,7 +18572,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 261.62 93.98 0)
+			(at 262.89 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18567,7 +18583,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 261.62 93.98 0)
+			(at 262.89 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18670,7 +18686,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 246.38 55.88 180)
+		(at 247.65 83.82 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -18680,7 +18696,7 @@
 		(dnp no)
 		(uuid "ff1fa455-ecbb-4739-89c9-1e4fa4a79506")
 		(property "Reference" "R71"
-			(at 248.92 55.88 90)
+			(at 250.19 83.82 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -18690,7 +18706,7 @@
 			)
 		)
 		(property "Value" "1k"
-			(at 246.38 55.88 90)
+			(at 247.65 83.82 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -18700,7 +18716,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 248.158 55.88 90)
+			(at 249.428 83.82 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18711,7 +18727,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 246.38 55.88 0)
+			(at 247.65 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18722,7 +18738,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 246.38 55.88 0)
+			(at 247.65 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18733,7 +18749,7 @@
 			)
 		)
 		(property "MPN" "0402WGF1001TCE"
-			(at 246.38 55.88 0)
+			(at 247.65 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18744,7 +18760,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 246.38 55.88 0)
+			(at 247.65 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)

@@ -741,129 +741,6 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Connector:TestPoint"
-			(pin_numbers
-				(hide yes)
-			)
-			(pin_names
-				(offset 0.762)
-				(hide yes)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(in_pos_files yes)
-			(duplicate_pin_numbers_are_jumpers no)
-			(property "Reference" "TP"
-				(at 0 6.858 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Value" "TestPoint"
-				(at 0 5.08 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" ""
-				(at 5.08 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Datasheet" ""
-				(at 5.08 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Description" "test point"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_keywords" "test point tp"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_fp_filters" "Pin* Test*"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(symbol "TestPoint_0_1"
-				(circle
-					(center 0 3.302)
-					(radius 0.762)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-			)
-			(symbol "TestPoint_1_1"
-				(pin passive line
-					(at 0 0 90)
-					(length 2.54)
-					(name "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
 		(symbol "Connector_Generic:Conn_01x03"
 			(pin_names
 				(offset 1.016)
@@ -6101,16 +5978,6 @@
 		)
 		(uuid "867ea1a2-3ed5-4c4a-b608-1412e03321b7")
 	)
-	(text "Hier war mal LightBarrier3"
-		(exclude_from_sim no)
-		(at 162.56 144.78 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-		)
-		(uuid "8e8708a1-fd19-472e-8fa1-09eb7735ceef")
-	)
 	(text "UART12"
 		(exclude_from_sim no)
 		(at 68.58 88.9 0)
@@ -7368,7 +7235,7 @@
 	)
 	(global_label "LightBarrier1"
 		(shape input)
-		(at 148.59 139.7 0)
+		(at 148.59 142.24 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -7378,7 +7245,7 @@
 		)
 		(uuid "08c3b7f1-d47a-4aa7-9a5b-ed18cbe68f82")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 163.9123 139.7 0)
+			(at 163.9123 142.24 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7800,7 +7667,7 @@
 	)
 	(global_label "LED_INFO"
 		(shape output)
-		(at 87.63 101.6 180)
+		(at 73.66 102.87 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -7810,7 +7677,7 @@
 		)
 		(uuid "32a8bc79-45dd-43b5-89dc-40fe33ae1e4c")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 75.8757 101.6 0)
+			(at 61.9057 102.87 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9144,7 +9011,7 @@
 	)
 	(global_label "INT_TOF2"
 		(shape input)
-		(at 87.63 60.96 180)
+		(at 87.63 101.6 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9154,7 +9021,7 @@
 		)
 		(uuid "d0e63af2-bb7f-4e78-ad76-4f6602e12047")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 76.1781 60.96 0)
+			(at 76.1781 101.6 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9190,19 +9057,19 @@
 			)
 		)
 	)
-	(global_label "ETHERCAT_RESET"
+	(global_label "VACUUM_VALVE"
 		(shape output)
-		(at 148.59 160.02 0)
+		(at 87.63 132.08 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify left)
+			(justify right)
 		)
-		(uuid "d5c7a371-d7b5-49ec-98f5-1ef3a4ca72dd")
+		(uuid "d557fd01-4ca5-4386-b2f5-20fb64256f35")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 167.4802 160.02 0)
+			(at 70.6747 132.08 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9210,7 +9077,31 @@
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
+			)
+		)
+	)
+	(global_label "ETHERCAT_RESET"
+		(shape output)
+		(at 87.63 114.3 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "d5c7a371-d7b5-49ec-98f5-1ef3a4ca72dd")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 68.7398 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
 			)
 		)
 	)
@@ -9456,17 +9347,17 @@
 	)
 	(global_label "VALVE2"
 		(shape output)
-		(at 87.63 119.38 180)
+		(at 148.59 139.7 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify right)
+			(justify left)
 		)
 		(uuid "e8f63a07-5f70-48d5-889f-38893281bab3")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 77.9924 119.38 0)
+			(at 158.2276 139.7 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9474,13 +9365,13 @@
 				(font
 					(size 1.27 1.27)
 				)
-				(justify right)
+				(justify left)
 			)
 		)
 	)
 	(global_label "LightBarrier2"
 		(shape input)
-		(at 148.59 142.24 0)
+		(at 148.59 144.78 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9490,7 +9381,7 @@
 		)
 		(uuid "eadd4c57-4e7e-41b2-818b-82768e9f79eb")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 163.9123 142.24 0)
+			(at 163.9123 144.78 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9552,17 +9443,17 @@
 	)
 	(global_label "VALVE1"
 		(shape output)
-		(at 87.63 132.08 180)
+		(at 148.59 60.96 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify right)
+			(justify left)
 		)
 		(uuid "eeb6c648-ca5b-41ad-89f9-68ac78021ffd")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 77.9924 132.08 0)
+			(at 158.2276 60.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9570,7 +9461,7 @@
 				(font
 					(size 1.27 1.27)
 				)
-				(justify right)
+				(justify left)
 			)
 		)
 	)
@@ -10409,84 +10300,6 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5"
 					(reference "C13")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Connector:TestPoint")
-		(at 87.63 114.3 90)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "125bf069-8f3e-41f2-9902-04e9242af3f4")
-		(property "Reference" "TP2"
-			(at 82.804 114.3 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "PD3"
-			(at 78.486 114.3 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "TestPoint:TestPoint_THTPad_D1.0mm_Drill0.5mm"
-			(at 87.63 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 87.63 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "test point"
-			(at 87.63 114.3 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "ca8491dd-046b-4394-922d-57c29f40a73e")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5"
-					(reference "TP2")
 					(unit 1)
 				)
 			)
@@ -11654,84 +11467,6 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5"
 					(reference "#PWR016")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Connector:TestPoint")
-		(at 87.63 66.04 90)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "4603a110-d576-4f84-b3dc-b77ac3d112b1")
-		(property "Reference" "TP1"
-			(at 82.804 66.04 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "PE0"
-			(at 78.486 66.04 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "TestPoint:TestPoint_THTPad_D1.0mm_Drill0.5mm"
-			(at 87.63 60.96 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 87.63 60.96 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "test point"
-			(at 87.63 66.04 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "bb301f3c-d051-49c2-8bc5-bb22aa497ea8")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5"
-					(reference "TP1")
 					(unit 1)
 				)
 			)
@@ -13123,84 +12858,6 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5"
 					(reference "R5")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Connector:TestPoint")
-		(at 148.59 60.96 270)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "74424d78-74b1-49bb-8260-43ad26c25cb4")
-		(property "Reference" "TP3"
-			(at 153.416 60.96 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "PA8"
-			(at 157.734 60.96 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "TestPoint:TestPoint_THTPad_D1.0mm_Drill0.5mm"
-			(at 148.59 66.04 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 148.59 66.04 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "test point"
-			(at 148.59 60.96 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "bd62cd96-8b2d-4549-a42b-f64af3bb1a63")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5"
-					(reference "TP3")
 					(unit 1)
 				)
 			)

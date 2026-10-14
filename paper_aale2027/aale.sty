@@ -1,0 +1,487 @@
+\NeedsTeXFormat{LaTeX2e}[2023/11/01]
+\ProvidesPackage{aale}
+    [2025/11/20 v0.26 AALE LaTeX Style and Template]
+
+\clubpenalty10000
+\widowpenalty10000
+
+\RequirePackage[T1]{fontenc}
+\ifx\Umathcode\@undefined
+  \DeclareUnicodeCharacter{2000}{\hskip0.5em}%8192 Halbgeviert  (= \enskip, eigentl. unabh. von Dickte)
+  \DeclareUnicodeCharacter{2001}{\hskip1em}%8193 Geviert  (= \quad, eigentl. unabh. von Dickte)
+  \DeclareUnicodeCharacter{2002}{\hskip0.5em}%8194 Halbgeviert   (= \enskip)
+  \DeclareUnicodeCharacter{2003}{\hskip1em}%8195 Geviert   (= \quad)
+  \DeclareUnicodeCharacter{2004}{\hskip.33333em}%8196 Drittelgeviert  
+  \DeclareUnicodeCharacter{2005}{\hskip.25em}%8197 Viertelgeviert  
+  \DeclareUnicodeCharacter{2006}{\hskip.16667em}%8198 Sechstelgeviert  
+  \DeclareUnicodeCharacter{2007}{\leavevmode\hphantom{0}}%8199 ziffernbreites Weißzeichen   (insbes. zur Ausrichtung in Tabellen)
+  \DeclareUnicodeCharacter{2008}{\hphantom{.}}%8200 punkbreites Weißzeichen  
+  \DeclareUnicodeCharacter{2009}{\hskip.16667em}%8201 thin space  
+  \DeclareUnicodeCharacter{200A}{\tmspace+\thinmuskip{.125em}}%8202 hair space  
+  \DeclareUnicodeCharacter{200B}{\hskip\z@skip}%8203 zero space ​
+  \DeclareUnicodeCharacter{200C}{\penalty\@M\discretionary{-}{}{\kern.03em}\allowhyphens}%8204 ‌ Ligaturtrenner -- wichtig, weil in der Noto T1 slot23 (\textcompwordmark) falsch belegt
+  \DeclareUnicodeCharacter{2010}{\penalty\@M-\penalty\exhyphenpenalty\hskip\z@skip}%8208 (am "-" umbrechbar und dahinter silbentrennbar)
+  \DeclareUnicodeCharacter{2011}{\hbox{-}\penalty\@M\hskip\z@skip}%8209 (nicht am "-" umbrechbar aber dahinter silbentrennbar)
+  \DeclareUnicodeCharacter{2013}{\textendash\penalty\exhyphenpenalty\hskip\z@skip}%8211 en-dash (Gedankenstrich)
+  \DeclareUnicodeCharacter{202F}{\,}%8239  
+\else
+  \ifcsname ver@fontspec.sty\endcsname
+  \else
+    \catcode`\©=\active \def©{\textcopyright}
+    \catcode`\ß=\active \defß{\ss}
+    \catcode`\‚=\active \def‚{\glq}
+    \catcode`\‘=\active \def‘{\grq}
+    \catcode`\„=\active \def„{\glqq}
+    \catcode`\“=\active \def“{\grqq}
+    \catcode`\‌=\active \def‌{\penalty\@M\discretionary{-}{}{\kern.03em}\allowhyphens}
+    \catcode`\‐=\active \def‐{\penalty\@M-\penalty\exhyphenpenalty\hskip\z@skip}
+    \catcode`\‑=\active \def‑{\hbox{-}\penalty\@M\hskip\z@skip}
+    \catcode`\–=\active \def–{\textendash\penalty\exhyphenpenalty\hskip\z@skip}
+    \catcode`\…=\active \def…{\textellipsis}
+  \fi
+\fi
+\let\old@classoptionslist\@classoptionslist
+\edef\@classoptionslist{ngerman,\old@classoptionslist}
+\ifdefined\@raw@classoptionslist
+  \let\old@raw@classoptionslist\@raw@classoptionslist
+  \edef\@raw@classoptionslist{ngerman,\old@raw@classoptionslist}
+\fi
+\RequirePackage{babel}
+
+\RequirePackage[hyphens]{url}\urlstyle{same}
+\RequirePackage{graphicx}
+\RequirePackage{etoolbox}
+\RequirePackage{amsmath}
+
+
+% Schriftgrößen:
+\renewcommand\normalsize{%
+  \@setfontsize\normalsize{10bp}{13bp}% Standard
+   \abovedisplayskip 10\p@ \@plus2\p@ \@minus5\p@
+   \abovedisplayshortskip \z@ \@plus3\p@
+   \belowdisplayshortskip 6\p@ \@plus3\p@ \@minus3\p@
+   \belowdisplayskip \abovedisplayskip
+  \let\@listi\@listI}
+\normalsize
+\renewcommand\small{%
+  \@setfontsize\small{9.5bp}{13bp}% subsubsection, paragraph
+  \abovedisplayskip 9bp
+  \abovedisplayshortskip 3bp
+  \belowdisplayshortskip 3bp
+  \def\@listi{\leftmargin\leftmargini
+    \topsep\z@
+    \parsep\z@
+    \itemsep \parsep}%
+  \belowdisplayskip \abovedisplayskip
+}
+\renewcommand\footnotesize{%
+  \@setfontsize\footnotesize{10bp}{11bp}% Fussnoten
+  \abovedisplayskip 6bp
+  \abovedisplayshortskip 3bp
+  \belowdisplayshortskip 3bp
+  \def\@listi{\leftmargin\leftmargini
+    \topsep\z@
+    \parsep\z@
+    \itemsep \parsep}%
+  \belowdisplayskip \abovedisplayskip
+}
+\renewcommand\scriptsize{\@setfontsize\scriptsize{9bp}{11bp}}%% Verzeichnisse, Tabellen, Captions
+\renewcommand\tiny{\@setfontsize\tiny{5bp}{6bp}}%% nicht verwendet
+\renewcommand\large{\@setfontsize\large{12bp}{19.5bp}}%% subsection
+\renewcommand\Large{\@setfontsize\Large{12bp}{15bp}}%% Autoren/subsection
+\renewcommand\LARGE{\@setfontsize\LARGE{15bp}{19.5bp}}%% Section
+\renewcommand\huge{\@setfontsize\huge{18bp}{22bp}}%% Untertitel
+\renewcommand\Huge{\@setfontsize\Huge{20bp}{24bp}}%% Titel
+
+
+% Satzspiegel:
+\voffset-1in
+\hoffset-1in
+
+\paperheight297mm
+\paperwidth210mm
+
+\evensidemargin20mm
+\oddsidemargin 20mm
+\textwidth    170mm
+
+\topmargin =9.7mm
+\headheight=13bp
+\headsep   =\dimexpr12.75mm-13bp\relax
+\textheight=\dimexpr274mm-23mm-\headheight+2mm\relax
+
+\parindent\z@
+\parskip1.2ex plus0.2ex minus0.2ex\relax
+
+\footskip=12mm\relax
+
+\medskipamount= 6bp
+\bigskipamount=18bp
+\emergencystretch=2em
+
+\footnotesep =\z@
+\floatsep    =18bp \@plus 3bp \@minus 3bp
+\textfloatsep=18bp \@plus 3bp \@minus 3bp
+\intextsep   =18bp \@plus 3bp \@minus 3bp
+
+\flushbottom
+
+% Schriften:
+\RequirePackage[scaled=1.15]{inconsolata}
+\ifcsname ver@fontspec.sty\endcsname
+\else
+  \PassOptionsToPackage{type1}{noto-serif}
+  \PassOptionsToPackage{type1}{noto-sans}
+\fi
+\RequirePackage[scale=1.11113]{notomath}
+\ifcsname ver@fontspec.sty\endcsname
+\else
+  \DeclareTextCommandDefault{\textminus}{$-$}
+  \DeclareTextCommandDefault{\textleftarrow}{$\leftarrow$}
+  \DeclareTextCommandDefault{\textrightarrow}{$\rightarrow$}
+  \DeclareTextCommandDefault{\textuparrow}{$\uparrow$}
+  \DeclareTextCommandDefault{\textdownarrow}{$\downarrow$}
+  \DeclareEncodingSubset{TS1}{NotoSerif-TLF}{3}
+  \DeclareEncodingSubset{TS1}{NotoSans-TLF}{3}
+\fi
+\IfFileExists{\tx@subs}
+ {}
+ {\def\tx@addrecX##1##2##3\@nil{%
+    \tx@addrec{##1}{##2}%
+    \toks@{##3}}
+  \toks@{%
+    {f}{-2.5}
+    {j}{-2.5}
+    {p}{-1.5}
+    {y}{-2.5}
+    {A}{-2.5}
+    {B}{-1}
+    {D}{-1}
+    {H}{-1}
+    {I}{-1}
+    {K}{-1}
+    {L}{-1}
+    {M}{-1}
+    {N}{-0.5}
+    {P}{-1}
+    {X}{-1}
+    {\rho}{-2.5}
+    {\beta}{-2.5}}
+  \loop
+  \expandafter\def\expandafter\@rest\expandafter{\the\toks@}
+  \if\@rest\par\let\f@rtig\relax\fi
+  \ifx\f@rtig\@undfined
+    \expandafter\tx@addrecX\the\toks@\@nil
+  \repeat
+  \tx@tA\expandafter{\the\expandafter\tx@tA\the\tx@tB}
+  \AddToHook{begindocument/before}[hanserfb]{\expandafter\def\expandafter\tx@sb\expandafter{\the\tx@tA}}}
+% \DeclareMathVersion{sans}
+% \DeclareMathVersion{sansbold}
+% \SetSymbolFont{operators}{sans}{OT1}{NotoSans-TLF}{m}{n}
+% \SetSymbolFont{letters}  {sans}{OML}{notosansmi}  {m}{it}
+% \SetSymbolFont{symbols}  {sans}{LMS}{ntxsy}       {m}{n}
+% \SetMathAlphabet\mathit{sans}{OT1}             {NotoSans-TLF}{m}{it}
+% \SetMathAlphabet\mathtt{sans}{\encodingdefault}{\ttdefault}  {m}{n}
+% \SetSymbolFont{operators}{sansbold}{OT1}{NotoSans-TLF}{b}{n}
+% \SetSymbolFont{letters}  {sansbold}{OML}{notosansmi}  {b}{it}
+% \SetSymbolFont{symbols}  {sansbold}{LMS}{ntxsy}       {b}{n}
+% \SetMathAlphabet\mathit{sansbold}{OT1}             {NotoSans-TLF}{b}{it}
+% \SetMathAlphabet\mathtt{sansbold}{\encodingdefault}{\ttdefault}  {b}{n}
+
+
+% Sprachspezifische Einstellungen:
+\def\@tempa{%
+  \def\figurename{Bild}%
+}
+\expandafter\addto\expandafter\captionsngerman\expandafter{\@tempa}
+\expandafter\addto\expandafter\captionsgerman\expandafter{\@tempa}
+
+
+% Titelei:
+\DeclareRobustCommand\runningtitle[1]{\gdef\@runningtitle{#1}}
+
+\def\subtitle#1{\def\@subtitle{#1}}
+
+\let\@authors\relax \let\@@authors\relax
+\let\@affils\relax
+
+\def\author#1#2{%
+  \ifx\@authors\relax
+    \def\@authors{#2\textsuperscript{#1}}%
+    \def\@@authors{#2}%
+  \else
+    \csgappto{@authors}{, #2\textsuperscript{#1}}%
+    \csgappto{@@authors}{, #2}%
+  \fi}
+
+\def\affil#1#2{%
+  \ifx\@authors\relax
+    \def\@affils{\footnotetext[#1]{#2}}%
+  \else
+    \csgappto{@affils}{\footnotetext[#1]{#2}}%
+  \fi}
+
+\def\maketitle{%
+  \thispagestyle{title}%
+  \bgroup
+    \null\vskip-\baselineskip
+    \raggedright
+    \bgroup
+      \Huge\bfseries
+      \@title\par
+      \vskip16.5bp
+    \egroup
+    \ifx\@subtitle\@undefined\else
+      \bgroup
+        \huge\bfseries
+        \@subtitle\par
+        \vskip13bp
+      \egroup
+    \fi
+    \bgroup
+      \Large
+      \@authors\par
+    \egroup
+    \@affils
+  \egroup
+  \ifx\@runningtitle\@undefined\global\let\@runningtitle\@title\fi}
+
+\def\abstractname{Zusammenfassung}
+\def\abstract#1{%
+  \section*{\abstractname}%
+  #1}
+
+\addto\captionsngerman{\def\keywordsname{Stichwörter}}
+\def\@tempa{%
+  \def\keywordsname{Keywords}}%
+\expandafter\addto\expandafter\captionsbritish\expandafter{\@tempa}
+\expandafter\addto\expandafter\captionsUKenglish\expandafter{\@tempa}
+\expandafter\addto\expandafter\captionsenglish\expandafter{\@tempa}
+\expandafter\addto\expandafter\captionsamerican\expandafter{\@tempa}
+\expandafter\addto\expandafter\captionsUSenglish\expandafter{\@tempa}
+\def\keywords#1{%
+  \section*{\keywordsname}%
+  #1}
+
+\def\fpage#1{\def\f@page{#1}} \fpage{1}
+\def\lpage#1{\def\l@page{#1}}
+\AtBeginDocument{\expandafter\c@page\f@page\relax}
+\AtEndDocument{\write\@auxout{\string\gdef\string\lpage{\thepage}}}
+
+\def\confno#1{\def\conf@no{#1}}         \confno{0}
+\def\confdate#1{\def\conf@date{#1}}     \confdate{xx.xx--xx.xx}
+\def\confyear#1{\def\conf@year{#1}}     \confyear{20xx}
+\def\confplace#1{\def\conf@place{#1}}   \confplace{Ort}
+
+
+% Seitenstile:
+\def\logofile#1{\def\l@gofile{#1}}         \logofile{cc-by}
+\def\head@line{%
+  \smash{\lower2.7mm\rlap{\vrule\@width\dimexpr\textwidth+1mm\relax\@height1.2bp\hskip-.5mm}}}
+\def\ps@headings{%
+  \def\@oddhead{%
+    \head@line
+    \fontsize{9.5bp}{13bp}\selectfont\@runningtitle\hfill\thepage}
+  \def\@evenhead{%
+    \head@line
+    \fontsize{9.5bp}{13bp}\selectfont\thepage\hfill\@runningtitle}
+  \def\@oddfoot{%
+    \bgroup\fontsize{7bp}{9bp}\selectfont
+      \vbox{%
+        Open Access. \textcopyright\space\conf@year\space\@@authors\@par
+        This work is licensed under the Creative Commons Attribution 4.0 License. + \lower1bp\hbox{\includegraphics[width=14mm]{\l@gofile}}%
+      }%
+    \egroup}
+  \let\@evenfoot\@oddfoot}
+\pagestyle{headings}
+\def\ps@title{%
+  \def\@oddhead{%
+    \smash{\lower13bp\hbox{\head@line}}%
+    \fontsize{9.5bp}{13bp}\selectfont
+    \smash{\vtop{%
+      \conf@no. AALE-Konferenz\@@par
+      \conf@place, \conf@date\conf@year}}}}
+
+
+% Überschriften:
+\def\@seccntformat#1{\numberline{\csname the#1\endcsname}}
+
+\def\@sect#1#2#3#4#5#6[#7]#8{%
+  \ifnum #2>\c@secnumdepth
+    \let\@svsec\@empty
+  \else
+    \refstepcounter{#1}%
+    \def\numberline##1{\hb@xt@#3{##1\hss}}%
+    \protected@edef\@svsec{\@seccntformat{#1}\relax}%
+  \fi
+  \@tempskipa #5\relax
+  \ifdim \@tempskipa>\z@
+    \begingroup
+      #6{%
+        \@hangfrom{\@svsec}%
+        \interlinepenalty \@M #8\@@par}%
+    \endgroup
+    \csname #1mark\endcsname{#7}%
+    \addcontentsline{toc}{#1}{%
+      \ifnum #2>\c@secnumdepth \else
+        \protect\numberline{\csname the#1\endcsname}%
+      \fi
+      #7}%
+  \else
+    \def\@svsechd{%
+      #6{%\hskip #3\relax
+      \@svsec #8}%
+      \csname #1mark\endcsname{#7}%
+      \addcontentsline{toc}{#1}{%
+        \ifnum #2>\c@secnumdepth \else
+          \protect\numberline{\csname the#1\endcsname}%
+        \fi
+        #7}}%
+  \fi
+  \@xsect{#5}}
+\def\@ssect#1#2#3#4#5{%
+  \@tempskipa #3\relax
+  \ifdim \@tempskipa>\z@
+    \begingroup
+      \noindent#4{\interlinepenalty \@M #5\@@par}%
+    \endgroup
+  \else
+    \def\@svsechd{#4{#5}}%
+  \fi
+  \@xsect{#3}}
+
+\renewcommand\section{\@startsection {section}{1}{5.6mm}% Ü1
+  {-19.6bp}%sowie parskip (6.4bp)
+  {8.6bp}%sowie parskip (6.4bp)
+  {\normalfont\LARGE\bfseries}}
+\renewcommand\subsection{\@startsection{subsection}{2}{8.2mm}% Ü2
+  {-18.6bp}%sowie parskip (6.4bp)
+  {4.6bp}%sowie parskip (6.4bp)
+  {\normalfont\Large\bfseries}}
+\renewcommand\subsubsection{\@startsection{subsubsection}{3}{9.3mm}% Ü3
+  {-19.6bp}%sowie parskip (6.4bp)
+  {6.6bp\@plus3bp}%sowie parskip (6.4bp)
+  {\normalfont\small\bfseries}}
+\renewcommand\paragraph{\@startsection{paragraph}{4}{12.2mm}% Ü4
+  {-13.6bp}%sowie parskip (6.4bp)
+  {1sp}%sowie parskip (6.4bp)
+  {\normalfont\small\bfseries}}
+\renewcommand\subparagraph{\@startsection{subparagraph}{5}{\z@}%Ü5, nicht vorgegeben
+  {6.6bp}%sowie parskip (6.4bp)
+  {-1em}%
+  {\normalfont\small\bfseries}}
+
+
+% Fußnoten:
+\skip\footins=20bp\@plus6bp\@minus7bp
+\def\footnoterule{\kern-3\p@\hrule \@width 51mm \@height .4bp\kern\dimexpr 2.6\p@+15bp\relax}
+
+\renewcommand\@makefntext[1]{%
+    \parindent 1em%
+    \noindent
+    \hb@xt@8mm{\@makefnmark\hss}#1}
+
+% Listen:
+\renewcommand\theenumi{\@arabic\c@enumi}
+\renewcommand\theenumii{\@arabic\c@enumi}
+\renewcommand\theenumiii{\@arabic\c@enumi}
+\renewcommand\theenumiv{\@arabic\c@enumi}
+
+\renewcommand\labelenumi{\theenumi.}
+\renewcommand\labelenumii{\theenumii.}
+\renewcommand\labelenumiii{\theenumiii.}
+\renewcommand\labelenumiv{\theenumiv.}
+
+\leftmargini\z@
+
+\renewenvironment{enumerate}{%
+  \ifnum \@enumdepth >\thr@@\@toodeep\else
+    \advance\@enumdepth\@ne
+    \edef\@enumctr{enum\romannumeral\the\@enumdepth}%
+      \expandafter
+      \list
+        \csname label\@enumctr\endcsname
+        {\usecounter\@enumctr
+         \topsep4bp
+         \partopsep\z@
+         \leftmargin6mm
+         \labelwidth6mm
+         \labelsep\z@
+         \def\makelabel##1{\hb@xt@6mm{##1\hss}}}%
+  \fi}{\endlist}
+
+\renewenvironment{itemize}{%
+  \ifnum \@enumdepth >\thr@@\@toodeep\else
+    \advance\@enumdepth\@ne
+    \edef\@itemitem{labelitem\romannumeral\the\@itemdepth}%
+      \expandafter
+      \list
+        \csname\@itemitem\endcsname
+        {\topsep4bp
+         \leftmargin6mm
+         \labelwidth6mm
+         \labelsep\z@
+         \def\makelabel##1{\hb@xt@6mm{--\hss}}}%
+  \fi}{\endlist}
+
+
+% Tabellen:
+\usepackage{array}
+\newcolumntype{e}{@{\extracolsep{\fill}}}
+\tabcolsep3bp
+\def\arraystretch{1.5}
+\usepackage{tabularx}
+\def\@tabular{\leavevmode
+  \hbox \bgroup\tablefont $\col@sep\tabcolsep \let\d@llarbegin\begingroup%$
+                                    \let\d@llarend\endgroup
+  \@tabarray}
+
+\def\tablefont{\scriptsize}
+
+% Gleitobjekte:
+\RequirePackage{caption}
+\DeclareCaptionLabelSeparator{enskip}{:\enskip}
+\captionsetup{%
+   font=scriptsize
+  ,singlelinecheck=false
+  ,justification=raggedright
+  ,skip=6bp
+  ,labelsep=enskip}
+
+
+% Bibliographie:
+\setlength\bibindent{8mm}
+\renewenvironment{thebibliography}[1]
+     {\list{\@biblabel{\@arabic\c@enumiv}}%
+           {\scriptsize
+            \leftmargin\bibindent
+            \labelwidth\bibindent
+            \labelsep\z@
+            \itemsep\z@
+            \topsep\z@
+            \partopsep\z@
+            \parsep\z@
+            \@openbib@code
+            \usecounter{enumiv}%
+            \let\p@enumiv\@empty
+            \renewcommand\theenumiv{\@arabic\c@enumiv}%
+            \def\makelabel##1{\hb@xt@\labelwidth{##1\hss}}}%
+      \sloppy
+      \sfcode`\.\@m}
+     {\def\@noitemerr
+       {\@latex@warning{Empty `thebibliography' environment}}%
+      \endlist}
+
+
+%Verlinkung:
+\usepackage[hidelinks]{hyperref}
+
+
+%Umbruchhilfen:
+\let\hack\@firstofone
+\let\Hack\@firstofone
+\let\hackfor\@gobble
+\let\Hackfor\@gobble
+
+
+\endinput

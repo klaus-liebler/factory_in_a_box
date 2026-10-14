@@ -78,7 +78,7 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 		return html`
 			<div class="container">
 				<section class="header-section app-panel">
-					<div class="panel-label">Modbus Register Console</div>
+					<div class="panel-label">Register-Konsole</div>
 					<div class="status-text status-${this.statusVariant}">${this.statusMessage}</div>
 				</section>
 

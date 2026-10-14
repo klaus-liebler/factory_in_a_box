@@ -28,7 +28,7 @@
             "name": "Debug-Nucleo",
             "inherits": "Debug",
             "cacheVariables": {
-                "BOARD_NUCLEO_H563ZI": "ON"
+                "BOARD_NUCLEO_H563ZI_OVERRIDE": "ON"
             }
         }
     ],

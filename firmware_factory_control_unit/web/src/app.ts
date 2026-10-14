@@ -16,7 +16,7 @@ import { startSystemLogListener } from "./system-log-listener.js";
 document.addEventListener("DOMContentLoaded", () => {
 	const shell = document.querySelector("app-shell") as AppShell;
 
-	shell.RegisterApp("/", "Modbus-Register", "🔧", document.createElement("modbus-register-app"));
+	shell.RegisterApp("/", "Register", "🔧", document.createElement("modbus-register-app"));
 	shell.RegisterApp("/power", "Power Management", "⚡", document.createElement("power-management-app"));
 	shell.RegisterApp("/system", "System", "🖥️", document.createElement("system-info-app"));
 	shell.RegisterApp("/roarm-teach", "RoArm Teach", "🦾", document.createElement("roarm-teach-app"));

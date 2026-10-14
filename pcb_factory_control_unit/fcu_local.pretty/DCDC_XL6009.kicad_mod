@@ -1,0 +1,141 @@
+(footprint "DCDC_XL6009"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(descr "XL6009 Step-Up-Modul 43x21mm, 4 Loetpads IN+/IN-/OUT-/OUT+. ACHTUNG: Lochabstaende (38,1 x 15,24 mm) vor Fertigung am realen Modul nachmessen")
+	(tags "XL6009 boost dcdc module")
+	(property "Reference" "REF**"
+		(at 0 -11.8 0)
+		(layer "F.SilkS")
+		(uuid "ee131eb0-d3f7-4bef-9700-c5b387e2da04")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "DCDC_XL6009"
+		(at 0 11.8 0)
+		(layer "F.Fab")
+		(uuid "2fe8f5d7-f09c-4655-9f6f-da53fe2d11bc")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_rect
+		(start -21.5 -10.5)
+		(end 21.5 10.5)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+		(uuid "b5eb9bad-611c-4bf3-b2dd-7f4b2b25b2ee")
+	)
+	(fp_rect
+		(start -21.5 -10.5)
+		(end 21.5 10.5)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "3a70bb55-d614-45c5-a5a6-b417a6295a1f")
+	)
+	(fp_rect
+		(start -21.75 -10.75)
+		(end 21.75 10.75)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+		(uuid "27e85310-34dc-4a7e-a6c5-820bb77b6210")
+	)
+	(fp_text user "IN+"
+		(at -15.55 -7.62 0)
+		(layer "F.SilkS")
+		(uuid "a219af98-4c33-4612-b58c-92a36e720412")
+		(effects
+			(font
+				(size 0.8 0.8)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" thru_hole rect
+		(at -19.05 -7.62)
+		(size 2.6 2.6)
+		(drill 1.3)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "59986eab-4693-4115-b24e-8dae8bc9ecf4")
+	)
+	(fp_text user "IN-"
+		(at -15.55 7.62 0)
+		(layer "F.SilkS")
+		(uuid "1f28bf40-f2ce-49b5-92a7-24e0f1dc02ee")
+		(effects
+			(font
+				(size 0.8 0.8)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "2" thru_hole circle
+		(at -19.05 7.62)
+		(size 2.6 2.6)
+		(drill 1.3)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "a7cdb13c-9169-41eb-bdf6-63caee7e6d2b")
+	)
+	(fp_text user "OUT-"
+		(at 15.55 7.62 0)
+		(layer "F.SilkS")
+		(uuid "e7cb768b-1bb3-4acc-b1ee-d1b14907c34c")
+		(effects
+			(font
+				(size 0.8 0.8)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "3" thru_hole circle
+		(at 19.05 7.62)
+		(size 2.6 2.6)
+		(drill 1.3)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "4052e898-ed91-43af-9e81-fb0605386d5f")
+	)
+	(fp_text user "OUT+"
+		(at 15.55 -7.62 0)
+		(layer "F.SilkS")
+		(uuid "2060f5be-2d14-47a0-aee2-882a9c278f9e")
+		(effects
+			(font
+				(size 0.8 0.8)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "4" thru_hole circle
+		(at 19.05 -7.62)
+		(size 2.6 2.6)
+		(drill 1.3)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "e38cb2a7-ed04-4ca1-bc94-afd616647416")
+	)
+	(embedded_fonts no)
+)

@@ -7211,7 +7211,7 @@
 	)
 	(global_label "ROBOT_TX"
 		(shape output)
-		(at 87.63 83.82 180)
+		(at 87.63 88.9 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -7221,7 +7221,7 @@
 		)
 		(uuid "0890f125-57a9-4e99-92e5-0410636c072a")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 75.3315 83.82 0)
+			(at 75.3315 88.9 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7667,7 +7667,7 @@
 	)
 	(global_label "LED_INFO"
 		(shape output)
-		(at 73.66 102.87 180)
+		(at 87.63 60.96 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -7677,7 +7677,7 @@
 		)
 		(uuid "32a8bc79-45dd-43b5-89dc-40fe33ae1e4c")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 61.9057 102.87 0)
+			(at 75.8757 60.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7979,7 +7979,7 @@
 	)
 	(global_label "MALIBOTTI_TX"
 		(shape output)
-		(at 87.63 88.9 180)
+		(at 87.63 83.82 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -7989,7 +7989,7 @@
 		)
 		(uuid "5a227947-90ed-4a46-a8c0-df4cac9827df")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 72.1867 88.9 0)
+			(at 72.1867 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9203,7 +9203,7 @@
 	)
 	(global_label "ROBOT_RX"
 		(shape input)
-		(at 87.63 81.28 180)
+		(at 87.63 86.36 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9213,7 +9213,7 @@
 		)
 		(uuid "dd5b083d-2e74-4292-96a3-adf83a0a1904")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 75.0291 81.28 0)
+			(at 75.0291 86.36 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9323,7 +9323,7 @@
 	)
 	(global_label "MALIBOTTI_RX"
 		(shape input)
-		(at 87.63 86.36 180)
+		(at 87.63 81.28 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9333,7 +9333,7 @@
 		)
 		(uuid "e87fa540-d54a-4f87-a59e-2e23204781bd")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 71.8843 86.36 0)
+			(at 71.8843 81.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15823,6 +15823,7 @@
 	(symbol
 		(lib_id "Device:C")
 		(at 82.55 153.67 0)
+		(mirror y)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15854,7 +15855,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 83.5152 157.48 0)
+			(at 81.5848 157.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)

@@ -5520,7 +5520,7 @@
 	)
 	(global_label "WS2812_CH1"
 		(shape output)
-		(at 135.89 109.22 0)
+		(at 135.89 128.27 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -5530,7 +5530,7 @@
 		)
 		(uuid "68168677-c744-4474-89ab-0b2b492c64fb")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 151.1517 109.22 0)
+			(at 151.1517 128.27 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5616,7 +5616,7 @@
 	)
 	(global_label "WS2812_1"
 		(shape input)
-		(at 120.65 109.22 180)
+		(at 120.65 128.27 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -5626,7 +5626,7 @@
 		)
 		(uuid "7b3946a7-48d2-40b0-b156-6ebcf22cf9d5")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 107.9888 109.22 0)
+			(at 107.9888 128.27 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5928,7 +5928,7 @@
 	)
 	(global_label "WS2812_CH2"
 		(shape output)
-		(at 135.89 128.27 0)
+		(at 135.89 109.22 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -5938,7 +5938,7 @@
 		)
 		(uuid "faf04ab5-1a52-4f67-862d-5b205e0b4e8a")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 151.1517 128.27 0)
+			(at 151.1517 109.22 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5952,7 +5952,7 @@
 	)
 	(global_label "WS2812_2"
 		(shape input)
-		(at 120.65 128.27 180)
+		(at 120.65 109.22 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -5962,7 +5962,7 @@
 		)
 		(uuid "fd50b8dd-848e-4ee0-bfe2-bb1917a286eb")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 107.9888 128.27 0)
+			(at 107.9888 109.22 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)

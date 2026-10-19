@@ -7211,7 +7211,7 @@
 	)
 	(global_label "ROBOT_TX"
 		(shape output)
-		(at 87.63 88.9 180)
+		(at 87.63 83.82 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -7221,7 +7221,7 @@
 		)
 		(uuid "0890f125-57a9-4e99-92e5-0410636c072a")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 75.3315 88.9 0)
+			(at 75.3315 83.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7979,7 +7979,7 @@
 	)
 	(global_label "MALIBOTTI_TX"
 		(shape output)
-		(at 87.63 83.82 180)
+		(at 87.63 88.9 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -7989,7 +7989,7 @@
 		)
 		(uuid "5a227947-90ed-4a46-a8c0-df4cac9827df")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 72.1867 83.82 0)
+			(at 72.1867 88.9 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9203,7 +9203,7 @@
 	)
 	(global_label "ROBOT_RX"
 		(shape input)
-		(at 87.63 86.36 180)
+		(at 87.63 81.28 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9213,7 +9213,7 @@
 		)
 		(uuid "dd5b083d-2e74-4292-96a3-adf83a0a1904")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 75.0291 86.36 0)
+			(at 75.0291 81.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9251,7 +9251,7 @@
 	)
 	(global_label "CANL"
 		(shape bidirectional)
-		(at 196.85 46.99 180)
+		(at 196.85 41.91 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9261,7 +9261,7 @@
 		)
 		(uuid "e6a790e8-1219-4326-a3e0-a3c26e74f70b")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 188.0363 46.99 0)
+			(at 188.0363 41.91 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9323,7 +9323,7 @@
 	)
 	(global_label "MALIBOTTI_RX"
 		(shape input)
-		(at 87.63 81.28 180)
+		(at 87.63 86.36 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9333,7 +9333,7 @@
 		)
 		(uuid "e87fa540-d54a-4f87-a59e-2e23204781bd")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 71.8843 81.28 0)
+			(at 71.8843 86.36 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9611,7 +9611,7 @@
 	)
 	(global_label "CANH"
 		(shape bidirectional)
-		(at 196.85 41.91 180)
+		(at 196.85 46.99 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9621,7 +9621,7 @@
 		)
 		(uuid "fd2f8fd5-3c8b-4ff5-8d02-62be3d81f406")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 187.7339 41.91 0)
+			(at 187.7339 46.99 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)

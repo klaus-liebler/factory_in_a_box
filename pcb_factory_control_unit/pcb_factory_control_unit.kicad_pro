@@ -76,7 +76,52 @@
           "width": 0.0
         }
       ],
-      "drc_exclusions": [],
+      "drc_exclusions": [
+        [
+          "clearance|77785000|127110000|49e43694-83b0-44a5-9605-40d9e16ab3a4|ba80ea0a-2b8d-4e2c-ac91-14ad0860cfae",
+          "Footprint!"
+        ],
+        [
+          "starved_thermal|181287500|90500000|2ea61268-674a-49bc-b596-106be493b965|4d03de2f-2f79-4627-b4c8-d5834f4abaf1|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|181287500|92500000|2ea61268-674a-49bc-b596-106be493b965|cba9e09c-b34d-43fe-8343-58ceb4ae744d|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|183287500|90500000|2ea61268-674a-49bc-b596-106be493b965|dc7cb17a-67e2-46fd-ae66-706b0f45a4e7|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|183287500|92500000|2ea61268-674a-49bc-b596-106be493b965|a4fe65f6-d7fb-46a1-9f21-10c1b61cd7fe|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|78200000|120100000|2ea61268-674a-49bc-b596-106be493b965|8dd863b2-b5b2-4bc8-b5f3-eb3452f03c81|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|78200000|122300000|2ea61268-674a-49bc-b596-106be493b965|a2869042-aa12-422a-a709-84e45c6e210f|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|80400000|120100000|2ea61268-674a-49bc-b596-106be493b965|d3336771-7ffa-4e78-a4af-0d9d67310877|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|80400000|122300000|2ea61268-674a-49bc-b596-106be493b965|2d1b5c72-fe6e-442a-b99e-f8a4276ecfe2|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|91620000|139568956|2ea61268-674a-49bc-b596-106be493b965|8b708d5d-91eb-4f8e-b53c-b2204e7733c2|F.Cu",
+          ""
+        ],
+        [
+          "starved_thermal|91620000|139568956|2ea61268-674a-49bc-b596-106be493b965|bfbd218d-76a5-4196-ab47-194fe7de262e|F.Cu",
+          ""
+        ]
+      ],
       "meta": {
         "version": 2
       },
@@ -839,7 +884,7 @@
         "uuid": "9c57264a-0988-4c94-95c0-340e4ca73bd5"
       }
     ],
-    "used_designators": "",
+    "used_designators": "D2,L12,#PWR47,#PWR53-55,#PWR57,#PWR70,U14,C102-107,R106-107",
     "variants": []
   },
   "sheets": [

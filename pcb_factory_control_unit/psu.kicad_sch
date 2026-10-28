@@ -1950,563 +1950,6 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Power_Management:TPS26631RGE"
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(in_pos_files yes)
-			(duplicate_pin_numbers_are_jumpers no)
-			(property "Reference" "U"
-				(at -8.89 16.51 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Value" "TPS26631RGE"
-				(at 7.62 16.51 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" "Package_DFN_QFN:Texas_RGE0024H_VQFN-24-1EP_4x4mm_P0.5mm_EP2.7x2.7mm_ThermalVias"
-				(at 0 -31.75 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Datasheet" "https://www.ti.com/lit/ds/symlink/tps2663.pdf"
-				(at -10.16 20.32 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Description" "60V, 6A Power Limiting, Surge Protection Industrial eFuse, Adjustable Overvoltage cut-off, Active Current Limiting with Pulse current support, VQFN-24"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_keywords" "efuse protection switch"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_fp_filters" "Texas*RGE0024H*"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(symbol "TPS26631RGE_0_1"
-				(rectangle
-					(start -10.16 15.24)
-					(end 10.16 -17.78)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type background)
-					)
-				)
-			)
-			(symbol "TPS26631RGE_1_1"
-				(pin power_in line
-					(at -12.7 12.7 0)
-					(length 2.54)
-					(name "IN"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -12.7 12.7 0)
-					(length 2.54)
-					(hide yes)
-					(name "IN"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at -12.7 7.62 0)
-					(length 2.54)
-					(name "B_GATE"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "3"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at -12.7 2.54 0)
-					(length 2.54)
-					(name "DRV"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "4"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin power_in line
-					(at 0 17.78 270)
-					(length 2.54)
-					(name "IN_SYS"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "5"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at -12.7 -2.54 0)
-					(length 2.54)
-					(name "UVLO"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "6"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at -12.7 -7.62 0)
-					(length 2.54)
-					(name "OVP"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "7"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin power_in line
-					(at 0 -20.32 90)
-					(length 2.54)
-					(name "GND"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "8"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 12.7 -15.24 180)
-					(length 2.54)
-					(name "dVdT"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "9"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 12.7 -12.7 180)
-					(length 2.54)
-					(name "ILIM"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "10"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at -12.7 -15.24 0)
-					(length 2.54)
-					(name "MODE"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "11"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at -12.7 -12.7 0)
-					(length 2.54)
-					(name "~{SHDN}"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "12"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at 12.7 -5.08 180)
-					(length 2.54)
-					(name "IMON"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "13"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin open_collector line
-					(at 12.7 0 180)
-					(length 2.54)
-					(name "~{FLT}"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "14"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at 12.7 7.62 180)
-					(length 2.54)
-					(name "PGTH"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "15"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at 12.7 -2.54 180)
-					(length 2.54)
-					(name "PGOOD"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "16"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin power_out line
-					(at 12.7 12.7 180)
-					(length 2.54)
-					(name "OUT"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "17"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 12.7 12.7 180)
-					(length 2.54)
-					(hide yes)
-					(name "OUT"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "18"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin no_connect line
-					(at -10.16 10.16 0)
-					(length 2.54)
-					(hide yes)
-					(name "NC"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "19"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin no_connect line
-					(at -10.16 5.08 0)
-					(length 2.54)
-					(hide yes)
-					(name "NC"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "20"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin no_connect line
-					(at -10.16 0 0)
-					(length 2.54)
-					(hide yes)
-					(name "NC"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "21"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin no_connect line
-					(at 10.16 10.16 180)
-					(length 2.54)
-					(hide yes)
-					(name "NC"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "22"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin no_connect line
-					(at 10.16 5.08 180)
-					(length 2.54)
-					(hide yes)
-					(name "NC"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "23"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin no_connect line
-					(at 10.16 2.54 180)
-					(length 2.54)
-					(hide yes)
-					(name "NC"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "24"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 0 -20.32 90)
-					(length 2.54)
-					(hide yes)
-					(name "GND"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "25"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
 		(symbol "Regulator_Linear:AMS1117-3.3"
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -3805,6 +3248,565 @@
 						)
 					)
 					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "liebler_SEMICONDUCTORS:TPS26631RGE"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "U6"
+				(at -5.08 16.51 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "TPS26631RGE"
+				(at 0 16.51 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" "Package_DFN_QFN:Texas_RGE0024H_VQFN-24-1EP_4x4mm_P0.5mm_EP2.7x2.7mm_ThermalVias"
+				(at 0 -31.75 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" "https://www.ti.com/lit/ds/symlink/tps2663.pdf"
+				(at -10.16 20.32 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "60V, 6A Power Limiting, Surge Protection Industrial eFuse, Adjustable Overvoltage cut-off, Active Current Limiting with Pulse current support, VQFN-24"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "efuse protection switch"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "Texas*RGE0024H*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "TPS26631RGE_0_1"
+				(rectangle
+					(start -10.16 15.24)
+					(end 10.16 -25.4)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "TPS26631RGE_1_1"
+				(pin power_in line
+					(at -12.7 12.7 0)
+					(length 2.54)
+					(name "IN"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -12.7 12.7 0)
+					(length 2.54)
+					(hide yes)
+					(name "IN"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -12.7 5.08 0)
+					(length 2.54)
+					(name "B_GATE"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -12.7 0 0)
+					(length 2.54)
+					(name "DRV"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at -12.7 -5.08 0)
+					(length 2.54)
+					(name "IN_SYS"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -12.7 -12.7 0)
+					(length 2.54)
+					(name "UVLO"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -12.7 -20.32 0)
+					(length 2.54)
+					(name "OVP"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "7"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at -1.27 -27.94 90)
+					(length 2.54)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "8"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 12.7 -20.32 180)
+					(length 2.54)
+					(name "dVdT"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "9"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 12.7 -17.78 180)
+					(length 2.54)
+					(name "ILIM"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "10"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -12.7 -22.86 0)
+					(length 2.54)
+					(name "MODE"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "11"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 12.7 -8.89 180)
+					(length 2.54)
+					(name "~{SHDN}"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "12"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 12.7 -15.24 180)
+					(length 2.54)
+					(name "IMON"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "13"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin open_collector line
+					(at 12.7 0 180)
+					(length 2.54)
+					(name "~{FLT}"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "14"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 12.7 5.08 180)
+					(length 2.54)
+					(name "PGTH"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "15"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 12.7 -2.54 180)
+					(length 2.54)
+					(name "PGOOD"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "16"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_out line
+					(at 12.7 12.7 180)
+					(length 2.54)
+					(name "OUT"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "17"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 12.7 12.7 180)
+					(length 2.54)
+					(hide yes)
+					(name "OUT"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "18"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin no_connect line
+					(at -10.16 10.16 0)
+					(length 2.54)
+					(hide yes)
+					(name "NC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "19"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin no_connect line
+					(at -10.16 8.89 0)
+					(length 2.54)
+					(hide yes)
+					(name "NC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "20"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin no_connect line
+					(at -10.16 1.27 0)
+					(length 2.54)
+					(hide yes)
+					(name "NC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "21"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin no_connect line
+					(at 10.16 10.16 180)
+					(length 2.54)
+					(hide yes)
+					(name "NC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "22"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin no_connect line
+					(at 10.16 7.62 180)
+					(length 2.54)
+					(hide yes)
+					(name "NC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "23"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin no_connect line
+					(at 10.16 2.54 180)
+					(length 2.54)
+					(hide yes)
+					(name "NC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "24"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -1.27 -27.94 90)
+					(length 2.54)
+					(hide yes)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "25"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -5538,6 +5540,12 @@
 		(uuid "41923d25-f24d-45d4-a390-02240d537ffc")
 	)
 	(junction
+		(at 130.81 25.4)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "41fd75a4-f49e-4097-8eea-dd8ab791c83f")
+	)
+	(junction
 		(at 99.06 91.44)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -5664,16 +5672,16 @@
 		(uuid "78a9872e-7540-4b5b-8242-2a970c4e463a")
 	)
 	(junction
+		(at 130.81 33.02)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "790347ad-9a6a-4bc7-922c-d189c805660d")
+	)
+	(junction
 		(at 176.53 53.34)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "7a0646bb-be06-43a4-b209-2c89a77d6a17")
-	)
-	(junction
-		(at 128.27 25.4)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "7a2363e3-8240-40fb-9096-1c02c3570d7d")
 	)
 	(junction
 		(at 41.91 107.95)
@@ -5728,6 +5736,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "8b74fa74-d87f-486f-8eab-fb827e5478e3")
+	)
+	(junction
+		(at 111.76 66.04)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "91039685-e7c2-436c-9208-b6eac312064f")
 	)
 	(junction
 		(at 88.9 130.81)
@@ -5854,12 +5868,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "c3e71769-6302-4a70-ae9f-d172ad6800f5")
-	)
-	(junction
-		(at 128.27 33.02)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "cc628aa8-02b3-481b-9578-e9c3e19aef77")
 	)
 	(junction
 		(at 77.47 147.32)
@@ -6355,6 +6363,16 @@
 	)
 	(wire
 		(pts
+			(xy 111.76 66.04) (xy 113.03 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "29f89e00-63c3-45b8-84f2-e619d7534135")
+	)
+	(wire
+		(pts
 			(xy 203.2 156.21) (xy 213.36 156.21)
 		)
 		(stroke
@@ -6385,7 +6403,7 @@
 	)
 	(wire
 		(pts
-			(xy 125.73 25.4) (xy 128.27 25.4)
+			(xy 125.73 25.4) (xy 130.81 25.4)
 		)
 		(stroke
 			(width 0)
@@ -6685,7 +6703,7 @@
 	)
 	(wire
 		(pts
-			(xy 125.73 33.02) (xy 128.27 33.02)
+			(xy 125.73 33.02) (xy 130.81 33.02)
 		)
 		(stroke
 			(width 0)
@@ -6722,16 +6740,6 @@
 			(type default)
 		)
 		(uuid "62bb5ca2-97ae-47d6-838e-ed03129600db")
-	)
-	(wire
-		(pts
-			(xy 128.27 25.4) (xy 137.16 25.4)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "62ee0646-17ac-4d58-acb6-840fa1855169")
 	)
 	(wire
 		(pts
@@ -7115,7 +7123,7 @@
 	)
 	(wire
 		(pts
-			(xy 100.33 66.04) (xy 113.03 66.04)
+			(xy 100.33 66.04) (xy 111.76 66.04)
 		)
 		(stroke
 			(width 0)
@@ -7282,16 +7290,6 @@
 			(type default)
 		)
 		(uuid "c3e010df-7c80-4bcc-be46-e7d94cce7a6f")
-	)
-	(wire
-		(pts
-			(xy 128.27 33.02) (xy 130.81 33.02)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "c73e2e7d-8e6b-4e14-876b-06e5f5eba92e")
 	)
 	(wire
 		(pts
@@ -7595,6 +7593,16 @@
 	)
 	(wire
 		(pts
+			(xy 130.81 25.4) (xy 137.16 25.4)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fdc8bfc6-9717-452c-b575-646e85782ed0")
+	)
+	(wire
+		(pts
 			(xy 232.41 120.65) (xy 237.49 120.65)
 		)
 		(stroke
@@ -7612,6 +7620,16 @@
 			(justify left bottom)
 		)
 		(uuid "3f5c9333-330d-4df9-adf0-1752244394c8")
+	)
+	(label "FUSE_IN"
+		(at 99.06 25.4 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "9c08d120-081c-445c-8166-932e642fe720")
 	)
 	(label "FB12"
 		(at 53.34 138.43 0)
@@ -7642,6 +7660,26 @@
 			(justify left bottom)
 		)
 		(uuid "b7d8db85-af42-4c19-893d-18db4230e4f2")
+	)
+	(label "DC_OUT"
+		(at 128.27 25.4 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "d851dcdc-42f9-469e-ad06-c12a0da35739")
+	)
+	(label "DC_IN"
+		(at 31.75 25.4 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "e286cbfb-9dab-4fc9-a81b-97b02080ef16")
 	)
 	(label "SW12"
 		(at 58.42 135.89 0)
@@ -8010,7 +8048,7 @@
 		(dnp no)
 		(uuid "0b3d78f4-f8d3-49db-a419-22e70e874b10")
 		(property "Reference" "R41"
-			(at 132.588 35.56 0)
+			(at 125.73 36.83 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8021,7 +8059,7 @@
 			)
 		)
 		(property "Value" "22k"
-			(at 132.588 38.1 0)
+			(at 130.81 38.1 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -10361,7 +10399,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 128.27 29.21 180)
+		(at 130.81 29.21 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -10371,7 +10409,7 @@
 		(dnp no)
 		(uuid "60df90f8-c958-41e0-99c6-13b0da3f63bc")
 		(property "Reference" "R40"
-			(at 134.62 26.67 0)
+			(at 128.27 29.21 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -10382,7 +10420,7 @@
 			)
 		)
 		(property "Value" "330k"
-			(at 128.27 26.67 90)
+			(at 130.81 26.67 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -10393,7 +10431,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 130.048 29.21 90)
+			(at 132.588 29.21 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10404,7 +10442,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 128.27 29.21 0)
+			(at 130.81 29.21 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10415,7 +10453,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 128.27 29.21 0)
+			(at 130.81 29.21 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10426,7 +10464,7 @@
 			)
 		)
 		(property "MPN" "0402WGF3303TCE"
-			(at 128.27 29.21 0)
+			(at 130.81 29.21 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10437,7 +10475,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 128.27 29.21 0)
+			(at 130.81 29.21 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10448,7 +10486,7 @@
 			)
 		)
 		(property "LCSC" "C25778"
-			(at 128.27 29.21 0)
+			(at 130.81 29.21 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11216,6 +11254,155 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "U7")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "liebler_SEMICONDUCTORS:TPS26631RGE")
+		(at 113.03 38.1 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "781c2f88-b5d5-4706-b8f4-e4299bc51a85")
+		(property "Reference" "U14"
+			(at 113.03 19.05 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "TPS26631RGE"
+			(at 113.03 21.59 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_DFN_QFN:Texas_RGE0024H_VQFN-24-1EP_4x4mm_P0.5mm_EP2.7x2.7mm_ThermalVias"
+			(at 113.03 69.85 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/tps2663.pdf"
+			(at 102.87 17.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "60V, 6A Power Limiting, Surge Protection Industrial eFuse, Adjustable Overvoltage cut-off, Active Current Limiting with Pulse current support, VQFN-24"
+			(at 113.03 38.1 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "24"
+			(uuid "cc394ff2-5389-4089-a38e-0bae23a1510e")
+		)
+		(pin "4"
+			(uuid "29f95f45-23c1-46f0-97f0-aea1168c9678")
+		)
+		(pin "8"
+			(uuid "c27812f7-cfe9-45de-a761-8d12a7695e59")
+		)
+		(pin "1"
+			(uuid "175bdbcf-43bb-4aba-9cd5-f936b59c9474")
+		)
+		(pin "19"
+			(uuid "3c638974-ffb7-4695-95f2-11e3eae5ffee")
+		)
+		(pin "15"
+			(uuid "817d593f-03ac-401b-897f-9a81d4d23f6f")
+		)
+		(pin "11"
+			(uuid "ea0c051a-f8be-4e9d-9fd2-bb0a8ca0c2d6")
+		)
+		(pin "20"
+			(uuid "b0264a93-38cc-46ea-8ee0-fccddd4df626")
+		)
+		(pin "21"
+			(uuid "2bce21d8-87fa-45d7-b9e8-dfa95beb76de")
+		)
+		(pin "2"
+			(uuid "6c1dd24d-c521-4ec4-9d2e-c33098955f24")
+		)
+		(pin "9"
+			(uuid "43e92688-4b25-403c-9887-b8b8d6574f36")
+		)
+		(pin "17"
+			(uuid "f223a68f-754c-4700-a529-6d39affa98d3")
+		)
+		(pin "6"
+			(uuid "a4e20b1f-e377-4311-be21-0097b438edd9")
+		)
+		(pin "22"
+			(uuid "4e5c5adb-a0dc-4d08-a56b-78f8a151a561")
+		)
+		(pin "16"
+			(uuid "364515a4-abac-4aa9-9227-12fb0f3298ae")
+		)
+		(pin "5"
+			(uuid "204ad67e-8a44-4565-830e-4fda97c9a92e")
+		)
+		(pin "7"
+			(uuid "2534cc31-f8cc-4e26-9fe2-a8bf950cb16a")
+		)
+		(pin "18"
+			(uuid "b7772c35-b09b-4069-b919-65966691347f")
+		)
+		(pin "3"
+			(uuid "75511fe1-1870-4b19-956d-b0642fe37747")
+		)
+		(pin "13"
+			(uuid "082c1e94-a0a6-45f4-b1a1-c36cd4b78fd1")
+		)
+		(pin "23"
+			(uuid "1b6f97b5-3fc6-48ab-bcb1-aab36b2840de")
+		)
+		(pin "10"
+			(uuid "db51242d-306d-4431-8d69-19a8f608e949")
+		)
+		(pin "12"
+			(uuid "2f8deb47-bb7e-414e-9e36-86b5963a23d6")
+		)
+		(pin "14"
+			(uuid "3edd9a67-7c8a-48d0-b3ac-f5903e344c84")
+		)
+		(pin "25"
+			(uuid "b0f85945-3b0d-4aa3-bccf-9ab74a8a4dbb")
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
+					(reference "U14")
 					(unit 1)
 				)
 			)
@@ -15300,190 +15487,6 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
 					(reference "R106")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Power_Management:TPS26631RGE")
-		(at 113.03 38.1 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "e0a22e4c-d386-406b-8502-e67912280d52")
-		(property "Reference" "U6"
-			(at 115.1733 17.78 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "MX26631DL"
-			(at 115.1733 20.32 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Package_DFN_QFN:Texas_RGE0024H_VQFN-24-1EP_4x4mm_P0.5mm_EP2.7x2.7mm_ThermalVias"
-			(at 113.03 69.85 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/tps2663.pdf"
-			(at 102.87 17.78 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "60V, 6A Power Limiting, Surge Protection Industrial eFuse, Adjustable Overvoltage cut-off, Active Current Limiting with Pulse current support, VQFN-24"
-			(at 113.03 38.1 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "LCSC" "C18197523"
-			(at 113.03 38.1 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "MX26631DL"
-			(at 113.03 38.1 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "Wuxi Maxinmicro"
-			(at 113.03 38.1 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "3"
-			(uuid "dfdd229b-9325-4d35-8ccf-961f59e00280")
-		)
-		(pin "1"
-			(uuid "63e7f67e-fd9c-45d2-bd62-5ca299deeb57")
-		)
-		(pin "2"
-			(uuid "d7d56b86-372f-44c3-92b3-e502b856c9d2")
-		)
-		(pin "17"
-			(uuid "96daa6a5-2d08-4ea5-833d-ce5e024bf45b")
-		)
-		(pin "6"
-			(uuid "2d1906c8-ed67-4619-911c-24edd6e8b93e")
-		)
-		(pin "7"
-			(uuid "6f94bbf0-93d6-47d1-bf9a-53c98387f0f8")
-		)
-		(pin "10"
-			(uuid "ff25a0f9-bb76-41a2-b9d5-764bd36336fe")
-		)
-		(pin "11"
-			(uuid "10612dd3-cc8f-46ff-bc2b-88e1e1106c84")
-		)
-		(pin "9"
-			(uuid "4f354fe6-c8f4-4bae-a263-08e0fbd09746")
-		)
-		(pin "15"
-			(uuid "bc9930d6-1b8c-4360-bed3-fbb4baa9029b")
-		)
-		(pin "16"
-			(uuid "7c80819f-8e06-4edc-bf0c-067eda3992c0")
-		)
-		(pin "24"
-			(uuid "f5b3fc05-5761-4dd6-9bce-e3a3193e9035")
-		)
-		(pin "4"
-			(uuid "7d4e06cd-88fe-480a-96f8-cb67da0405b9")
-		)
-		(pin "22"
-			(uuid "f6ce09b4-f3f1-4c3d-99eb-4f63ad2f37ad")
-		)
-		(pin "23"
-			(uuid "c0bd1efd-41ed-45af-9a5b-eca36f7d38bc")
-		)
-		(pin "5"
-			(uuid "56bb44c9-4949-4fb8-953c-51c62cd30a4f")
-		)
-		(pin "19"
-			(uuid "34657dcd-a597-446b-8356-3c951c6b32fc")
-		)
-		(pin "21"
-			(uuid "350244a2-4c10-484c-847f-7707545b62a9")
-		)
-		(pin "18"
-			(uuid "c7d48637-8882-4a12-9df2-2464ce1cfeb5")
-		)
-		(pin "20"
-			(uuid "15de6966-dfda-4bc4-bd24-9510505785f5")
-		)
-		(pin "25"
-			(uuid "a6a6e212-0478-4ceb-886f-9c6228ead6e4")
-		)
-		(pin "8"
-			(uuid "8cb3f012-4b59-40bc-bafc-22c67afbfa79")
-		)
-		(pin "12"
-			(uuid "8eab342a-10ad-4d99-a022-b0eaf89656f2")
-		)
-		(pin "13"
-			(uuid "e9440c87-3e92-49db-9b9b-c2466d6a2de7")
-		)
-		(pin "14"
-			(uuid "e85af1e1-10b3-447d-b78d-44bb3413e52f")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14"
-					(reference "U6")
 					(unit 1)
 				)
 			)

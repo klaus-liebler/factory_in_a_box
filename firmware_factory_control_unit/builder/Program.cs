@@ -38,11 +38,11 @@ namespace Builder
 
 		[BuildStep]
 		public static void GenerateCertificatesLazy(IBuildContextStm32 ctx) =>
-			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: false);
+			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: false, httpsEcLeaf: true);
 
 		[BuildStep]
 		public static void GenerateCertificatesForced(IBuildContextStm32 ctx) =>
-			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: true);
+			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: true, httpsEcLeaf: true);
 
 		[BuildStep]
 		public static void GenerateDeviceArtifacts(IBuildContextStm32 ctx) =>
@@ -92,7 +92,8 @@ namespace Builder
 				assetsDir: Stm32BuildContext.AssetsDir,
 				coreFiles: [],
 				webFiles: [],
-				assetFiles: ["device_certificate.der", "device_key.der", "root_ca.der"]);
+				assetFiles: ["device_certificate.der", "device_key.der", "root_ca.der",
+					"device_https_certificate.der", "device_https_key.der"]);
 
 		[BuildStep]
 		public static void BuildWebApp(IBuildContextStm32 ctx) => WebAppBuildService.Run(

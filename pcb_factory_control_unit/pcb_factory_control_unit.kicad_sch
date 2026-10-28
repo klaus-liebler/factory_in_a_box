@@ -6158,12 +6158,6 @@
 		(uuid "34154c48-7af0-4589-8389-a6e75e07f9c5")
 	)
 	(junction
-		(at 46.99 62.23)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "3ab22085-69fd-4991-9bce-8220ab4eba9d")
-	)
-	(junction
 		(at 87.63 149.86)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -6300,12 +6294,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "b8eb4daa-f835-4240-ab09-ac02bca30d36")
-	)
-	(junction
-		(at 46.99 69.85)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "d46afd64-b923-4a2e-8eb1-8fd0b4a4b022")
 	)
 	(junction
 		(at 21.59 62.23)
@@ -6673,17 +6661,7 @@
 	)
 	(wire
 		(pts
-			(xy 46.99 62.23) (xy 52.07 62.23)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6de848ea-09da-47ae-aae0-72ee94082800")
-	)
-	(wire
-		(pts
-			(xy 41.91 69.85) (xy 46.99 69.85)
+			(xy 41.91 69.85) (xy 52.07 69.85)
 		)
 		(stroke
 			(width 0)
@@ -7023,16 +7001,6 @@
 	)
 	(wire
 		(pts
-			(xy 46.99 69.85) (xy 52.07 69.85)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "c363d217-8610-4ca8-9e0a-aa68eb41e7d4")
-	)
-	(wire
-		(pts
 			(xy 113.03 30.48) (xy 115.57 30.48)
 		)
 		(stroke
@@ -7063,7 +7031,7 @@
 	)
 	(wire
 		(pts
-			(xy 41.91 62.23) (xy 46.99 62.23)
+			(xy 41.91 62.23) (xy 52.07 62.23)
 		)
 		(stroke
 			(width 0)
@@ -15498,87 +15466,6 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5"
 					(reference "#PWR021")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 46.99 66.04 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "e3abcb3a-7b1c-4e18-86d3-e5c6624ec611")
-		(property "Reference" "C10"
-			(at 46.99 63.5 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "u1"
-			(at 46.99 68.58 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 47.9552 69.85 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 46.99 66.04 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Unpolarized capacitor"
-			(at 46.99 66.04 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "89fd7dfe-48b8-4968-ab10-b0eef9a70450")
-		)
-		(pin "2"
-			(uuid "ac832c84-48f2-4e2d-925d-89a4daeb883f")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5"
-					(reference "C10")
 					(unit 1)
 				)
 			)

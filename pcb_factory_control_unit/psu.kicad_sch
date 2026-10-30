@@ -7641,6 +7641,16 @@
 		)
 		(uuid "a2ecaaac-2923-42f2-aa53-c1ccf51ad38a")
 	)
+	(label "STEPUP_SW"
+		(at 204.47 120.65 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "b18cd97d-8a10-42fe-a3dd-df53511a91b3")
+	)
 	(label "FB"
 		(at 53.34 99.06 0)
 		(effects

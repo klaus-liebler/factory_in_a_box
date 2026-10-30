@@ -4583,6 +4583,16 @@
 		)
 		(uuid "11f968d2-720c-4f47-b3af-ea238c0dc16b")
 	)
+	(label "CLK_GND"
+		(at 72.39 124.46 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "13e71d23-146e-4d1c-bda2-9b0a0e34f552")
+	)
 	(label "ETH_VA"
 		(at 144.78 36.83 0)
 		(effects

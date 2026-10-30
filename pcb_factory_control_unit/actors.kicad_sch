@@ -1947,7 +1947,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Transistor_FET:IRLML0030"
+		(symbol "Transistor_FET:CSD18543Q3A"
 			(pin_names
 				(offset 0)
 				(hide yes)
@@ -1968,7 +1968,7 @@
 					(justify left)
 				)
 			)
-			(property "Value" "IRLML0030"
+			(property "Value" "CSD18543Q3A"
 				(at 5.08 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -1979,7 +1979,7 @@
 					(justify left)
 				)
 			)
-			(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(property "Footprint" "Package_SON:VSON-8_3.3x3.3mm_P0.65mm_NexFET"
 				(at 5.08 -1.905 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -1992,7 +1992,7 @@
 					(justify left)
 				)
 			)
-			(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
+			(property "Datasheet" "https://www.ti.com/lit/ds/symlink/csd18543q3a.pdf"
 				(at 5.08 -3.81 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2004,7 +2004,7 @@
 					(justify left)
 				)
 			)
-			(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
+			(property "Description" "35A Id, 60V Vds, NexFET N-Channel Power MOSFET, 8.1mOhm Ron, Qg Typ 11.1nC, VSON-8 3.3x3.3mm"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2015,7 +2015,7 @@
 					)
 				)
 			)
-			(property "ki_keywords" "N-Channel HEXFET MOSFET Logic-Level"
+			(property "ki_keywords" "NexFET Power MOSFET N-MOS"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2026,7 +2026,7 @@
 					)
 				)
 			)
-			(property "ki_fp_filters" "SOT?23*"
+			(property "ki_fp_filters" "VSON*3.3x3.3mm*P0.65mm*NexFET*"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2037,7 +2037,7 @@
 					)
 				)
 			)
-			(symbol "IRLML0030_0_1"
+			(symbol "CSD18543Q3A_0_1"
 				(polyline
 					(pts
 						(xy 0.254 1.905) (xy 0.254 -1.905)
@@ -2181,7 +2181,7 @@
 				)
 				(polyline
 					(pts
-						(xy 2.921 0.381) (xy 3.683 0.381)
+						(xy 2.794 0.508) (xy 2.921 0.381) (xy 3.683 0.381) (xy 3.81 0.254)
 					)
 					(stroke
 						(width 0)
@@ -2204,11 +2204,11 @@
 					)
 				)
 			)
-			(symbol "IRLML0030_1_1"
-				(pin input line
-					(at -5.08 0 0)
+			(symbol "CSD18543Q3A_1_1"
+				(pin passive line
+					(at 2.54 -5.08 90)
 					(length 2.54)
-					(name "G"
+					(name "S"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -2226,6 +2226,7 @@
 				(pin passive line
 					(at 2.54 -5.08 90)
 					(length 2.54)
+					(hide yes)
 					(name "S"
 						(effects
 							(font
@@ -2234,6 +2235,43 @@
 						)
 					)
 					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 2.54 -5.08 90)
+					(length 2.54)
+					(hide yes)
+					(name "S"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -5.08 0 0)
+					(length 5.08)
+					(name "G"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -2251,7 +2289,7 @@
 							)
 						)
 					)
-					(number "3"
+					(number "5"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -4088,12 +4126,6 @@
 		(uuid "e750ea55-eedb-4c34-aee1-8cb9ab93447d")
 	)
 	(junction
-		(at 255.27 58.42)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "030134f3-85b6-476f-a946-0b461efbca5a")
-	)
-	(junction
 		(at 262.89 66.04)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4104,12 +4136,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "0a22d651-eea2-4b55-8d5f-499185a21712")
-	)
-	(junction
-		(at 209.55 118.11)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "0e432eaf-889a-4f06-953f-a81f58f6716d")
 	)
 	(junction
 		(at 201.93 130.81)
@@ -4160,16 +4186,10 @@
 		(uuid "2923e8c3-547c-4c3c-a1bc-b481226a43b7")
 	)
 	(junction
-		(at 255.27 30.48)
+		(at 201.93 123.19)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "31d7ef53-7147-4902-87b3-a03d960b5b19")
-	)
-	(junction
-		(at 267.97 114.3)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "3a426b43-d2f0-453a-a59a-d6a7429cc6b3")
+		(uuid "39f0eb5f-4192-4ef2-8854-ecfdbeaa68b3")
 	)
 	(junction
 		(at 262.89 17.78)
@@ -4190,16 +4210,16 @@
 		(uuid "4d0a773d-6127-4919-becf-53ff4679db81")
 	)
 	(junction
-		(at 267.97 124.46)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "528e392e-b87f-4956-8f94-d77aa2cf6255")
-	)
-	(junction
 		(at 255.27 66.04)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "5b033f48-121b-43a7-89fa-399c4bc5d1f7")
+	)
+	(junction
+		(at 267.97 124.46)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "5ddc37e1-9a39-47b0-afc0-e413b9377b4e")
 	)
 	(junction
 		(at 199.39 99.06)
@@ -4208,16 +4228,28 @@
 		(uuid "6cde2791-e1b5-40b9-a021-934d6350055c")
 	)
 	(junction
+		(at 262.89 53.34)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "6da27a95-8943-4c24-947d-987647206718")
+	)
+	(junction
 		(at 81.28 31.75)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "6f7b0761-fc34-44ca-9937-05a19202b198")
 	)
 	(junction
-		(at 201.93 123.19)
+		(at 207.01 96.52)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "7b227393-61fc-4943-ba87-6ddada7416e6")
+		(uuid "7b1f7936-1c81-4bd2-ab82-0ca0e160bf84")
+	)
+	(junction
+		(at 262.89 25.4)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "7d480808-6c73-48c7-9373-64b99e2ad198")
 	)
 	(junction
 		(at 71.12 114.3)
@@ -4232,6 +4264,12 @@
 		(uuid "7ffcc2f3-b241-4d43-bdc1-eff606c07e75")
 	)
 	(junction
+		(at 260.35 119.38)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "8c908b05-fa62-4cf7-8db7-ce20ba60a125")
+	)
+	(junction
 		(at 262.89 95.25)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4244,22 +4282,16 @@
 		(uuid "95c29fe9-1c8f-4435-a136-bb7297441d33")
 	)
 	(junction
-		(at 260.35 119.38)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "9829cc8c-59c6-4a5d-998b-9b6d98f03c1e")
-	)
-	(junction
-		(at 207.01 86.36)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "9dafd3a7-650b-4296-95f4-9b98e46fd128")
-	)
-	(junction
 		(at 54.61 24.13)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "a2ff5523-5ec0-4764-bd61-49f0d2f418ab")
+	)
+	(junction
+		(at 255.27 58.42)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "a43b96e7-a0ac-411b-bdb6-ceefe80e95e3")
 	)
 	(junction
 		(at 267.97 106.68)
@@ -4274,12 +4306,6 @@
 		(uuid "a76820db-1d65-401a-acb9-38d3784bedf8")
 	)
 	(junction
-		(at 199.39 91.44)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "ab091f48-2b07-4bdb-9c60-403f4de24dce")
-	)
-	(junction
 		(at 71.12 24.13)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4292,10 +4318,34 @@
 		(uuid "ad5ba5ca-f07e-4b56-b3f8-d42ff0f0c234")
 	)
 	(junction
-		(at 255.27 87.63)
+		(at 262.89 82.55)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "bfd25632-29db-4b6e-a4d9-b225daf6c279")
+		(uuid "b01d7cee-2a71-49cf-b181-aff37d676d18")
+	)
+	(junction
+		(at 209.55 128.27)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "b683602e-4598-4f9b-b5e3-dc6be4133c0e")
+	)
+	(junction
+		(at 207.01 86.36)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "b9f28be6-a96b-4d18-b1a9-799997a3fc25")
+	)
+	(junction
+		(at 199.39 91.44)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "bbf4784e-eb4a-479b-aa3b-02658ff86d5d")
+	)
+	(junction
+		(at 262.89 35.56)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "c27e65f1-8d16-4b71-8a42-64317ca51dd5")
 	)
 	(junction
 		(at 255.27 95.25)
@@ -4304,16 +4354,16 @@
 		(uuid "c4e33d6a-1102-44c3-bc9c-be6acbfd8f3b")
 	)
 	(junction
-		(at 262.89 82.55)
+		(at 255.27 87.63)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "c8fd5611-5460-4ee1-b77f-cb5abdb26a7f")
+		(uuid "c9795975-8126-4c18-bc8b-c2acb468a0c9")
 	)
 	(junction
-		(at 262.89 25.4)
+		(at 209.55 118.11)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "cf885e91-799b-409b-9676-a19158cf69b9")
+		(uuid "cf484d97-3656-4db1-815e-1f717ed04eac")
 	)
 	(junction
 		(at 143.51 173.99)
@@ -4334,18 +4384,6 @@
 		(uuid "d25d6fc8-607c-4f01-a9af-b72c3e64ca12")
 	)
 	(junction
-		(at 262.89 35.56)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "d26a67a5-8ec3-4ce5-a55b-d8cbc336c950")
-	)
-	(junction
-		(at 209.55 128.27)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "d4832608-72c6-4921-a811-ff4a4d37007a")
-	)
-	(junction
 		(at 71.12 31.75)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -4358,16 +4396,16 @@
 		(uuid "d8c54fe7-6234-45eb-bb50-bbcba9f09448")
 	)
 	(junction
-		(at 262.89 53.34)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "d909c993-8edb-4979-b3f9-b1659d667426")
-	)
-	(junction
 		(at 255.27 38.1)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "e05271c4-972f-4068-a0f7-9c9576fcac01")
+	)
+	(junction
+		(at 255.27 30.48)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "e22ff9d1-5d96-4ce8-a61f-8ee0b49698f9")
 	)
 	(junction
 		(at 63.5 106.68)
@@ -4400,10 +4438,10 @@
 		(uuid "f0c08089-1b9d-4bde-968a-9be02497489a")
 	)
 	(junction
-		(at 207.01 96.52)
+		(at 267.97 114.3)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "f3cab933-4158-4a55-a49b-afea5561a7c6")
+		(uuid "f1055679-d926-46fc-af1e-45453b7f8fe4")
 	)
 	(no_connect
 		(at 35.56 128.27)
@@ -4733,6 +4771,16 @@
 	)
 	(wire
 		(pts
+			(xy 267.97 77.47) (xy 267.97 82.55)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5632aa72-d42b-4a7d-b39b-aab4cf16170c")
+	)
+	(wire
+		(pts
 			(xy 257.81 38.1) (xy 255.27 38.1)
 		)
 		(stroke
@@ -4923,6 +4971,16 @@
 	)
 	(wire
 		(pts
+			(xy 267.97 48.26) (xy 267.97 53.34)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7c7262b9-60ac-4ed8-85c5-b36dc249d80b")
+	)
+	(wire
+		(pts
 			(xy 66.04 135.89) (xy 67.31 135.89)
 		)
 		(stroke
@@ -4950,6 +5008,16 @@
 			(type default)
 		)
 		(uuid "818d2a5a-95d4-4b71-bd06-24884b2758ac")
+	)
+	(wire
+		(pts
+			(xy 273.05 109.22) (xy 273.05 114.3)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "822bdd1e-2b6b-498d-bbc5-7e28d5d5a653")
 	)
 	(wire
 		(pts
@@ -5123,16 +5191,6 @@
 	)
 	(wire
 		(pts
-			(xy 267.97 48.26) (xy 267.97 53.34)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "aa6fa04b-f836-4523-93b7-20f424464427")
-	)
-	(wire
-		(pts
 			(xy 132.08 148.59) (xy 132.08 157.48)
 		)
 		(stroke
@@ -5140,16 +5198,6 @@
 			(type default)
 		)
 		(uuid "acd1bda2-e529-4ce6-ad4e-843eb57af46b")
-	)
-	(wire
-		(pts
-			(xy 267.97 77.47) (xy 267.97 82.55)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b1df2c49-7671-46fb-8c02-f35bf08ca719")
 	)
 	(wire
 		(pts
@@ -5240,16 +5288,6 @@
 			(type default)
 		)
 		(uuid "cbf3db0c-0904-435a-a9b9-526c5f3d3cc1")
-	)
-	(wire
-		(pts
-			(xy 273.05 109.22) (xy 273.05 114.3)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "cc7693bd-6d7e-4fa2-b2d4-4074378be894")
 	)
 	(wire
 		(pts
@@ -7152,7 +7190,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "Bus-Servo"
+		(property "Value" "RoArm"
 			(at 185.42 31.7499 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8921,6 +8959,130 @@
 		)
 	)
 	(symbol
+		(lib_id "Transistor_FET:CSD18543Q3A")
+		(at 260.35 30.48 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "39338164-81ee-4807-97d2-c9130fa782fb")
+		(property "Reference" "Q10"
+			(at 261.62 25.4 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "40N06D"
+			(at 257.81 26.67 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_SON:VSON-8_3.3x3.3mm_P0.65mm_NexFET"
+			(at 265.43 32.385 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/csd18543q3a.pdf"
+			(at 265.43 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Description" "35A Id, 60V Vds, NexFET N-Channel Power MOSFET, 8.1mOhm Ron, Qg Typ 11.1nC, VSON-8 3.3x3.3mm"
+			(at 260.35 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "40N06D"
+			(at 260.35 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "HL"
+			(at 260.35 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7543836"
+			(at 260.35 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "d0f7ce94-7068-4dda-a6e9-4a878a57cd5e")
+		)
+		(pin "4"
+			(uuid "7d17fedf-dfe7-4cd6-99c9-ec48aae471b4")
+		)
+		(pin "2"
+			(uuid "00c4a2e7-1712-4d8f-be62-3ab75d0bc5df")
+		)
+		(pin "3"
+			(uuid "6c990e8d-6e8a-4f36-a929-be4e20aa195e")
+		)
+		(pin "5"
+			(uuid "abc9cfbf-7e81-4ca8-bf17-284300963298")
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
+					(reference "Q10")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 208.28 35.56 270)
 		(unit 1)
@@ -9071,6 +9233,130 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
 					(reference "#PWR0108")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Transistor_FET:CSD18543Q3A")
+		(at 207.01 123.19 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "3ca11e0e-63fc-4622-9681-be28ef4880fd")
+		(property "Reference" "Q5"
+			(at 208.28 118.11 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "40N06D"
+			(at 204.47 119.38 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_SON:VSON-8_3.3x3.3mm_P0.65mm_NexFET"
+			(at 212.09 125.095 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/csd18543q3a.pdf"
+			(at 212.09 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Description" "35A Id, 60V Vds, NexFET N-Channel Power MOSFET, 8.1mOhm Ron, Qg Typ 11.1nC, VSON-8 3.3x3.3mm"
+			(at 207.01 123.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "40N06D"
+			(at 207.01 123.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "HL"
+			(at 207.01 123.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7543836"
+			(at 207.01 123.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "d975d9d3-f7d7-487a-889b-8226fd09e647")
+		)
+		(pin "4"
+			(uuid "da441f92-5f3d-4bc2-9c02-9e5b56561901")
+		)
+		(pin "2"
+			(uuid "ceb7203d-31f8-4a90-844b-c6cf43c41494")
+		)
+		(pin "3"
+			(uuid "41b4494d-f30c-4389-a364-01109089d663")
+		)
+		(pin "5"
+			(uuid "26de5c59-3902-4d36-a606-5ba1ad547213")
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
+					(reference "Q5")
 					(unit 1)
 				)
 			)
@@ -9954,115 +10240,6 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
 					(reference "#PWR0126")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Transistor_FET:IRLML0030")
-		(at 207.01 123.19 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "4d29ab47-01ad-40a5-b7b2-628a44b9baa4")
-		(property "Reference" "Q4"
-			(at 205.74 118.11 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "AO3400"
-			(at 213.36 129.54 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 212.09 125.095 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-					(italic yes)
-				)
-				(justify left)
-			)
-		)
-		(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
-			(at 207.01 123.19 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
-			(at 207.01 123.19 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "AO3400"
-			(at 207.01 123.19 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "GOODWORK"
-			(at 207.01 123.19 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "f71414a5-0581-4d3f-991d-6f477f9948a6")
-		)
-		(pin "2"
-			(uuid "aa8ce275-1105-48d6-bcf5-22ec700befdc")
-		)
-		(pin "3"
-			(uuid "9c3151ca-d5cb-4528-ba64-53cbb5614a20")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
-					(reference "Q4")
 					(unit 1)
 				)
 			)
@@ -11849,7 +12026,8 @@
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x02")
-		(at 217.17 78.74 0)
+		(at 217.17 81.28 0)
+		(mirror x)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -11859,7 +12037,7 @@
 		(dnp no)
 		(uuid "82865383-5d2f-4de1-89d5-7568fae318eb")
 		(property "Reference" "J24"
-			(at 215.9 83.82 0)
+			(at 215.9 76.2 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -11870,7 +12048,7 @@
 			)
 		)
 		(property "Value" "Compressor"
-			(at 215.9 86.36 0)
+			(at 215.9 73.66 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -11881,7 +12059,7 @@
 			)
 		)
 		(property "Footprint" "liebler_CONN:PhoenixContact_MC_1,5_2-G-3.5_1x02_P3.50mm_Horizontal_smallerCourtyard"
-			(at 217.17 78.74 0)
+			(at 217.17 81.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11892,7 +12070,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 217.17 78.74 0)
+			(at 217.17 81.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11903,7 +12081,7 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 217.17 78.74 0)
+			(at 217.17 81.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12080,6 +12258,130 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
 					(reference "#PWR0120")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Transistor_FET:CSD18543Q3A")
+		(at 260.35 87.63 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "8849559b-e413-4b7e-a620-720a15e0744f")
+		(property "Reference" "Q7"
+			(at 261.62 82.55 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "40N06D"
+			(at 257.81 83.82 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_SON:VSON-8_3.3x3.3mm_P0.65mm_NexFET"
+			(at 265.43 89.535 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/csd18543q3a.pdf"
+			(at 265.43 91.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Description" "35A Id, 60V Vds, NexFET N-Channel Power MOSFET, 8.1mOhm Ron, Qg Typ 11.1nC, VSON-8 3.3x3.3mm"
+			(at 260.35 87.63 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "40N06D"
+			(at 260.35 87.63 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "HL"
+			(at 260.35 87.63 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7543836"
+			(at 260.35 87.63 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "2958d518-9774-46d9-819d-ffc854d90c1f")
+		)
+		(pin "4"
+			(uuid "97612b8c-6c17-4bdc-b8e5-fa1ff12ef2c6")
+		)
+		(pin "2"
+			(uuid "e766689c-121a-46e8-b5ea-8601a489feae")
+		)
+		(pin "3"
+			(uuid "a390393d-1396-4d55-98d9-3c588b60458f")
+		)
+		(pin "5"
+			(uuid "e528dea7-7966-45ab-ba1d-c5eba4db79d9")
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
+					(reference "Q7")
 					(unit 1)
 				)
 			)
@@ -13216,224 +13518,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Transistor_FET:IRLML0030")
-		(at 260.35 58.42 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "a13a4f37-5568-44a4-8f05-76581b52b137")
-		(property "Reference" "Q7"
-			(at 265.43 58.42 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "AO3400"
-			(at 265.43 60.96 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 265.43 60.325 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-					(italic yes)
-				)
-				(justify left)
-			)
-		)
-		(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
-			(at 260.35 58.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
-			(at 260.35 58.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "AO3400"
-			(at 260.35 58.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "GOODWORK"
-			(at 260.35 58.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "57acbe75-55a9-41ab-bab6-0a8c7d4cb825")
-		)
-		(pin "2"
-			(uuid "21b834d0-4b70-4fc9-b0f6-e2f95e0ebd62")
-		)
-		(pin "3"
-			(uuid "5bc3e1c7-a5f9-4532-a481-e9760dd91bc3")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
-					(reference "Q7")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Transistor_FET:IRLML0030")
-		(at 265.43 119.38 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "a25df609-8e3e-49a7-b561-aa11dc722bdf")
-		(property "Reference" "Q6"
-			(at 264.16 114.3 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "AO3400"
-			(at 271.78 125.73 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 270.51 121.285 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-					(italic yes)
-				)
-				(justify left)
-			)
-		)
-		(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
-			(at 265.43 119.38 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
-			(at 265.43 119.38 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "AO3400"
-			(at 265.43 119.38 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "GOODWORK"
-			(at 265.43 119.38 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "d4261be2-880a-4830-9e37-984afd435e56")
-		)
-		(pin "2"
-			(uuid "fbe61805-dd86-49a4-85c5-5c85a791632e")
-		)
-		(pin "3"
-			(uuid "2b5089c9-54f0-4cce-b650-afb1a8cbaeb9")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
-					(reference "Q6")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:GND")
 		(at 50.8 168.91 0)
 		(unit 1)
@@ -13858,7 +13942,8 @@
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x02")
-		(at 219.71 110.49 0)
+		(at 219.71 113.03 0)
+		(mirror x)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -13868,7 +13953,7 @@
 		(dnp no)
 		(uuid "a62d023f-a40d-4a18-9073-3eb8cc8c2b47")
 		(property "Reference" "J23"
-			(at 217.17 115.57 0)
+			(at 217.17 107.95 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -13879,7 +13964,7 @@
 			)
 		)
 		(property "Value" "Conveyor"
-			(at 217.17 118.11 0)
+			(at 217.17 105.41 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -13890,7 +13975,7 @@
 			)
 		)
 		(property "Footprint" "liebler_CONN:PhoenixContact_MC_1,5_2-G-3.5_1x02_P3.50mm_Horizontal_smallerCourtyard"
-			(at 219.71 110.49 0)
+			(at 219.71 113.03 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13901,7 +13986,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 219.71 110.49 0)
+			(at 219.71 113.03 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13912,7 +13997,7 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 219.71 110.49 0)
+			(at 219.71 113.03 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15365,115 +15450,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Transistor_FET:IRLML0030")
-		(at 260.35 30.48 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "bb0f1876-38a9-42ec-9d5b-36650b9ddeb3")
-		(property "Reference" "Q3"
-			(at 259.08 25.4 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "AO3400"
-			(at 266.7 36.83 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 265.43 32.385 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-					(italic yes)
-				)
-				(justify left)
-			)
-		)
-		(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
-			(at 260.35 30.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
-			(at 260.35 30.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "AO3400"
-			(at 260.35 30.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "GOODWORK"
-			(at 260.35 30.48 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "f63a19ae-683a-4a1a-9668-eb296567fba4")
-		)
-		(pin "2"
-			(uuid "b009a05f-aec8-4911-921f-9efb3dffb7b7")
-		)
-		(pin "3"
-			(uuid "5aca29f8-124e-4263-8e15-2b981df5f386")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
-					(reference "Q3")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Device:C")
 		(at 63.5 27.94 0)
 		(unit 1)
@@ -15571,115 +15547,6 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
 					(reference "C53")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Transistor_FET:IRLML0030")
-		(at 260.35 87.63 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "be230fbe-4606-4750-8b89-d35c32b9f0f2")
-		(property "Reference" "Q8"
-			(at 265.43 87.63 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "AO3400"
-			(at 265.43 90.17 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 265.43 89.535 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-					(italic yes)
-				)
-				(justify left)
-			)
-		)
-		(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
-			(at 260.35 87.63 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
-			(at 260.35 87.63 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "AO3400"
-			(at 260.35 87.63 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "GOODWORK"
-			(at 260.35 87.63 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "26c635b8-61c4-460e-96bb-a6b5cd7be9a4")
-		)
-		(pin "2"
-			(uuid "b94c4891-e956-408a-a161-2918fd931b66")
-		)
-		(pin "3"
-			(uuid "583e4388-adde-4b47-93ee-b997b88951dd")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
-					(reference "Q8")
 					(unit 1)
 				)
 			)
@@ -16141,6 +16008,130 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
 					(reference "#PWR0142")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Transistor_FET:CSD18543Q3A")
+		(at 204.47 91.44 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "c658c1cb-2d67-48b9-83b6-cc46f0b53fcc")
+		(property "Reference" "Q4"
+			(at 205.74 86.36 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "40N06D"
+			(at 201.93 87.63 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_SON:VSON-8_3.3x3.3mm_P0.65mm_NexFET"
+			(at 209.55 93.345 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/csd18543q3a.pdf"
+			(at 209.55 95.25 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Description" "35A Id, 60V Vds, NexFET N-Channel Power MOSFET, 8.1mOhm Ron, Qg Typ 11.1nC, VSON-8 3.3x3.3mm"
+			(at 204.47 91.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "40N06D"
+			(at 204.47 91.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "HL"
+			(at 204.47 91.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7543836"
+			(at 204.47 91.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "99b91c95-aa0b-43e8-baff-b54ee7768953")
+		)
+		(pin "4"
+			(uuid "080e6574-fd35-453f-981d-3a54cd62524e")
+		)
+		(pin "2"
+			(uuid "ac41914f-e1d7-4cde-8a0e-34e188fde6f4")
+		)
+		(pin "3"
+			(uuid "c945bb94-1e8c-44dd-a3a2-3565ef0be2ae")
+		)
+		(pin "5"
+			(uuid "2f2f045e-db56-4ff1-ab8e-f6bd5d1d520f")
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
+					(reference "Q4")
 					(unit 1)
 				)
 			)
@@ -17030,115 +17021,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Transistor_FET:IRLML0030")
-		(at 204.47 91.44 0)
-		(unit 1)
-		(body_style 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(dnp no)
-		(uuid "e4e38bca-3051-4b9e-a8d0-00feefe074d6")
-		(property "Reference" "Q5"
-			(at 203.2 86.36 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "AO3400"
-			(at 210.82 95.25 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 209.55 93.345 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-					(italic yes)
-				)
-				(justify left)
-			)
-		)
-		(property "Datasheet" "https://www.infineon.com/dgdl/irlml0030pbf.pdf?fileId=5546d462533600a401535664773825df"
-			(at 204.47 91.44 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Description" "5.3A Id, 30V Vds, 27mOhm Rds, N-Channel HEXFET Power MOSFET, SOT-23"
-			(at 204.47 91.44 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "MPN" "AO3400"
-			(at 204.47 91.44 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Manufacturer" "GOODWORK"
-			(at 204.47 91.44 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "16b96adf-729b-466f-8c7a-51679cdbfa39")
-		)
-		(pin "2"
-			(uuid "2db3f879-3aaf-4819-985e-8d013baf87f0")
-		)
-		(pin "3"
-			(uuid "99a65587-610b-40ff-94c1-9922c05c1027")
-		)
-		(instances
-			(project "pcb_factory_control_unit"
-				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
-					(reference "Q5")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Device:C")
 		(at 132.08 161.29 0)
 		(unit 1)
@@ -17860,6 +17742,130 @@
 		)
 	)
 	(symbol
+		(lib_id "Transistor_FET:CSD18543Q3A")
+		(at 260.35 58.42 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "ed6a67ec-4971-4bdb-8b25-35a22a91b4d9")
+		(property "Reference" "Q8"
+			(at 261.62 53.34 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "40N06D"
+			(at 257.81 54.61 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_SON:VSON-8_3.3x3.3mm_P0.65mm_NexFET"
+			(at 265.43 60.325 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/csd18543q3a.pdf"
+			(at 265.43 62.23 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Description" "35A Id, 60V Vds, NexFET N-Channel Power MOSFET, 8.1mOhm Ron, Qg Typ 11.1nC, VSON-8 3.3x3.3mm"
+			(at 260.35 58.42 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "40N06D"
+			(at 260.35 58.42 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "HL"
+			(at 260.35 58.42 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7543836"
+			(at 260.35 58.42 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "13c4beaf-4394-4c32-9b95-aa4150fc1816")
+		)
+		(pin "4"
+			(uuid "b7d0682e-1887-4f5d-adbe-ed29b4d5b464")
+		)
+		(pin "2"
+			(uuid "ba494d95-ae89-4b09-b82e-80554468cbba")
+		)
+		(pin "3"
+			(uuid "a37db5bc-959a-4488-b4c8-288ccbbe8a14")
+		)
+		(pin "5"
+			(uuid "b86b6707-7492-486b-8397-53d6d910742f")
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
+					(reference "Q8")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 35.56 38.1 270)
 		(unit 1)
@@ -18171,6 +18177,130 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
 					(reference "#PWR0146")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Transistor_FET:CSD18543Q3A")
+		(at 265.43 119.38 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "f3b841c3-4607-4e83-84d8-467de3ad6b65")
+		(property "Reference" "Q6"
+			(at 266.7 114.3 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "40N06D"
+			(at 262.89 115.57 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_SON:VSON-8_3.3x3.3mm_P0.65mm_NexFET"
+			(at 270.51 121.285 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+					(italic yes)
+				)
+				(justify left)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/csd18543q3a.pdf"
+			(at 270.51 123.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Description" "35A Id, 60V Vds, NexFET N-Channel Power MOSFET, 8.1mOhm Ron, Qg Typ 11.1nC, VSON-8 3.3x3.3mm"
+			(at 265.43 119.38 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "40N06D"
+			(at 265.43 119.38 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "HL"
+			(at 265.43 119.38 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7543836"
+			(at 265.43 119.38 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "3ea9a88f-5447-42eb-91d4-9e40c713636f")
+		)
+		(pin "4"
+			(uuid "b368fee2-41e2-4c34-9f5e-400193f79c02")
+		)
+		(pin "2"
+			(uuid "7fa07d8c-f272-40e9-b21b-8c06fc813aed")
+		)
+		(pin "3"
+			(uuid "7c5078ce-2f87-4ef4-a237-c4605f6eba03")
+		)
+		(pin "5"
+			(uuid "4c374aeb-608d-466f-8696-9bc99e4b078b")
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
+					(reference "Q6")
 					(unit 1)
 				)
 			)

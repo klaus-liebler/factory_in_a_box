@@ -1,6 +1,6 @@
 {
   "board": {
-    "active_layer": 6,
+    "active_layer": 5,
     "active_layer_preset": "",
     "auto_track_width": false,
     "hidden_netclasses": [],
@@ -34,6 +34,7 @@
       "footprint_text",
       "footprint_anchors",
       "ratsnest",
+      "grid",
       "footprints_front",
       "footprints_back",
       "footprint_values",
@@ -50,7 +51,7 @@
       "conflict_shadows",
       "shapes"
     ],
-    "visible_layers": "ffffffff_ffffffff_ffffd575_f7555545",
+    "visible_layers": "ffffffff_ffffffff_ffffd575_d5555565",
     "zone_display_mode": 0
   },
   "git": {
@@ -95,12 +96,12 @@
     "col_widths": [
       221,
       209,
+      154,
       130,
-      99,
       130,
-      140,
+      187,
       130,
-      105,
+      136,
       130,
       130,
       130,

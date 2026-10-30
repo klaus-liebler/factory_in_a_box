@@ -2767,7 +2767,7 @@
 		)
 		(uuid "c40acaef-f2aa-4019-aceb-d6e10f1fbecf")
 	)
-	(text "RGB-LEDs"
+	(text "Pressure"
 		(exclude_from_sim no)
 		(at 58.42 123.19 0)
 		(effects
@@ -6686,7 +6686,7 @@
 				(justify right)
 			)
 		)
-		(property "Value" "PressureTransducer"
+		(property "Value" "PressureSns"
 			(at 90.17 124.46 90)
 			(show_name no)
 			(do_not_autoplace no)

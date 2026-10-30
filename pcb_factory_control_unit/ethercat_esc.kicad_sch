@@ -7449,6 +7449,16 @@
 		)
 		(uuid "faee1743-f22a-4f45-8bb8-50bc60bfefc1")
 	)
+	(label "CLK_GND"
+		(at 45.72 50.8 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "fb3b642f-06a4-4040-8a91-650da6b5edea")
+	)
 	(global_label "ERRLED"
 		(shape output)
 		(at 142.24 149.86 0)
@@ -8943,6 +8953,82 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
 					(reference "#PWR0172")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Mechanical:MountingHole")
+		(at 153.67 83.82 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "1a292224-3592-404b-80ba-42bed50a1a5a")
+		(property "Reference" "H5"
+			(at 156.21 82.5499 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "MountingHole"
+			(at 156.21 85.0899 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "liebler_DRAWINGS:barrel_jack_positive_polarity"
+			(at 153.67 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 153.67 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Mounting Hole without connection"
+			(at 153.67 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2"
+					(reference "H5")
 					(unit 1)
 				)
 			)
@@ -10680,7 +10766,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0"
+		(property "Value" "GND_ETH"
 			(at 274.32 64.7699 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11000,7 +11086,7 @@
 				)
 			)
 		)
-		(property "Value" "RED"
+		(property "Value" "EtherCAT ERR"
 			(at 209.042 146.304 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14759,7 +14845,7 @@
 				)
 			)
 		)
-		(property "Value" "GREEN"
+		(property "Value" "EtherCat RUN"
 			(at 209.042 131.064 0)
 			(show_name no)
 			(do_not_autoplace no)

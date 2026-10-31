@@ -22,7 +22,7 @@ betroffene Phase mit einer Fehlermeldung ab (`cmake`/`ninja`/`arm-none-eabi-gcc`
 | Node.js (inkl. npm) | `BuildWebApp` (vite) | `winget install OpenJS.NodeJS` |
 | CMake | `BuildFirmware` (Configure) | `winget install Kitware.CMake` |
 | Ninja | `BuildFirmware` (Generator, s. `CMakePresets.json`) | `winget install Ninja-build.Ninja` |
-| GNU Arm Embedded Toolchain (`arm-none-eabi-gcc`/`g++`) | `BuildFirmware` (Cross-Compiler, s. `cmake/gcc-arm-none-eabi.cmake`) | `winget install Arm.GnuArmEmbeddedToolchain` |
+| GCC 16 fuer arm-none-eabi (MSYS2 UCRT64, `C:/opt/msys64/ucrt64`) | `BuildFirmware` (Cross-Compiler, s. `rtoos/cmake/arm-none-eabi.cmake`; `CMakePresets.json` setzt `RTOS_GCC_ROOT` und den PATH) | MSYS2: `pacman -S mingw-w64-ucrt-x86_64-arm-none-eabi-gcc` (GCC >= 16; rtoos bricht mit jedem anderen Compiler ab) |
 | STM32CubeProgrammer | `FlashFirmware`/`PipelineFlash` (nicht fuer reine Board-Builds noetig) | Kein Winget-Paket -- Installer von [st.com/stm32cubeprog](https://www.st.com/en/development-tools/stm32cubeprog.html) (ST-Account noetig); Standardpfad passt zu `appsettings.json.template`, s. Abschnitt 8 |
 
 `arm-none-eabi-gcc`/`STM32_Programmer_CLI.exe` haben keinen projektinternen Pfad-Override
@@ -47,22 +47,21 @@ nach `web/node_modules/`, wo `WebAppBuildService` sowie
 ### Gesamt-Pipelines
 
 ```
-dotnet run --project builder -- PipelineLazy   -- --preset <Debug|Release|Debug-Nucleo>   # Board-Board, kein Flash
-dotnet run --project builder -- PipelineForced -- --preset <Debug|Release|Debug-Nucleo>   # wie lazy, Zertifikat erzwungen
-dotnet run --project builder -- PipelineFlash  -- --preset <Debug|Release|Debug-Nucleo>   # wie lazy, danach flashen
+dotnet run --project builder -- PipelineLazy   -- --preset <Release|Debug|Release-Rev1|Debug-Rev1>   # kein Flash
+dotnet run --project builder -- PipelineForced -- --preset <Release|Debug|Release-Rev1|Debug-Rev1>   # wie lazy, Zertifikat erzwungen
+dotnet run --project builder -- PipelineFlash  -- --preset <Release|Debug|Release-Rev1|Debug-Rev1>   # wie lazy, danach flashen
 ```
 
-`--preset` fehlt -> Default `Release` (s. `Stm32BuildContext.Preset`). `Debug-Nucleo` baut für das
-STM32H563ZI-Nucleo-144-Testboard (`BOARD_NUCLEO_H563ZI`), `Debug`/`Release` für die echte
-Factory-Control-Unit-Platine. Fuer ein bereits provisioniertes Board (`board_info.json` existiert)
-waehlt `CMakeLists.txt` diese Umschaltung inzwischen automatisch (`Core/generated/board_info.json`, s.
-Abschnitt 6) -- `--preset Debug-Nucleo` bleibt als expliziter Override noetig, solange fuer dieses
-Board noch kein `board_info.json` existiert (z. B. brandneue Platine).
+`--preset` fehlt -> Default `Release` (s. `Stm32BuildContext.Preset`). Das Preset waehlt die
+Hardware-Revision der Platine (`RTOS_FCU_REVISION`, Pin-Belegung in `src/pins.hpp`):
+`Release`/`Debug` = Revision 2 (aktuelle Platine, `pcb_factory_control_unit`), `Release-Rev1`/
+`Debug-Rev1` = Revision 1 (erste Platinen, Pin-Belegung des frueheren CubeMX-Projekts). Das
+Nucleo-Testboard wird nicht mehr unterstuetzt.
 
-Beispiel für den alltäglichen Testrig-Zyklus (Board an ST-Link, provisionieren + bauen + flashen):
+Beispiel fuer den alltaeglichen Zyklus (Board an ST-Link, provisionieren + bauen + flashen):
 
 ```
-dotnet run --project builder -- PipelineFlash -- --preset Debug-Nucleo
+dotnet run --project builder -- PipelineFlash -- --preset Release
 ```
 
 ### Einzelne Schritte
@@ -237,7 +236,7 @@ firmware_factory_control_unit/
 ├── build/                         # komplett gitignored (CMake-Output + generierte Assets)
 │   ├── .last-board-id             # "letztes bekanntes Board"-Cache, s. Abschnitt 2
 │   ├── assets/                    # device_certificate.der, device_key.der, index.html.br
-│   └── Debug/, Release/, Debug-Nucleo/   # je Preset ein eigener CMake-Binärordner
+│   └── Release/, Debug/, Release-Rev1/, Debug-Rev1/   # je Preset ein eigener CMake-Binärordner
 ├── best_binary_buffers_schema/      # C#-Protokollschema (BestBinaryBuffers) + ids.txt
 └── docs/
     ├── build-process.md
@@ -309,7 +308,7 @@ Flash-Vorgang (echtes Append-Only-Log: `File.AppendAllText`, kein Read-Modify-Wr
 Historie bei jedem Flash):
 
 ```jsonl
-{"flashedAtEpoch":1753500000,"cmakePreset":"Debug-Nucleo","gitCommitHash":"a1b2c3d","gitBranch":"master","gitIsDirty":false,"firmwareVersion":"1.2.3"}
+{"flashedAtEpoch":1753500000,"cmakePreset":"Release","gitCommitHash":"a1b2c3d","gitBranch":"master","gitIsDirty":false,"firmwareVersion":"1.2.3"}
 ```
 
 Kein separater Typ-Katalog (die vormaligen `mcu_types`/`board_types`-Tabellen entfallen ersatzlos):
@@ -335,18 +334,8 @@ und wird von dort sowohl für `firmware_constants.hh`s `BOARD_NAME` (Schritt 7,
 `ReadGitStatusAndGenerateFiles`) als auch beim tatsächlichen Flashen (Schritt 11, `FlashFirmware`,
 liest aus dem Board-Archiv) für `boardTypeName` wiederverwendet.
 
-Das CMake-Preset spielt für diese Zuordnung selbst keine Rolle -- `BOARD_NUCLEO_H563ZI` (die
-tatsächliche Pin-Belegung) wird stattdessen automatisch aus `Core/generated/board_info.json`
-vorbelegt (`CMakeLists.txt` liest dessen `boardTypeName`; `NucleoH563ZI` -> Default `ON`, sonst
-`OFF`), sobald dieses Board bereits einmal erfolgreich provisioniert/geflasht wurde -- ein Mensch muss
-dafuer nicht mehr von Hand das passende Preset waehlen. `option()`s Default greift dabei nur beim
-ERSTEN Configure eines `build/<preset>/`-Verzeichnisses; ein expliziter Override
-(`-DBOARD_NUCLEO_H563ZI=ON` bzw. das `Debug-Nucleo`-Preset ueber `cacheVariables`) gewinnt weiterhin
-und ist fuer ein noch nicht provisioniertes Board (kein `board_info.json` im Archiv) weiterhin der
-einzige Weg. Ein einmal erfolgreich geflashtes Board behält
-seinen `boardTypeName` dauerhaft, auch wenn es versehentlich mit einem anderen Preset erneut
-geflasht wird -- eine Fehlklassifizierung lässt sich per direktem Edit von `board_info.json` korrigieren,
-ohne Code anzufassen.
+Die Hardware-Revision kommt ausschliesslich aus dem CMake-Preset (s. Abschnitt 2), nicht aus
+`board_info.json`.
 
 `BOARD_NAME` (der Anzeigename in Firmware-Log/Web-UI, z. B. `"FactoryControlUnit"`) ist damit
 identisch mit `board_info.json`s `boardTypeName`-Wert -- kein separater, ausführlicherer Anzeigestring
@@ -354,7 +343,7 @@ mehr (den gab es früher hartkodiert samt `#ifdef BOARD_NUCLEO_H563ZI`-Umschaltu
 `Core/Inc/constants.hh`). `FW_VERSION_MAJOR/MINOR/PATCH` kommen unabhängig davon aus
 `firmware-version.json` (Repo-Root, von Hand gepflegt bei einem Versions-Bump). Beide zusammen
 generiert `ReadGitStatusAndGenerateFiles` (Phase 7) nach `Core/generated/firmware_constants.hh`
-(von `Core/Inc/constants.hh` per `#include` eingebunden) und in `web/generated/build-info.ts`.
+und in `web/generated/build-info.ts`.
 
 ## 7. Web-Build-Plugin
 
@@ -370,10 +359,13 @@ ohne Nachbearbeitungsschritt.
 
 ## 8. Bekannte Annahmen / Hinweise
 
-- **LAN8742-PHY-Adresse `0`** (`Core/Src/webserver.cpp`, `ETH_PHY_ADDRESS`): Standardadresse für die
-  meisten STM32-Nucleo-144-Boards, nicht per CubeMX generiert. Falls für die reale
-  Factory-Control-Unit-Platine falsch, liefert `HAL_ETH_ReadPHYRegister()` einen Timeout (sichtbar
-  am System-Info-Panel als "PHY nicht erreichbar"), kein Hardware-Risiko.
+- **LAN8742-PHY-Adresse `0`** (rtoos `boards/fcu`, `board::phy_address`; PHYAD0 offen = interner
+  Pull-down). Liest das System-Info-Panel "PHY nicht erreichbar", stimmt die Adresse nicht.
+- **SSH-Log-Terminal**: `GenerateCertificates*` legt pro Board einmalig einen SSH-Host-Key im
+  Board-Archiv an (`ssh_host_key.der`, wird nie erneuert); `CopyGeneratedFilesToBuildDirectory`
+  schreibt die zugelassenen oeffentlichen Schluessel aus `Ssh.AuthorizedKeyFiles` (appsettings,
+  Default `~/.ssh/*.pub`, nur `ssh-ed25519`/`ecdsa-sha2-nistp256`) nach
+  `build/assets/ssh_authorized_keys`. Verbindung: `ssh log@<hostname>.local`.
 - **`builder/appsettings.json`** enthält persönliche Maschinenpfade (STM32CubeProgrammer-Pfad,
   OneDrive-Ordner für Board-Archiv/CA) und den `DefaultBoardTypeName`-Fallback (s. Abschnitt 6) und
   ist gitignored -- getrackt ist nur `appsettings.json.template`; ein MSBuild-Target

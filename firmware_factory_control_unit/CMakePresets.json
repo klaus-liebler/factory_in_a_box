@@ -1,49 +1,49 @@
 {
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "default",
-            "hidden": true,
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build/${presetName}",
-		    "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
-            "cacheVariables": {
-            }
-        },
-        {
-            "name": "Debug",
-            "inherits": "default",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
-        },
-        {
-            "name": "Release",
-            "inherits": "default",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
-        },
-        {
-            "name": "Debug-Nucleo",
-            "inherits": "Debug",
-            "cacheVariables": {
-                "BOARD_NUCLEO_H563ZI_OVERRIDE": "ON"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "Debug",
-            "configurePreset": "Debug"
-        },
-        {
-            "name": "Release",
-            "configurePreset": "Release"
-        },
-        {
-            "name": "Debug-Nucleo",
-            "configurePreset": "Debug-Nucleo"
-        }
-    ]
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "gcc16",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "${sourceDir}/rtoos/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "RTOS_GCC_ROOT": "C:/opt/msys64/ucrt64",
+        "RTOS_CONTRACT_SEMANTIC": "quick_enforce"
+      },
+      "environment": {
+        "PATH": "C:/opt/msys64/ucrt64/bin;$penv{PATH}"
+      }
+    },
+    {
+      "name": "Debug",
+      "displayName": "FCU revision 2 (current PCB), debug",
+      "inherits": "gcc16",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "RTOS_FCU_REVISION": "2" }
+    },
+    {
+      "name": "Release",
+      "displayName": "FCU revision 2 (current PCB), release",
+      "inherits": "gcc16",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "MinSizeRel", "RTOS_FCU_REVISION": "2" }
+    },
+    {
+      "name": "Debug-Rev1",
+      "displayName": "FCU revision 1 (first boards), debug",
+      "inherits": "gcc16",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "RTOS_FCU_REVISION": "1" }
+    },
+    {
+      "name": "Release-Rev1",
+      "displayName": "FCU revision 1 (first boards), release",
+      "inherits": "gcc16",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "MinSizeRel", "RTOS_FCU_REVISION": "1" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "Debug", "configurePreset": "Debug" },
+    { "name": "Release", "configurePreset": "Release" },
+    { "name": "Debug-Rev1", "configurePreset": "Debug-Rev1" },
+    { "name": "Release-Rev1", "configurePreset": "Release-Rev1" }
+  ]
 }

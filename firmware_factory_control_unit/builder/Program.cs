@@ -38,11 +38,11 @@ namespace Builder
 
 		[BuildStep]
 		public static void GenerateCertificatesLazy(IBuildContextStm32 ctx) =>
-			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: false, httpsEcLeaf: true);
+			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: false, httpsEcLeaf: true, sshHostKey: true);
 
 		[BuildStep]
 		public static void GenerateCertificatesForced(IBuildContextStm32 ctx) =>
-			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: true, httpsEcLeaf: true);
+			Stm32BoardProvisioningService.GenerateCertificates(ctx, force: true, httpsEcLeaf: true, sshHostKey: true);
 
 		[BuildStep]
 		public static void GenerateDeviceArtifacts(IBuildContextStm32 ctx) =>
@@ -56,6 +56,7 @@ namespace Builder
 				CoreGeneratedDir: ctx.FirmwareGeneratedDir,
 				WebGeneratedDir: ctx.WebGeneratedDir,
 				Sources: [],
+				OpcUaRootName: "FactoryControlUnit",
 				DocsGeneratedDir: Path.Combine(ctx.RootDir, "docs", "generated")));
 
 		[BuildStep]
@@ -86,14 +87,46 @@ namespace Builder
 		// werden inzwischen direkt ins Projekt generiert (s. Projektgedaechtnis "generierte Dateien
 		// nur im Projekt"), brauchen also keinen Kopierschritt aus dem Board-Archiv mehr.
 		[BuildStep]
-		public static void CopyGeneratedFilesToBuildDirectory(IBuildContextStm32 ctx) =>
+		public static void CopyGeneratedFilesToBuildDirectory(IBuildContextStm32 ctx)
+		{
 			GeneratedArtifactsCopyService.CopyToBuildDirectories(
 				ctx,
 				assetsDir: Stm32BuildContext.AssetsDir,
 				coreFiles: [],
 				webFiles: [],
 				assetFiles: ["device_certificate.der", "device_key.der", "root_ca.der",
-					"device_https_certificate.der", "device_https_key.der"]);
+					"device_https_certificate.der", "device_https_key.der", "ssh_host_key.der"]);
+			WriteSshAuthorizedKeys(Path.Combine(Stm32BuildContext.AssetsDir, "ssh_authorized_keys"));
+		}
+
+		// Log terminal (ssh log@<hostname>.local): the public keys that may log in, one OpenSSH
+		// line each (ssh-ed25519 / ecdsa-sha2-nistp256), from the files in Ssh.AuthorizedKeyFiles
+		// (wildcards in the file name, "~" = the user profile). Not per board: every board of
+		// this builder accepts them. At most 8 keys (rtos::net::SshServerContext).
+		static void WriteSshAuthorizedKeys(string outputPath)
+		{
+			var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+			var lines = new List<string>();
+			foreach (var pattern in BuilderSettings.Current.Ssh.AuthorizedKeyFiles)
+			{
+				var path = pattern.StartsWith('~') ? home + pattern[1..] : pattern;
+				var dir = Path.GetDirectoryName(path)!;
+				if (!Directory.Exists(dir))
+					continue;
+				foreach (var file in Directory.GetFiles(dir, Path.GetFileName(path)).Order())
+				{
+					lines.AddRange(File.ReadAllLines(file).Select(l => l.Trim())
+						.Where(l => l.StartsWith("ssh-ed25519 ") || l.StartsWith("ecdsa-sha2-nistp256 ")));
+				}
+			}
+			if (lines.Count == 0)
+				Console.WriteLine("WARNUNG: keine SSH-Schluessel (Ssh.AuthorizedKeyFiles) -- das Log-Terminal nimmt niemanden an");
+			if (lines.Count > 8)
+				throw new InvalidOperationException($"{lines.Count} SSH-Schluessel, die Firmware nimmt hoechstens 8");
+			Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+			File.WriteAllText(outputPath, string.Join("\n", lines) + "\n");
+			Console.WriteLine($"{lines.Count} SSH-Schluessel -> {outputPath}");
+		}
 
 		[BuildStep]
 		public static void BuildWebApp(IBuildContextStm32 ctx) => WebAppBuildService.Run(

@@ -2,3 +2,6 @@
 	path = stm32_libs
 	url = https://github.com/klaus-liebler/stm32_libs.git
 	branch = master
+[submodule "firmware_factory_control_unit/rtoos"]
+	path = firmware_factory_control_unit/rtoos
+	url = https://github.com/klaus-liebler/rtoos.git

@@ -13,16 +13,18 @@ public enum LogLevel : byte
 	LOG_FATAL = 5,
 }
 
+/// <summary>One log record, sent to every connected browser the moment the firmware writes it
+/// (the firmware keeps only a small buffer, the browser keeps the history: Terminal page).</summary>
 [BinaryMessage(MessageKind.Event)]
 public class LogMessage
 {
 	public LogLevel level;
-	public uint timestampMs;
-	// Matches the stack-local "char buf[256]" in log_write_line() (stm32_libs/common_stm32/log.c)
-	// that log_log() formats the WebSocket-bound (unprefixed) message text into before truncating
-	// -- 255 usable bytes (buf's last slot is reserved for vsnprintf's own NUL), so a longer line
-	// can never actually reach this sink regardless of what the caller's format string produces.
-	[BinaryMaxEncodedByteLength(255)] public string text = "";
+	public uint sequence;    // consecutive; a gap = records lost on the way
+	public uint uptimeMs;    // since boot
+	public ulong unixMs;     // wall clock (SNTP), 0 while not synchronised
+	public ushort lost;      // records the firmware's buffer dropped right before this one
+	[BinaryMaxEncodedByteLength(16)] public string logger = "";  // source module (file name)
+	[BinaryMaxEncodedByteLength(119)] public string text = "";   // the firmware's record holds 119 characters
 }
 
 /// <summary>Raw LAN8742-PHY-Register (BSR/PHYSCSR/MCSR/SECR/SCSIR passiv, TCSR/CLR nach aktiver

@@ -41,3 +41,8 @@ message tasks.PoolListRequest 3
 message tasks.PoolListMessage 4
 message pneumatics.PressureControlFeedback 1
 namespace pneumatics 5
+message terminal.LookupRequest 1
+message terminal.LookupResponse 2
+message terminal.CommandRequest 3
+message terminal.CommandResponse 4
+namespace terminal 6

@@ -6,8 +6,6 @@
 //             USB_VSENSE sees VBUS
 //   HTTPS     https://<hostname>.local/ web app (every path: the single-page app),
 //             wss://<hostname>.local/ws binary protocol (ws_protocol.hh, see web.cpp)
-//   SSH       log terminal, port 22: ssh log@<hostname>.local shows the log journal (boot
-//             log, then live); public keys from the builder (build/assets/ssh_authorized_keys)
 //   Modbus    TCP port 502, RTU over CDC-ACM: the register map (register_map.hpp)
 //   OPC UA    opc.tcp://<hostname>.local:4840, Objects/FactoryControlUnit (register_map_opcua.hpp)
 //
@@ -28,8 +26,8 @@ namespace fcu::net {
 using Pool = rtos::net::PacketPool<36>;  // the 64 KB DMA region also holds USB, UCPD and LED buffers
 struct StackConfig : rtos::net::DefaultStackConfig {
     static constexpr std::size_t udp_sockets = 8;      // DHCP client+server, mDNS, SNTP, DNS, spare
-    static constexpr std::size_t tcp_connections = 14;  // browsers, Modbus TCP, OPC UA, SSH, TIME_WAIT
-    static constexpr std::size_t tcp_listeners = 4;     // HTTPS, Modbus TCP, OPC UA, SSH
+    static constexpr std::size_t tcp_connections = 12;  // browsers, Modbus TCP, OPC UA, TIME_WAIT
+    static constexpr std::size_t tcp_listeners = 3;     // HTTPS, Modbus TCP, OPC UA
     static constexpr std::size_t tcp_bulk_connections = 2;
 };
 using Stack = rtos::net::Stack<Pool, StackConfig>;

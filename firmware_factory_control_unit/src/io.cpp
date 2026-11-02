@@ -12,6 +12,7 @@
 #include "rtos/port/cm33/port.hpp"
 #include "roarm/roarm.hpp"
 #include "system.hpp"
+#include "terminal.hpp"
 #include "web.hpp"
 #include "ws_protocol.hh"
 
@@ -406,6 +407,7 @@ void cycle(std::uint32_t now) noexcept {
     boot::poll_pd_events();
     steppers(now);
     roarm::cycle(now);
+    terminal::cycle();
     leds();
     outputs();
     health(now);

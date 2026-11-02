@@ -77,6 +77,7 @@ dotnet run --project builder -- GenerateCertificatesForced                     #
 dotnet run --project builder -- GenerateDeviceArtifacts                        # device_ids.hh + device-ids.json (Core/generated/) + Kopie von board_info.json aus dem Board-Archiv
 dotnet run --project builder -- GenerateRegisterAccessFiles          # register_map_schema/*.cs -> Code (Modbus + OPC UA + Web)
 dotnet run --project builder -- GenerateBestBinaryBufferFiles                  # best_binary_buffers_schema/*.cs -> Code
+dotnet run --project builder -- GenerateTerminalFiles                          # terminal_schema/commands.json -> Code
 dotnet run --project builder -- ReadGitStatusAndGenerateFiles                  # Git-Stand -> Code
 dotnet run --project builder -- CopyGeneratedFilesToBuildDirectory             # Board-Archiv -> Core/generated, web/generated, build/assets
 dotnet run --project builder -- BuildWebApp                                    # vite build
@@ -115,6 +116,7 @@ Abschnitt 6) -- die bleiben im Board-Archiv bzw. werden von dort unveraendert ge
 | 4 | `GenerateDeviceArtifacts` | nein | `Core/generated/` -- `hardware-identity.json` + `certificate-info.json` (Board-Archiv) -> `device_ids.hh` + `device-ids.json`; kopiert zusaetzlich `board_info.json` (Archiv-Root, Ausnahme) unveraendert dorthin. |
 | 5 | `GenerateRegisterAccessFiles` | nein | `Core/generated/` + `web/generated/` + `docs/generated/` -- `register_map_schema/*.cs` -> `modbus_registers_generated.hh` + `opcua_registers_generated.hh` + `register-map.ts` + `modbus-registers.md` (tabellarische Register-Uebersicht nach Gruppe und nach Adresse) (universal_register_access). |
 | 6 | `GenerateBestBinaryBufferFiles` | nein | `Core/generated/` + `web/generated/` -- `best_binary_buffers_schema/*.cs` (wiederholbares `--best-binary-buffer-schema-path` fuer weitere Quellen) -> `ws_protocol.hh` + `ws-protocol.ts` (ueber das geteilte WsProtocolBuildService, s. Abschnitt 4). |
+| 6' | `GenerateTerminalFiles` | nein | `Core/generated/` + `web/generated/` -- `terminal_schema/commands.json` (Befehle, Parameter, Werte/Lookups der Terminal-Seite) -> `terminal_commands.hh` (Firmware: Handler je Befehl, Antwort je Lookup, zur Compilezeit geprueft) + `terminal-commands.ts` (in die Web-App compiliert: Vervollstaendigung, help, Parameter-Sprechblase); `builder/TerminalCatalog.cs`. |
 | 7 | `ReadGitStatusAndGenerateFiles` | nein | `Core/generated/` + `web/generated/` -- `gitconstants.hh`, `firmware_constants.hh` (BOARD_NAME/FW_VERSION_*, s. Abschnitt 6), `build-info.ts` aus Git-Abfrage + `firmware-version.json` + `device-ids.json` (Core/generated/); `gitstatus.json` (Ausnahme) zusaetzlich ins Board-Archiv. |
 | 8 | `CopyGeneratedFilesToBuildDirectory` | nein | `build/assets/` -- kopiert nur noch die Zertifikat-DER-Dateien (Ausnahme) aus dem Board-Archiv; alles andere generiert bereits direkt im Projekt. |
 | 9 | `BuildWebApp` | nein | `web/dist/`, `build/assets/index.html.br` -- ruft `vite build` per Kindprozess auf (inkl. Inlining/Minify/Brotli über `singleFileFirmwareAssetPlugin`). |
@@ -130,6 +132,7 @@ flowchart TD
     ART["4: GenerateDeviceArtifacts"]
     RM["5: GenerateRegisterAccessFiles"]
     WSP["6: GenerateBestBinaryBufferFiles"]
+    TERM["6': GenerateTerminalFiles"]
     GS["7: ReadGitStatusAndGenerateFiles"]
     ARCHIVE["Board-Archiv (Ausnahmen)\nstm32_boards/&lt;id&gt;/generated/\nhardware-identity.json, certificate-info.json,\nZertifikate/Schluessel, gitstatus.json"]
     PROJECT["Core/generated/ + web/generated/\n(direkt generiert, kein Zwischenschritt)"]
@@ -147,6 +150,7 @@ flowchart TD
     ART -.->|"liest hardware-identity.json/\ncertificate-info.json, spiegelt board_info.json"| ARCHIVE
     RM --> PROJECT
     WSP --> PROJECT
+    TERM --> PROJECT
     GS --> PROJECT
     GS -.->|"gitstatus.json"| ARCHIVE
     ARCHIVE --> COPY
@@ -238,6 +242,7 @@ firmware_factory_control_unit/
 │   ├── assets/                    # device_certificate.der, device_key.der, index.html.br
 │   └── Release/, Debug/, Release-Rev1/, Debug-Rev1/   # je Preset ein eigener CMake-Binärordner
 ├── best_binary_buffers_schema/      # C#-Protokollschema (BestBinaryBuffers) + ids.txt
+├── terminal_schema/commands.json    # Befehlskatalog der Terminal-Seite (Web-UI + Firmware)
 └── docs/
     ├── build-process.md
     └── generated/                 # eingecheckt: modbus-registers.md (Register-Uebersicht, s. Abschnitt 3)
@@ -361,11 +366,7 @@ ohne Nachbearbeitungsschritt.
 
 - **LAN8742-PHY-Adresse `0`** (rtoos `boards/fcu`, `board::phy_address`; PHYAD0 offen = interner
   Pull-down). Liest das System-Info-Panel "PHY nicht erreichbar", stimmt die Adresse nicht.
-- **SSH-Log-Terminal**: `GenerateCertificates*` legt pro Board einmalig einen SSH-Host-Key im
-  Board-Archiv an (`ssh_host_key.der`, wird nie erneuert); `CopyGeneratedFilesToBuildDirectory`
-  schreibt die zugelassenen oeffentlichen Schluessel aus `Ssh.AuthorizedKeyFiles` (appsettings,
-  Default `~/.ssh/*.pub`, nur `ssh-ed25519`/`ecdsa-sha2-nistp256`) nach
-  `build/assets/ssh_authorized_keys`. Verbindung: `ssh log@<hostname>.local`.
+
 - **`builder/appsettings.json`** enthält persönliche Maschinenpfade (STM32CubeProgrammer-Pfad,
   OneDrive-Ordner für Board-Archiv/CA) und den `DefaultBoardTypeName`-Fallback (s. Abschnitt 6) und
   ist gitignored -- getrackt ist nur `appsettings.json.template`; ein MSBuild-Target

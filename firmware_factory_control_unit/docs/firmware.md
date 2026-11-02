@@ -28,21 +28,23 @@ Stepper step timing runs in TIM17/TIM16 interrupts (priority 4, never masked); U
 | `src/boot.*` | reset cause, identity, banner, supply gate, USB-PD |
 | `src/io.*` | the I/O cycle: inputs, sensors (INA226, VL53L0X x3, TCS34725, HX711, DTS), outputs (valves, vacuum, PWM), steppers with sensorless homing, WS2812, CAN, health bits, heartbeat |
 | `src/roarm/*` | RoArm-M3: kinematics, joint tracking, teach mode, missions in the internal flash (littlefs, same files as before) |
-| `src/network.*` | Ethernet (DHCP, mDNS, SNTP), USB CDC-NCM + DHCP server and CDC-ACM Modbus RTU, HTTPS/WebSocket, Modbus TCP, OPC UA, SSH log terminal |
-| `src/web.*` | WebSocket protocol (`ws_protocol.hh`): register panel, system info; RoArm requests go to the I/O thread |
+| `src/network.*` | Ethernet (DHCP, mDNS, SNTP), USB CDC-NCM + DHCP server and CDC-ACM Modbus RTU, HTTPS/WebSocket, Modbus TCP, OPC UA |
+| `src/web.*` | WebSocket protocol (`ws_protocol.hh`): register panel, system info, log records to every browser; RoArm and terminal requests go to the I/O thread |
+| `src/terminal.*` | the commands of the web UI's Terminal page (inputs, outputs, PWM, GPIO, ADC, supply, sensors, I2C scan, registers, steppers, LEDs, reset) and the live value lookups; the catalog is `terminal_schema/commands.json` |
 | `src/task_monitor.*` | task manager: threads (state, stack, CPU share) and pools |
 
 ## Interfaces
 
 - Modbus TCP 502, Modbus RTU over USB CDC-ACM (unit 1), OPC UA 4840 (`Objects/FactoryControlUnit`): the register map from `register_map_schema/*.cs`.
 - `https://<hostname>.local/` web app, `wss://<hostname>.local/ws`.
-- `ssh log@<hostname>.local`: the log terminal (boot log, then live; `q` ends it). Keys: builder setting `Ssh.AuthorizedKeyFiles`.
+- Web UI page "Terminal": a console for the commands above and the live log as a table (level filter, auto-scroll, 10000 lines kept in the browser). The command catalog `terminal_schema/commands.json` is compiled into the web app (builder step `GenerateTerminalFiles`): history (arrow up), completion of commands and parameter values (Tab), the parameter tooltip, `help` and `clear` run in the browser. A parameter's values are listed in the catalog (`values`), computed in the browser (`source`: command names, registers) or fetched live from the device (`lookup`: `terminal.LookupRequest`, answered by `src/terminal.cpp`).
+- Adding a command: an entry in `commands.json`, a handler function and an entry in `handlers` (`src/terminal.cpp`); a missing handler or lookup answer is a compile error.
 - USB: the PC gets 192.168.173.2, the board is 192.168.173.1.
 
 ## Behaviour changes from the HAL firmware
 
 - A new stepper target starts when the current move has finished (no change of plan mid-ramp).
 - RoArm mission requests of the web UI are executed by the I/O thread (the flash belongs to it) and answered through the WebSocket outbox.
-- The log goes to the SSH terminal, no longer to the WebSocket.
+- The log goes to the web UI's Terminal page as a table (before: only into the browser's developer console).
 - The USB NCM interface of the board uses the PC's MAC address with the lowest bit flipped (the two ends differ).
 - CAN runs at 500 kbit/s (the CubeMX values gave no meaningful bit rate).

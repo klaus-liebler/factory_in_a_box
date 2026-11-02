@@ -14,19 +14,12 @@ public sealed class BoardDefaultsOptions : IBoardDefaultsOptions
     public string DefaultBoardTypeVersion { get; set; } = "1.0.0";
 }
 
-// Log terminal (rtoos SSH server): which public keys may log in.
-public sealed class SshOptions
-{
-    public string[] AuthorizedKeyFiles { get; set; } = ["~/.ssh/*.pub"];
-}
-
 public sealed class BuilderSettings : IBuilderAppSettingsStm32
 {
     public BoardsDirectoryOptions BoardStorage { get; set; } = new();
     public Stm32ProgrammerOptions Stm32Programmer { get; set; } = new();
     public CertificateAuthorityOptions Certificates { get; set; } = new();
     public BoardDefaultsOptions BoardDefaults { get; set; } = new();
-    public SshOptions Ssh { get; set; } = new();
 
     IBoardsDirectoryOptions IBuilderAppSettings.BoardStorage => BoardStorage;
     ICertificateAuthorityOptions IBuilderAppSettings.Certificates => Certificates;

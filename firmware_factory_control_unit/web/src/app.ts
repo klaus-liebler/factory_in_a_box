@@ -1,7 +1,7 @@
 // Entry-Point: baut die Dashboard-Shell auf und haengt die Apps ein (Reihenfolge der
 // RegisterApp()-Aufrufe bestimmt die Reihenfolge in der Sidebar). Kein Login -- jede App spricht
 // bei Bedarf schlankes HTTP/Fetch (s. api.ts); daneben laeuft dauerhaft die WebSocket-Verbindung
-// (s. ws-client.ts) fuer Server-Push-Daten (aktuell: gespiegelte Firmware-Logs).
+// (s. ws-client.ts) fuer Server-Push-Daten (u. a. das Firmware-Log, s. log-store.ts und die Terminal-App).
 import "./shell/app-shell.js";
 import "./apps/modbus-register-app.js";
 import "./apps/power-management-app.js";
@@ -9,9 +9,10 @@ import "./apps/system-info-app.js";
 import "./apps/roarm-teach-app.js";
 import "./apps/task-manager-app.js";
 import "./apps/druckregelstrecke-app.js";
+import "./apps/terminal-app.js";
 import type { AppShell } from "./shell/app-shell.js";
 import { startWebSocketClient } from "./ws-client.js";
-import { startSystemLogListener } from "./system-log-listener.js";
+import { startLogStore } from "./log-store.js";
 
 document.addEventListener("DOMContentLoaded", () => {
 	const shell = document.querySelector("app-shell") as AppShell;
@@ -22,8 +23,9 @@ document.addEventListener("DOMContentLoaded", () => {
 	shell.RegisterApp("/roarm-teach", "RoArm Teach", "🦾", document.createElement("roarm-teach-app"));
 	shell.RegisterApp("/tasks", "Task Manager", "📋", document.createElement("task-manager-app"));
 	shell.RegisterApp("/druckregelstrecke", "Druckregelstrecke", "🌬️", document.createElement("druckregelstrecke-app"));
+	shell.RegisterApp("/terminal", "Terminal", "⌨️", document.createElement("terminal-app"));
 
 	shell.Start();
-	startSystemLogListener();
+	startLogStore();
 	startWebSocketClient();
 });

@@ -1,0 +1,211 @@
+/* Terminal page: console on top, log table below (terminal-app.ts). */
+.terminal-page {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	height: calc(100vh - 120px);
+	min-height: 480px;
+}
+
+/* ---- console: classic look ----------------------------------------------------------- */
+.term {
+	position: relative;
+	flex: 0 0 40%;
+	min-height: 160px;
+	resize: vertical;
+	overflow: hidden;
+	background: #000;
+	color: #f0f0f0;
+	font-family: "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Courier New", monospace;
+	font-size: 14px;
+	line-height: 1.35;
+	border-radius: var(--ui-radius-md);
+	cursor: text;
+}
+
+.term-screen {
+	height: 100%;
+	overflow-y: auto;
+	padding: 8px 10px;
+	box-sizing: border-box;
+}
+
+.term-line {
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.term-output { color: #f0f0f0; }
+.term-error { color: #ff6b6b; }
+.term-input { color: #9ad1ff; }
+
+.term-cursor {
+	background: #f0f0f0;
+	color: #000;
+	animation: term-blink 1s steps(1) infinite;
+}
+
+@keyframes term-blink {
+	50% {
+		background: transparent;
+		color: inherit;
+	}
+}
+
+.term-busy { color: #888; }
+
+/* the parameter tooltip: a speech bubble pointing at the word being typed (top set by the code:
+   above the prompt line, or below it with class "below") */
+.term-bubble {
+	position: absolute;
+	left: min(calc(10px + var(--bubble-col) * 1ch - 14px), max(4px, calc(100% - 524px)));
+	max-width: min(520px, calc(100% - 8px));
+	padding: 6px 10px;
+	background: #262626;
+	color: #e8e8e8;
+	border: 1px solid #6b6b6b;
+	border-radius: 6px;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+	font-size: 13px;
+	pointer-events: none;
+	z-index: 2;
+}
+
+.term-bubble::after {
+	content: "";
+	position: absolute;
+	left: 12px;
+	top: 100%;
+	border: 7px solid transparent;
+	border-top-color: #6b6b6b;
+}
+
+.term-bubble.below::after {
+	top: auto;
+	bottom: 100%;
+	border-top-color: transparent;
+	border-bottom-color: #6b6b6b;
+}
+
+.bubble-usage { color: #bdbdbd; }
+.bubble-current { color: #fff; font-weight: 700; text-decoration: underline; }
+.bubble-doc { color: #a8a8a8; margin-bottom: 2px; }
+.bubble-param { margin-top: 2px; }
+.bubble-error { color: #ff6b6b; }
+.bubble-more { color: #8a8a8a; font-style: italic; }
+
+.bubble-values {
+	border-collapse: collapse;
+	margin-top: 2px;
+}
+
+.bubble-values td {
+	padding: 0 12px 0 0;
+	vertical-align: top;
+}
+
+.bubble-values td:first-child { color: #9ad1ff; white-space: nowrap; }
+.bubble-values td:last-child { color: #c8c8c8; }
+
+/* the real input: invisible, keeps the focus and the keyboard on mobile devices */
+.term-keyboard {
+	position: absolute;
+	left: -10000px;
+	top: 0;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+}
+
+/* ---- log table ----------------------------------------------------------------------- */
+.log {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	border: 1px solid var(--ui-color-border);
+	border-radius: var(--ui-radius-md);
+	background: var(--ui-color-bg-surface);
+}
+
+.log-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--ui-color-border);
+	font-size: var(--ui-font-size-sm);
+}
+
+.log-title { font-weight: 600; margin-right: 6px; }
+
+.log-level,
+.log-clear {
+	border: 1px solid var(--ui-color-border-input);
+	border-radius: var(--ui-radius-sm);
+	padding: 2px 8px;
+	font-size: var(--ui-font-size-sm);
+	background: var(--ui-btn-neutral-inactive);
+	cursor: pointer;
+}
+
+.log-level.off {
+	opacity: 0.4;
+	text-decoration: line-through;
+}
+
+.log-autoscroll { margin-left: 8px; }
+.log-count { margin-left: auto; color: var(--ui-color-text-muted); }
+
+.log-scroll {
+	flex: 1 1 auto;
+	overflow: auto;
+	min-height: 0;
+}
+
+.log-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-family: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+	font-size: var(--ui-font-size-sm);
+}
+
+.log-table th {
+	position: sticky;
+	top: 0;
+	background: var(--ui-color-bg-muted);
+	text-align: left;
+	padding: 3px 6px;
+}
+
+.log-table td {
+	padding: 1px 6px;
+	border-bottom: 1px solid var(--ui-color-border-soft);
+	vertical-align: top;
+}
+
+.col-level { width: 4.5em; font-weight: 600; }
+.col-time { width: 9em; white-space: nowrap; color: var(--ui-color-text-muted); }
+.col-logger { width: 8em; white-space: nowrap; }
+.col-text { white-space: pre-wrap; word-break: break-word; }
+
+/* level colours: rows and filter buttons (classes lvl-<LogLevel>: 0 trace .. 5 fatal) */
+.lvl-0 .col-level, .log-level.lvl-0 { color: #9ca3af; }
+.lvl-1 .col-level, .log-level.lvl-1 { color: #0891b2; }
+.lvl-2 .col-level, .log-level.lvl-2 { color: #15803d; }
+.lvl-3 .col-level, .log-level.lvl-3 { color: #b45309; }
+.lvl-4 .col-level, .log-level.lvl-4 { color: #dc2626; }
+.lvl-5 .col-level, .log-level.lvl-5 { color: #fff; background: #b91c1c; }
+tr.lvl-3 { background: #fffbeb; }
+tr.lvl-4, tr.lvl-5 { background: #fef2f2; }
+
+/* the level filter: classes on the table hide rows without touching them */
+.log-table.hide-0 tr.lvl-0,
+.log-table.hide-1 tr.lvl-1,
+.log-table.hide-2 tr.lvl-2,
+.log-table.hide-3 tr.lvl-3,
+.log-table.hide-4 tr.lvl-4,
+.log-table.hide-5 tr.lvl-5 {
+	display: none;
+}

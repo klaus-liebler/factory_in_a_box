@@ -2,7 +2,9 @@
 // best_binary_buffers_schema/*.cs): every message starts with namespace id and type id (u16 LE).
 //
 //   modbus  GetRegisters / WriteHolding: the register map for the web UI's register panel
-//   system  SystemInfo request (the log goes to the SSH log terminal, network.hpp)
+//   system  SystemInfo request; LogMessage events: every log record to every client at once
+//           (the device keeps no history; the browser's Terminal page does)
+//   terminal command list and commands of the browser terminal (terminal.hpp)
 //   roarm   teach mode, jogging, missions (roarm.hpp)
 //   tasks   thread and pool list (task_monitor.hpp)
 //
@@ -21,6 +23,13 @@ namespace fcu::web {
 void on_opened(void*, net::Server::SessionId id) noexcept;
 void on_message(void*, net::Server::SessionId id, std::span<const std::byte> data, bool binary) noexcept;
 void on_closed(void*, net::Server::SessionId id) noexcept;
+
+/// Network-thread service: sends new log records to every WebSocket client.
+struct LogMirror {
+    void service() noexcept;
+    [[nodiscard]] std::uint32_t next_deadline() const noexcept;
+};
+LogMirror& log_mirror() noexcept;
 
 /// Send an encoded message (from the I/O thread: through the outbox).
 void broadcast_from_io(std::span<const std::uint8_t> message) noexcept;

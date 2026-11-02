@@ -5,8 +5,7 @@
 #
 # The builder (builder/, docs/build-process.md) provides what the firmware embeds:
 #   build/assets/   certificates and keys of the board (device_https_*, device_certificate.der,
-#                   device_key.der, root_ca.der, ssh_host_key.der), ssh_authorized_keys,
-#                   the web app (index.html.br)
+#                   device_key.der, root_ca.der), the web app (index.html.br)
 #   Core/generated/ device identity (device_ids.hh), register map (register_map*.hpp),
 #                   WebSocket protocol (ws_protocol.hh), version and git constants
 cmake_minimum_required(VERSION 3.28)
@@ -22,7 +21,7 @@ add_subdirectory(rtoos)  # rtos_kernel, rtos_tls, rtos_opcua, rtos_filex, rtos_l
 set(FCU_ASSETS ${CMAKE_SOURCE_DIR}/build/assets)
 set(FCU_GENERATED ${CMAKE_SOURCE_DIR}/Core/generated)
 foreach(f device_https_certificate.der device_https_key.der device_certificate.der device_key.der root_ca.der
-          ssh_host_key.der ssh_authorized_keys index.html.br)
+          index.html.br)
     if(NOT EXISTS ${FCU_ASSETS}/${f})
         message(FATAL_ERROR "build/assets/${f} missing: run the builder first (dotnet run --project builder -- PipelineLazy)")
     endif()
@@ -37,4 +36,3 @@ rtos_add_firmware(firmware_factory_control_unit
     FLASH_DATA_START 0x081C0000)
 target_include_directories(firmware_factory_control_unit PRIVATE src ${FCU_GENERATED})
 target_compile_options(firmware_factory_control_unit PRIVATE -Wall -Wextra -Werror --embed-dir=${FCU_ASSETS})
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${FCU_ASSETS}/ssh_authorized_keys)

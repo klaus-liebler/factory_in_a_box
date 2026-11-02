@@ -31,7 +31,9 @@ using Kernel = rtos::Kernel<Port, KernelConfig>;
 /// shared by the network thread (protocols) and the I/O thread (values).
 using Registers = rtos::modbus::RegisterBank<register_map::holding_count, register_map::input_count, Kernel::Lock>;
 
-using Journal = rtos::log::Journal<128, 120, Kernel::Lock>;
+/// A small buffer only: records go to the console and to every browser right away; the
+/// browser keeps the history (Terminal page).
+using Journal = rtos::log::Journal<48, 120, Kernel::Lock>;
 
 inline constexpr std::uint8_t net_priority = 8;
 inline constexpr std::uint8_t io_priority = 10;

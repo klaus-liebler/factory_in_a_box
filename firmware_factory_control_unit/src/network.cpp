@@ -16,13 +16,11 @@
 #include "rtos/net/dhcp.hpp"
 #include "rtos/net/dhcp_server.hpp"
 #include "rtos/net/dns_resolver.hpp"
-#include "rtos/net/log_terminal.hpp"
 #include "rtos/net/mdns.hpp"
 #include "rtos/net/modbus_tcp_server.hpp"
 #include "rtos/net/opcua_server.hpp"
 #include "rtos/net/service.hpp"
 #include "rtos/net/sntp.hpp"
-#include "rtos/net/ssh.hpp"
 #include "rtos/net/tls.hpp"
 #include "rtos/net/tls_memory.hpp"
 #include "rtos/opcua/clock.hpp"
@@ -68,12 +66,6 @@ constexpr unsigned char opcua_private_key[] = {
 constexpr unsigned char ca_certificate[] = {
 #embed "root_ca.der"
 };
-constexpr unsigned char ssh_host_key[] = {
-#embed "ssh_host_key.der"
-};
-constexpr char ssh_authorized_keys[] = {
-#embed "ssh_authorized_keys"
-    , '\0'};
 
 template <std::size_t N>
 std::span<const std::byte> as_span(const unsigned char (&a)[N]) {
@@ -144,31 +136,6 @@ const std::array<rn::HttpResource, 1> resources{{
 }};
 
 const Server::WebSocketHandler ws_handler{nullptr, &web::on_opened, &web::on_message, &web::on_closed};
-
-// ---- SSH log terminal ---------------------------------------------------------------------------
-// wolfSSH static pool for 2 terminals (rtoos fcu_net, measured in Renode: a session holds two
-// 8 KB packet buffers, the session and handshake objects).
-constexpr std::array<std::uint32_t, 8> ssh_bucket_sizes{64, 128, 256, 512, 1024, 2560, 4352, 8192};
-constexpr std::array<std::uint32_t, 8> ssh_bucket_counts{48, 16, 16, 8, 4, 4, 2, 4};
-alignas(16) std::array<std::byte, 80 * 1024> ssh_memory;
-rn::SshServerContext ssh_context;
-rn::LogTerminal<Stack, Journal, 2> log_terminal{stack, ssh_context, journal};
-
-/// The lines of build/assets/ssh_authorized_keys (at most SshServerContext::max_authorized_keys).
-std::span<const std::string_view> authorized_keys() noexcept {
-    static std::array<std::string_view, rn::SshServerContext::max_authorized_keys> keys{};
-    std::size_t n = 0;
-    std::string_view text(ssh_authorized_keys);
-    while (!text.empty() && n < keys.size()) {
-        const std::size_t end = text.find('\n');
-        const std::string_view line = text.substr(0, end);
-        if (!line.empty()) {
-            keys[n++] = line;
-        }
-        text = end == std::string_view::npos ? std::string_view{} : text.substr(end + 1);
-    }
-    return std::span(keys).first(n);
-}
 
 // ---- Modbus TCP, OPC UA ------------------------------------------------------------------------
 rn::ModbusTcpServer<Stack, 2> modbus_tcp{stack, registers};
@@ -326,13 +293,6 @@ void net_main(void*) {
         return;
     }
     ua::registers::Bind(registers);
-    if (const auto r = ssh_context.init(ssh_memory, {as_span(ssh_host_key), authorized_keys()}, 2,
-                                        {ssh_bucket_sizes, ssh_bucket_counts});
-        r != rn::SshInitResult::Ok) {
-        RTOS_LOG_ERROR("ssh: init failed, step %u", static_cast<unsigned>(r));
-    } else if (!log_terminal.start(22)) {
-        RTOS_LOG_ERROR("ssh: listen failed");
-    }
 
     mdns.start(rn::InterfaceSet::all(), &on_mdns_renamed);
     dhcp.start();
@@ -357,13 +317,12 @@ void net_main(void*) {
     runtime.add(sntp, "sntp");
     runtime.add(server, "https");
     runtime.add(outbox, "ws-outbox");
+    runtime.add(web::log_mirror(), "log-mirror");
     runtime.add(modbus_tcp, "modbus");
     runtime.add(modbus_rtu, "modbus-rtu");
     runtime.add(opcua, "opcua");
-    runtime.add(log_terminal, "ssh");
     runtime.set_cycle_counter([]() noexcept { return cm33::CycleCounter::now(); });
-    RTOS_LOG_INFO("net: https://%s.local/, opc.tcp://%s.local:4840, modbus tcp 502, ssh log@%s.local", DEVICE_HOSTNAME,
-                  DEVICE_HOSTNAME, DEVICE_HOSTNAME);
+    RTOS_LOG_INFO("net: https://%s.local/, opc.tcp://%s.local:4840, modbus tcp 502", DEVICE_HOSTNAME, DEVICE_HOSTNAME);
     for (;;) {
         const std::uint32_t wake = runtime.run_once(kernel.now());
         (void)kernel.notify_wait(slot_wake, runtime.sleep_ms(wake, kernel.now()));

@@ -25,8 +25,5 @@
   },
   "BoardDefaults": {
     "DefaultBoardTypeName": "FactoryControlUnit"
-  },
-  "Ssh": {
-    "AuthorizedKeyFiles": [ "~/.ssh/*.pub" ]
   }
 }

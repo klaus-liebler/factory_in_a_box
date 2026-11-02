@@ -154,7 +154,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 		const polarityReversed = (phy.scsir & LAN8742_SCSIR_XPOLALITY) !== 0;
 		const cableLengthClass = (phy.clr & LAN8742_CLR_CABLE_LENGTH) >> 12;
 		return html`
-			<table class="register-table">
+			<table class="register-table kv-table">
 				<tbody>
 					${this.row("Link", linkUp ? "up" : "down")}
 					${this.row("Auto-Negotiation", autonegDone ? "abgeschlossen" : "läuft/nicht abgeschlossen")}
@@ -183,7 +183,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 			${found.length === 0
 				? html`<p class="panel-text">Keine Geräte gefunden.</p>`
 				: html`
-						<table class="register-table">
+						<table class="register-table kv-table">
 							<tbody>
 								${found.map(
 									(entry) => html`
@@ -214,7 +214,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 					     Laufzeit-Abfrage noetig, deshalb ohne "Aktualisieren"-Button/Ladezustand. -->
 					<div class="panel-section">
 						<div class="panel-label">Board Info</div>
-						<table class="register-table">
+						<table class="register-table kv-table">
 							<tbody>
 								${this.row("Board", buildInfo.BOARD_NAME)}
 								${this.row("Hostname", `${buildInfo.DEVICE_HOSTNAME}.local`)}
@@ -233,7 +233,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 					     getrennten Firmware-/Web-UI-Ansicht. -->
 					<div class="panel-section">
 						<div class="panel-label">Build Info</div>
-						<table class="register-table">
+						<table class="register-table kv-table">
 							<tbody>
 								${this.row(
 									"Firmware-Version",
@@ -259,7 +259,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 						</div>
 						${info
 							? html`
-									<table class="register-table">
+									<table class="register-table kv-table">
 										<tbody>
 											${this.row("Uptime", formatUptime(info.uptimeSeconds))}
 											${this.row("Freier Heap", `${(info.freeHeapBytes / 1024).toFixed(1)} KiB`)}
@@ -274,7 +274,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 						<div class="panel-label">Live Info - Network</div>
 						${info
 							? html`
-									<table class="register-table">
+									<table class="register-table kv-table">
 										<tbody>
 											${this.row("IP-Adresse", formatOctets(info.ipAddress))}
 											${this.row("Netzmaske", formatOctets(info.netMask))}

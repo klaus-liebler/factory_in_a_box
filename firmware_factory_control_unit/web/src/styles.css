@@ -384,6 +384,20 @@ button:active {
 	overflow-wrap: break-word;
 }
 
+/* Name/value tables: the same label width in every table of a page, so the values of
+   consecutive tables line up (column widths of auto layout depend on each table's content). */
+.kv-table {
+	table-layout: fixed;
+}
+
+.kv-table td:first-child {
+	width: 40%;
+}
+
+.kv-table td {
+	overflow-wrap: break-word;
+}
+
 .register-comment {
 	display: block;
 	color: var(--ui-color-text-muted);

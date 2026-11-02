@@ -22,48 +22,6 @@ const CPU_SPARKLINE_MAX_PERMILLE = 1000;
 const STACK_WARNING_RATIO = 0.8;
 const STACK_ERROR_RATIO = 0.95;
 
-// Deutsche Kurzbeschreibung je ThreadX-Zustand (s. best_binary_buffers_schema/tasks.cs,
-// entspricht 1:1 TX_READY..TX_PRIORITY_CHANGE).
-const STATE_LABELS: Record<number, string> = {
-	[WsProtocol.tasks.ThreadState.Ready]: "Bereit / läuft",
-	[WsProtocol.tasks.ThreadState.Completed]: "Beendet",
-	[WsProtocol.tasks.ThreadState.Terminated]: "Terminiert",
-	[WsProtocol.tasks.ThreadState.Suspended]: "Suspendiert",
-	[WsProtocol.tasks.ThreadState.Sleep]: "Schläft",
-	[WsProtocol.tasks.ThreadState.QueueSuspended]: "Wartet auf Queue",
-	[WsProtocol.tasks.ThreadState.SemaphoreSuspended]: "Wartet auf Semaphore",
-	[WsProtocol.tasks.ThreadState.EventFlag]: "Wartet auf Event-Flag",
-	[WsProtocol.tasks.ThreadState.BlockMemory]: "Wartet auf Block-Pool",
-	[WsProtocol.tasks.ThreadState.ByteMemory]: "Wartet auf Byte-Pool",
-	[WsProtocol.tasks.ThreadState.IoDriver]: "Wartet auf I/O-Treiber",
-	[WsProtocol.tasks.ThreadState.File]: "Wartet auf Dateisystem",
-	[WsProtocol.tasks.ThreadState.TcpIp]: "Wartet auf TCP/IP",
-	[WsProtocol.tasks.ThreadState.MutexSuspended]: "Wartet auf Mutex",
-	[WsProtocol.tasks.ThreadState.PriorityChange]: "Prioritätswechsel",
-	[WsProtocol.tasks.ThreadState.Unknown]: "Unbekannt",
-};
-
-// Badge-Variante je Zustand -- gruppiert die 16 ThreadX-Zustaende in vier optisch unterscheidbare
-// Kategorien (laeuft/schlaeft/wartet-auf-Ressource/beendet), s. .state-badge-* in styles.css.
-const STATE_BADGE_VARIANTS: Record<number, string> = {
-	[WsProtocol.tasks.ThreadState.Ready]: "running",
-	[WsProtocol.tasks.ThreadState.Sleep]: "idle",
-	[WsProtocol.tasks.ThreadState.Suspended]: "waiting",
-	[WsProtocol.tasks.ThreadState.QueueSuspended]: "waiting",
-	[WsProtocol.tasks.ThreadState.SemaphoreSuspended]: "waiting",
-	[WsProtocol.tasks.ThreadState.EventFlag]: "waiting",
-	[WsProtocol.tasks.ThreadState.BlockMemory]: "waiting",
-	[WsProtocol.tasks.ThreadState.ByteMemory]: "waiting",
-	[WsProtocol.tasks.ThreadState.IoDriver]: "waiting",
-	[WsProtocol.tasks.ThreadState.File]: "waiting",
-	[WsProtocol.tasks.ThreadState.TcpIp]: "waiting",
-	[WsProtocol.tasks.ThreadState.MutexSuspended]: "waiting",
-	[WsProtocol.tasks.ThreadState.PriorityChange]: "waiting",
-	[WsProtocol.tasks.ThreadState.Completed]: "stopped",
-	[WsProtocol.tasks.ThreadState.Terminated]: "stopped",
-	[WsProtocol.tasks.ThreadState.Unknown]: "unknown",
-};
-
 // tasks.TaskInfo.name ist ein fest 32 Byte grosses, null-gepolstertes ASCII-Feld (s.
 // best_binary_buffers_schema/tasks.cs) -- hier auf den Teil vor dem ersten Null-Byte gekuerzt.
 function decodeName(bytes: number[]): string {
@@ -207,12 +165,6 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 		`;
 	}
 
-	private renderStateBadge(task: WsProtocol.tasks.TaskInfo) {
-		const variant = STATE_BADGE_VARIANTS[task.state] ?? "unknown";
-		const label = STATE_LABELS[task.state] ?? "Unbekannt";
-		return html`<span class="state-badge state-badge-${variant}">${label}</span>`;
-	}
-
 	// Canvas-Inhalte liegen ausserhalb von Lits deklarativem Rendering -- nach jedem Update per
 	// Index den passenden Verlauf aus cpuHistory in die (in derselben Reihenfolge wie this.tasks
 	// gerenderte, s. renderCpuCell()) Sparkline-Canvases zeichnen. Analog zu updated()/redraw() bei
@@ -236,7 +188,7 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 				</section>
 
 				<div class="panel-section">
-					<div class="panel-label">ThreadX-Threads</div>
+					<div class="panel-label">Threads</div>
 					${this.tasks.length === 0
 						? html`<p class="panel-text">Noch keine Daten empfangen.</p>`
 						: html`
@@ -244,7 +196,6 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 									<table class="register-table register-table-fixed">
 										<colgroup>
 											<col style="width: 190px" />
-											<col style="width: 170px" />
 											<col style="width: 70px" />
 											<col style="width: 320px" />
 											<col style="width: 130px" />
@@ -253,7 +204,6 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 										<thead>
 											<tr>
 												<th>Name</th>
-												<th>Zustand</th>
 												<th>Priorität</th>
 												<th>Stack</th>
 												<th>CPU</th>
@@ -265,7 +215,6 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 												(task) => html`
 													<tr>
 														<td>${decodeName(task.name)}</td>
-														<td>${this.renderStateBadge(task)}</td>
 														<td>${task.priority}</td>
 														<td>${this.renderStackCell(task)}</td>
 														<td>${this.renderCpuCell(task)}</td>

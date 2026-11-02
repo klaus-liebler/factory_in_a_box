@@ -389,43 +389,6 @@ button:active {
 	color: var(--ui-color-text-muted);
 }
 
-/* Kompakte, abgerundete Zustandsanzeige (z.B. ThreadX-Thread-Zustand) -- Variantenfarben bewusst
-   als feste Hex-Werte (wie .status-text.status-*), da dieses Projekt aktuell kein Dark-Theme hat
-   (kein prefers-color-scheme in dieser Datei). */
-.state-badge {
-	display: inline-block;
-	padding: 2px 8px;
-	border-radius: 999px;
-	font-size: 11px;
-	font-weight: 600;
-	white-space: nowrap;
-}
-
-.state-badge-running {
-	background: #e6f7ed;
-	color: #1e8e4a;
-}
-
-.state-badge-idle {
-	background: #eaeffe;
-	color: #4552c9;
-}
-
-.state-badge-waiting {
-	background: #fff6df;
-	color: #a06a00;
-}
-
-.state-badge-stopped {
-	background: #fdeceb;
-	color: #b3261e;
-}
-
-.state-badge-unknown {
-	background: var(--ui-color-bg-muted);
-	color: var(--ui-color-text-muted);
-}
-
 .cpu-cell {
 	display: flex;
 	align-items: center;

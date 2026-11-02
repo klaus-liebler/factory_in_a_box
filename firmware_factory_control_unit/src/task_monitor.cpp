@@ -25,18 +25,6 @@ std::size_t count = 0;
 std::uint32_t last_sample = 0;
 bool sampled = false;
 
-ws::ThreadState state(rtos::ThreadState s) noexcept {
-    switch (s) {
-        case rtos::ThreadState::Ready: return ws::ThreadState::Ready;
-        case rtos::ThreadState::Sleeping: return ws::ThreadState::Sleep;
-        case rtos::ThreadState::WaitingNotify: return ws::ThreadState::EventFlag;
-        case rtos::ThreadState::Waiting: return ws::ThreadState::QueueSuspended;
-        case rtos::ThreadState::Suspended: return ws::ThreadState::Suspended;
-        case rtos::ThreadState::Terminated: return ws::ThreadState::Completed;
-        default: return ws::ThreadState::Unknown;
-    }
-}
-
 template <std::size_t N>
 void fill(std::uint8_t (&out)[N], const char* text) noexcept {
     std::memset(out, 0, N);
@@ -53,7 +41,6 @@ std::size_t tasks(std::uint16_t request_id, std::span<std::uint8_t> reply) noexc
         const Kernel::Thread& t = *e.thread;
         ws::TaskInfo info{};
         fill(info.name, t.name);
-        info.state = state(t.state);
         info.priority = t.priority;
         info.stackSizeBytes = static_cast<std::uint32_t>(e.stack.size());
         const auto sp = reinterpret_cast<std::uintptr_t>(t.sp);

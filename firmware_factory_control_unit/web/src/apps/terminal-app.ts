@@ -15,8 +15,8 @@ import { customElement, query, state } from "lit/decorators.js";
 import "../styles.css";
 import "./terminal-app.css";
 import { system, terminal } from "../../generated/ws-protocol.js";
-import { REGIONS } from "../../generated/register-map.js";
 import { TERMINAL_COMMANDS, TERMINAL_LOOKUPS, type TerminalCommand, type TerminalParam, type TerminalValue } from "../../generated/terminal-commands.js";
+import { analyse, complete, findCommand, matches, meantCommand, paramAt, sourceValues, type Word } from "../terminal/command-line.js";
 import { wsRequest } from "../ws-client.js";
 import { clearLog, logEntries, MAX_LOG_LINES, subscribeLog, type LogEntry } from "../log-store.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
@@ -28,69 +28,6 @@ const MAX_BUBBLE_VALUES = 12;
 const LOOKUP_MAX_AGE_MS = 1000; // "live": a lookup older than this is fetched again
 
 type LineKind = "input" | "output" | "error";
-
-// ---- command line analysis -------------------------------------------------------------------------
-interface Word {
-	text: string;
-	start: number;
-	end: number;
-}
-
-/** The words of the line and the one the cursor is in (or a new, empty one after a space). */
-function analyse(line: string, cursor: number): { words: Word[]; current: Word; index: number } {
-	const words: Word[] = [];
-	for (const m of line.matchAll(/\S+/g)) words.push({ text: m[0], start: m.index, end: m.index + m[0].length });
-	let index = words.findIndex((w) => cursor >= w.start && cursor <= w.end);
-	if (index < 0) {
-		index = words.filter((w) => w.end < cursor).length;
-		words.splice(index, 0, { text: "", start: cursor, end: cursor });
-	}
-	return { words, current: words[index], index };
-}
-
-function findCommand(name: string): TerminalCommand | undefined {
-	return TERMINAL_COMMANDS.find((c) => c.name === name);
-}
-
-/** The command meant: the exact name, or, while typing it, the only one with that prefix. */
-function meantCommand(words: Word[], index: number): TerminalCommand | undefined {
-	const first = words[0]?.text ?? "";
-	const exact = findCommand(first);
-	if (exact || index > 0 || first.length === 0) return exact;
-	const candidates = TERMINAL_COMMANDS.filter((c) => c.name.startsWith(first));
-	return candidates.length === 1 ? candidates[0] : undefined;
-}
-
-function matches(values: readonly TerminalValue[], prefix: string): TerminalValue[] {
-	const p = prefix.toLowerCase();
-	const byValue = values.filter((v) => v.value.toLowerCase().startsWith(p));
-	if (byValue.length > 0 || p.length < 2) return byValue;
-	return values.filter((v) => v.doc.toLowerCase().includes(p)); // e.g. a register by its name
-}
-
-function commonPrefix(values: string[]): string {
-	let prefix = values[0] ?? "";
-	for (const v of values) while (!v.startsWith(prefix)) prefix = prefix.slice(0, -1);
-	return prefix;
-}
-
-/** Values computed in the browser (TerminalParam.source). */
-function sourceValues(param: TerminalParam, words: Word[]): TerminalValue[] {
-	switch (param.source) {
-		case "commands":
-			return TERMINAL_COMMANDS.map((c) => ({ value: c.name, doc: c.doc }));
-		case "registers": {
-			const bank = words[1]?.text === "h" ? "holding" : words[1]?.text === "i" ? "input" : undefined;
-			if (!bank) return [];
-			return REGIONS.flatMap((r) => r.registers)
-				.filter((r) => r.bank === bank)
-				.sort((a, b) => a.address - b.address)
-				.map((r) => ({ value: String(r.address), doc: `${r.name}${r.description ? ` - ${r.description}` : ""}` }));
-		}
-		default:
-			return [];
-	}
-}
 
 // ---- log ------------------------------------------------------------------------------------------------
 const LEVELS: { level: system.LogLevel; name: string }[] = [
@@ -291,8 +228,8 @@ export class TerminalApp extends LitElement implements DashboardApp {
 
 	private async complete(): Promise<void> {
 		const line = this.input;
-		const { words, current, index } = analyse(line, this.cursor);
-		const prefix = line.slice(current.start, this.cursor);
+		const cursor = this.cursor;
+		const { words, index } = analyse(line, cursor);
 		let values: TerminalValue[];
 		if (index === 0) {
 			values = TERMINAL_COMMANDS.map((c) => ({ value: c.name, doc: c.doc }));
@@ -302,23 +239,13 @@ export class TerminalApp extends LitElement implements DashboardApp {
 			values = await this.valuesFresh(param, words);
 			if (this.input !== line) return; // typed on while the device answered
 		}
-		const found = matches(values, prefix);
-		if (found.length === 0) return;
-		const replace = (text: string, space: boolean) => {
-			const before = line.slice(0, current.start) + text;
-			const after = line.slice(current.end);
-			this.setInput(before + (space && !after.startsWith(" ") ? " " : "") + after, before.length + (space ? 1 : 0));
-		};
-		if (found.length === 1) {
-			replace(found[0].value, true);
-			return;
-		}
-		const common = commonPrefix(found.map((v) => v.value));
-		if (common.length > prefix.length && common.toLowerCase().startsWith(prefix.toLowerCase())) {
-			replace(common, false);
-		} else {
+		const r = complete(line, cursor, values);
+		if (!r) return;
+		if ("list" in r) {
 			this.print(PROMPT + line, "input");
-			this.print(found.map((v) => v.value).join("  "), "output");
+			this.print(r.list.join("  "), "output");
+		} else {
+			this.setInput(r.line, r.cursor);
 		}
 	}
 
@@ -380,7 +307,7 @@ export class TerminalApp extends LitElement implements DashboardApp {
 		const { words, current, index } = analyse(this.input, this.cursor);
 		const command = meantCommand(words, index);
 		if (!command) return nothing;
-		const param = index > 0 ? command.params[index - 1] : undefined;
+		const { param, tooMany } = paramAt(command, index, current);
 		const prefix = this.input.slice(current.start, this.cursor);
 		const values = param ? this.valuesNow(param, words) : undefined;
 		const shown = values ? matches(values, prefix) : [];
@@ -405,7 +332,7 @@ export class TerminalApp extends LitElement implements DashboardApp {
 									</table>`
 								: nothing}
 							${shown.length > MAX_BUBBLE_VALUES ? html`<div class="bubble-more">+${shown.length - MAX_BUBBLE_VALUES} more (type to narrow, Tab completes)</div>` : nothing}`
-					: index > command.params.length
+					: tooMany
 						? html`<div class="bubble-error">too many parameters</div>`
 						: nothing}
 			</div>
@@ -494,11 +421,8 @@ export class TerminalApp extends LitElement implements DashboardApp {
 				<section class="term" @click=${() => this.inputElement.focus()}>
 					<div class="term-screen" @scroll=${() => this.requestUpdate()}>
 						${this.lines.map((l) => html`<div class="term-line term-${l.kind}">${l.text}</div>`)}
-						<div class="term-line term-prompt">
-							${this.busy
-								? html`<span class="term-busy">...</span>`
-								: html`${PROMPT}${before}<span class="term-cursor">${atCursor}</span>${after}`}
-						</div>
+						<!-- no whitespace inside: .term-line is white-space: pre-wrap (terminal-app.test.ts) -->
+						<div class="term-line term-prompt">${this.busy ? html`<span class="term-busy">...</span>` : html`${PROMPT}${before}<span class="term-cursor">${atCursor}</span>${after}`}</div>
 					</div>
 					${this.renderBubble()}
 					<input

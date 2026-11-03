@@ -32,6 +32,7 @@
 #include "rtos/port/stm32h5/ucpd.hpp"
 #include "rtos/port/stm32h5/usart.hpp"
 #include "pins.hpp"
+#include "system.hpp"
 
 namespace fcu::hw {
 
@@ -40,9 +41,30 @@ namespace dev = rtos::devices;
 inline constexpr auto& clocks = board::clocks;
 
 // ---- buses ------------------------------------------------------------------------------------
-using I2c1 = h5::I2cMaster<h5::I2cId::I2c1, {.kernel_hz = clocks.pclk1_hz(), .cpu_hz = board::sysclk_hz}>;
-using I2c2 = h5::I2cMaster<h5::I2cId::I2c2, {.kernel_hz = clocks.pclk1_hz(), .cpu_hz = board::sysclk_hz}>;
-using I2c4 = h5::I2cMaster<h5::I2cId::I2c4, {.kernel_hz = clocks.pclk3_hz(), .cpu_hz = board::sysclk_hz}>;
+/// Interrupt-driven I2C: the calling thread sleeps on a semaphore while the event interrupt moves
+/// the bytes (one per bus; the interrupts at irq_priority_net, kernel-aware).
+template <unsigned Bus>
+struct I2cWait {
+    static inline rtos::Semaphore<Kernel> done{kernel, 0, 1};
+    static void reset() noexcept {
+        while (done.take(rtos::no_wait)) {
+        }
+    }
+    static bool wait(std::uint32_t timeout_us) noexcept { return done.take(timeout_us / 1000 + 2); }  // 1 ms ticks
+    static void signal() noexcept { (void)done.give_from_isr(); }
+};
+using I2c1 = h5::I2cMaster<h5::I2cId::I2c1, {.kernel_hz = clocks.pclk1_hz(), .cpu_hz = board::sysclk_hz}, I2cWait<1>>;
+using I2c2 = h5::I2cMaster<h5::I2cId::I2c2, {.kernel_hz = clocks.pclk1_hz(), .cpu_hz = board::sysclk_hz}, I2cWait<2>>;
+using I2c4 = h5::I2cMaster<h5::I2cId::I2c4, {.kernel_hz = clocks.pclk3_hz(), .cpu_hz = board::sysclk_hz}, I2cWait<4>>;
+
+/// The bus's event and error interrupts on (after init()).
+template <class Bus>
+void enable_i2c_irqs() noexcept {
+    for (const unsigned irq : {unsigned{Bus::irq_event}, unsigned{Bus::irq_error}}) {
+        rtos::port::cm33::nvic::ipr(irq) = static_cast<std::uint8_t>(irq_priority_net << (8 - RTOS_CM33_PRIO_BITS));
+        rtos::port::cm33::nvic::enable(irq);
+    }
+}
 using Spi2 = h5::SpiMaster<h5::SpiId::Spi2, {.kernel_hz = board::pll1_q_hz, .max_bus_hz = 1'000'000,
                                              .cpu_hz = board::sysclk_hz}>;
 using StepperUart = h5::BufferedUart<h5::UsartId::Uart5, {.kernel_hz = clocks.pclk1_hz(), .baud = 115'200}, 64, 64>;

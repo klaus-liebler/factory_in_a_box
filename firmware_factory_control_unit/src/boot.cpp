@@ -136,6 +136,7 @@ void poll_pd_events() noexcept {
 bool wait_for_supply() noexcept {
     h5::gpio::configure<pins::supply_pins>();
     hw::I2c4::init();
+    hw::enable_i2c_irqs<hw::I2c4>();
     if (!hw::Supply::probe() || !hw::Supply::init()) {
         RTOS_LOG_ERROR("supply: INA226 (I2C4, 0x40) not found, supply voltage unknown");
         return false;

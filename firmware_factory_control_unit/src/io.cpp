@@ -313,6 +313,8 @@ void setup() noexcept {
     h5::gpio::configure<pins::io_pins>();
     hw::I2c1::init();
     hw::I2c2::init();
+    hw::enable_i2c_irqs<hw::I2c1>();
+    hw::enable_i2c_irqs<hw::I2c2>();
     // the scans first: the sensors' own probing (NACKs) must not colour them
     scan<hw::I2c1>(1, scans[0]);
     scan<hw::I2c2>(2, scans[1]);
@@ -406,6 +408,12 @@ std::span<const std::uint8_t, 16> i2c_scan(unsigned bus) noexcept {
 }  // namespace fcu::io
 
 extern "C" void UART5_IRQHandler() noexcept { fcu::io::stepper_uart.on_irq(); }
+extern "C" void I2C1_EV_IRQHandler() noexcept { fcu::hw::I2c1::on_event_irq(); }
+extern "C" void I2C1_ER_IRQHandler() noexcept { fcu::hw::I2c1::on_error_irq(); }
+extern "C" void I2C2_EV_IRQHandler() noexcept { fcu::hw::I2c2::on_event_irq(); }
+extern "C" void I2C2_ER_IRQHandler() noexcept { fcu::hw::I2c2::on_error_irq(); }
+extern "C" void I2C4_EV_IRQHandler() noexcept { fcu::hw::I2c4::on_event_irq(); }
+extern "C" void I2C4_ER_IRQHandler() noexcept { fcu::hw::I2c4::on_error_irq(); }
 extern "C" void GPDMA1_CH4_IRQHandler() noexcept { fcu::io::stepper1.on_dma_irq(); }
 extern "C" void GPDMA1_CH5_IRQHandler() noexcept { fcu::io::stepper2.on_dma_irq(); }
 extern "C" void TIM2_IRQHandler() noexcept { (void)fcu::io::stepper1.on_timer_irq(); }

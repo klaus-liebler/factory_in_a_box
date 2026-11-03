@@ -42,7 +42,7 @@ inline constexpr std::uint8_t log_priority = 14;
 /// NVIC priorities (0..15). 5 and above are kernel-aware (Kernel::Lock masks them); 0..4 are
 /// never masked and must not call the kernel.
 inline constexpr std::uint8_t irq_priority_motion = 4; ///< stepper DMA refill (deadline: one step), no kernel calls
-inline constexpr std::uint8_t irq_priority_net = 6;    ///< ETH, USB
+inline constexpr std::uint8_t irq_priority_net = 6;    ///< ETH, USB, I2C (wakes the waiting thread)
 inline constexpr std::uint8_t irq_priority_pd = 7;     ///< UCPD and its deadline timer (same level)
 
 }  // namespace fcu

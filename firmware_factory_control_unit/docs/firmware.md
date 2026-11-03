@@ -10,12 +10,12 @@ The Factory Control Unit firmware runs on [rtoos](https://github.com/klaus-liebl
 | `net` | 8 | IP stack and every network service (one `NetRuntime`) |
 | `log` | 14 | writes the log journal to the console (USART3) |
 
-Stepper step timing runs in TIM17/TIM16 interrupts (priority 4, never masked); USB-PD in UCPD1/TIM5 (priority 7).
+Stepper step timing runs in TIM17/TIM16 interrupts (priority 4, never masked); USB-PD on revision 1 in UCPD1/TIM5 (priority 7). Conveyor and compressor PWM: TIM4, 1 kHz.
 
 ## Boot order (as `App::AppThread` before)
 
 1. Chip UID must match `Core/generated/device_ids.hh` (else the LED blinks fast and nothing starts).
-2. Supply gate: if the INA226 measures less than 18 V, the board asks a USB-C supply for 20 V (USB Power Delivery sink, rtoos `usb_pd`) and waits.
+2. Supply gate: if the INA226 measures less than 18 V, the board waits for 20 V from a USB-C supply. Revision 2: a CH224K negotiates 20 V by itself (CFG1 open), the firmware only waits; revision 1: USB Power Delivery sink on UCPD1 (rtoos `usb_pd`).
 3. Power consumers: pins (`src/pins.hpp`), I2C bus scans, sensors, steppers (TMC2209), servos, LEDs, CAN, ADC.
 4. Network thread, then the I/O cycle.
 
@@ -23,7 +23,7 @@ Stepper step timing runs in TIM17/TIM16 interrupts (priority 4, never masked); U
 
 | File | Contents |
 |---|---|
-| `src/pins.hpp` | pins per hardware revision (1: first boards, 2: current PCB); named by signal, checked against ST's pin database at compile time |
+| `src/pins.hpp` | pins per hardware revision (1: first boards, 2: current PCB with CH224K); named by signal, checked against ST's pin database at compile time |
 | `src/hardware.hpp` | all peripheral and chip types with their compile-time configuration |
 | `src/boot.*` | reset cause, identity, banner, supply gate, USB-PD |
 | `src/io.*` | the I/O cycle: inputs, sensors (INA226, VL53L0X x3, TCS34725, HX711, DTS), outputs (valves, vacuum, PWM), steppers with sensorless homing, WS2812, CAN, health bits, heartbeat |

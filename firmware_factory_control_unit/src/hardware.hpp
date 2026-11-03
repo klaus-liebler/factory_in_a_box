@@ -7,7 +7,7 @@
 //   SPI2  HX711 load cell (MOSI clocks, MISO data)                  781 kHz
 //   UART5 TMC2209 x2 (single wire with echo, nodes 0b10, 0b00)      115200
 //   UART7 Feetech servo bus of the RoArm-M3                         1 Mbit/s
-//   TIM4  conveyor (CH3) and compressor (CH4) PWM                   2.5 kHz
+//   TIM4  conveyor (CH3) and compressor (CH4) PWM                   1 kHz
 //   TIM15 WS2812 strip (CH1, 8 LEDs) and single LED (CH2), DMA      800 kHz
 //   TIM16 stepper 2 (elevator), TIM17 stepper 1 (sorter): step timing, 1 MHz ticks
 //   TIM5  USB-PD deadlines (1 MHz, 32 bit)
@@ -63,8 +63,8 @@ using CpuTemperature = h5::Dts<{.pclk_hz = clocks.pclk1_hz()}>;
 using Can = h5::Fdcan<{.kernel_hz = board::pll1_q_hz, .cpu_hz = board::sysclk_hz, .bitrate = 500'000}>;
 
 // ---- actuators ----------------------------------------------------------------------------------
-/// Conveyor and compressor: 2.5 kHz PWM (the former 160 MHz / 65536), duty in 1/1000.
-using MotorPwm = h5::Timer<h5::TimerId::Tim4, {.kernel_hz = clocks.timer1_hz(), .update_hz = 2'500, .min_steps = 1000}>;
+/// Conveyor and compressor: 1 kHz PWM (requirement: at most 1 kHz), duty in 1/1000.
+using MotorPwm = h5::Timer<h5::TimerId::Tim4, {.kernel_hz = clocks.timer1_hz(), .update_hz = 1'000, .min_steps = 1000}>;
 
 /// 100 -> 1000 steps/s in 0.5 s (the FCU's sorter and elevator; rtoos motion_test).
 inline constexpr rtos::motion::SigmoidRamp stepper_ramp{.tick_hz = 1'000'000, .start_hz = 100, .cruise_hz = 1000,

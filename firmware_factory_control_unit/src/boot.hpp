@@ -1,8 +1,9 @@
 // Start-up of the FCU: identity, reset cause, banner, and the supply gate.
 //
 // The power consumers (Ethernet PHY, steppers, servos, valves) start only when the supply
-// carries at least 18 V. If it does not, the board asks a USB-C supply for 20 V (USB Power
-// Delivery sink on UCPD1) and waits - the former App::WaitForSupplyVoltage().
+// carries at least 18 V. If it does not, the board asks a USB-C supply for 20 V and waits - the
+// former App::WaitForSupplyVoltage(). Revision 1: USB Power Delivery sink on UCPD1;
+// revision 2: a CH224K negotiates 20 V by itself, the firmware only waits for the voltage.
 #pragma once
 
 #include <cstdint>
@@ -36,7 +37,8 @@ void announce() noexcept;
 /// Blocks until the supply is up (see above). False if the supply monitor does not answer.
 bool wait_for_supply() noexcept;
 
-/// USB-PD state for the registers and the log (I/O thread).
+/// USB-PD state for the registers and the log (I/O thread). Revision 2: derived from the
+/// INA226 bus voltage (status 0 from 18 V, else 2; current unknown: 0).
 void update_pd_registers() noexcept;
 void poll_pd_events() noexcept;
 

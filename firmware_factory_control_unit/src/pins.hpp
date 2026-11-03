@@ -1,7 +1,9 @@
 // I/O pins of the FCU firmware, per hardware revision (board::revision, CMake RTOS_FCU_REVISION).
 //
 //   revision 1: first boards, pin map of the former CubeMX project (firmware_factory_control_unit.ioc)
-//   revision 2: current PCB (pcb_factory_control_unit, MCU U1)
+//   revision 2: current PCB (pcb_factory_control_unit, MCU U1) - USB-PD by a CH224K (requests
+//               20 V, CFG1 open), the MCU's UCPD unused: the former CC/DB pins carry INT_TOF3
+//               (PB13) and CURRENT ALERT (PC9), INT_TOF1 is on PC14
 //
 // Console, LED, Ethernet and SD card pins belong to the board package (rtoos boards/fcu).
 // Pins are named by signal: rtoos checks each against ST's pin database at compile time.
@@ -56,28 +58,36 @@ inline constexpr Pin i2c2_scl{GpioPort::B, 10}, i2c2_sda{GpioPort::B, 12};  ///<
 inline constexpr Pin i2c4_scl{GpioPort::D, 12}, i2c4_sda{GpioPort::D, 13};  ///< INA226
 inline constexpr Pin hx711_dout{GpioPort::C, 2};  ///< SPI2_MISO (HX711 DOUT)
 inline constexpr Pin hx711_clock{GpioPort::C, 3}; ///< SPI2_MOSI (bit patterns clock the HX711)
-inline constexpr Pin tof1_irq{GpioPort::C, 15};
+inline constexpr Pin tof1_irq = rev1 ? Pin{GpioPort::C, 15} : Pin{GpioPort::C, 14};
 inline constexpr Pin tof2_irq = rev1 ? Pin{GpioPort::H, 1} : Pin{GpioPort::E, 15};
-inline constexpr Pin tof3_irq{GpioPort::A, 3};
+inline constexpr Pin tof3_irq = rev1 ? Pin{GpioPort::A, 3} : Pin{GpioPort::B, 13};  ///< rev 2: UCPD1_CC1 pin
 inline constexpr Pin color_irq{GpioPort::H, 0};
-inline constexpr Pin current_alert{GpioPort::D, 4};  ///< INA226 ALERT, open drain
+/// INA226 ALERT, open drain; revision 2: PC9 (UCPD1_DB2 pin, dead battery off in board::init())
+inline constexpr Pin current_alert = rev1 ? Pin{GpioPort::D, 4} : Pin{GpioPort::C, 9};
 
 // ---- other ------------------------------------------------------------------------------------
 inline constexpr Pin ws2812_1{GpioPort::E, 5};  ///< TIM15_CH1
 inline constexpr Pin ws2812_2{GpioPort::E, 6};  ///< TIM15_CH2
 inline constexpr Pin can_rx{GpioPort::D, 0}, can_tx{GpioPort::D, 1};  ///< FDCAN1
 inline constexpr Pin usb_vsense{GpioPort::C, 0};
+/// UCPD1 sink (revision 1 only; board::has_ucpd)
 inline constexpr Pin usb_pd_cc1{GpioPort::B, 13}, usb_pd_cc2{GpioPort::B, 14};
 inline constexpr Pin ethercat_reset = rev1 ? Pin{GpioPort::C, 14} : Pin{GpioPort::D, 3};  ///< ESC held in reset
 
-/// Pins needed before the supply is up: I2C4 (INA226) and the USB-PD CC lines.
-inline constexpr std::array supply_pins{
-    gpio::alternate(i2c4_scl, S::I2C4_SCL, gpio::Speed::Low, gpio::Pull::None, /*open_drain*/ true),
-    gpio::alternate(i2c4_sda, S::I2C4_SDA, gpio::Speed::Low, gpio::Pull::None, true),
-    gpio::analog(usb_pd_cc1, S::UCPD1_CC1),
-    gpio::analog(usb_pd_cc2, S::UCPD1_CC2),
-    gpio::input(current_alert, gpio::Pull::Up),
-};
+/// Pins needed before the supply is up: I2C4 (INA226) and, with UCPD, the USB-PD CC lines.
+inline constexpr auto supply_pins = [] {
+    constexpr std::array common{
+        gpio::alternate(i2c4_scl, S::I2C4_SCL, gpio::Speed::Low, gpio::Pull::None, /*open_drain*/ true),
+        gpio::alternate(i2c4_sda, S::I2C4_SDA, gpio::Speed::Low, gpio::Pull::None, true),
+        gpio::input(current_alert, gpio::Pull::Up),
+    };
+    if constexpr (board::has_ucpd) {
+        return std::array{common[0], common[1], common[2], gpio::analog(usb_pd_cc1, S::UCPD1_CC1),
+                          gpio::analog(usb_pd_cc2, S::UCPD1_CC2)};
+    } else {
+        return common;
+    }
+}();
 
 namespace detail {
 constexpr auto common_io_pins = std::array{

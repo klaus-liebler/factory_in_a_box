@@ -33,7 +33,9 @@ std::array<std::uint32_t, 3> chip_uid() noexcept {
 
 // ---- supply gate ----------------------------------------------------------------------------------
 constexpr std::int32_t supply_min_mv = 18'000;
-constexpr int pd_request_mv = 20'000;
+constexpr int pd_request_mv = 20'000;  // revision 2: the CH224K's request (CFG1 open)
+
+// UCPD1 sink, revision 1 (board::has_ucpd); unused on revision 2
 
 hw::PdClock pd_clock;
 RTOS_DMA_BUFFER hw::Ucpd ucpd;
@@ -88,6 +90,16 @@ void announce() noexcept {
 }
 
 void update_pd_registers() noexcept {
+    if constexpr (!board::has_ucpd) {
+        // The CH224K reports nothing to the MCU (PG not wired): the measured bus voltage is all
+        // there is. At 18 V or more the 20 V contract (or another supply) holds.
+        const auto m = hw::Supply::read();
+        const bool up = m && m->bus_mv >= supply_min_mv;
+        register_map::set_pwr_pd_voltage_mv(registers, up ? static_cast<std::uint16_t>(m->bus_mv) : 0);
+        register_map::set_pwr_pd_current_ma(registers, 0);
+        register_map::set_pwr_pd_status(registers, up ? 0 : 2);
+        return;
+    }
     const pd::SinkStatus s = pd_sink.status();
     const std::uint16_t status = !s.connected ? 2 : (s.active_mv < pd_request_mv ? 1 : 0);
     register_map::set_pwr_pd_voltage_mv(registers, static_cast<std::uint16_t>(s.active_mv));
@@ -144,18 +156,22 @@ bool wait_for_supply() noexcept {
         return false;
     }
     if (mv >= supply_min_mv) {
-        RTOS_LOG_INFO("supply: %ld mV present, USB-PD not needed", static_cast<long>(mv));
+        RTOS_LOG_INFO("supply: %ld mV present%s", static_cast<long>(mv), board::has_ucpd ? ", USB-PD not needed" : "");
         update_pd_registers();
         return true;
     }
-    RTOS_LOG_INFO("supply: only %ld mV, asking USB-PD for %d mV", static_cast<long>(mv), pd_request_mv);
-    hw::PdClock::init();
-    (void)pd_sink.request_power(pd_request_mv);
-    ucpd.start();
-    pd_started = true;
-    for (const unsigned irq : {static_cast<unsigned>(hw::Ucpd::irq), static_cast<unsigned>(hw::PdClock::irq)}) {
-        cm33::nvic::ipr(irq) = irq_priority_pd << (8 - RTOS_CM33_PRIO_BITS);
-        cm33::nvic::enable(irq);
+    if constexpr (board::has_ucpd) {
+        RTOS_LOG_INFO("supply: only %ld mV, asking USB-PD for %d mV", static_cast<long>(mv), pd_request_mv);
+        hw::PdClock::init();
+        (void)pd_sink.request_power(pd_request_mv);
+        ucpd.start();
+        pd_started = true;
+        for (const unsigned irq : {static_cast<unsigned>(hw::Ucpd::irq), static_cast<unsigned>(hw::PdClock::irq)}) {
+            cm33::nvic::ipr(irq) = irq_priority_pd << (8 - RTOS_CM33_PRIO_BITS);
+            cm33::nvic::enable(irq);
+        }
+    } else {
+        RTOS_LOG_INFO("supply: only %ld mV, waiting for the CH224K's %d mV", static_cast<long>(mv), pd_request_mv);
     }
     rtos::Tick last_log = kernel.now();
     while (mv < supply_min_mv) {
@@ -169,6 +185,7 @@ bool wait_for_supply() noexcept {
         }
     }
     poll_pd_events();
+    update_pd_registers();
     RTOS_LOG_INFO("supply: %ld mV reached", static_cast<long>(mv));
     return true;
 }

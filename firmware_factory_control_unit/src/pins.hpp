@@ -42,9 +42,9 @@ inline constexpr std::optional<Pin> light_barrier3 = rev1 ? std::optional{Pin{Gp
 // ---- motors -----------------------------------------------------------------------------------
 inline constexpr Pin conveyor_pwm{GpioPort::D, 14};    ///< TIM4_CH3
 inline constexpr Pin compressor_pwm{GpioPort::D, 15};  ///< TIM4_CH4
-inline constexpr Pin stepper1_step{GpioPort::A, 15};
+inline constexpr Pin stepper1_step{GpioPort::A, 15};  ///< TIM2_CH1
 inline constexpr Pin stepper1_dir{GpioPort::D, 6};
-inline constexpr Pin stepper2_step{GpioPort::B, 4};
+inline constexpr Pin stepper2_step{GpioPort::B, 4};   ///< TIM3_CH1
 inline constexpr Pin stepper2_dir{GpioPort::D, 7};
 inline constexpr Pin stepper_enable{GpioPort::B, 7};   ///< TMC2209 EN, active low
 inline constexpr Pin stepper_rx{GpioPort::B, 5};       ///< UART5
@@ -96,8 +96,8 @@ constexpr auto common_io_pins = std::array{
     gpio::alternate(conveyor_pwm, S::TIM4_CH3, gpio::Speed::Low), gpio::alternate(compressor_pwm, S::TIM4_CH4, gpio::Speed::Low),
     gpio::analog(pressure_sensor, S::ADC1_INP18),
     gpio::input(light_barrier1), gpio::input(light_barrier2),
-    gpio::output(stepper1_step, false, gpio::Speed::Medium), gpio::output(stepper1_dir),
-    gpio::output(stepper2_step, false, gpio::Speed::Medium), gpio::output(stepper2_dir),
+    gpio::alternate(stepper1_step, S::TIM2_CH1, gpio::Speed::Medium), gpio::output(stepper1_dir),
+    gpio::alternate(stepper2_step, S::TIM3_CH1, gpio::Speed::Medium), gpio::output(stepper2_dir),
     gpio::output(stepper_enable, /*high = disabled*/ true),
     gpio::alternate(stepper_rx, S::UART5_RX, gpio::Speed::Low, gpio::Pull::Up), gpio::alternate(stepper_tx, S::UART5_TX, gpio::Speed::Low),
     gpio::alternate(robot_rx, S::UART7_RX, gpio::Speed::Low, gpio::Pull::Up), gpio::alternate(robot_tx, S::UART7_TX, gpio::Speed::Low),

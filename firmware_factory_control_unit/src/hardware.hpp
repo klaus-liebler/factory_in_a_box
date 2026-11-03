@@ -9,7 +9,8 @@
 //   UART7 Feetech servo bus of the RoArm-M3                         1 Mbit/s
 //   TIM4  conveyor (CH3) and compressor (CH4) PWM                   1 kHz
 //   TIM15 WS2812 strip (CH1, 8 LEDs) and single LED (CH2), DMA      800 kHz
-//   TIM16 stepper 2 (elevator), TIM17 stepper 1 (sorter): step timing, 1 MHz ticks
+//   TIM2  stepper 1 (sorter), TIM3 stepper 2 (elevator): STEP = compare output, 1 MHz ticks,
+//         periods by GPDMA1 channels 4 and 5 (rtos TimerStepper: no interrupt per step)
 //   TIM5  USB-PD deadlines (1 MHz, 32 bit)
 //   ADC1  pressure sensor (INP18), FDCAN1 500 kbit/s, DTS CPU temperature
 #pragma once
@@ -20,7 +21,7 @@
 #include "rtos/devices/tcs34725.hpp"
 #include "rtos/devices/vl53l0x.hpp"
 #include "rtos/devices/ws2812.hpp"
-#include "rtos/motion/sigmoid_stepper.hpp"
+#include "rtos/motion/timer_stepper.hpp"
 #include "rtos/port/stm32h5/adc.hpp"
 #include "rtos/port/stm32h5/dts.hpp"
 #include "rtos/port/stm32h5/fdcan.hpp"
@@ -69,10 +70,18 @@ using MotorPwm = h5::Timer<h5::TimerId::Tim4, {.kernel_hz = clocks.timer1_hz(), 
 /// 100 -> 1000 steps/s in 0.5 s (the FCU's sorter and elevator; rtoos motion_test).
 inline constexpr rtos::motion::SigmoidRamp stepper_ramp{.tick_hz = 1'000'000, .start_hz = 100, .cruise_hz = 1000,
                                                         .ramp_us = 500'000};
-using Stepper1Timer = h5::Timer<h5::TimerId::Tim17, {.kernel_hz = clocks.timer2_hz(), .tick_hz = 1'000'000, .preload = false}>;
-using Stepper2Timer = h5::Timer<h5::TimerId::Tim16, {.kernel_hz = clocks.timer2_hz(), .tick_hz = 1'000'000, .preload = false}>;
-using StepperMotion = rtos::motion::SigmoidStepper<stepper_ramp>;
-static_assert(StepperMotion::max_ticks <= Stepper1Timer::max_period + 1, "the slowest step does not fit the timer");
+/// The timers make every STEP edge (toggle on CCR, TMC2209 DEDGE: one microstep per edge), the
+/// GPDMA writes each step's period into ARR; STEP 1 = PA15 (TIM2_CH1), STEP 2 = PB4 (TIM3_CH1).
+using Stepper1Timer = h5::Timer<h5::TimerId::Tim2, {.kernel_hz = clocks.timer1_hz(), .tick_hz = 1'000'000}>;
+using Stepper2Timer = h5::Timer<h5::TimerId::Tim3, {.kernel_hz = clocks.timer1_hz(), .tick_hz = 1'000'000}>;
+using Stepper1Dma = h5::DmaChannel<{.channel = 4, .request = h5::DmaRequest::Tim2Up,
+                                    .direction = h5::DmaDirection::MemoryToPeripheral, .memory_bytes = 2,
+                                    .peripheral_bytes = 4, .priority = 3}>;
+using Stepper2Dma = h5::DmaChannel<{.channel = 5, .request = h5::DmaRequest::Tim3Up,
+                                    .direction = h5::DmaDirection::MemoryToPeripheral, .memory_bytes = 2,
+                                    .peripheral_bytes = 4, .priority = 3}>;
+using Stepper1 = rtos::motion::TimerStepper<Stepper1Timer, 1, Stepper1Dma, stepper_ramp>;
+using Stepper2 = rtos::motion::TimerStepper<Stepper2Timer, 1, Stepper2Dma, stepper_ramp>;
 
 /// WS2812 at 800 kHz: TIM15 counts at the timer clock, one period per bit; the compare values
 /// from the period the timer really has.

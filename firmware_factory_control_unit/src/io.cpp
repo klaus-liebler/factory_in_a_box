@@ -152,44 +152,28 @@ void inputs() noexcept {
     rm::set_pressure_raw(registers, hw::Pressure::read());  // continuous conversion
 }
 
-// ---- steppers: TMC2209 on UART5, step timing in TIM17 (1) and TIM16 (2) -----------------------------
-hw::StepperMotion stepper_motion[2];
+// ---- steppers: TMC2209 on UART5, steps by TIM2 (1) and TIM3 (2) with GPDMA ----------------------------
+RTOS_DMA_BUFFER hw::Stepper1 stepper1;  // the period buffers are DMA sources
+RTOS_DMA_BUFFER hw::Stepper2 stepper2;
 dev::Tmc2209<hw::StepperUart, KernelClock> tmc[2]{{stepper_uart, 0b10}, {stepper_uart, 0b00}};
 bool homing_active[2] = {};
 
-template <class Timer>
-void step_irq(hw::StepperMotion& m, rtos::port::stm32h5::gpio::Pin step) noexcept {
-    if (!Timer::take_update()) {
-        return;
-    }
-    h5::gpio::toggle(step);
-    if (const std::uint32_t ticks = m.next(); ticks != 0) {
-        Timer::set_period(ticks);
-    } else {
-        Timer::stop();
-    }
+template <class Stepper>
+void move(Stepper& s, rtos::port::stm32h5::gpio::Pin dir, std::int32_t steps) noexcept {
+    write(dir, steps > 0);
+    (void)s.start(steps);
 }
 
-template <class Timer>
-void move(hw::StepperMotion& m, rtos::port::stm32h5::gpio::Pin dir, std::int32_t steps) noexcept {
-    const std::uint32_t first = m.begin(steps);
-    if (first == 0) {
-        return;
-    }
-    write(dir, m.forward());
-    Timer::set_period(first);
-    Timer::set_counter(0);
-    Timer::start();
-}
-
-std::uint16_t stepper_status(bool enabled, const hw::StepperMotion& m, std::int32_t target) noexcept {
+template <class Stepper>
+std::uint16_t stepper_status(bool enabled, const Stepper& m, std::int32_t target) noexcept {
     return static_cast<std::uint16_t>((enabled ? 1u : 0u) | (m.moving() ? 2u : 0u) |
                                       (!m.moving() && m.position() == target ? 8u : 0u));
 }
 
-void homing(std::size_t i, std::uint16_t start_reg, std::uint32_t now) noexcept {
+template <class Stepper>
+void homing(std::size_t i, Stepper& stepper, std::uint16_t start_reg, std::uint32_t now) noexcept {
     if (!homing_active[i]) {
-        if (registers.holding(start_reg) == 1 && !stepper_motion[i].moving()) {
+        if (registers.holding(start_reg) == 1 && !stepper.moving()) {
             homing_active[i] = tmc[i].start_homing({.speed = -200}, now);
         }
         return;
@@ -198,7 +182,7 @@ void homing(std::size_t i, std::uint16_t start_reg, std::uint32_t now) noexcept 
     switch (tmc[i].tick_homing(now)) {
         case R::InProgress: return;
         case R::Done:
-            stepper_motion[i].set_position(0);
+            stepper.set_position(0);
             registers.set_holding(start_reg, 0);
             break;
         case R::Timeout: registers.set_holding(start_reg, 2); break;
@@ -208,22 +192,22 @@ void homing(std::size_t i, std::uint16_t start_reg, std::uint32_t now) noexcept 
 }
 
 void steppers(std::uint32_t now) noexcept {
-    homing(0, rm::holding::stepper1_start_homing, now);
-    homing(1, rm::holding::stepper2_start_homing, now);
+    homing(0, stepper1, rm::holding::stepper1_start_homing, now);
+    homing(1, stepper2, rm::holding::stepper2_start_homing, now);
     const bool enabled = rm::stepper_enable(registers) != 0 || homing_active[0] || homing_active[1];
     write(pins::stepper_enable, !enabled);  // active low
     const std::int32_t target[2] = {rm::stepper1_target(registers), rm::stepper2_target(registers)};
     // a new target starts when the current move is done (no change of plan mid-ramp)
-    if (enabled && !homing_active[0] && !stepper_motion[0].moving() && stepper_motion[0].position() != target[0]) {
-        move<hw::Stepper1Timer>(stepper_motion[0], pins::stepper1_dir, target[0] - stepper_motion[0].position());
+    if (enabled && !homing_active[0] && !stepper1.moving() && stepper1.position() != target[0]) {
+        move(stepper1, pins::stepper1_dir, target[0] - stepper1.position());
     }
-    if (enabled && !homing_active[1] && !stepper_motion[1].moving() && stepper_motion[1].position() != target[1]) {
-        move<hw::Stepper2Timer>(stepper_motion[1], pins::stepper2_dir, target[1] - stepper_motion[1].position());
+    if (enabled && !homing_active[1] && !stepper2.moving() && stepper2.position() != target[1]) {
+        move(stepper2, pins::stepper2_dir, target[1] - stepper2.position());
     }
-    rm::set_stepper1_position(registers, stepper_motion[0].position());
-    rm::set_stepper2_position(registers, stepper_motion[1].position());
-    rm::set_stepper1_status(registers, stepper_status(enabled, stepper_motion[0], target[0]));
-    rm::set_stepper2_status(registers, stepper_status(enabled, stepper_motion[1], target[1]));
+    rm::set_stepper1_position(registers, stepper1.position());
+    rm::set_stepper2_position(registers, stepper2.position());
+    rm::set_stepper1_status(registers, stepper_status(enabled, stepper1, target[0]));
+    rm::set_stepper2_status(registers, stepper_status(enabled, stepper2, target[1]));
 }
 
 // ---- WS2812: CH1 strip of 8 LEDs (patterns), CH2 one LED (palette) --------------------------------
@@ -374,12 +358,12 @@ void setup() noexcept {
         }
         (void)tmc[i].set_current(4, 12, 6);
     }
-    hw::Stepper1Timer::init();
-    hw::Stepper2Timer::init();
-    hw::Stepper1Timer::enable_update_irq();
-    hw::Stepper2Timer::enable_update_irq();
-    enable_irq(hw::Stepper1Timer::irq, irq_priority_motion);
-    enable_irq(hw::Stepper2Timer::irq, irq_priority_motion);
+    stepper1.init();
+    stepper2.init();
+    for (const unsigned irq : {unsigned{hw::Stepper1Timer::irq}, unsigned{hw::Stepper2Timer::irq},
+                               unsigned{hw::Stepper1Dma::irq}, unsigned{hw::Stepper2Dma::irq}}) {
+        enable_irq(irq, irq_priority_motion);
+    }
 
     hw::LedTimer::init();
     hw::LedTimer::configure_pwm<1>();
@@ -422,9 +406,7 @@ std::span<const std::uint8_t, 16> i2c_scan(unsigned bus) noexcept {
 }  // namespace fcu::io
 
 extern "C" void UART5_IRQHandler() noexcept { fcu::io::stepper_uart.on_irq(); }
-extern "C" void TIM17_IRQHandler() noexcept {
-    fcu::io::step_irq<fcu::hw::Stepper1Timer>(fcu::io::stepper_motion[0], fcu::pins::stepper1_step);
-}
-extern "C" void TIM16_IRQHandler() noexcept {
-    fcu::io::step_irq<fcu::hw::Stepper2Timer>(fcu::io::stepper_motion[1], fcu::pins::stepper2_step);
-}
+extern "C" void GPDMA1_CH4_IRQHandler() noexcept { fcu::io::stepper1.on_dma_irq(); }
+extern "C" void GPDMA1_CH5_IRQHandler() noexcept { fcu::io::stepper2.on_dma_irq(); }
+extern "C" void TIM2_IRQHandler() noexcept { (void)fcu::io::stepper1.on_timer_irq(); }
+extern "C" void TIM3_IRQHandler() noexcept { (void)fcu::io::stepper2.on_timer_irq(); }

@@ -7417,7 +7417,7 @@
 			)
 		)
 	)
-	(global_label "CAN1_TX"
+	(global_label "CAN1_RX"
 		(shape output)
 		(at 207.01 30.48 180)
 		(fields_autoplaced yes)
@@ -7429,7 +7429,7 @@
 		)
 		(uuid "22d52cc5-5178-4690-a695-7eb256aeb71e")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 195.9815 30.48 0)
+			(at 195.6791 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8065,7 +8065,7 @@
 			)
 		)
 	)
-	(global_label "CAN1_RX"
+	(global_label "CAN1_TX"
 		(shape input)
 		(at 199.39 27.94 180)
 		(fields_autoplaced yes)
@@ -8077,7 +8077,7 @@
 		)
 		(uuid "624a2ee1-3735-428a-a2cf-4191d03173d5")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 188.0591 27.94 0)
+			(at 188.3615 27.94 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)

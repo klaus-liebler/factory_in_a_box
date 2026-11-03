@@ -141,7 +141,7 @@ bool wait_for_supply() noexcept {
         RTOS_LOG_ERROR("supply: INA226 (I2C4, 0x40) not found, supply voltage unknown");
         return false;
     }
-    kernel.sleep(20);  // first conversion (16 x 1.1 ms x 2)
+    kernel.sleep(40);  // first measurement: 16 x (1.1 ms + 1.1 ms) = 35.2 ms (hw::Supply)
     auto bus_mv = [] {
         for (int attempt = 0; attempt < 5; ++attempt) {
             if (const auto m = hw::Supply::read()) {

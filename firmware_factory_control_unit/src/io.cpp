@@ -2,6 +2,7 @@
 #include "io.hpp"
 
 #include <array>
+#include <atomic>
 #include <cstring>
 
 #include "boot.hpp"
@@ -52,16 +53,22 @@ void scan(unsigned bus, std::array<std::uint8_t, 16>& out) noexcept {
     b.add("I2C%u: %u device(s)", bus, found);
 }
 
+// ---- events from interrupts -----------------------------------------------------------------------
+Kernel::Thread* event_thread = nullptr;
+std::atomic<bool> barrier_interrupted[3] = {};  // latched by EXTI, taken by inputs()
+std::atomic<std::uint32_t> scale_readings_seen{0};
+
 // ---- sensors ------------------------------------------------------------------------------------
 bool supply_present = false, tof_present[3] = {}, color_present = false;
 unsigned supply_failures = 0;
+std::uint32_t last_supply_read = 0;
 
-void power() noexcept {
-    rm::set_pwr_status(registers, supply_present ? 0 : 1);
-    if (!supply_present) {
-        return;
-    }
-    if (const auto m = hw::Supply::read()) {
+/// The INA226 measurement into the registers; acknowledge() releases ALERT for the next one.
+void read_supply(std::uint32_t now) noexcept {
+    last_supply_read = now;
+    const auto m = hw::Supply::read();
+    (void)hw::Supply::acknowledge();
+    if (m) {
         supply_failures = 0;
         rm::set_pwr_bus_voltage_mv(registers, static_cast<std::uint16_t>(m->bus_mv));
         rm::set_pwr_shunt_voltage_uv(registers, static_cast<std::uint16_t>(m->shunt_uv));
@@ -70,6 +77,15 @@ void power() noexcept {
     } else if (++supply_failures <= 3 || supply_failures % 20 == 0) {
         RTOS_LOG_WARN("INA226: read failed (%u in a row)", supply_failures);
         hw::I2c4::recover();
+    }
+}
+
+void power(std::uint32_t now) noexcept {
+    rm::set_pwr_status(registers, supply_present ? 0 : 1);
+    // normally ALERT wakes the thread (events()); without one for 200 ms - a lost edge, a failed
+    // acknowledge - read anyway, which also releases ALERT
+    if (supply_present && now - last_supply_read >= 200) {
+        read_supply(now);
     }
 }
 
@@ -98,9 +114,17 @@ void color() noexcept {
     }
 }
 
-void scale() noexcept {
-    (void)hw::Scale::poll();
-    if (const auto w = hw::Scale::average()) {
+/// The HX711 is read by interrupts alone (DOUT edge -> SPI -> end of transfer); here only the
+/// average goes into the registers, and status 1 when no reading came for a second.
+std::uint32_t scale_last_count = 0, scale_last_change = 0;
+void scale(std::uint32_t now) noexcept {
+    const std::uint32_t n = hw::Scale::readings();
+    if (n != scale_last_count) {
+        scale_last_count = n;
+        scale_last_change = now;
+    }
+    const auto w = hw::Scale::average();
+    if (w && now - scale_last_change < 1'000) {
         rm::set_scale_a_weight(registers, *w);
         rm::set_scale_a_status(registers, 0);
     } else {
@@ -144,10 +168,12 @@ void outputs() noexcept {
 }
 
 void inputs() noexcept {
-    rm::set_lightbarrier1(registers, read(pins::light_barrier1) ? 0 : 1);  // NPN: active low
-    rm::set_lightbarrier2(registers, read(pins::light_barrier2) ? 0 : 1);
+    // NPN: active low. An interruption since the last cycle counts too, however short it was
+    // (EXTI latches it): one cycle of 1 for an object that passed between two looks.
+    rm::set_lightbarrier1(registers, !read(pins::light_barrier1) || barrier_interrupted[0].exchange(false) ? 1 : 0);
+    rm::set_lightbarrier2(registers, !read(pins::light_barrier2) || barrier_interrupted[1].exchange(false) ? 1 : 0);
     if constexpr (pins::rev1) {
-        rm::set_lightbarrier3(registers, read(*pins::light_barrier3) ? 0 : 1);
+        rm::set_lightbarrier3(registers, !read(*pins::light_barrier3) || barrier_interrupted[2].exchange(false) ? 1 : 0);
     }
     rm::set_pressure_raw(registers, hw::Pressure::read());  // continuous conversion
 }
@@ -320,7 +346,21 @@ void setup() noexcept {
     scan<hw::I2c2>(2, scans[1]);
     scan<hw::I2c4>(4, scans[2]);
 
-    supply_present = hw::Supply::probe() && hw::Supply::init();
+    supply_present = hw::Supply::probe() && hw::Supply::init() && hw::Supply::enable_conversion_ready_alert();
+    hw::SupplyAlert::init();
+    hw::SupplyAlert::enable();
+    enable_irq(hw::SupplyAlert::irq, irq_priority_net);  // kernel-aware: notifies the I/O thread
+    hw::Barrier1::init();
+    hw::Barrier2::init();
+    hw::Barrier1::enable();
+    hw::Barrier2::enable();
+    enable_irq(hw::Barrier1::irq, irq_priority_net);
+    enable_irq(hw::Barrier2::irq, irq_priority_net);
+    if constexpr (pins::rev1) {
+        hw::Barrier3::init();
+        hw::Barrier3::enable();
+        enable_irq(hw::Barrier3::irq, irq_priority_net);
+    }
     tof_present[0] = hw::Tof1::probe();
     tof_present[1] = hw::Tof2::probe();
     tof_present[2] = hw::Tof3::probe();
@@ -338,6 +378,11 @@ void setup() noexcept {
 
     hw::Spi2::init();
     (void)hw::Scale::init();
+    hw::ScaleReady::init();
+    enable_irq(hw::ScaleReady::irq, irq_priority_net);
+    enable_irq(hw::Spi2::irq, irq_priority_net);
+    hw::ScaleReady::enable();
+    hw::ScaleReady::trigger();  // DOUT may be low already: the handler looks at the level
     if (!hw::Pressure::init()) {
         RTOS_LOG_WARN("ADC1: calibration failed");
     }
@@ -380,14 +425,22 @@ void setup() noexcept {
     roarm::setup();
 }
 
+void set_event_thread(Kernel::Thread& thread) noexcept { event_thread = &thread; }
+
+void events(std::uint32_t bits) noexcept {
+    if ((bits & event_supply) != 0 && supply_present) {
+        read_supply(kernel.now());
+    }
+}
+
 void cycle(std::uint32_t now) noexcept {
     inputs();
-    power();
+    power(now);
     tof<hw::Tof1>(0, rm::input::tof1_distance_mm, rm::input::tof1_status);
     tof<hw::Tof2>(1, rm::input::tof2_distance_mm, rm::input::tof2_status);
     tof<hw::Tof3>(2, rm::input::tof3_distance_mm, rm::input::tof3_status);
     color();
-    scale();
+    scale(now);
     cpu_temperature();
     can();
     boot::poll_pd_events();
@@ -408,6 +461,51 @@ std::span<const std::uint8_t, 16> i2c_scan(unsigned bus) noexcept {
 }  // namespace fcu::io
 
 extern "C" void UART5_IRQHandler() noexcept { fcu::io::stepper_uart.on_irq(); }
+namespace fcu::io {
+namespace {
+/// The EXTI interrupt `Irq` (EXTI0..15 = 11..26): the lines of this revision that use it.
+template <unsigned Irq>
+void exti_irq() noexcept {
+    if constexpr (hw::ScaleReady::irq == Irq) {
+        if (hw::ScaleReady::take()) {
+            hw::ScaleReady::disable();  // the data bits toggle DOUT: no edges until the reading is done
+            if (!hw::Scale::start_read()) {
+                hw::ScaleReady::enable();  // not ready (the software trigger with DOUT high)
+            }
+        }
+    }
+    if constexpr (hw::SupplyAlert::irq == Irq) {
+        if (hw::SupplyAlert::take() && event_thread != nullptr) {
+            kernel.notify_from_isr(*event_thread, event_slot, event_supply, rtos::NotifyAction::SetBits);
+        }
+    }
+    if constexpr (hw::Barrier1::irq == Irq) {
+        if (hw::Barrier1::take().falling) barrier_interrupted[0] = true;
+    }
+    if constexpr (hw::Barrier2::irq == Irq) {
+        if (hw::Barrier2::take().falling) barrier_interrupted[1] = true;
+    }
+    if constexpr (pins::rev1 && hw::Barrier3::irq == Irq) {
+        if (hw::Barrier3::take().falling) barrier_interrupted[2] = true;
+    }
+}
+}  // namespace
+}  // namespace fcu::io
+
+extern "C" void EXTI2_IRQHandler() noexcept { fcu::io::exti_irq<13>(); }
+extern "C" void EXTI4_IRQHandler() noexcept { fcu::io::exti_irq<15>(); }
+extern "C" void EXTI6_IRQHandler() noexcept { fcu::io::exti_irq<17>(); }
+extern "C" void EXTI7_IRQHandler() noexcept { fcu::io::exti_irq<18>(); }
+extern "C" void EXTI8_IRQHandler() noexcept { fcu::io::exti_irq<19>(); }
+extern "C" void EXTI9_IRQHandler() noexcept { fcu::io::exti_irq<20>(); }
+
+/// HX711: the SPI's end of transfer - the reading that the DOUT edge started.
+extern "C" void SPI2_IRQHandler() noexcept {
+    (void)fcu::hw::Scale::complete();
+    (void)fcu::hw::ScaleReady::take();  // the edges of the data bits
+    fcu::hw::ScaleReady::enable();
+}
+
 extern "C" void I2C1_EV_IRQHandler() noexcept { fcu::hw::I2c1::on_event_irq(); }
 extern "C" void I2C1_ER_IRQHandler() noexcept { fcu::hw::I2c1::on_error_irq(); }
 extern "C" void I2C2_EV_IRQHandler() noexcept { fcu::hw::I2c2::on_event_irq(); }

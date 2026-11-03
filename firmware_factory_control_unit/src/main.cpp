@@ -60,6 +60,7 @@ void io_main(void*) {
             kernel.sleep(100);
         }
     }
+    fcu::io::set_event_thread(io_tcb);
     if (!fcu::boot::wait_for_supply()) {
         RTOS_LOG_ERROR("supply unknown: starting the power consumers anyway");
     }
@@ -70,10 +71,14 @@ void io_main(void*) {
     for (;;) {
         fcu::io::cycle(kernel.now());
         next += fcu::io::cycle_ms;
-        const rtos::Tick now = kernel.now();
-        kernel.sleep(static_cast<std::int32_t>(next - now) > 0 ? next - now : 1);
-        if (static_cast<std::int32_t>(now - next) > static_cast<std::int32_t>(fcu::io::cycle_ms)) {
-            next = now;  // overrun: no catching up
+        if (static_cast<std::int32_t>(kernel.now() - next) > static_cast<std::int32_t>(fcu::io::cycle_ms)) {
+            next = kernel.now();  // overrun: no catching up
+        }
+        // until the next cycle: events from interrupts (a measurement ready, ...) right away
+        for (rtos::Tick now = kernel.now(); static_cast<std::int32_t>(next - now) > 0; now = kernel.now()) {
+            if (const auto bits = kernel.notify_wait(fcu::io::event_slot, next - now)) {
+                fcu::io::events(*bits);
+            }
         }
     }
 }

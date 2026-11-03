@@ -10,7 +10,7 @@ The Factory Control Unit firmware runs on [rtoos](https://github.com/klaus-liebl
 | `net` | 8 | IP stack and every network service (one `NetRuntime`) |
 | `log` | 14 | writes the log journal to the console (USART3) |
 
-Stepper steps come from TIM2/TIM3 compare outputs, their periods from GPDMA1 channels 4/5 (rtos `TimerStepper`; the DMA interrupt refills every 32 steps, priority 4, never masked); TMC2209 DEDGE: one microstep per STEP edge; I2C1/2/4 interrupt-driven (the I/O thread sleeps on a semaphore while the bytes move, priority 6); USB-PD on revision 1 in UCPD1/TIM5 (priority 7). Conveyor and compressor PWM: TIM4, 1 kHz.
+Stepper steps come from TIM2/TIM3 compare outputs, their periods from GPDMA1 channels 4/5 (rtos `TimerStepper`; the DMA interrupt refills every 32 steps, priority 4, never masked); TMC2209 DEDGE: one microstep per STEP edge; I2C1/2/4 interrupt-driven (the I/O thread sleeps on a semaphore while the bytes move, priority 6); HX711 read by interrupts alone (EXTI on DOUT starts the SPI transfer, its end-of-transfer interrupt decodes); INA226 ALERT (conversion ready, every 35.2 ms) wakes the I/O thread between cycles; light barriers latched by EXTI (an interruption shorter than a cycle still shows for one cycle); USB-PD on revision 1 in UCPD1/TIM5 (priority 7). Conveyor and compressor PWM: TIM4, 1 kHz.
 
 ## Boot order (as `App::AppThread` before)
 

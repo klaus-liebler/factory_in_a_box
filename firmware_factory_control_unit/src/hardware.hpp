@@ -24,6 +24,7 @@
 #include "rtos/motion/timer_stepper.hpp"
 #include "rtos/port/stm32h5/adc.hpp"
 #include "rtos/port/stm32h5/dts.hpp"
+#include "rtos/port/stm32h5/exti.hpp"
 #include "rtos/port/stm32h5/fdcan.hpp"
 #include "rtos/port/stm32h5/gpdma.hpp"
 #include "rtos/port/stm32h5/i2c.hpp"
@@ -71,8 +72,9 @@ using StepperUart = h5::BufferedUart<h5::UsartId::Uart5, {.kernel_hz = clocks.pc
 using ServoUart = h5::BufferedUart<h5::UsartId::Uart7, {.kernel_hz = clocks.pclk1_hz(), .baud = 1'000'000}, 256, 256>;
 
 // ---- sensors ------------------------------------------------------------------------------------
-/// 10 mOhm shunt, up to 8 A.
-using Supply = dev::Ina226<I2c4, {.shunt_micro_ohm = 10'000, .max_current_ma = 8'000}>;
+/// 10 mOhm shunt, up to 8 A; 16 averages of 1.1 ms bus + 1.1 ms shunt: a measurement every
+/// 35.2 ms, announced on ALERT (conversion ready).
+using Supply = dev::Ina226<I2c4, {.shunt_micro_ohm = 10'000, .max_current_ma = 8'000, .config = 0x4527}>;
 using Tof1 = dev::Vl53l0x<I2c1, 0x30>;  ///< address changed from 0x29 (the colour sensor has it)
 using Tof2 = dev::Vl53l0x<I2c2>;
 using Tof3 = dev::Vl53l0x<I2c4>;
@@ -80,6 +82,16 @@ using Tof3 = dev::Vl53l0x<I2c4>;
 using Color = dev::Tcs34725<I2c1, {.integration_ms = 154, .gain = dev::Tcs34725Gain::X4}>;
 inline bool scale_ready() noexcept { return !h5::gpio::read(pins::hx711_dout); }  // DOUT low: conversion ready
 using Scale = dev::Hx711<Spi2, &scale_ready, dev::Hx711Gain::A128, 8>;
+
+// ---- GPIO edge interrupts (EXTI) -----------------------------------------------------------------
+/// HX711 DOUT low: a conversion is ready (the reading then runs by SPI interrupt alone).
+using ScaleReady = h5::ExtiLine<pins::hx711_dout, h5::ExtiEdge::Falling>;
+/// INA226 ALERT low: a measurement is ready.
+using SupplyAlert = h5::ExtiLine<pins::current_alert, h5::ExtiEdge::Falling>;
+/// Light barriers: every interruption is latched, however short (both edges counted).
+using Barrier1 = h5::ExtiLine<pins::light_barrier1, h5::ExtiEdge::Both>;
+using Barrier2 = h5::ExtiLine<pins::light_barrier2, h5::ExtiEdge::Both>;
+using Barrier3 = h5::ExtiLine<pins::light_barrier3.value_or(pins::light_barrier2), h5::ExtiEdge::Both>;  ///< revision 1
 using Pressure = h5::Adc<h5::AdcId::Adc1, {.kernel_hz = clocks.hclk_hz(), .cpu_hz = board::sysclk_hz, .channel = 18,
                                            .sample = h5::AdcSample::Cycles2_5}>;
 using CpuTemperature = h5::Dts<{.pclk_hz = clocks.pclk1_hz()}>;

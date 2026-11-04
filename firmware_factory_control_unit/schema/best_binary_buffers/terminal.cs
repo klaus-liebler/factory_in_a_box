@@ -2,7 +2,7 @@ using BestBinaryBuffers;
 
 namespace terminal;
 
-/// <summary>Live values of a command parameter (schema/terminal/commands.json, "lookups"):
+/// <summary>Live values of a command parameter (schema/terminal/commands.cs, enum Lookup):
 /// one line per value, value and description separated by a tab.</summary>
 [BinaryMessage(MessageKind.Request)]
 public class LookupRequest

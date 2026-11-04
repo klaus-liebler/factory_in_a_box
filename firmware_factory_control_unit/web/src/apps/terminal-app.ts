@@ -4,7 +4,7 @@
 // Console: classic look (black, white monospace, prompt, blinking block cursor). Everything but
 // running a command happens in the browser: history (arrow up/down), Tab completion of command
 // names and parameter values, the parameter tooltip, help and clear. The command catalog
-// (generated/terminal-commands.ts, from schema/terminal/commands.json) is compiled into the web
+// (generated/terminal-commands.ts, from schema/terminal/commands.cs) is compiled into the web
 // app; parameter values are listed there, computed here (command names, registers) or fetched
 // live from the device (terminal.LookupRequest, cached for a moment).
 //

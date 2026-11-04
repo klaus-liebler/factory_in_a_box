@@ -14,7 +14,7 @@ public sealed class Stm32BuildContext : Stm32BuildContextBase
     private static readonly string _buildDir = BuildContextPaths.BuildDir(RootDirStatic);
 
     // schema/ statt der Top-Level-Konvention von BuildContextPaths (best_binary_buffers_schema/).
-    public static readonly string BestBinaryBuffersSchemaDir = Path.Combine(RootDirStatic, "schema", "best_binary_buffers");
+    private static readonly string _bestBinaryBuffersSchemaDir = Path.Combine(RootDirStatic, "schema", "best_binary_buffers");
     public static readonly string RegisterMapSchemaDir = Path.Combine(RootDirStatic, "schema", "register_map");
 
     // build/assets/ statt eines eigenen Top-Level-Ordners: vollstaendig generierter, gitignorter
@@ -33,5 +33,6 @@ public sealed class Stm32BuildContext : Stm32BuildContextBase
     public override string WebGeneratedDir => _webGeneratedDir;
     public override string FirmwareGeneratedDir => _coreGeneratedDir;
     public override string BuildDir => _buildDir;
+    public override string BestBinaryBuffersSchemaDir => _bestBinaryBuffersSchemaDir;
     public override string BoardIdCacheFile => BoardIdCacheFileStatic;
 }

@@ -16,6 +16,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(RTOS_SSH OFF)  # no SSH log terminal: wolfSSL without Ed25519/SHA-512
 add_subdirectory(rtoos)  # rtos_kernel, rtos_tls, rtos_opcua, rtos_filex, rtos_littlefs, rtos_board_fcu
 
 set(FCU_ASSETS ${CMAKE_SOURCE_DIR}/build/assets)

@@ -1,11 +1,7 @@
-// Browser terminal (see terminal.hpp).
+// Browser terminal (see terminal.hpp): the FCU's commands on rtoos' terminal (rtos/terminal).
 #include "terminal.hpp"
 
 #include <array>
-#include <charconv>
-#include <cstdarg>
-#include <cstdio>
-#include <cstring>
 #include <optional>
 #include <string_view>
 
@@ -15,6 +11,7 @@
 #include "hardware.hpp"
 #include "rtos/port/cm33/port.hpp"
 #include "rtos/sync/message_queue.hpp"
+#include "rtos/terminal/terminal.hpp"
 #include "system.hpp"
 #include "terminal_commands.hh"
 #include "ws_protocol.hh"
@@ -35,83 +32,15 @@ constexpr std::size_t max_message =
 constexpr std::size_t max_output =
     std::min(ws::CommandResponse::CommandResponse_MAX_SIZE, ws::LookupResponse::LookupResponse_MAX_SIZE) - 16;
 
-/// The output of a command: lines of text.
-class Out {
-public:
-    [[gnu::format(printf, 2, 3)]] void line(const char* format, ...) noexcept {
-        va_list args;
-        va_start(args, format);
-        const int n = std::vsnprintf(text_.data() + size_, text_.size() - size_, format, args);
-        va_end(args);
-        if (n > 0) {
-            size_ = std::min(size_ + static_cast<std::size_t>(n), text_.size() - 1);
-        }
-        if (size_ + 1 < text_.size()) {
-            text_[size_++] = '\n';
-        }
-        text_[size_] = '\0';
-    }
-    [[nodiscard]] const char* c_str() noexcept {
-        if (size_ > 0 && text_[size_ - 1] == '\n') {
-            text_[--size_] = '\0';
-        }
-        return text_.data();
-    }
-
-private:
-    std::array<char, max_output + 1> text_{};
-    std::size_t size_ = 0;
-};
-
-using Args = std::span<const std::string_view>;
-struct Handler {
-    cat::Command id;
-    bool (*run)(Args, Out&);  ///< false: wrong arguments (the usage line is shown)
-};
+using Out = rtos::terminal::Output<max_output>;
+using rtos::terminal::Args;
+using Handler = rtos::terminal::Handler<cat::Command, Out>;
 
 // ---- helpers --------------------------------------------------------------------------------------
-
-template <class T>
-std::optional<T> number(std::string_view s) {
-    T v{};
-    int base = 10;
-    if (s.starts_with("0x") || s.starts_with("0X")) {
-        s.remove_prefix(2);
-        base = 16;
-    }
-    const auto [end, ec] = std::from_chars(s.data(), s.data() + s.size(), v, base);
-    if (ec != std::errc{} || end != s.data() + s.size()) {
-        return std::nullopt;
-    }
-    return v;
-}
-
-/// "PC7", "pa15": a pin of the LQFP100 package.
-std::optional<Pin> parse_pin(std::string_view s) {
-    if (s.size() < 3 || (s[0] != 'P' && s[0] != 'p')) {
-        return std::nullopt;
-    }
-    const char port = static_cast<char>(s[1] & ~0x20);
-    const auto n = number<unsigned>(s.substr(2));
-    if (port < 'A' || port > 'I' || !n || *n > 15) {
-        return std::nullopt;
-    }
-    const Pin p{static_cast<GpioPort>(port - 'A'), static_cast<std::uint8_t>(*n)};
-    for (const auto& [pp, pn] : h5::gpio::package_pins) {
-        if (pp == p.port && pn == p.number) {
-            return p;
-        }
-    }
-    return std::nullopt;
-}
-
-std::optional<bool> parse_level(std::string_view s) {
-    if (s == "1" || s == "on" || s == "high") return true;
-    if (s == "0" || s == "off" || s == "low") return false;
-    return std::nullopt;
-}
-
-char port_letter(Pin p) { return static_cast<char>('A' + static_cast<int>(p.port)); }
+using rtos::terminal::number;
+using h5::gpio::parse_pin;
+using h5::gpio::port_letter;
+constexpr auto parse_level = rtos::terminal::level;
 
 // ---- named inputs and outputs ------------------------------------------------------------------------
 struct NamedPin {
@@ -152,7 +81,7 @@ constexpr std::array outputs{
     NamedOutput{"stepper_enable", rm::holding::stepper_enable, true},
 };
 
-// ---- commands (schema/terminal/commands.json) -------------------------------------------------------------
+// ---- commands (schema/terminal/commands.cs) -------------------------------------------------------------
 bool cmd_info(Args, Out& o) {
     o.line("%s.local, hardware revision %u", DEVICE_HOSTNAME, board::revision);
     o.line("firmware %.*s (%.*s)", static_cast<int>(git::VERSION.size()), git::VERSION.data(),
@@ -334,18 +263,10 @@ constexpr std::array handlers{
     Handler{cat::Command::led, &cmd_led},         Handler{cat::Command::reset, &cmd_reset},
 };
 
-/// Every command of the catalog has exactly one handler.
-consteval bool handlers_complete() {
-    for (const cat::CommandInfo& c : cat::commands) {
-        std::size_t n = 0;
-        for (const Handler& h : handlers) n += h.id == c.id ? 1 : 0;
-        if (n != 1) return false;
-    }
-    return handlers.size() == cat::commands.size();
-}
-static_assert(handlers_complete(), "schema/terminal/commands.json and the handlers in terminal.cpp differ");
+static_assert(rtos::terminal::complete(cat::commands, handlers),
+              "schema/terminal/commands.cs and the handlers in terminal.cpp differ");
 
-// ---- lookups (schema/terminal/commands.json): one "value \t description" line per value ----------------
+// ---- lookups (schema/terminal/commands.cs): one "value \t description" line per value ----------------
 void lookup(cat::Lookup l, Out& o) {
     switch (l) {  // no default: -Wswitch reports a lookup without an answer
         case cat::Lookup::inputs:
@@ -372,12 +293,7 @@ void lookup(cat::Lookup l, Out& o) {
 }
 
 // ---- queue: network thread -> I/O thread --------------------------------------------------------------
-struct Request {
-    net::Server::SessionId session = 0;
-    std::uint16_t request_id = 0;
-    std::optional<cat::Lookup> lookup;  ///< a lookup instead of a command line
-    std::array<char, 201> line{};
-};
+using Request = rtos::terminal::Request<net::Server::SessionId, cat::Lookup, 200>;  // ws CommandRequest.line
 rtos::MessageQueue<Kernel, Request, 4> requests{kernel};
 
 void reply(const Request& r, std::span<const std::uint8_t> message) {
@@ -395,35 +311,7 @@ void run(const Request& r) {
         reply(r, std::span(buf).first(ws::LookupResponse::Encode(p, buf.data(), buf.size())));
         return;
     }
-    std::array<std::string_view, 8> words{};
-    std::size_t n = 0;
-    std::string_view rest(r.line.data());
-    while (!rest.empty() && n < words.size()) {
-        const auto start = rest.find_first_not_of(' ');
-        if (start == std::string_view::npos) break;
-        rest.remove_prefix(start);
-        const auto end = rest.find(' ');
-        words[n++] = rest.substr(0, end);
-        rest = end == std::string_view::npos ? std::string_view{} : rest.substr(end);
-    }
-    bool ok = true;
-    if (n > 0) {
-        const cat::CommandInfo* c = nullptr;
-        for (const cat::CommandInfo& info : cat::commands) {
-            if (info.name == words[0]) c = &info;
-        }
-        const Handler* h = nullptr;
-        for (const Handler& handler : handlers) {
-            if (c != nullptr && handler.id == c->id) h = &handler;
-        }
-        if (h == nullptr) {
-            out.line("unknown command '%.*s' - try help", static_cast<int>(words[0].size()), words[0].data());
-            ok = false;
-        } else if (!h->run(std::span(words).subspan(1, n - 1), out)) {
-            out.line("usage: %.*s", static_cast<int>(c->usage.size()), c->usage.data());
-            ok = false;
-        }
-    }
+    const bool ok = rtos::terminal::execute(r.text(), cat::commands, handlers, out);
     const ws::CommandResponse::Payload p{.requestId = r.request_id, .ok = ok, .output = out.c_str()};
     reply(r, std::span(buf).first(ws::CommandResponse::Encode(p, buf.data(), buf.size())));
 }
@@ -431,9 +319,7 @@ void run(const Request& r) {
 }  // namespace
 
 void post(net::Server::SessionId id, std::uint16_t request_id, std::span<const char> line) noexcept {
-    Request r{.session = id, .request_id = request_id, .lookup = std::nullopt};
-    std::memcpy(r.line.data(), line.data(), std::min(line.size(), r.line.size() - 1));
-    if (!requests.try_send(r)) {
+    if (!requests.try_send(Request::command(id, request_id, line))) {
         RTOS_LOG_WARN("terminal: command queue full, command dropped");
     }
 }

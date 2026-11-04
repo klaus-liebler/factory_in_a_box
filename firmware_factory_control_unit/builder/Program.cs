@@ -65,14 +65,15 @@ namespace Builder
 				ctx,
 				sourceDirs: Cli.GetAllArgValues(ctx.Args, "--best-binary-buffer-schema-path") is { Count: > 0 } sources
 					? sources
-					: [Stm32BuildContext.BestBinaryBuffersSchemaDir],
+					: [ctx.BestBinaryBuffersSchemaDir],
 				cppOutputDir: ctx.FirmwareGeneratedDir,
 				tsOutputDir: ctx.WebGeneratedDir);
 
 		[BuildStep]
 		public static void GenerateTerminalFiles(IBuildContextStm32 ctx) =>
 			TerminalCatalog.Generate(
-				Path.Combine(ctx.RootDir, "schema", "terminal", "commands.json"),
+				ctx,
+				Path.Combine(ctx.RootDir, "schema", "terminal"),
 				cppOutputDir: ctx.FirmwareGeneratedDir,
 				tsOutputDir: ctx.WebGeneratedDir);
 

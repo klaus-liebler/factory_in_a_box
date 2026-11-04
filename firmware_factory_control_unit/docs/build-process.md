@@ -77,7 +77,7 @@ dotnet run --project builder -- GenerateCertificatesForced                     #
 dotnet run --project builder -- GenerateDeviceArtifacts                        # device_ids.hh + device-ids.json (generated/) + Kopie von board_info.json aus dem Board-Archiv
 dotnet run --project builder -- GenerateRegisterAccessFiles          # schema/register_map/*.cs -> Code (Modbus + OPC UA + Web)
 dotnet run --project builder -- GenerateBestBinaryBufferFiles                  # schema/best_binary_buffers/*.cs -> Code
-dotnet run --project builder -- GenerateTerminalFiles                          # schema/terminal/commands.json -> Code
+dotnet run --project builder -- GenerateTerminalFiles                          # schema/terminal/*.cs -> Code
 dotnet run --project builder -- ReadGitStatusAndGenerateFiles                  # Git-Stand -> Code
 dotnet run --project builder -- CopyGeneratedFilesToBuildDirectory             # Board-Archiv -> generated, web/generated, build/assets
 dotnet run --project builder -- BuildWebApp                                    # vite build
@@ -116,7 +116,7 @@ Abschnitt 6) -- die bleiben im Board-Archiv bzw. werden von dort unveraendert ge
 | 4 | `GenerateDeviceArtifacts` | nein | `generated/` -- `hardware-identity.json` + `certificate-info.json` (Board-Archiv) -> `device_ids.hh` + `device-ids.json`; kopiert zusaetzlich `board_info.json` (Archiv-Root, Ausnahme) unveraendert dorthin. |
 | 5 | `GenerateRegisterAccessFiles` | nein | `generated/` + `web/generated/` + `docs/generated/` -- `schema/register_map/*.cs` -> `modbus_registers_generated.hh` + `opcua_registers_generated.hh` + `register-map.ts` + `modbus-registers.md` (tabellarische Register-Uebersicht nach Gruppe und nach Adresse) (universal_register_access). |
 | 6 | `GenerateBestBinaryBufferFiles` | nein | `generated/` + `web/generated/` -- `schema/best_binary_buffers/*.cs` (wiederholbares `--best-binary-buffer-schema-path` fuer weitere Quellen) -> `ws_protocol.hh` + `ws-protocol.ts` (ueber das geteilte WsProtocolBuildService, s. Abschnitt 4). |
-| 6' | `GenerateTerminalFiles` | nein | `generated/` + `web/generated/` -- `schema/terminal/commands.json` (Befehle, Parameter, Werte/Lookups der Terminal-Seite) -> `terminal_commands.hh` (Firmware: Handler je Befehl, Antwort je Lookup, zur Compilezeit geprueft) + `terminal-commands.ts` (in die Web-App compiliert: Vervollstaendigung, help, Parameter-Sprechblase); `builder/TerminalCatalog.cs`. |
+| 6' | `GenerateTerminalFiles` | nein | `generated/` + `web/generated/` -- `schema/terminal/*.cs` (C#-Klassen: Befehle, Parameter, Werte/Lookups der Terminal-Seite; Attribute in `TerminalSchemaAttributes.cs`, Generator `TerminalCatalog` in `firmware_builder_common`) -> `terminal_commands.hh` (Firmware: Handler je Befehl, Antwort je Lookup, zur Compilezeit geprueft) + `terminal-commands.ts` (in die Web-App compiliert: Vervollstaendigung, help, Parameter-Sprechblase); s. [terminal.md](terminal.md). |
 | 7 | `ReadGitStatusAndGenerateFiles` | nein | `generated/` + `web/generated/` -- `gitconstants.hh`, `firmware_constants.hh` (BOARD_NAME/FW_VERSION_*, s. Abschnitt 6), `build-info.ts` aus Git-Abfrage + `firmware-version.json` + `device-ids.json` (generated/); `gitstatus.json` (Ausnahme) zusaetzlich ins Board-Archiv. |
 | 8 | `CopyGeneratedFilesToBuildDirectory` | nein | `build/assets/` -- kopiert nur noch die Zertifikat-DER-Dateien (Ausnahme) aus dem Board-Archiv; alles andere generiert bereits direkt im Projekt. |
 | 9 | `BuildWebApp` | nein | `web/dist/`, `build/assets/index.html.br` -- ruft `vite build` per Kindprozess auf (inkl. Inlining/Minify/Brotli über `singleFileFirmwareAssetPlugin`). |
@@ -242,7 +242,7 @@ firmware_factory_control_unit/
 ├── schema/
 │   ├── best_binary_buffers/       # C#-Protokollschema (BestBinaryBuffers) + ids.txt
 │   ├── register_map/              # C#-Registerschema (Modbus + OPC UA), s. Abschnitt 3
-│   └── terminal/commands.json     # Befehlskatalog der Terminal-Seite (Web-UI + Firmware)
+│   └── terminal/commands.cs       # Befehlskatalog der Terminal-Seite (Web-UI + Firmware)
 └── docs/
     ├── build-process.md
     └── generated/                 # eingecheckt: modbus-registers.md (Register-Uebersicht, s. Abschnitt 3)

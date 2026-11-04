@@ -4,10 +4,11 @@
 // WebSocket outbox.
 //
 // The commands, their parameters and the value lookups are described in
-// schema/terminal/commands.json; the builder generates the browser's catalog (completion, help,
-// parameter tooltip) and generated/terminal_commands.hh from it. Adding a command: an entry
-// in commands.json, a function that writes its output with Out::line() and an entry in `handlers`
-// (terminal.cpp; checked at compile time). A new lookup: a case in lookup().
+// schema/terminal/commands.cs (C# classes); the builder generates the browser's catalog (completion,
+// help, parameter tooltip) and generated/terminal_commands.hh from it. Adding a command: a class
+// with [TerminalCommand] in commands.cs, a function that writes its output with Out::line() and an
+// entry in `handlers` (terminal.cpp; checked at compile time). A new lookup: a member of the enum
+// Lookup in commands.cs and a case in lookup().
 #pragma once
 
 #include <cstddef>

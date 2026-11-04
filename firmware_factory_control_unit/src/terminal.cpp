@@ -152,7 +152,7 @@ constexpr std::array outputs{
     NamedOutput{"stepper_enable", rm::holding::stepper_enable, true},
 };
 
-// ---- commands (terminal_schema/commands.json) -------------------------------------------------------------
+// ---- commands (schema/terminal/commands.json) -------------------------------------------------------------
 bool cmd_info(Args, Out& o) {
     o.line("%s.local, hardware revision %u", DEVICE_HOSTNAME, board::revision);
     o.line("firmware %.*s (%.*s)", static_cast<int>(git::VERSION.size()), git::VERSION.data(),
@@ -343,9 +343,9 @@ consteval bool handlers_complete() {
     }
     return handlers.size() == cat::commands.size();
 }
-static_assert(handlers_complete(), "terminal_schema/commands.json and the handlers in terminal.cpp differ");
+static_assert(handlers_complete(), "schema/terminal/commands.json and the handlers in terminal.cpp differ");
 
-// ---- lookups (terminal_schema/commands.json): one "value \t description" line per value ----------------
+// ---- lookups (schema/terminal/commands.json): one "value \t description" line per value ----------------
 void lookup(cat::Lookup l, Out& o) {
     switch (l) {  // no default: -Wswitch reports a lookup without an answer
         case cat::Lookup::inputs:

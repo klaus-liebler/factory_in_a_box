@@ -74,19 +74,19 @@ dotnet run --project builder -- PrepareContextWithRealHardware                 #
 dotnet run --project builder -- PrepareContextWithCommandLineArguments -- --board <boardId>   # Board-Kontext ohne angeschlossene Hardware setzen
 dotnet run --project builder -- GenerateCertificatesLazy                       # Zertifikat wiederverwenden/bei Bedarf erzeugen
 dotnet run --project builder -- GenerateCertificatesForced                     # Zertifikat immer neu erzeugen
-dotnet run --project builder -- GenerateDeviceArtifacts                        # device_ids.hh + device-ids.json (Core/generated/) + Kopie von board_info.json aus dem Board-Archiv
-dotnet run --project builder -- GenerateRegisterAccessFiles          # register_map_schema/*.cs -> Code (Modbus + OPC UA + Web)
-dotnet run --project builder -- GenerateBestBinaryBufferFiles                  # best_binary_buffers_schema/*.cs -> Code
-dotnet run --project builder -- GenerateTerminalFiles                          # terminal_schema/commands.json -> Code
+dotnet run --project builder -- GenerateDeviceArtifacts                        # device_ids.hh + device-ids.json (generated/) + Kopie von board_info.json aus dem Board-Archiv
+dotnet run --project builder -- GenerateRegisterAccessFiles          # schema/register_map/*.cs -> Code (Modbus + OPC UA + Web)
+dotnet run --project builder -- GenerateBestBinaryBufferFiles                  # schema/best_binary_buffers/*.cs -> Code
+dotnet run --project builder -- GenerateTerminalFiles                          # schema/terminal/commands.json -> Code
 dotnet run --project builder -- ReadGitStatusAndGenerateFiles                  # Git-Stand -> Code
-dotnet run --project builder -- CopyGeneratedFilesToBuildDirectory             # Board-Archiv -> Core/generated, web/generated, build/assets
+dotnet run --project builder -- CopyGeneratedFilesToBuildDirectory             # Board-Archiv -> generated, web/generated, build/assets
 dotnet run --project builder -- BuildWebApp                                    # vite build
 dotnet run --project builder -- BuildFirmware        -- --preset <preset>      # cmake configure + build
 dotnet run --project builder -- FlashFirmware        -- --preset <preset>      # STM32_Programmer_CLI + board_info.json/flash_events.jsonl-Eintrag
 ```
 
 Jeder Schritt ist einzeln sinnvoll aufrufbar, z. B. nur `GenerateRegisterAccessFiles` nach
-einer Änderung an `register_map_schema/*.cs`, ohne Board oder Firmware-Build anzufassen.
+einer Änderung an `schema/register_map/*.cs`, ohne Board oder Firmware-Build anzufassen.
 
 ### `--board` überschreiben
 
@@ -101,7 +101,7 @@ dotnet run --project builder -- GenerateRegisterAccessFiles -- --board 363836_00
 
 ## 3. Build-Schritte im Detail
 
-Generierte Dateien landen seit August 2026 direkt im Projekt (`Core/generated/`, `web/generated/`),
+Generierte Dateien landen seit August 2026 direkt im Projekt (`generated/`, `web/generated/`),
 nicht mehr im Board-Archiv -- Ausnahme sind Dateien, die echten persistenten Zustand tragen statt
 reiner Build-Ableitung zu sein: Zertifikate/Schluessel (Kontinuitaet gewuenscht), `board_info.json`
 (das Board-Archiv-Root selbst) und `gitstatus.json` (Audit-Trail fuer `flash_events.jsonl`, s.
@@ -113,11 +113,11 @@ Abschnitt 6) -- die bleiben im Board-Archiv bzw. werden von dort unveraendert ge
 | 1' | `PrepareContextWithCommandLineArguments` | nein (`--board <boardId>`) | Nur die Board-ID-Cache-Datei -- setzt den Board-Kontext ohne Geräte-Zugriff, fuer ein bereits archiviertes Board. |
 | 2 | `GenerateCertificatesLazy` | nein | Board-Archiv (Ausnahme, s.o.) -- erzeugt/aktualisiert PEM+DER nur falls noch nicht vorhanden; schreibt `certificate-info.json`. |
 | 3 | `GenerateCertificatesForced` | nein | Board-Archiv (Ausnahme) -- wie 2, aber immer neu erzeugen (CA-Rotation, Ablauf). |
-| 4 | `GenerateDeviceArtifacts` | nein | `Core/generated/` -- `hardware-identity.json` + `certificate-info.json` (Board-Archiv) -> `device_ids.hh` + `device-ids.json`; kopiert zusaetzlich `board_info.json` (Archiv-Root, Ausnahme) unveraendert dorthin. |
-| 5 | `GenerateRegisterAccessFiles` | nein | `Core/generated/` + `web/generated/` + `docs/generated/` -- `register_map_schema/*.cs` -> `modbus_registers_generated.hh` + `opcua_registers_generated.hh` + `register-map.ts` + `modbus-registers.md` (tabellarische Register-Uebersicht nach Gruppe und nach Adresse) (universal_register_access). |
-| 6 | `GenerateBestBinaryBufferFiles` | nein | `Core/generated/` + `web/generated/` -- `best_binary_buffers_schema/*.cs` (wiederholbares `--best-binary-buffer-schema-path` fuer weitere Quellen) -> `ws_protocol.hh` + `ws-protocol.ts` (ueber das geteilte WsProtocolBuildService, s. Abschnitt 4). |
-| 6' | `GenerateTerminalFiles` | nein | `Core/generated/` + `web/generated/` -- `terminal_schema/commands.json` (Befehle, Parameter, Werte/Lookups der Terminal-Seite) -> `terminal_commands.hh` (Firmware: Handler je Befehl, Antwort je Lookup, zur Compilezeit geprueft) + `terminal-commands.ts` (in die Web-App compiliert: Vervollstaendigung, help, Parameter-Sprechblase); `builder/TerminalCatalog.cs`. |
-| 7 | `ReadGitStatusAndGenerateFiles` | nein | `Core/generated/` + `web/generated/` -- `gitconstants.hh`, `firmware_constants.hh` (BOARD_NAME/FW_VERSION_*, s. Abschnitt 6), `build-info.ts` aus Git-Abfrage + `firmware-version.json` + `device-ids.json` (Core/generated/); `gitstatus.json` (Ausnahme) zusaetzlich ins Board-Archiv. |
+| 4 | `GenerateDeviceArtifacts` | nein | `generated/` -- `hardware-identity.json` + `certificate-info.json` (Board-Archiv) -> `device_ids.hh` + `device-ids.json`; kopiert zusaetzlich `board_info.json` (Archiv-Root, Ausnahme) unveraendert dorthin. |
+| 5 | `GenerateRegisterAccessFiles` | nein | `generated/` + `web/generated/` + `docs/generated/` -- `schema/register_map/*.cs` -> `modbus_registers_generated.hh` + `opcua_registers_generated.hh` + `register-map.ts` + `modbus-registers.md` (tabellarische Register-Uebersicht nach Gruppe und nach Adresse) (universal_register_access). |
+| 6 | `GenerateBestBinaryBufferFiles` | nein | `generated/` + `web/generated/` -- `schema/best_binary_buffers/*.cs` (wiederholbares `--best-binary-buffer-schema-path` fuer weitere Quellen) -> `ws_protocol.hh` + `ws-protocol.ts` (ueber das geteilte WsProtocolBuildService, s. Abschnitt 4). |
+| 6' | `GenerateTerminalFiles` | nein | `generated/` + `web/generated/` -- `schema/terminal/commands.json` (Befehle, Parameter, Werte/Lookups der Terminal-Seite) -> `terminal_commands.hh` (Firmware: Handler je Befehl, Antwort je Lookup, zur Compilezeit geprueft) + `terminal-commands.ts` (in die Web-App compiliert: Vervollstaendigung, help, Parameter-Sprechblase); `builder/TerminalCatalog.cs`. |
+| 7 | `ReadGitStatusAndGenerateFiles` | nein | `generated/` + `web/generated/` -- `gitconstants.hh`, `firmware_constants.hh` (BOARD_NAME/FW_VERSION_*, s. Abschnitt 6), `build-info.ts` aus Git-Abfrage + `firmware-version.json` + `device-ids.json` (generated/); `gitstatus.json` (Ausnahme) zusaetzlich ins Board-Archiv. |
 | 8 | `CopyGeneratedFilesToBuildDirectory` | nein | `build/assets/` -- kopiert nur noch die Zertifikat-DER-Dateien (Ausnahme) aus dem Board-Archiv; alles andere generiert bereits direkt im Projekt. |
 | 9 | `BuildWebApp` | nein | `web/dist/`, `build/assets/index.html.br` -- ruft `vite build` per Kindprozess auf (inkl. Inlining/Minify/Brotli über `singleFileFirmwareAssetPlugin`). |
 | 10 | `BuildFirmware` | nein | `build/<preset>/` -- `cmake --preset` + `cmake --build --preset`. |
@@ -135,7 +135,7 @@ flowchart TD
     TERM["6': GenerateTerminalFiles"]
     GS["7: ReadGitStatusAndGenerateFiles"]
     ARCHIVE["Board-Archiv (Ausnahmen)\nstm32_boards/&lt;id&gt;/generated/\nhardware-identity.json, certificate-info.json,\nZertifikate/Schluessel, gitstatus.json"]
-    PROJECT["Core/generated/ + web/generated/\n(direkt generiert, kein Zwischenschritt)"]
+    PROJECT["generated/ + web/generated/\n(direkt generiert, kein Zwischenschritt)"]
     COPY["8: CopyGeneratedFilesToBuildDirectory\n(nur noch Zertifikate -> build/assets/)"]
     WEB["9: BuildWebApp (vite)"]
     FW["10: BuildFirmware (cmake)"]
@@ -229,9 +229,7 @@ firmware_factory_control_unit/
 ├── firmware-version.json         # Produktversion (FW_VERSION_MAJOR/MINOR/PATCH), s. Abschnitt 6
 ├── builder/                      # s. Abschnitt 4
 ├── tools/                        # Skripte OHNE Bezug zur Codegenerierung (rename-usb-devices.ps1, test-modbus.ts, ...)
-├── Core/
-│   ├── Src/                      # kein generated/ mehr darunter
-│   └── generated/                 # gitignored: device_ids.hh, gitconstants.hh, firmware_constants.hh,
+├── generated/                     # gitignored: device_ids.hh, gitconstants.hh, firmware_constants.hh,
 │                                  # board_info.json, modbus_registers_generated.hh,
 │                                  # opcua_registers_generated.hh, ws_protocol.hh
 ├── web/
@@ -241,8 +239,10 @@ firmware_factory_control_unit/
 │   ├── .last-board-id             # "letztes bekanntes Board"-Cache, s. Abschnitt 2
 │   ├── assets/                    # device_certificate.der, device_key.der, index.html.br
 │   └── Release/, Debug/, Release-Rev1/, Debug-Rev1/   # je Preset ein eigener CMake-Binärordner
-├── best_binary_buffers_schema/      # C#-Protokollschema (BestBinaryBuffers) + ids.txt
-├── terminal_schema/commands.json    # Befehlskatalog der Terminal-Seite (Web-UI + Firmware)
+├── schema/
+│   ├── best_binary_buffers/       # C#-Protokollschema (BestBinaryBuffers) + ids.txt
+│   ├── register_map/              # C#-Registerschema (Modbus + OPC UA), s. Abschnitt 3
+│   └── terminal/commands.json     # Befehlskatalog der Terminal-Seite (Web-UI + Firmware)
 └── docs/
     ├── build-process.md
     └── generated/                 # eingecheckt: modbus-registers.md (Register-Uebersicht, s. Abschnitt 3)
@@ -260,7 +260,7 @@ stm32_boards/
     ├── factory-box-<shortId>.pem.crt
     ├── factory-box-<shortId>.csr
     └── generated\                      # NUR persistenter Zustand -- reine Build-Ableitung generiert
-                                          # seit August 2026 direkt ins Projekt (Core/generated/,
+                                          # seit August 2026 direkt ins Projekt (generated/,
                                           # web/generated/), s. Abschnitt 3
         ├── hardware-identity.json      # Rohdaten vom letzten PrepareContextWithRealHardware-Lauf
         ├── certificate-info.json       # Issuer/Gueltigkeit des aktuellen Zertifikats
@@ -270,7 +270,7 @@ stm32_boards/
         └── gitstatus.json              # Ausnahme: Audit-Trail, mit flash_events.jsonl korreliert
 ```
 
-Generierte Verzeichnisse/Dateien sind nicht eingecheckt (`Core/generated/`, `web/generated/`,
+Generierte Verzeichnisse/Dateien sind nicht eingecheckt (`generated/`, `web/generated/`,
 `build/` komplett -- inkl. `build/assets/*.der`, `build/assets/index.html.br` -- sowie `web/dist/`,
 s. `.gitignore`). Ein frisches Checkout ist erst nach einmaligem Lauf der Build-Phasen baubar.
 
@@ -332,7 +332,7 @@ brandneue Platine), greift `BuilderSettings.BoardDefaults.DefaultBoardTypeName` 
 Abschnitt 8) als Fallback -- derselbe Mechanismus liefert `IBuildContext.BoardTypeName` fuer JEDEN
 Schritt, nicht nur fuer Schritt 1 (s. `Stm32BuildContext.BoardTypeName`). Das Ergebnis landet als
 `boardName` in `device-ids.json`; `board_info.json` selbst wird unveraendert (keine eigene
-Projektionsdatei mehr, vormals `board-variant.json`/`BoardVariant`) direkt nach `Core/generated/`
+Projektionsdatei mehr, vormals `board-variant.json`/`BoardVariant`) direkt nach `generated/`
 gespiegelt (Schritt 4, `GenerateDeviceArtifacts` -- die einzige Ausnahme von "generierte Dateien nur
 im Projekt", s. Abschnitt 3, da es kein Build-Derivat, sondern gespiegelter persistenter Zustand ist)
 und wird von dort sowohl für `firmware_constants.hh`s `BOARD_NAME` (Schritt 7,
@@ -347,7 +347,7 @@ identisch mit `board_info.json`s `boardTypeName`-Wert -- kein separater, ausfüh
 mehr (den gab es früher hartkodiert samt `#ifdef BOARD_NUCLEO_H563ZI`-Umschaltung in
 `Core/Inc/constants.hh`). `FW_VERSION_MAJOR/MINOR/PATCH` kommen unabhängig davon aus
 `firmware-version.json` (Repo-Root, von Hand gepflegt bei einem Versions-Bump). Beide zusammen
-generiert `ReadGitStatusAndGenerateFiles` (Phase 7) nach `Core/generated/firmware_constants.hh`
+generiert `ReadGitStatusAndGenerateFiles` (Phase 7) nach `generated/firmware_constants.hh`
 und in `web/generated/build-info.ts`.
 
 ## 7. Web-Build-Plugin

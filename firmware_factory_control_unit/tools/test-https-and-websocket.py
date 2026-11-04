@@ -9,7 +9,7 @@ Exercises exactly the two things the recent RAM/network rework touched:
      TLS GET of the SPA shell ("/") is enough to prove the RSA cert/TLS handshake still works on
      this no-PKA board (STM32H563) in a Release build.
   2. The WebSocket endpoint ("/ws") speaks the BestBinaryBuffer wire format (best_binary_buffers_
-     schema/*.cs -> Core/generated/ws_protocol.hh / web/generated/ws-protocol.ts) -- this test
+     schema/*.cs -> generated/ws_protocol.hh / web/generated/ws-protocol.ts) -- this test
      sends a real tasks.TaskManagerRequest and decodes the tasks.TaskListMessage response
      (thread name/state/stack usage/CPU load per ThreadX thread), the same round trip the
      Task Manager web UI page performs.
@@ -38,10 +38,10 @@ import websockets.sync.client as ws_client
 HTTPS_PORT = 443
 WS_PATH = "/ws"
 
-# Wire ids from best_binary_buffers_schema/tasks.cs, as persisted in best_binary_buffers_schema/
-# ids.txt and emitted into Core/generated/ws_protocol.hh -- kept in sync by hand here (like
+# Wire ids from schema/best_binary_buffers/tasks.cs, as persisted in schema/best_binary_buffers/
+# ids.txt and emitted into generated/ws_protocol.hh -- kept in sync by hand here (like
 # test_opcua.py's NS0_* NodeIds), this is a test tool, not generated code. Re-check
-# Core/generated/ws_protocol.hh's "namespace tasks { constexpr uint16_t NAMESPACE_ID = ...}" /
+# generated/ws_protocol.hh's "namespace tasks { constexpr uint16_t NAMESPACE_ID = ...}" /
 # "TaskManagerRequest::TYPE_ID" / "TaskListMessage::TYPE_ID" if these ever look wrong.
 TASKS_NAMESPACE_ID = 3
 TASK_MANAGER_REQUEST_TYPE_ID = 1
@@ -93,7 +93,7 @@ def test_https(host: str, port: int, ssl_ctx: ssl.SSLContext) -> None:
 
 def _encode_task_manager_request(request_id: int) -> bytes:
     # [namespaceId u16 LE][typeId u16 LE][requestId u16 LE] -- TaskManagerRequest has no further
-    # fields (see best_binary_buffers_schema/tasks.cs), matches TaskManagerRequest_MAX_SIZE = 6.
+    # fields (see schema/best_binary_buffers/tasks.cs), matches TaskManagerRequest_MAX_SIZE = 6.
     return struct.pack("<HHH", TASKS_NAMESPACE_ID, TASK_MANAGER_REQUEST_TYPE_ID, request_id)
 
 

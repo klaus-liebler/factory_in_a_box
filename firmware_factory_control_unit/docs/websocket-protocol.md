@@ -1,7 +1,7 @@
 # WebSocket-Protokoll (BestBinaryBuffers)
 
-Die Protokoll-Definition liegt jetzt in C#-Schema-Dateien unter `best_binary_buffers_schema/` und
-wird mit `BestBinaryBuffers` nach `Core/generated/ws_protocol.hh` und
+Die Protokoll-Definition liegt jetzt in C#-Schema-Dateien unter `schema/best_binary_buffers/` und
+wird mit `BestBinaryBuffers` nach `generated/ws_protocol.hh` und
 `web/generated/ws-protocol.ts` kompiliert.
 
 ## Phase
@@ -13,14 +13,14 @@ dotnet run --project builder -- GenerateBestBinaryBufferFiles
 Optional mehrere Quellen anhaengen (wiederholbar):
 
 ```bash
-dotnet run --project builder -- GenerateBestBinaryBufferFiles -- --best-binary-buffer-schema-path best_binary_buffers_schema
+dotnet run --project builder -- GenerateBestBinaryBufferFiles -- --best-binary-buffer-schema-path schema/best_binary_buffers
 ```
 
-Ohne `--best-binary-buffer-schema-path` wird nur `best_binary_buffers_schema/` genutzt.
+Ohne `--best-binary-buffer-schema-path` wird nur `schema/best_binary_buffers/` genutzt.
 
 ## IDs
 
-Stabile IDs werden in `best_binary_buffers_schema/ids.txt` gehalten.
+Stabile IDs werden in `schema/best_binary_buffers/ids.txt` gehalten.
 Datei nicht manuell umnummerieren.
 
 ## Schema-Syntax

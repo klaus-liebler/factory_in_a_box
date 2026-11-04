@@ -5,15 +5,17 @@ namespace Builder;
 // Projekteigene Pfad-Konventionen auf Basis von Stm32BuildContextBase (geteilte Lib) -- alles
 // chip-generische (BoardUid/ChipId/Hostname/BoardSettings/Preset/...) lebt dort, hier bleibt nur,
 // was fuer firmware_factory_control_unit spezifisch ist: die generated/-Verzeichnisstruktur
-// (Core/generated + web/generated statt eines gemeinsamen GeneratedRoot wie bei sensact) und die
+// (generated + web/generated statt eines gemeinsamen GeneratedRoot wie bei sensact) und die
 // appsettings-Bindung.
 public sealed class Stm32BuildContext : Stm32BuildContextBase
 {
     private static readonly string _webGeneratedDir = Path.Combine(BuildContextPaths.WebDir(RootDirStatic), "generated");
-    private static readonly string _coreGeneratedDir = Path.Combine(RootDirStatic, "Core", "generated");
+    private static readonly string _coreGeneratedDir = Path.Combine(RootDirStatic, "generated");
     private static readonly string _buildDir = BuildContextPaths.BuildDir(RootDirStatic);
 
-    public static readonly string RegisterMapSchemaDir = Path.Combine(RootDirStatic, "register_map_schema");
+    // schema/ statt der Top-Level-Konvention von BuildContextPaths (best_binary_buffers_schema/).
+    public static readonly string BestBinaryBuffersSchemaDir = Path.Combine(RootDirStatic, "schema", "best_binary_buffers");
+    public static readonly string RegisterMapSchemaDir = Path.Combine(RootDirStatic, "schema", "register_map");
 
     // build/assets/ statt eines eigenen Top-Level-Ordners: vollstaendig generierter, gitignorter
     // Snapshot (Geraetezertifikat/-schluessel aus dem Board-Archiv, index.html.br aus dem

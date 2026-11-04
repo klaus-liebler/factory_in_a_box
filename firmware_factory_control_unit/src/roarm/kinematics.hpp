@@ -1,5 +1,5 @@
 // Kinematics of the Waveshare RoArm-M3 (5 axes + gripper): forward and inverse kinematics of
-// its planar linkage, after the reference firmware (Core/RoArm-M3_example, RoArm-M3_module.h).
+// its planar linkage, after the Waveshare reference firmware (RoArm-M3_example, RoArm-M3_module.h).
 // Lengths in mm, angles in rad.
 #pragma once
 

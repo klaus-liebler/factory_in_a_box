@@ -1,5 +1,5 @@
 // Druckregelstrecke: Uebersichtsseite fuer den pneumatischen Versuchsaufbau (Kompressor ->
-// Druckspeicher -> 3 Ventile -> Verbraucher, s. register_map_schema/Motor.cs, Pressure.cs,
+// Druckspeicher -> 3 Ventile -> Verbraucher, s. schema/register_map/Motor.cs, Pressure.cs,
 // Valve.cs) MIT den vier Betriebsmodi aus docs/druckregelstrecke-modes.md (Freies Experiment,
 // Kennlinie, Sprungantwort, Reglerbetrieb). Analog zu roarm-teach-app.ts (das die WebGL-Ansicht
 // aus roarm-3d-view.ts einhaengt) bindet diese Datei die SVG-Ansicht aus
@@ -13,7 +13,7 @@
 //
 // Zwei parallele Datenquellen: die REST-Registerabfrage (fetchRegisters(), 1Hz, wie schon vorher)
 // treibt weiterhin die SVG-Anlagengrafik; die NEUE pneumatics.PressureControlFeedback-WS-Nachricht
-// (500ms, s. ws-client.ts/best_binary_buffers_schema/pneumatics.cs) speist die Trend-Ringpuffer,
+// (500ms, s. ws-client.ts/schema/best_binary_buffers/pneumatics.cs) speist die Trend-Ringpuffer,
 // die Kennlinien-Laufzeit-Maximum-Verfolgung, die Sprungantwort-Aufzeichnung UND den
 // clientseitigen Regler -- fuer all das waere 1Hz zu grob bzw. das volle Mehrpaket-
 // "/api/registers" pro Regelzyklus unnoetig schwer (s. docs/druckregelstrecke-modes.md,

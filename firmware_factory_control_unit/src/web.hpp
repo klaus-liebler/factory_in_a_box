@@ -1,5 +1,5 @@
 // WebSocket application protocol (wss://<hostname>.local/ws, ws_protocol.hh from
-// best_binary_buffers_schema/*.cs): every message starts with namespace id and type id (u16 LE).
+// schema/best_binary_buffers/*.cs): every message starts with namespace id and type id (u16 LE).
 //
 //   modbus  GetRegisters / WriteHolding: the register map for the web UI's register panel
 //   system  SystemInfo request; LogMessage events: every log record to every client at once

@@ -4,8 +4,8 @@
 // WebSocket outbox.
 //
 // The commands, their parameters and the value lookups are described in
-// terminal_schema/commands.json; the builder generates the browser's catalog (completion, help,
-// parameter tooltip) and Core/generated/terminal_commands.hh from it. Adding a command: an entry
+// schema/terminal/commands.json; the builder generates the browser's catalog (completion, help,
+// parameter tooltip) and generated/terminal_commands.hh from it. Adding a command: an entry
 // in commands.json, a function that writes its output with Out::line() and an entry in `handlers`
 // (terminal.cpp; checked at compile time). A new lookup: a case in lookup().
 #pragma once

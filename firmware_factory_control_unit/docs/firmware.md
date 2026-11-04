@@ -14,7 +14,7 @@ Stepper steps come from TIM2/TIM3 compare outputs, their periods from GPDMA1 cha
 
 ## Boot order (as `App::AppThread` before)
 
-1. Chip UID must match `Core/generated/device_ids.hh` (else the LED blinks fast and nothing starts).
+1. Chip UID must match `generated/device_ids.hh` (else the LED blinks fast and nothing starts).
 2. Supply gate: if the INA226 measures less than 18 V, the board waits for 20 V from a USB-C supply. Revision 2: a CH224K negotiates 20 V by itself (CFG1 open), the firmware only waits; revision 1: USB Power Delivery sink on UCPD1 (rtoos `usb_pd`).
 3. Power consumers: pins (`src/pins.hpp`), I2C bus scans, sensors, steppers (TMC2209), servos, LEDs, CAN, ADC.
 4. Network thread, then the I/O cycle.
@@ -30,14 +30,14 @@ Stepper steps come from TIM2/TIM3 compare outputs, their periods from GPDMA1 cha
 | `src/roarm/*` | RoArm-M3: kinematics, joint tracking, teach mode, missions in the internal flash (littlefs, same files as before) |
 | `src/network.*` | Ethernet (DHCP, mDNS, SNTP), USB CDC-NCM + DHCP server and CDC-ACM Modbus RTU, HTTPS/WebSocket, Modbus TCP, OPC UA |
 | `src/web.*` | WebSocket protocol (`ws_protocol.hh`): register panel, system info, log records to every browser; RoArm and terminal requests go to the I/O thread |
-| `src/terminal.*` | the commands of the web UI's Terminal page (inputs, outputs, PWM, GPIO, ADC, supply, sensors, I2C scan, registers, steppers, LEDs, reset) and the live value lookups; the catalog is `terminal_schema/commands.json` |
+| `src/terminal.*` | the commands of the web UI's Terminal page (inputs, outputs, PWM, GPIO, ADC, supply, sensors, I2C scan, registers, steppers, LEDs, reset) and the live value lookups; the catalog is `schema/terminal/commands.json` |
 | `src/task_monitor.*` | task manager: threads (state, stack, CPU share) and pools |
 
 ## Interfaces
 
-- Modbus TCP 502, Modbus RTU over USB CDC-ACM (unit 1), OPC UA 4840 (`Objects/FactoryControlUnit`): the register map from `register_map_schema/*.cs`.
+- Modbus TCP 502, Modbus RTU over USB CDC-ACM (unit 1), OPC UA 4840 (`Objects/FactoryControlUnit`): the register map from `schema/register_map/*.cs`.
 - `https://<hostname>.local/` web app, `wss://<hostname>.local/ws`.
-- Web UI page "Terminal": a console for the commands above and the live log as a table (level filter, auto-scroll, 10000 lines kept in the browser). The command catalog `terminal_schema/commands.json` is compiled into the web app (builder step `GenerateTerminalFiles`): history (arrow up), completion of commands and parameter values (Tab), the parameter tooltip, `help` and `clear` run in the browser. A parameter's values are listed in the catalog (`values`), computed in the browser (`source`: command names, registers) or fetched live from the device (`lookup`: `terminal.LookupRequest`, answered by `src/terminal.cpp`).
+- Web UI page "Terminal": a console for the commands above and the live log as a table (level filter, auto-scroll, 10000 lines kept in the browser). The command catalog `schema/terminal/commands.json` is compiled into the web app (builder step `GenerateTerminalFiles`): history (arrow up), completion of commands and parameter values (Tab), the parameter tooltip, `help` and `clear` run in the browser. A parameter's values are listed in the catalog (`values`), computed in the browser (`source`: command names, registers) or fetched live from the device (`lookup`: `terminal.LookupRequest`, answered by `src/terminal.cpp`).
 - Adding a command: an entry in `commands.json`, a handler function and an entry in `handlers` (`src/terminal.cpp`); a missing handler or lookup answer is a compile error.
 - USB: the PC gets 192.168.173.2, the board is 192.168.173.1.
 

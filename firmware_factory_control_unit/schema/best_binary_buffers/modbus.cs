@@ -15,7 +15,7 @@ public class GetRegistersRequest
 public class RegistersMessage
 {
     // Bounds = ModbusRegisters::HOLDING_REGISTER_MAX_INDEX+1 / INPUT_REGISTER_MAX_INDEX+1
-    // (Core/generated/modbus_registers_generated.hh, aus register_map_schema/*.cs generiert) --
+    // (generated/modbus_registers_generated.hh, aus schema/register_map/*.cs generiert) --
     // bei Wachstum der Registerkarte hier nachziehen.
     [BinaryMaxItemCount(111)] public ushort[] holding = System.Array.Empty<ushort>();
     [BinaryMaxItemCount(258)] public ushort[] input = System.Array.Empty<ushort>();

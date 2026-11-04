@@ -919,7 +919,7 @@ def run(host: str, port: int, server_cert_der: bytes):
             dv = client.read_value(ns, nid)
             print(f"Read Diagnostics.{name} ({ns},{nid}): value={dv['value']!r} status={status_name(dv['status'])}")
 
-        # HealthState is Access.ReadOnly (Input register) in register_map_schema/Diagnostics.cs --
+        # HealthState is Access.ReadOnly (Input register) in schema/register_map/Diagnostics.cs --
         # this Write must be rejected. A Good result here would mean access-level enforcement is
         # broken (or the schema's Access got flipped without the OPC UA node following it).
         ns, nid = diag_nodes["HealthState"]

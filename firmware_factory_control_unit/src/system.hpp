@@ -27,7 +27,7 @@ struct KernelConfig : rtos::DefaultConfig {
 using Port = rtos::port::cm33::Cm33Port;
 using Kernel = rtos::Kernel<Port, KernelConfig>;
 
-/// The Modbus/OPC UA register map (register_map_schema/*.cs, generated register_map.hpp):
+/// The Modbus/OPC UA register map (schema/register_map/*.cs, generated register_map.hpp):
 /// shared by the network thread (protocols) and the I/O thread (values).
 using Registers = rtos::modbus::RegisterBank<register_map::holding_count, register_map::input_count, Kernel::Lock>;
 

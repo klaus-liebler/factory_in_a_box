@@ -12,7 +12,7 @@ const POLL_INTERVAL_MS = 1000;
 // den Ringpuffer unnoetig aufzublaehen (reine Diagnose-Seite, keine Langzeit-Historie noetig).
 const CPU_HISTORY_LENGTH = 40;
 
-// cpuPermille ist 0..1000 (0.0%..100.0%, s. best_binary_buffers_schema/tasks.cs) -- fester
+// cpuPermille ist 0..1000 (0.0%..100.0%, s. schema/best_binary_buffers/tasks.cs) -- fester
 // Skalen-Maximalwert fuer die Sparkline, s. deren Klassenkommentar zur Begruendung.
 const CPU_SPARKLINE_MAX_PERMILLE = 1000;
 
@@ -23,7 +23,7 @@ const STACK_WARNING_RATIO = 0.8;
 const STACK_ERROR_RATIO = 0.95;
 
 // tasks.TaskInfo.name ist ein fest 32 Byte grosses, null-gepolstertes ASCII-Feld (s.
-// best_binary_buffers_schema/tasks.cs) -- hier auf den Teil vor dem ersten Null-Byte gekuerzt.
+// schema/best_binary_buffers/tasks.cs) -- hier auf den Teil vor dem ersten Null-Byte gekuerzt.
 function decodeName(bytes: number[]): string {
 	const end = bytes.indexOf(0);
 	const slice = end === -1 ? bytes : bytes.slice(0, end);

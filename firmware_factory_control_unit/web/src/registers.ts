@@ -1,5 +1,5 @@
 // Registerzugriff ueber den binaeren WebSocket-Kanal (s. ws-client.ts) -- Nachfolger der
-// frueheren GET /api/registers|/api/write-holding REST-Endpunkte (s. best_binary_buffers_schema/
+// frueheren GET /api/registers|/api/write-holding REST-Endpunkte (s. schema/best_binary_buffers/
 // modbus.cs, Core/Src/webserver.cpp HandleGetRegisters()/HandleWriteHolding()). Gemeinsam
 // genutzt von modbus-register-app.ts und power-management-app.ts.
 import { modbus } from "../generated/ws-protocol.js";

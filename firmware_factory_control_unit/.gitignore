@@ -6,7 +6,7 @@ mx.scratch
 # eingecheckt. Quelle der Wahrheit ist jeweils das Board-Archiv unter stm32_boards/<id>/generated/.
 # build/assets/ (Geraetezertifikat/-schluessel, index.html.br) ist bereits durch die "build"-Regel
 # oben abgedeckt, extra Eintrag nicht noetig.
-/Core/generated/
+/generated/
 /web/generated/
 /web/dist/
 node_modules/

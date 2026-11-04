@@ -6,7 +6,7 @@
 # The builder (builder/, docs/build-process.md) provides what the firmware embeds:
 #   build/assets/   certificates and keys of the board (device_https_*, device_certificate.der,
 #                   device_key.der, root_ca.der), the web app (index.html.br)
-#   Core/generated/ device identity (device_ids.hh), register map (register_map*.hpp),
+#   generated/ device identity (device_ids.hh), register map (register_map*.hpp),
 #                   WebSocket protocol (ws_protocol.hh), version and git constants
 cmake_minimum_required(VERSION 3.28)
 project(firmware_factory_control_unit LANGUAGES C CXX)
@@ -19,7 +19,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_subdirectory(rtoos)  # rtos_kernel, rtos_tls, rtos_opcua, rtos_filex, rtos_littlefs, rtos_board_fcu
 
 set(FCU_ASSETS ${CMAKE_SOURCE_DIR}/build/assets)
-set(FCU_GENERATED ${CMAKE_SOURCE_DIR}/Core/generated)
+set(FCU_GENERATED ${CMAKE_SOURCE_DIR}/generated)
 foreach(f device_https_certificate.der device_https_key.der device_certificate.der device_key.der root_ca.der
           index.html.br)
     if(NOT EXISTS ${FCU_ASSETS}/${f})

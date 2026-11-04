@@ -2,7 +2,7 @@
 
 Status: **Implementiert** (`web/src/apps/druckregelstrecke-app.ts`,
 `druckregelstrecke-controller.ts`, `druckregelstrecke-charts.ts`,
-`druckregelstrecke-view.ts`; Firmware-seitig `best_binary_buffers_schema/pneumatics.cs` +
+`druckregelstrecke-view.ts`; Firmware-seitig `schema/best_binary_buffers/pneumatics.cs` +
 `Core/Src/webserver.cpp`/`io.cpp`). Diese Datei bleibt trotzdem die Referenz-Spezifikation --
 bei Aenderungswuenschen zuerst hier anpassen, dann den Code nachziehen.
 
@@ -12,7 +12,7 @@ der passenden Stelle vermerkt):
   keine Regelabweichung berechnen koennen; in der urspruenglichen Modus-Liste schlicht vergessen.
 - Eine neue, kompakte WebSocket-Nachricht `pneumatics.PressureControlFeedback`
   (Druck-Rohwert + Kompressor-Promille + 3 Ventilzustaende, alle 500ms unbedingt von der Firmware
-  gesendet, s. `best_binary_buffers_schema/pneumatics.cs`) speist Trend-Ringpuffer,
+  gesendet, s. `schema/best_binary_buffers/pneumatics.cs`) speist Trend-Ringpuffer,
   Kennlinien-Laufzeit-Maximum, Sprungantwort-Aufzeichnung UND den Reglerkreis -- unabhaengig vom
   bestehenden 1Hz-`/api/registers`-Polling, das weiterhin nur die Anlagengrafik treibt.
 

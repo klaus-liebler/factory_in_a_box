@@ -1,5 +1,5 @@
 // Geschlossene IK/FK fuer den RoArm-M3 -- 1:1 Portierung der Trigonometrie aus Waveshares
-// Referenzfirmware (Core/RoArm-M3_example/RoArm-M3_config.h + RoArm-M3_module.h,
+// Referenzfirmware (RoArm-M3_example/RoArm-M3_config.h + RoArm-M3_module.h,
 // RoArmM3_computePosbyJointRad()/RoArmM3_baseCoordinateCtrl()/simpleLinkageIkRad()), NICHT neu
 // hergeleitet. Muss inhaltlich synchron bleiben mit der spaeteren C++-Portierung
 // (Core/Src/setup_and_loops/roarm_kinematics.hh, s. Plan Abschnitt 2) -- beide Seiten kennen

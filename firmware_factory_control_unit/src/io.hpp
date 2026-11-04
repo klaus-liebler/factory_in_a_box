@@ -14,10 +14,20 @@ namespace fcu::io {
 inline constexpr std::uint32_t cycle_ms = 50;
 
 /// Power consumers (after the supply gate): pins, buses, sensors, drivers. Then the bus scans.
-void setup() noexcept;
+/// `supply_up`: the motor supply is there; only then do the steppers home (sensorless, by
+/// StallGuard), each one whose TMC2209 answers.
+void setup(bool supply_up) noexcept;
 
 /// One cycle; `now` in ms.
 void cycle(std::uint32_t now) noexcept;
+
+/// Sensorless homing between the cycles: StallGuard over UART (the TMC2209's DIAG outputs are not
+/// wired). SG_RESULT changes about every full step (5 ms at the homing speed of 200 full steps/s);
+/// at the 50 ms of the cycle the motor would push about 10 full steps against the end stop.
+inline constexpr std::uint32_t homing_poll_period_ms = 5;
+/// The period to call homing_poll() at, 0: no homing running.
+[[nodiscard]] std::uint32_t homing_poll_ms() noexcept;
+void homing_poll(std::uint32_t now) noexcept;
 
 /// Events from interrupts for the I/O thread, between the cycles: notification slot and bits.
 inline constexpr std::size_t event_slot = 0;

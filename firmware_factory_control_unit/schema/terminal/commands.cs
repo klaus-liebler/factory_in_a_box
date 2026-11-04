@@ -129,6 +129,14 @@ public class stepper
 	public string target;
 }
 
+/// <summary>home a stepper: sensorless (StallGuard) towards its end stop, which becomes position 0</summary>
+[TerminalCommand]
+public class home
+{
+	/// <summary>stepper</summary>
+	[Value("1"), Value("2")] public string motor;
+}
+
 /// <summary>WS2812 LED pattern</summary>
 [TerminalCommand]
 public class led

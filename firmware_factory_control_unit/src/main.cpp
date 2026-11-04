@@ -61,10 +61,11 @@ void io_main(void*) {
         }
     }
     fcu::io::set_event_thread(io_tcb);
-    if (!fcu::boot::wait_for_supply()) {
+    const bool supply_up = fcu::boot::wait_for_supply();
+    if (!supply_up) {
         RTOS_LOG_ERROR("supply unknown: starting the power consumers anyway");
     }
-    fcu::io::setup();
+    fcu::io::setup(supply_up);
     fcu::net::start();
     RTOS_LOG_INFO("I/O cycle every %u ms", static_cast<unsigned>(fcu::io::cycle_ms));
     rtos::Tick next = kernel.now();
@@ -74,10 +75,16 @@ void io_main(void*) {
         if (static_cast<std::int32_t>(kernel.now() - next) > static_cast<std::int32_t>(fcu::io::cycle_ms)) {
             next = kernel.now();  // overrun: no catching up
         }
-        // until the next cycle: events from interrupts (a measurement ready, ...) right away
+        // until the next cycle: events from interrupts (a measurement ready, ...) right away, and
+        // while a stepper homes its StallGuard poll every few ms
         for (rtos::Tick now = kernel.now(); static_cast<std::int32_t>(next - now) > 0; now = kernel.now()) {
-            if (const auto bits = kernel.notify_wait(fcu::io::event_slot, next - now)) {
+            const std::uint32_t poll = fcu::io::homing_poll_ms();
+            const rtos::Tick wait = poll != 0 ? std::min<rtos::Tick>(poll, next - now) : next - now;
+            if (const auto bits = kernel.notify_wait(fcu::io::event_slot, wait)) {
                 fcu::io::events(*bits);
+            }
+            if (poll != 0) {
+                fcu::io::homing_poll(kernel.now());
             }
         }
     }

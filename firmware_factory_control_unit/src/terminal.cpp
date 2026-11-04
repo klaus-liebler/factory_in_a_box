@@ -232,6 +232,21 @@ bool cmd_stepper(Args a, Out& o) {
     }
     o.line("stepper %u: enabled, target %ld (position now %ld)", *n, static_cast<long>(*target),
            static_cast<long>(*n == 1 ? rm::stepper1_position(registers) : rm::stepper2_position(registers)));
+    const std::uint16_t status = *n == 1 ? rm::stepper1_status(registers) : rm::stepper2_status(registers);
+    if ((status & 32u) != 0) {
+    } else if ((status & 16u) != 0) {
+        o.line("not homed yet: the move starts after the homing");
+    } else {
+        o.line("not homed: the move waits - 'home %u' first", *n);
+    }
+    return true;
+}
+
+bool cmd_home(Args a, Out& o) {
+    const auto n = a.size() == 1 ? number<unsigned>(a[0]) : std::nullopt;
+    if (!n || (*n != 1 && *n != 2)) return false;
+    registers.set_holding(*n == 1 ? rm::holding::stepper1_start_homing : rm::holding::stepper2_start_homing, 1);
+    o.line("stepper %u: homing (sensorless, towards the end stop); result in the status and the log", *n);
     return true;
 }
 
@@ -260,6 +275,7 @@ constexpr std::array handlers{
     Handler{cat::Command::power, &cmd_power},     Handler{cat::Command::temp, &cmd_temp},
     Handler{cat::Command::sensors, &cmd_sensors}, Handler{cat::Command::i2c, &cmd_i2c},
     Handler{cat::Command::reg, &cmd_reg},         Handler{cat::Command::stepper, &cmd_stepper},
+    Handler{cat::Command::home, &cmd_home},
     Handler{cat::Command::led, &cmd_led},         Handler{cat::Command::reset, &cmd_reset},
 };
 

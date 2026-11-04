@@ -183,6 +183,7 @@ RTOS_DMA_BUFFER hw::Stepper1 stepper1;  // the period buffers are DMA sources
 RTOS_DMA_BUFFER hw::Stepper2 stepper2;
 dev::Tmc2209<hw::StepperUart, KernelClock> tmc[2]{{stepper_uart, 0b10}, {stepper_uart, 0b00}};
 bool homing_active[2] = {};
+bool homed[2] = {};  ///< the position is referenced: the last homing found the end stop
 
 template <class Stepper>
 void move(Stepper& s, rtos::port::stm32h5::gpio::Pin dir, std::int32_t steps) noexcept {
@@ -190,50 +191,74 @@ void move(Stepper& s, rtos::port::stm32h5::gpio::Pin dir, std::int32_t steps) no
     (void)s.start(steps);
 }
 
+/// Bit0 enabled, Bit1 moving, Bit2 homing failed, Bit3 in position, Bit4 homing, Bit5 homed.
 template <class Stepper>
-std::uint16_t stepper_status(bool enabled, const Stepper& m, std::int32_t target) noexcept {
+std::uint16_t stepper_status(std::size_t i, bool enabled, const Stepper& m, std::int32_t target,
+                             std::uint16_t start_reg) noexcept {
     return static_cast<std::uint16_t>((enabled ? 1u : 0u) | (m.moving() ? 2u : 0u) |
-                                      (!m.moving() && m.position() == target ? 8u : 0u));
+                                      (registers.holding(start_reg) >= 2 ? 4u : 0u) |
+                                      (!m.moving() && m.position() == target ? 8u : 0u) |
+                                      (homing_active[i] ? 16u : 0u) | (homed[i] ? 32u : 0u));
 }
 
-template <class Stepper>
-void homing(std::size_t i, Stepper& stepper, std::uint16_t start_reg, std::uint32_t now) noexcept {
+template <class Stepper, class SetTarget>
+void homing(std::size_t i, Stepper& stepper, std::uint16_t start_reg, SetTarget set_target, std::uint32_t now) noexcept {
     if (!homing_active[i]) {
         if (registers.holding(start_reg) == 1 && !stepper.moving()) {
             homing_active[i] = tmc[i].start_homing({.speed = -200}, now);
+            homed[i] = false;
+            if (!homing_active[i]) {
+                registers.set_holding(start_reg, 3);
+                RTOS_LOG_WARN("stepper %u: homing not started (TMC2209 does not answer)", static_cast<unsigned>(i + 1));
+            }
         }
         return;
     }
     using R = dev::Tmc2209<hw::StepperUart, KernelClock>::HomingResult;
+    const unsigned n = static_cast<unsigned>(i + 1);
     switch (tmc[i].tick_homing(now)) {
         case R::InProgress: return;
         case R::Done:
             stepper.set_position(0);
             registers.set_holding(start_reg, 0);
+            set_target(registers, 0);  // no move right after it to a target written before
+            homed[i] = true;
+            RTOS_LOG_INFO("stepper %u: homed (StallGuard at the end stop), position 0", n);
             break;
-        case R::Timeout: registers.set_holding(start_reg, 2); break;
-        case R::Error: registers.set_holding(start_reg, 3); break;
+        case R::Timeout:
+            registers.set_holding(start_reg, 2);
+            RTOS_LOG_WARN("stepper %u: homing timed out, no end stop found", n);
+            break;
+        case R::Error:
+            registers.set_holding(start_reg, 3);
+            RTOS_LOG_WARN("stepper %u: homing failed (TMC2209 UART)", n);
+            break;
     }
     homing_active[i] = false;
 }
 
+void homing_both(std::uint32_t now) noexcept {
+    homing(0, stepper1, rm::holding::stepper1_start_homing, [](auto& b, std::int32_t v) { rm::set_stepper1_target(b, v); }, now);
+    homing(1, stepper2, rm::holding::stepper2_start_homing, [](auto& b, std::int32_t v) { rm::set_stepper2_target(b, v); }, now);
+}
+
 void steppers(std::uint32_t now) noexcept {
-    homing(0, stepper1, rm::holding::stepper1_start_homing, now);
-    homing(1, stepper2, rm::holding::stepper2_start_homing, now);
+    homing_both(now);
     const bool enabled = rm::stepper_enable(registers) != 0 || homing_active[0] || homing_active[1];
     write(pins::stepper_enable, !enabled);  // active low
     const std::int32_t target[2] = {rm::stepper1_target(registers), rm::stepper2_target(registers)};
-    // a new target starts when the current move is done (no change of plan mid-ramp)
-    if (enabled && !homing_active[0] && !stepper1.moving() && stepper1.position() != target[0]) {
+    // a new target starts when the current move is done (no change of plan mid-ramp); only on a
+    // referenced axis: without homing the position means nothing, the target waits
+    if (enabled && homed[0] && !homing_active[0] && !stepper1.moving() && stepper1.position() != target[0]) {
         move(stepper1, pins::stepper1_dir, target[0] - stepper1.position());
     }
-    if (enabled && !homing_active[1] && !stepper2.moving() && stepper2.position() != target[1]) {
+    if (enabled && homed[1] && !homing_active[1] && !stepper2.moving() && stepper2.position() != target[1]) {
         move(stepper2, pins::stepper2_dir, target[1] - stepper2.position());
     }
     rm::set_stepper1_position(registers, stepper1.position());
     rm::set_stepper2_position(registers, stepper2.position());
-    rm::set_stepper1_status(registers, stepper_status(enabled, stepper1, target[0]));
-    rm::set_stepper2_status(registers, stepper_status(enabled, stepper2, target[1]));
+    rm::set_stepper1_status(registers, stepper_status(0, enabled, stepper1, target[0], rm::holding::stepper1_start_homing));
+    rm::set_stepper2_status(registers, stepper_status(1, enabled, stepper2, target[1], rm::holding::stepper2_start_homing));
 }
 
 // ---- WS2812: CH1 strip of 8 LEDs (patterns), CH2 one LED (palette) --------------------------------
@@ -335,7 +360,7 @@ void enable_irq(unsigned irq, std::uint8_t priority) noexcept {
 
 }  // namespace
 
-void setup() noexcept {
+void setup(bool supply_up) noexcept {
     h5::gpio::configure<pins::io_pins>();
     hw::I2c1::init();
     hw::I2c2::init();
@@ -399,11 +424,25 @@ void setup() noexcept {
 
     stepper_uart.start();
     enable_irq(hw::StepperUart::irq, irq_priority_net);
+    bool tmc_ok[2] = {};
     for (std::size_t i = 0; i < 2; ++i) {
-        if (!tmc[i].init(rtos::devices::Tmc2209Microsteps::M16)) {
+        tmc_ok[i] = tmc[i].init(rtos::devices::Tmc2209Microsteps::M16);
+        if (!tmc_ok[i]) {
             RTOS_LOG_WARN("stepper %u: TMC2209 does not answer (steps still go out)", static_cast<unsigned>(i + 1));
         }
         (void)tmc[i].set_current(4, 12, 6);
+    }
+    // Sensorless homing at the start, both at once: the I/O cycle runs it (homing()). Not without
+    // the motor supply: StallGuard could then report an end stop that is not there. A stepper that
+    // is not homed says so in its status (Bit5 clear); homing again: write 1 to StartHoming.
+    const std::uint16_t start_homing[2] = {rm::holding::stepper1_start_homing, rm::holding::stepper2_start_homing};
+    for (std::size_t i = 0; i < 2; ++i) {
+        if (supply_up && tmc_ok[i]) {
+            registers.set_holding(start_homing[i], 1);
+        }
+    }
+    if (!supply_up) {
+        RTOS_LOG_WARN("steppers: no homing at the start (motor supply not up)");
     }
     stepper1.init();
     stepper2.init();
@@ -426,6 +465,10 @@ void setup() noexcept {
 }
 
 void set_event_thread(Kernel::Thread& thread) noexcept { event_thread = &thread; }
+
+std::uint32_t homing_poll_ms() noexcept { return homing_active[0] || homing_active[1] ? homing_poll_period_ms : 0; }
+
+void homing_poll(std::uint32_t now) noexcept { homing_both(now); }
 
 void events(std::uint32_t bits) noexcept {
     if ((bits & event_supply) != 0 && supply_present) {

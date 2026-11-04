@@ -128,17 +128,17 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | `stepper2_target` | Holding (R/W) | 65..66 | 2 | int32[^byteorder] |  |  |  | decimal |  | ns=1;i=5055 | Zielposition Stepper 2 |
 | `stepper2_speed` | Holding (R/W) | 67 | 1 | uint16 | Schritte/s |  |  | decimal |  | ns=1;i=5056 | Geschwindigkeit Stepper 2 |
 | `stepper2_accel` | Holding (R/W) | 68 | 1 | uint16 | Schritte/s^2 |  |  | decimal |  | ns=1;i=5057 | Beschleunigung Stepper 2 |
-| `stepper1_start_homing` | Holding (R/W) | 69 | 1 | uint16 |  | 0 | 255 | decimal |  | ns=1;i=5058 | 1=Homing starten (stoppt Stepper1, sensorloses Homing per StallGuard), 0=erfolgreich beendet, >1=Fehlercode |
-| `stepper2_start_homing` | Holding (R/W) | 70 | 1 | uint16 |  | 0 | 255 | decimal |  | ns=1;i=5059 | 1=Homing starten (stoppt Stepper2, sensorloses Homing per StallGuard), 0=erfolgreich beendet, >1=Fehlercode |
+| `stepper1_start_homing` | Holding (R/W) | 69 | 1 | uint16 |  | 0 | 255 | decimal |  | ns=1;i=5058 | 1=Homing starten (stoppt Stepper1, sensorloses Homing per StallGuard; beim Start automatisch, wenn die Motorversorgung da ist), 0=erfolgreich beendet, 2=Timeout (kein Anschlag), 3=TMC2209 antwortet nicht |
+| `stepper2_start_homing` | Holding (R/W) | 70 | 1 | uint16 |  | 0 | 255 | decimal |  | ns=1;i=5059 | 1=Homing starten (stoppt Stepper2, sensorloses Homing per StallGuard; beim Start automatisch, wenn die Motorversorgung da ist), 0=erfolgreich beendet, 2=Timeout (kein Anschlag), 3=TMC2209 antwortet nicht |
 
 ### Stepper-Status
 
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
 | `stepper1_position` | Input (R) | 240..241 | 2 | int32[^byteorder] |  |  |  | decimal |  | ns=1;i=5060 | Aktuelle Position Stepper 1 |
-| `stepper1_status` | Input (R) | 242 | 1 | uint16 |  |  |  | binary |  | ns=1;i=5061 | Bit0 Enabled, Bit1 Moving, Bit2 Error/StallGuard, Bit3 InPosition |
+| `stepper1_status` | Input (R) | 242 | 1 | uint16 |  |  |  | binary |  | ns=1;i=5061 | Bit0 Enabled, Bit1 Moving, Bit2 Homing fehlgeschlagen, Bit3 InPosition, Bit4 Homing laeuft, Bit5 referenziert (Homing erfolgreich, beim Start oder per StartHoming) |
 | `stepper2_position` | Input (R) | 243..244 | 2 | int32[^byteorder] |  |  |  | decimal |  | ns=1;i=5062 | Aktuelle Position Stepper 2 |
-| `stepper2_status` | Input (R) | 245 | 1 | uint16 |  |  |  | binary |  | ns=1;i=5063 | Bit0 Enabled, Bit1 Moving, Bit2 Error/StallGuard, Bit3 InPosition |
+| `stepper2_status` | Input (R) | 245 | 1 | uint16 |  |  |  | binary |  | ns=1;i=5063 | Bit0 Enabled, Bit1 Moving, Bit2 Homing fehlgeschlagen, Bit3 InPosition, Bit4 Homing laeuft, Bit5 referenziert (Homing erfolgreich, beim Start oder per StartHoming) |
 
 ### ToF-Sensoren
 

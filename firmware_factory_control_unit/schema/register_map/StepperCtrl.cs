@@ -31,13 +31,15 @@ public class StepperCtrl
     [ModbusRegister(Access.ReadWrite, Unit = "Schritte/s^2"), ModbusMapping(Address = 68)]
     public ushort Stepper2Accel;
 
-    /// <summary>1=Homing starten (stoppt Stepper1, sensorloses Homing per StallGuard), 0=erfolgreich
-    /// beendet, &gt;1=Fehlercode</summary>
+    /// <summary>1=Homing starten (stoppt Stepper1, sensorloses Homing per StallGuard; beim Start
+    /// automatisch, wenn die Motorversorgung da ist), 0=erfolgreich beendet, 2=Timeout (kein Anschlag),
+    /// 3=TMC2209 antwortet nicht</summary>
     [ModbusRegister(Access.ReadWrite, Min = 0, Max = 255), ModbusMapping(Address = 69)]
     public ushort Stepper1StartHoming;
 
-    /// <summary>1=Homing starten (stoppt Stepper2, sensorloses Homing per StallGuard), 0=erfolgreich
-    /// beendet, &gt;1=Fehlercode</summary>
+    /// <summary>1=Homing starten (stoppt Stepper2, sensorloses Homing per StallGuard; beim Start
+    /// automatisch, wenn die Motorversorgung da ist), 0=erfolgreich beendet, 2=Timeout (kein Anschlag),
+    /// 3=TMC2209 antwortet nicht</summary>
     [ModbusRegister(Access.ReadWrite, Min = 0, Max = 255), ModbusMapping(Address = 70)]
     public ushort Stepper2StartHoming;
 }

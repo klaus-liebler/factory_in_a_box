@@ -3,7 +3,7 @@ using BestBinaryBuffers;
 namespace modbus;
 
 /// <summary>Snapshot ALLER Holding- und Input-Register, binaer -- Nachfolger des frueheren
-/// Ad-hoc-REST-Endpunkts GET /api/registers (Core/Src/webserver.cpp), jetzt ueber denselben
+/// Ad-hoc-REST-Endpunkts GET /api/registers der HAL-Firmware, jetzt ueber denselben
 /// WebSocket-Kanal wie alles andere (s. Projektentscheidung "einmalig SPA, dann nur noch binaere
 /// WebSockets"). Wird von web/src/apps/modbus-register-app.ts periodisch angefragt.</summary>
 [BinaryMessage(MessageKind.Request)]
@@ -14,8 +14,8 @@ public class GetRegistersRequest
 [BinaryMessage(MessageKind.Response)]
 public class RegistersMessage
 {
-    // Bounds = ModbusRegisters::HOLDING_REGISTER_MAX_INDEX+1 / INPUT_REGISTER_MAX_INDEX+1
-    // (generated/modbus_registers_generated.hh, aus schema/register_map/*.cs generiert) --
+    // Bounds = register_map::holding_count / input_count
+    // (generated/register_map.hpp, aus schema/register_map/*.cs generiert) --
     // bei Wachstum der Registerkarte hier nachziehen.
     [BinaryMaxItemCount(111)] public ushort[] holding = System.Array.Empty<ushort>();
     [BinaryMaxItemCount(258)] public ushort[] input = System.Array.Empty<ushort>();

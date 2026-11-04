@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""HTTPS + WebSocket smoke test for the Control Unit's Http::WebServer
-(Core/Src/http_websocket_server.hpp, wired up in Core/Src/webserver.cpp).
+"""HTTPS + WebSocket smoke test for the Control Unit's web server (rtoos rtos::net::HttpsServer,
+wired up in src/network.cpp; the WebSocket messages are handled in src/web.cpp).
 
-Exercises exactly the two things the recent RAM/network rework touched:
-  1. HTTPS (NetX Secure TLS) now uses the SAME RSA-2048 device certificate the OPC UA server
-     already used (see net_setup.cpp/opcua_setup.cpp -- a separate EC_P256 certificate for HTTPS
-     was tried and then reverted, see the project's certificate-consolidation notes) -- a plain
-     TLS GET of the SPA shell ("/") is enough to prove the RSA cert/TLS handshake still works on
-     this no-PKA board (STM32H563) in a Release build.
+Exercises:
+  1. HTTPS (TLS 1.3, wolfSSL) with the device's ECDSA P-256 certificate
+     (build/assets/device_https_certificate.der; OPC UA has its own RSA-2048 one) -- a plain TLS
+     GET of the SPA shell ("/") proves the certificate and the handshake.
   2. The WebSocket endpoint ("/ws") speaks the BestBinaryBuffer wire format (best_binary_buffers_
      schema/*.cs -> generated/ws_protocol.hh / web/generated/ws-protocol.ts) -- this test
      sends a real tasks.TaskManagerRequest and decodes the tasks.TaskListMessage response
-     (thread name/state/stack usage/CPU load per ThreadX thread), the same round trip the
+     (thread name/state/stack usage/CPU load per rtoos thread), the same round trip the
      Task Manager web UI page performs.
 
 Needs 'cryptography' (reading the CA cert, same dependency as test_opcua.py) and 'websockets'
@@ -76,7 +74,7 @@ def test_https(host: str, port: int, ssl_ctx: ssl.SSLContext) -> None:
         if resp.status != 200:
             print(f"FAIL: expected HTTP 200 for GET /, got {resp.status}")
             sys.exit(1)
-        # SPA shell is always served brotli-compressed (handle_spa_shell() in webserver.cpp,
+        # SPA shell is always served brotli-compressed (the "*" resource in src/network.cpp,
         # streamed straight from the embedded index.html.br flash asset) -- not re-checking the
         # compressed body's content here, just that the TLS handshake + a real HTTP response made
         # it through with the expected framing.
@@ -177,7 +175,7 @@ def test_websocket(host: str, port: int, ssl_ctx: ssl.SSLContext) -> None:
                   f"runCount={t['runCount']} cpu={t['cpuPercent']:.1f}%")
             if t["stackUsedCurrentBytes"] > t["stackSizeBytes"] or t["stackUsedHighWaterBytes"] > t["stackSizeBytes"]:
                 print(f"FAIL: thread {t['name']!r} reports stack usage exceeding its own stack size "
-                      "-- ThreadX stack-analyze data looks corrupted")
+                      "-- the stack painting data looks corrupted")
                 sys.exit(1)
     print("  WebSocket OK (BestBinaryBuffer request/response round trip verified)")
 

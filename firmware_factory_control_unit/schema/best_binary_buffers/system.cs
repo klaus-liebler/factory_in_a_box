@@ -30,7 +30,7 @@ public class LogMessage
 /// <summary>Raw LAN8742-PHY-Register (BSR/PHYSCSR/MCSR/SECR/SCSIR passiv, TCSR/CLR nach aktiver
 /// TDR-Kabeldiagnose) -- unveraendert weitergereicht, jede Bit-Interpretation (Link-Status,
 /// Speed/Duplex, Kabeltyp/-Laenge) passiert im Web-UI (web/src/apps/system-info-app.ts), s.
-/// Core/Src/webserver.cpp's read_phy_registers()/read_tdr_registers().</summary>
+/// net::phy_diagnostics() (src/network.cpp), gesendet von system_info() in src/web.cpp.</summary>
 [BinaryType]
 public struct PhyRegisters
 {

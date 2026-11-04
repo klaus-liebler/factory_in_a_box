@@ -1,5 +1,5 @@
 // Bidirektionale binaere WebSocket-Verbindung zum Server (s. docs/websocket-protocol.md,
-// Core/Src/http_websocket_server.hpp) -- mittelfristig der einzige Kanal fuer laufenden
+// rtoos rtos/net/https_server.hpp) -- mittelfristig der einzige Kanal fuer laufenden
 // Datenaustausch zwischen Browser und Firmware; HTTP GET dient nur noch dem einmaligen Laden
 // dieser Seite. Jede Binaerframe traegt genau eine Nachricht mit 4-Byte-Kopf
 // (namespaceId/messageTypeId, s. ws-protocol/*.json); decode() der generierten Typen aus

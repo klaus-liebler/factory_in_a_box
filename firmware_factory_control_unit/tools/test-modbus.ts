@@ -18,7 +18,7 @@ import { Socket } from "node:net";
 
 const MODBUS_PORT = 502;
 
-// Register-Adressen, siehe Core/Src/generated/register_input.inc / register_holding.inc
+// Register-Adressen, siehe generated/register_map.hpp (register_map::input / holding)
 const INPUT_HEALTH_STATE = 0;
 const INPUT_CHIP_ID_W0_HI = 1;
 const INPUT_FW_VERSION_MAJOR = 7;

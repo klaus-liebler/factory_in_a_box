@@ -3,7 +3,7 @@
 Status: **Implementiert** (`web/src/apps/druckregelstrecke-app.ts`,
 `druckregelstrecke-controller.ts`, `druckregelstrecke-charts.ts`,
 `druckregelstrecke-view.ts`; Firmware-seitig `schema/best_binary_buffers/pneumatics.cs` +
-`Core/Src/webserver.cpp`/`io.cpp`). Diese Datei bleibt trotzdem die Referenz-Spezifikation --
+`src/web.cpp`/`src/io.cpp`). Diese Datei bleibt trotzdem die Referenz-Spezifikation --
 bei Aenderungswuenschen zuerst hier anpassen, dann den Code nachziehen.
 
 Ergaenzend zur urspruenglichen Beschreibung waehrend der Umsetzung hinzugekommen (unten jeweils an

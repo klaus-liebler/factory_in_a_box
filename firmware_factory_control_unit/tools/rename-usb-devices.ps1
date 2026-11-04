@@ -9,10 +9,11 @@
 # .sys-Datei) -- hier wird ueberhaupt kein Treiber installiert, nur ein bereits vorhandener
 # Anzeige-String auf einem laengst installierten Geraet ueberschrieben.
 #
-# Hardware-IDs (s. Kommentar in Core/Src/usbd_device.c zum Interface-Layout):
+# Hardware-IDs (Interface-Layout: src/network.cpp, "USB: CDC-NCM (interfaces 0, 1) + CDC-ACM"):
 #   MI_00 = CDC-NCM Control-Interface (Netzwerkadapter)
-#   MI_02 = CDC-ACM Debug (erster COM-Port)
-#   MI_04 = CDC-ACM Modbus (zweiter COM-Port)
+#   MI_02 = CDC-ACM Modbus RTU (einziger COM-Port)
+# ACHTUNG: die Ziele unten stammen noch aus der HAL-Firmware (MI_02 = Debug, MI_04 = Modbus);
+# die heutige Firmware hat keinen Debug-Port und kein MI_04 mehr.
 #
 # Ausfuehrung: PowerShell ALS ADMINISTRATOR starten, dann:
 #   powershell -ExecutionPolicy Bypass -File rename-usb-devices.ps1

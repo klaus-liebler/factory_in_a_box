@@ -20,7 +20,7 @@ export type ValveIndex = 0 | 1 | 2;
 
 export interface DruckregelstreckeState {
 	/** Rohwert des analogen Drucksensors (ADC1 CH10, 12 Bit) -- s. PRESSURE_RAW-Register,
-	 * physikalische Skalierung ist in der Firmware noch offen (s. Core/Src/io.cpp-Kommentar),
+	 * physikalische Skalierung ist in der Firmware noch offen (s. src/io.cpp, inputs()),
 	 * daher hier bewusst nur als Rohwert/Prozent vom Vollausschlag dargestellt, keine erfundene
 	 * bar-Kalibrierung. */
 	pressureRaw: number;

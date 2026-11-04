@@ -114,7 +114,7 @@ Abschnitt 6) -- die bleiben im Board-Archiv bzw. werden von dort unveraendert ge
 | 2 | `GenerateCertificatesLazy` | nein | Board-Archiv (Ausnahme, s.o.) -- erzeugt/aktualisiert PEM+DER nur falls noch nicht vorhanden; schreibt `certificate-info.json`. |
 | 3 | `GenerateCertificatesForced` | nein | Board-Archiv (Ausnahme) -- wie 2, aber immer neu erzeugen (CA-Rotation, Ablauf). |
 | 4 | `GenerateDeviceArtifacts` | nein | `generated/` -- `hardware-identity.json` + `certificate-info.json` (Board-Archiv) -> `device_ids.hh` + `device-ids.json`; kopiert zusaetzlich `board_info.json` (Archiv-Root, Ausnahme) unveraendert dorthin. |
-| 5 | `GenerateRegisterAccessFiles` | nein | `generated/` + `web/generated/` + `docs/generated/` -- `schema/register_map/*.cs` -> `modbus_registers_generated.hh` + `opcua_registers_generated.hh` + `register-map.ts` + `modbus-registers.md` (tabellarische Register-Uebersicht nach Gruppe und nach Adresse) (universal_register_access). |
+| 5 | `GenerateRegisterAccessFiles` | nein | `generated/` + `web/generated/` + `docs/generated/` -- `schema/register_map/*.cs` -> `register_map.hpp` + `register_map_opcua.hpp` + `register-map.ts` + `modbus-registers.md` (tabellarische Register-Uebersicht nach Gruppe und nach Adresse) (universal_register_access). |
 | 6 | `GenerateBestBinaryBufferFiles` | nein | `generated/` + `web/generated/` -- `schema/best_binary_buffers/*.cs` (wiederholbares `--best-binary-buffer-schema-path` fuer weitere Quellen) -> `ws_protocol.hh` + `ws-protocol.ts` (ueber das geteilte WsProtocolBuildService, s. Abschnitt 4). |
 | 6' | `GenerateTerminalFiles` | nein | `generated/` + `web/generated/` -- `schema/terminal/*.cs` (C#-Klassen: Befehle, Parameter, Werte/Lookups der Terminal-Seite; Attribute in `TerminalSchemaAttributes.cs`, Generator `TerminalCatalog` in `firmware_builder_common`) -> `terminal_commands.hh` (Firmware: Handler je Befehl, Antwort je Lookup, zur Compilezeit geprueft) + `terminal-commands.ts` (in die Web-App compiliert: Vervollstaendigung, help, Parameter-Sprechblase); s. [terminal.md](terminal.md). |
 | 7 | `ReadGitStatusAndGenerateFiles` | nein | `generated/` + `web/generated/` -- `gitconstants.hh`, `firmware_constants.hh` (BOARD_NAME/FW_VERSION_*, s. Abschnitt 6), `build-info.ts` aus Git-Abfrage + `firmware-version.json` + `device-ids.json` (generated/); `gitstatus.json` (Ausnahme) zusaetzlich ins Board-Archiv. |
@@ -230,8 +230,8 @@ firmware_factory_control_unit/
 ├── builder/                      # s. Abschnitt 4
 ├── tools/                        # Skripte OHNE Bezug zur Codegenerierung (rename-usb-devices.ps1, test-modbus.ts, ...)
 ├── generated/                     # gitignored: device_ids.hh, gitconstants.hh, firmware_constants.hh,
-│                                  # board_info.json, modbus_registers_generated.hh,
-│                                  # opcua_registers_generated.hh, ws_protocol.hh
+│                                  # board_info.json, register_map.hpp,
+│                                  # register_map_opcua.hpp, ws_protocol.hh, terminal_commands.hh
 ├── web/
 │   ├── src/                      # kein generated/, kein register-map.ts mehr darunter
 │   └── generated/                 # gitignored: build-info.ts, register-map.ts, ws-protocol.ts
@@ -344,8 +344,8 @@ Die Hardware-Revision kommt ausschliesslich aus dem CMake-Preset (s. Abschnitt 2
 
 `BOARD_NAME` (der Anzeigename in Firmware-Log/Web-UI, z. B. `"FactoryControlUnit"`) ist damit
 identisch mit `board_info.json`s `boardTypeName`-Wert -- kein separater, ausführlicherer Anzeigestring
-mehr (den gab es früher hartkodiert samt `#ifdef BOARD_NUCLEO_H563ZI`-Umschaltung in
-`Core/Inc/constants.hh`). `FW_VERSION_MAJOR/MINOR/PATCH` kommen unabhängig davon aus
+mehr (den gab es in der frueheren HAL-Firmware hartkodiert samt
+`#ifdef BOARD_NUCLEO_H563ZI`-Umschaltung). `FW_VERSION_MAJOR/MINOR/PATCH` kommen unabhängig davon aus
 `firmware-version.json` (Repo-Root, von Hand gepflegt bei einem Versions-Bump). Beide zusammen
 generiert `ReadGitStatusAndGenerateFiles` (Phase 7) nach `generated/firmware_constants.hh`
 und in `web/generated/build-info.ts`.

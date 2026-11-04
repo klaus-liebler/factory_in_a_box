@@ -1,8 +1,8 @@
 // Geschlossene IK/FK fuer den RoArm-M3 -- 1:1 Portierung der Trigonometrie aus Waveshares
 // Referenzfirmware (RoArm-M3_example/RoArm-M3_config.h + RoArm-M3_module.h,
 // RoArmM3_computePosbyJointRad()/RoArmM3_baseCoordinateCtrl()/simpleLinkageIkRad()), NICHT neu
-// hergeleitet. Muss inhaltlich synchron bleiben mit der spaeteren C++-Portierung
-// (Core/Src/setup_and_loops/roarm_kinematics.hh, s. Plan Abschnitt 2) -- beide Seiten kennen
+// hergeleitet. Muss inhaltlich synchron bleiben mit der C++-Portierung
+// (src/roarm/kinematics.hpp) -- beide Seiten kennen
 // bislang nur die Linklaengen aus der Referenz, nicht gegen die reale Hardware verifiziert.
 //
 // Joint-Reihenfolge (6 DOF, wie im Wire-Format jointAnglesCentiDeg[6]):
@@ -37,8 +37,8 @@ const LEB = L4B;
 const LE = Math.hypot(LEA, LEB);
 const TERAD = Math.atan2(LEB, LEA);
 
-/// Gelenkgrenzen, auf die die Firmware jedes Jog-Ziel klemmt -- 1:1 Spiegel von kJointLimitsRad
-/// in Core/Src/setup_and_loops/roarm_kinematics.hh (Begruendung der Werte dort), MUSS mit ihr
+/// Gelenkgrenzen, auf die die Firmware jedes Jog-Ziel klemmt -- 1:1 Spiegel von kin::limits
+/// in src/roarm/kinematics.hpp (Begruendung der Werte dort), MUSS mit ihr
 /// uebereinstimmen. Die Gizmo-IK (roarm3d/ik.ts) schneidet ihre URDF-Grenzen hiermit, damit sie
 /// nie eine Pose anbietet, die die Firmware anschliessend wegklemmt.
 export const JOINT_LIMITS_RAD: ReadonlyArray<readonly [number, number]> = [

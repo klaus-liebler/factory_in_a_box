@@ -14,7 +14,7 @@ function formatOctets(bytes: readonly number[]): string {
 }
 
 // bytes ist ein 16-Byte-Bitfeld (128 Bit, LSB von Byte 0 = Adresse 0), s.
-// Core/Src/webserver.cpp PerformBootI2cScans()/HandleGetSystemInfo().
+// scan() in src/io.cpp (beim Start) und system_info() in src/web.cpp.
 function decodeI2cBitfield(bytes: readonly number[]): boolean[] {
 	const result: boolean[] = new Array(128);
 	for (let addr = 0; addr < 128; addr++) {
@@ -23,7 +23,7 @@ function decodeI2cBitfield(bytes: readonly number[]): boolean[] {
 	return result;
 }
 
-// Muss zu ResetCause in Core/Src/app.hh passen.
+// Muss zu ResetCause in src/boot.hpp passen.
 const RESET_CAUSE_LABELS: Record<number, string> = {
 	0: "Unbekannt",
 	1: "Independent Watchdog",
@@ -54,8 +54,8 @@ function formatEpochSeconds(epochSeconds: number): string {
 	return new Date(epochSeconds * 1000).toLocaleString("de-DE");
 }
 
-// LAN8742-Bitmasken (s. Drivers/BSP/Components/lan8742/lan8742.h) -- Firmware liefert die
-// Register nur noch roh (s. Core/Src/webserver.cpp PhyRegisters), das Parsen/Interpretieren
+// LAN8742-Bitmasken (s. Datenblatt LAN8742A, Register 1/17/31) -- Firmware liefert die
+// Register nur noch roh (s. net::phy_diagnostics() in src/network.cpp), das Parsen/Interpretieren
 // passiert bewusst hier, client-seitig.
 const LAN8742_BSR_LINK_STATUS = 0x0004;
 const LAN8742_PHYSCSR_AUTONEGO_DONE = 0x1000;

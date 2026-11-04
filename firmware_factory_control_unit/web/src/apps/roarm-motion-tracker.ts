@@ -1,5 +1,5 @@
-// Client-seitiger Vorgeschmack auf den in Firmware geplanten JointTracker (Plan Abschnitt 3,
-// spaeter Core/Src/setup_and_loops/roarm_motion.hh): ein beschleunigungsbegrenztes
+// Client-seitiges Gegenstueck zum JointTracker der Firmware (src/roarm/motion.hpp): ein
+// beschleunigungsbegrenztes
 // (trapezfoermiges) Geschwindigkeitsprofil pro Gelenk, das bei jedem Tick aus der verbleibenden
 // Distanz neu entscheidet, ob beschleunigt/konstant gefahren/gebremst wird -- kein vorab fixes
 // Zeitprofil noetig, reagiert daher auch glatt auf ein sich waehrend der Fahrt aenderndes Ziel

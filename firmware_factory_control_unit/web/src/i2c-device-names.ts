@@ -2,7 +2,7 @@
 // Block in apps/system-info-app.ts: mehrere ICs teilen sich oft dieselbe Standardadresse, ein
 // tatsaechlicher Treffer bei einer Adresse ist deshalb nur ein Hinweis, keine sichere Identifikation.
 // Reines Nachschlagewerk, wird nirgends von der Firmware gebraucht (die liefert nur, OB unter
-// einer Adresse ein Geraet geantwortet hat, s. Core/Src/webserver.cpp PerformBootI2cScans()).
+// einer Adresse ein Geraet geantwortet hat, s. scan() in src/io.cpp).
 export const I2C_ADDRESS_CANDIDATES: readonly string[] = [
 	"?", // 0x00
 	"?",

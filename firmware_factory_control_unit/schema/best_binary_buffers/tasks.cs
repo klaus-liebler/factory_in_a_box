@@ -28,15 +28,15 @@ public class TaskListMessage
 	// beim Dekodieren eine gleichnamige lokale Variable an, die den Namespace-Bezeichner
 	// "tasks" verdeckt und "tasks.decodeTaskInfo(...)" dadurch faelschlich als Zugriff auf die
 	// (leere) Array-Property statt auf die Namespace-Funktion aufloest.
-	// Matches TASK_COUNT in task_monitor.cpp -- the fixed list of App-owned ThreadX threads this
-	// snapshot ever covers.
+	// At least KernelConfig::max_threads (src/system.hpp, 5): src/task_monitor.cpp reports every
+	// thread registered with task_monitor::add().
 	[BinaryMaxItemCount(6)] public TaskInfo[] items;
 }
 
-/// <summary>Ein ThreadX-Byte-Pool oder NetX-Packet-Pool -- capacity/free sind je nach Pool-Art in
-/// unterschiedlichen Einheiten zu verstehen (Byte-Pool: Bytes; Packet-Pool: Paketanzahl), daher
-/// traegt "name" die Einheit direkt mit (z.B. "Byte-Pool (Bytes)"/"OPC UA Pakete (Pakete)") statt
-/// eines eigenen Einheiten-Feldes -- schliesst das Instrumentierungs-Loch aus der RAM-Analyse
+/// <summary>Ein Speicher-Pool der Firmware (src/task_monitor.cpp: die Paketpuffer des IP-Stacks und
+/// der statische wolfSSL-Pool) -- capacity/free sind je nach Pool in unterschiedlichen Einheiten zu
+/// verstehen (Paketpuffer: Anzahl; wolfSSL: Bytes), daher traegt "name" die Einheit direkt mit
+/// (z.B. "Packets (buffers)"/"wolfSSL (bytes)") statt eines eigenen Einheiten-Feldes -- schliesst das Instrumentierungs-Loch aus der RAM-Analyse
 /// (bislang war keine dieser Pool-Groessen zur Laufzeit sichtbar, nur aus dem Quellcode geschaetzt).</summary>
 [BinaryType]
 public struct PoolInfo

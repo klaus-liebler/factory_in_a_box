@@ -1,6 +1,6 @@
 // Abstraktion der Firmware-Kommunikation fuer die RoArm-Teach-Seite. Die echte Implementierung
-// (WsRoArmBackend, folgt sobald die Firmware-Seite -- webserver.cpp/http_websocket_server.hpp --
-// verdrahtet ist) sendet/empfaengt die hier importierten, bereits generierten BestBinaryBuffers-
+// (WsRoArmBackend, roarm-ws-backend.ts; Firmware-Seite in src/web.cpp und src/roarm/roarm.cpp)
+// sendet/empfaengt die hier importierten, bereits generierten BestBinaryBuffers-
 // Nachrichtentypen (roarm.* aus generated/ws-protocol.ts) unveraendert ueber ws-client.ts.
 // MockRoArmBackend simuliert dieselbe Schnittstelle rein clientseitig, damit die Teach-Seite schon
 // jetzt -- ohne Firmware/Mikrocontroller -- am PC benutzt und getestet werden kann (s.

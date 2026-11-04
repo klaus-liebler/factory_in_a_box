@@ -1,8 +1,8 @@
 // RoArm-M3 Teach-Seite: vereinfachtes 3D-Modell (roarm-3d-view.ts) + Gelenk-/Cartesian-Jogging +
 // Schritt-Liste (Gelenkbewegung/GPIO/Delay) + Mission speichern/laden. Spricht ausschliesslich
 // gegen das RoArmBackend-Interface (roarm-backend.ts) -- zwei Implementierungen, s.
-// createBackend() unten: WsRoArmBackend (echte Firmware, s. Core/Src/setup_and_loops/roarm.hh +
-// webserver.cpp) im eingebetteten Firmware-Build, MockRoArmBackend im Vite-Dev-Server (kein Board
+// createBackend() unten: WsRoArmBackend (echte Firmware, s. src/roarm/roarm.cpp +
+// src/web.cpp) im eingebetteten Firmware-Build, MockRoArmBackend im Vite-Dev-Server (kein Board
 // noetig, s. "import.meta.env.DEV"-Kommentar dort) -- damit bleibt die Seite weiterhin ohne
 // Hardware am PC testbar, waehrend die echte Firmware automatisch die echte Anbindung bekommt.
 import { LitElement, html } from "lit";

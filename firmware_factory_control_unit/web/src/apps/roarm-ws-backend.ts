@@ -1,6 +1,6 @@
 // Echte Firmware-Anbindung fuers RoArmBackend-Interface (roarm-backend.ts) -- ersetzt
-// MockRoArmBackend, sobald die Firmware-Seite existiert (WS-Handler in webserver.cpp,
-// RoArmSetupAndLoop in Core/Src/setup_and_loops/roarm.hh). Uebersetzt 1:1 auf die generierten
+// MockRoArmBackend im Firmware-Build (WS-Handler in src/web.cpp, Ausfuehrung im I/O-Thread in
+// src/roarm/roarm.cpp). Uebersetzt 1:1 auf die generierten
 // roarm.*-Nachrichtentypen (web/generated/ws-protocol.ts) ueber die generischen Sende-/
 // Anfrage-Helfer aus ws-client.ts -- kein eigenes Wire-Format-Wissen hier. Besitzt den
 // roarm-Namespace: als dessen WsProtocolListener empfaengt es alle roarm-Push-Nachrichten

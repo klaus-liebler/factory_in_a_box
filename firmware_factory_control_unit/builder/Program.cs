@@ -90,8 +90,8 @@ namespace Builder
 		}
 
 		// Nur noch fuer die Zertifikat-Ausnahme (DER-Dateien) -- device_ids.hh/gitconstants.hh/
-		// firmware_constants.hh/board_info.json/modbus_registers_generated.hh/
-		// opcua_registers_generated.hh/ws_protocol.hh/register-map.ts/build-info.ts/ws-protocol.ts
+		// firmware_constants.hh/board_info.json/register_map.hpp/register_map_opcua.hpp/
+		// ws_protocol.hh/terminal_commands.hh/register-map.ts/build-info.ts/ws-protocol.ts
 		// werden inzwischen direkt ins Projekt generiert (s. Projektgedaechtnis "generierte Dateien
 		// nur im Projekt"), brauchen also keinen Kopierschritt aus dem Board-Archiv mehr.
 		[BuildStep]

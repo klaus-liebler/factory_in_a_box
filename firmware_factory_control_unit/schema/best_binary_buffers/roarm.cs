@@ -98,7 +98,7 @@ public class MissionSummary : IMissionSummary
 [BinaryMessage(MessageKind.Response)]
 public class ListMissionsResponse
 {
-    // Matches the existing MissionSummary list[32] cap in webserver.cpp's HandleListMissions().
+    // Matches the MissionSummary list of 32 in src/roarm/roarm.cpp (ListMissionsRequest).
     [BinaryMaxItemCount(32)] public IMissionSummary[] missions = System.Array.Empty<IMissionSummary>();
 }
 

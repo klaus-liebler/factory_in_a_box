@@ -92,6 +92,9 @@ using SupplyAlert = h5::ExtiLine<pins::current_alert, h5::ExtiEdge::Falling>;
 using Barrier1 = h5::ExtiLine<pins::light_barrier1, h5::ExtiEdge::Both>;
 using Barrier2 = h5::ExtiLine<pins::light_barrier2, h5::ExtiEdge::Both>;
 using Barrier3 = h5::ExtiLine<pins::light_barrier3.value_or(pins::light_barrier2), h5::ExtiEdge::Both>;  ///< revision 1
+/// TMC2209 DIAG rising: a stall during the homing (pins::stepper_diag; the fallback pins are never used).
+using Diag1 = h5::ExtiLine<pins::stepper1_diag.value_or(pins::light_barrier1), h5::ExtiEdge::Rising>;
+using Diag2 = h5::ExtiLine<pins::stepper2_diag.value_or(pins::light_barrier2), h5::ExtiEdge::Rising>;
 using Pressure = h5::Adc<h5::AdcId::Adc1, {.kernel_hz = clocks.hclk_hz(), .cpu_hz = board::sysclk_hz, .channel = 18,
                                            .sample = h5::AdcSample::Cycles2_5}>;
 using CpuTemperature = h5::Dts<{.pclk_hz = clocks.pclk1_hz()}>;

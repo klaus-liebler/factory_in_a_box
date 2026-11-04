@@ -32,6 +32,7 @@ void homing_poll(std::uint32_t now) noexcept;
 /// Events from interrupts for the I/O thread, between the cycles: notification slot and bits.
 inline constexpr std::size_t event_slot = 0;
 inline constexpr std::uint32_t event_supply = 1u << 0;  ///< INA226: a measurement is ready (ALERT)
+inline constexpr std::uint32_t event_stall = 1u << 1;   ///< TMC2209 DIAG: a stall during the homing
 /// The thread that waits for the events (the I/O thread; before setup()).
 void set_event_thread(Kernel::Thread& thread) noexcept;
 /// Handle the event bits that woke the thread.

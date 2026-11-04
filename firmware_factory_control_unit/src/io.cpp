@@ -184,6 +184,7 @@ RTOS_DMA_BUFFER hw::Stepper2 stepper2;
 dev::Tmc2209<hw::StepperUart, KernelClock> tmc[2]{{stepper_uart, 0b10}, {stepper_uart, 0b00}};
 bool homing_active[2] = {};
 bool homed[2] = {};  ///< the position is referenced: the last homing found the end stop
+std::atomic<bool> diag_stall[2] = {};  ///< DIAG rose (EXTI), taken by homing()
 
 template <class Stepper>
 void move(Stepper& s, rtos::port::stm32h5::gpio::Pin dir, std::int32_t steps) noexcept {
@@ -205,6 +206,7 @@ template <class Stepper, class SetTarget>
 void homing(std::size_t i, Stepper& stepper, std::uint16_t start_reg, SetTarget set_target, std::uint32_t now) noexcept {
     if (!homing_active[i]) {
         if (registers.holding(start_reg) == 1 && !stepper.moving()) {
+            diag_stall[i] = false;
             homing_active[i] = tmc[i].start_homing({.speed = -200}, now);
             homed[i] = false;
             if (!homing_active[i]) {
@@ -216,14 +218,18 @@ void homing(std::size_t i, Stepper& stepper, std::uint16_t start_reg, SetTarget 
     }
     using R = dev::Tmc2209<hw::StepperUart, KernelClock>::HomingResult;
     const unsigned n = static_cast<unsigned>(i + 1);
-    switch (tmc[i].tick_homing(now)) {
+    switch (tmc[i].tick_homing(now, diag_stall[i].exchange(false))) {
         case R::InProgress: return;
         case R::Done:
             stepper.set_position(0);
             registers.set_holding(start_reg, 0);
             set_target(registers, 0);  // no move right after it to a target written before
             homed[i] = true;
-            RTOS_LOG_INFO("stepper %u: homed (StallGuard at the end stop), position 0", n);
+            RTOS_LOG_INFO("stepper %u: homed (StallGuard at the end stop, seen %s), position 0", n,
+                          tmc[i].stall_by_signal() ? "on DIAG" : "over UART");
+            if (pins::stepper_diag && !tmc[i].stall_by_signal()) {
+                RTOS_LOG_WARN("stepper %u: the stall did not show on DIAG - is the DIAG wire there?", n);
+            }
             break;
         case R::Timeout:
             registers.set_holding(start_reg, 2);
@@ -231,7 +237,8 @@ void homing(std::size_t i, Stepper& stepper, std::uint16_t start_reg, SetTarget 
             break;
         case R::Error:
             registers.set_holding(start_reg, 3);
-            RTOS_LOG_WARN("stepper %u: homing failed (TMC2209 UART)", n);
+            RTOS_LOG_WARN("stepper %u: homing failed (%s)", n,
+                          tmc[i].stall_by_signal() ? "DIAG rose from a driver error" : "TMC2209 UART");
             break;
     }
     homing_active[i] = false;
@@ -386,6 +393,14 @@ void setup(bool supply_up) noexcept {
         hw::Barrier3::enable();
         enable_irq(hw::Barrier3::irq, irq_priority_net);
     }
+    if constexpr (pins::stepper_diag) {
+        hw::Diag1::init();
+        hw::Diag2::init();
+        hw::Diag1::enable();
+        hw::Diag2::enable();
+        enable_irq(hw::Diag1::irq, irq_priority_net);  // kernel-aware: wakes the I/O thread
+        enable_irq(hw::Diag2::irq, irq_priority_net);
+    }
     tof_present[0] = hw::Tof1::probe();
     tof_present[1] = hw::Tof2::probe();
     tof_present[2] = hw::Tof3::probe();
@@ -471,6 +486,9 @@ std::uint32_t homing_poll_ms() noexcept { return homing_active[0] || homing_acti
 void homing_poll(std::uint32_t now) noexcept { homing_both(now); }
 
 void events(std::uint32_t bits) noexcept {
+    if ((bits & event_stall) != 0) {
+        homing_both(kernel.now());  // the stop at once, not at the next poll
+    }
     if ((bits & event_supply) != 0 && supply_present) {
         read_supply(kernel.now());
     }
@@ -506,6 +524,14 @@ std::span<const std::uint8_t, 16> i2c_scan(unsigned bus) noexcept {
 extern "C" void UART5_IRQHandler() noexcept { fcu::io::stepper_uart.on_irq(); }
 namespace fcu::io {
 namespace {
+/// DIAG of stepper `i` rose: latched for homing(), which the I/O thread runs at once.
+void stall_from_isr(std::size_t i) noexcept {
+    diag_stall[i] = true;
+    if (event_thread != nullptr) {
+        kernel.notify_from_isr(*event_thread, event_slot, event_stall, rtos::NotifyAction::SetBits);
+    }
+}
+
 /// The EXTI interrupt `Irq` (EXTI0..15 = 11..26): the lines of this revision that use it.
 template <unsigned Irq>
 void exti_irq() noexcept {
@@ -531,6 +557,12 @@ void exti_irq() noexcept {
     if constexpr (pins::rev1 && hw::Barrier3::irq == Irq) {
         if (hw::Barrier3::take().falling) barrier_interrupted[2] = true;
     }
+    if constexpr (pins::stepper_diag && hw::Diag1::irq == Irq) {
+        if (hw::Diag1::take().rising) stall_from_isr(0);
+    }
+    if constexpr (pins::stepper_diag && hw::Diag2::irq == Irq) {
+        if (hw::Diag2::take().rising) stall_from_isr(1);
+    }
 }
 }  // namespace
 }  // namespace fcu::io
@@ -541,6 +573,8 @@ extern "C" void EXTI6_IRQHandler() noexcept { fcu::io::exti_irq<17>(); }
 extern "C" void EXTI7_IRQHandler() noexcept { fcu::io::exti_irq<18>(); }
 extern "C" void EXTI8_IRQHandler() noexcept { fcu::io::exti_irq<19>(); }
 extern "C" void EXTI9_IRQHandler() noexcept { fcu::io::exti_irq<20>(); }
+extern "C" void EXTI10_IRQHandler() noexcept { fcu::io::exti_irq<21>(); }
+extern "C" void EXTI11_IRQHandler() noexcept { fcu::io::exti_irq<22>(); }
 
 /// HX711: the SPI's end of transfer - the reading that the DOUT edge started.
 extern "C" void SPI2_IRQHandler() noexcept {

@@ -47,6 +47,12 @@ inline constexpr Pin stepper1_dir{GpioPort::D, 6};
 inline constexpr Pin stepper2_step{GpioPort::B, 4};   ///< TIM3_CH1
 inline constexpr Pin stepper2_dir{GpioPort::D, 7};
 inline constexpr Pin stepper_enable{GpioPort::B, 7};   ///< TMC2209 EN, active low
+/// TMC2209 DIAG outputs (high on a stall or a driver error), revision 2 with the DIAG wires added.
+/// ASSUMPTION: the pins are not decided yet - PE10/PE11 (free, EXTI lines 10/11 unused). Without the
+/// wires the pull-downs keep them low, and the homing finds the stall by polling over UART only.
+inline constexpr std::optional<Pin> stepper1_diag = rev1 ? std::nullopt : std::optional{Pin{GpioPort::E, 10}};
+inline constexpr std::optional<Pin> stepper2_diag = rev1 ? std::nullopt : std::optional{Pin{GpioPort::E, 11}};
+inline constexpr bool stepper_diag = stepper1_diag.has_value() && stepper2_diag.has_value();
 inline constexpr Pin stepper_rx{GpioPort::B, 5};       ///< UART5
 inline constexpr Pin stepper_tx{GpioPort::B, 6};
 inline constexpr Pin robot_rx{GpioPort::E, 7};         ///< UART7 (RoArm-M3 servo bus)
@@ -126,7 +132,10 @@ inline constexpr auto io_pins = [] {
     if constexpr (rev1) {
         return detail::join(detail::common_io_pins, std::array{gpio::input(*light_barrier3)});
     } else {
-        return detail::join(detail::common_io_pins, std::array{gpio::output(*vacuum_valve), gpio::output(*vacuum_pump)});
+        return detail::join(detail::common_io_pins,
+                            std::array{gpio::output(*vacuum_valve), gpio::output(*vacuum_pump),
+                                       gpio::input(*stepper1_diag, gpio::Pull::Down),
+                                       gpio::input(*stepper2_diag, gpio::Pull::Down)});
     }
 }();
 

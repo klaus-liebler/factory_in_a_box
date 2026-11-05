@@ -25,10 +25,10 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
-| `color_clear` | Input (R) | 160 | 1 | uint16 |  |  |  | decimal | I2C_1 (IRQ PH0) | ns=1;i=5005 | Farbsensor TCS34725, Clear-Kanal |
-| `color_red` | Input (R) | 161 | 1 | uint16 |  |  |  | decimal | I2C_1 (IRQ PH0) | ns=1;i=5006 | Farbsensor TCS34725, Rot-Kanal |
-| `color_green` | Input (R) | 162 | 1 | uint16 |  |  |  | decimal | I2C_1 (IRQ PH0) | ns=1;i=5007 | Farbsensor TCS34725, Gruen-Kanal |
-| `color_blue` | Input (R) | 163 | 1 | uint16 |  |  |  | decimal | I2C_1 (IRQ PH0) | ns=1;i=5008 | Farbsensor TCS34725, Blau-Kanal |
+| `color_clear` | Input (R) | 160 | 1 | uint16 |  |  |  | decimal | I2C_1 (IRQ Rev1 PH0, Rev2 PH1) | ns=1;i=5005 | Farbsensor TCS34725, Clear-Kanal |
+| `color_red` | Input (R) | 161 | 1 | uint16 |  |  |  | decimal | I2C_1 (IRQ Rev1 PH0, Rev2 PH1) | ns=1;i=5006 | Farbsensor TCS34725, Rot-Kanal |
+| `color_green` | Input (R) | 162 | 1 | uint16 |  |  |  | decimal | I2C_1 (IRQ Rev1 PH0, Rev2 PH1) | ns=1;i=5007 | Farbsensor TCS34725, Gruen-Kanal |
+| `color_blue` | Input (R) | 163 | 1 | uint16 |  |  |  | decimal | I2C_1 (IRQ Rev1 PH0, Rev2 PH1) | ns=1;i=5008 | Farbsensor TCS34725, Blau-Kanal |
 
 ### Diagnostik
 
@@ -144,12 +144,12 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
-| `tof1_distance_mm` | Input (R) | 140 | 1 | uint16 | mm |  |  | decimal | I2C_1 (IRQ PC15) | ns=1;i=5064 | Abstand Sensor 1 (VL53L0X) |
-| `tof1_status` | Input (R) | 141 | 1 | uint16 |  |  |  | status | I2C_1 (IRQ PC15) | ns=1;i=5065 | 0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung) |
-| `tof2_distance_mm` | Input (R) | 142 | 1 | uint16 | mm |  |  | decimal | I2C_2 (IRQ PH1) | ns=1;i=5066 | Abstand Sensor 2 (VL53L0X) |
-| `tof2_status` | Input (R) | 143 | 1 | uint16 |  |  |  | status | I2C_2 (IRQ PH1) | ns=1;i=5067 | 0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung) |
-| `tof3_distance_mm` | Input (R) | 144 | 1 | uint16 | mm |  |  | decimal | I2C_4 (IRQ PA3) | ns=1;i=5068 | Abstand Sensor 3 (VL53L0X) |
-| `tof3_status` | Input (R) | 145 | 1 | uint16 |  |  |  | status | I2C_4 (IRQ PA3) | ns=1;i=5069 | 0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung) |
+| `tof1_distance_mm` | Input (R) | 140 | 1 | uint16 | mm |  |  | decimal | I2C_1 (IRQ Rev1 PC15, Rev2 PC14) | ns=1;i=5064 | Abstand Sensor 1 (VL53L0X) |
+| `tof1_status` | Input (R) | 141 | 1 | uint16 |  |  |  | status | I2C_1 (IRQ Rev1 PC15, Rev2 PC14) | ns=1;i=5065 | 0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung) |
+| `tof2_distance_mm` | Input (R) | 142 | 1 | uint16 | mm |  |  | decimal | I2C_2 (IRQ Rev1 PH1, Rev2 PE15) | ns=1;i=5066 | Abstand Sensor 2 (VL53L0X) |
+| `tof2_status` | Input (R) | 143 | 1 | uint16 |  |  |  | status | I2C_2 (IRQ Rev1 PH1, Rev2 PE15) | ns=1;i=5067 | 0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung) |
+| `tof3_distance_mm` | Input (R) | 144 | 1 | uint16 | mm |  |  | decimal | I2C_4 (IRQ Rev1 PA3, Rev2 PD10) | ns=1;i=5068 | Abstand Sensor 3 (VL53L0X) |
+| `tof3_status` | Input (R) | 145 | 1 | uint16 |  |  |  | status | I2C_4 (IRQ Rev1 PA3, Rev2 PD10) | ns=1;i=5069 | 0 = ok, ungleich 0 = Fehler (aktuell: 1 = nicht erkannt/keine gueltige Messung) |
 
 ### Pneumatikventile
 
@@ -158,7 +158,7 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | `valve1` | Holding (R/W) | 20 | 1 | uint16 |  |  |  | bool | Rev1 PD10, Rev2 PA8 | ns=1;i=5070 | Pneumatikventil 1 |
 | `valve2` | Holding (R/W) | 21 | 1 | uint16 |  |  |  | bool | Rev1 PD5, Rev2 PC6 | ns=1;i=5071 | Pneumatikventil 2 |
 | `valve3` | Holding (R/W) | 22 | 1 | uint16 |  |  |  | bool | PD11 | ns=1;i=5072 | Pneumatikventil 3 |
-| `vacuum_valve` | Holding (R/W) | 23 | 1 | uint16 |  |  |  | bool | Rev2 PD10 | ns=1;i=5073 | Vakuumventil (nur Hardware-Revision 2) |
+| `vacuum_valve` | Holding (R/W) | 23 | 1 | uint16 |  |  |  | bool | Rev2 PB14 | ns=1;i=5073 | Vakuumventil (nur Hardware-Revision 2) |
 | `vacuum_pump` | Holding (R/W) | 24 | 1 | uint16 |  |  |  | bool | Rev2 PC11 | ns=1;i=5074 | Vakuumpumpe (nur Hardware-Revision 2) |
 
 ### WS2812

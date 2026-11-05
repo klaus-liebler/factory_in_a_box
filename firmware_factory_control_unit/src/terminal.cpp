@@ -57,11 +57,12 @@ std::span<const NamedPin> inputs() {
         NamedPin{"usb_vsense", pins::usb_vsense, false},        NamedPin{"current_alert", pins::current_alert, true},
         NamedPin{"hx711_dout", pins::hx711_dout, false},
     };
-    // light_barrier3 exists on revision 1 only (pins.hpp: std::optional)
+    // light_barrier3 exists on revision 1 only, power_good on revision 2 only (pins.hpp: std::optional)
     static constexpr auto all = [] {
-        std::array<NamedPin, common.size() + (pins::light_barrier3 ? 1 : 0)> a{};
+        std::array<NamedPin, common.size() + 1> a{};
         for (std::size_t i = 0; i < common.size(); ++i) a[i] = common[i];
         if (pins::light_barrier3) a[common.size()] = {"light_barrier3", *pins::light_barrier3, true};
+        if (pins::power_good) a[common.size()] = {"power_good", *pins::power_good, true};
         return a;
     }();
     return all;

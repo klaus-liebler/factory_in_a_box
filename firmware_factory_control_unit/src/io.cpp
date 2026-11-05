@@ -567,14 +567,13 @@ void exti_irq() noexcept {
 }  // namespace
 }  // namespace fcu::io
 
+extern "C" void EXTI0_IRQHandler() noexcept { fcu::io::exti_irq<11>(); }
 extern "C" void EXTI2_IRQHandler() noexcept { fcu::io::exti_irq<13>(); }
 extern "C" void EXTI4_IRQHandler() noexcept { fcu::io::exti_irq<15>(); }
 extern "C" void EXTI6_IRQHandler() noexcept { fcu::io::exti_irq<17>(); }
 extern "C" void EXTI7_IRQHandler() noexcept { fcu::io::exti_irq<18>(); }
 extern "C" void EXTI8_IRQHandler() noexcept { fcu::io::exti_irq<19>(); }
 extern "C" void EXTI9_IRQHandler() noexcept { fcu::io::exti_irq<20>(); }
-extern "C" void EXTI10_IRQHandler() noexcept { fcu::io::exti_irq<21>(); }
-extern "C" void EXTI11_IRQHandler() noexcept { fcu::io::exti_irq<22>(); }
 
 /// HX711: the SPI's end of transfer - the reading that the DOUT edge started.
 extern "C" void SPI2_IRQHandler() noexcept {

@@ -19,7 +19,7 @@ public class Valve
     public ushort Valve3;
 
     /// <summary>Vakuumventil (nur Hardware-Revision 2)</summary>
-    [ModbusRegister(Access.ReadWrite, Gpio = "Rev2 PD10", Display = "bool"), ModbusMapping(Address = 23)]
+    [ModbusRegister(Access.ReadWrite, Gpio = "Rev2 PB14", Display = "bool"), ModbusMapping(Address = 23)]
     public ushort VacuumValve;
 
     /// <summary>Vakuumpumpe (nur Hardware-Revision 2)</summary>

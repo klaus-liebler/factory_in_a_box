@@ -138,23 +138,11 @@
           ""
         ],
         [
-          "starved_thermal|91620000|139568956|2ea61268-674a-49bc-b596-106be493b965|8b708d5d-91eb-4f8e-b53c-b2204e7733c2|F.Cu",
-          ""
-        ],
-        [
-          "starved_thermal|91620000|139568956|2ea61268-674a-49bc-b596-106be493b965|bfbd218d-76a5-4196-ab47-194fe7de262e|F.Cu",
-          ""
-        ],
-        [
           "starved_thermal|98430000|105530000|2ea61268-674a-49bc-b596-106be493b965|591a5c50-e8cb-434f-a6fd-0f31c0699a77|F.Cu",
           ""
         ],
         [
           "starved_thermal|98430000|106710000|2ea61268-674a-49bc-b596-106be493b965|90d3d4a0-fb99-4d12-a5f3-6c94db2c025c|F.Cu",
-          ""
-        ],
-        [
-          "starved_thermal|99610000|105530000|2ea61268-674a-49bc-b596-106be493b965|2d1ed114-c1a9-4f64-be58-61228759fbdd|F.Cu",
           ""
         ],
         [
@@ -940,7 +928,7 @@
         "uuid": "9c57264a-0988-4c94-95c0-340e4ca73bd5"
       }
     ],
-    "used_designators": "Q4-8,Q10,H5",
+    "used_designators": "",
     "variants": []
   },
   "sheets": [

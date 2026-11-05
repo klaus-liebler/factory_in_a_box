@@ -4448,10 +4448,6 @@
 		(uuid "0480badb-961f-4882-82b0-faa7389b0b31")
 	)
 	(no_connect
-		(at 35.56 73.66)
-		(uuid "09829e68-cfa2-4b0c-b053-d78f8def2900")
-	)
-	(no_connect
 		(at 35.56 45.72)
 		(uuid "16c743ef-ce3e-48c8-aad7-d7177d762ee5")
 	)
@@ -4460,24 +4456,12 @@
 		(uuid "42466b77-d9ed-4d56-875a-f7fdc4efa211")
 	)
 	(no_connect
-		(at 35.56 161.29)
-		(uuid "ab8aaa13-f5c7-4a0d-b67c-402588d94409")
-	)
-	(no_connect
-		(at 35.56 156.21)
-		(uuid "bd002cc9-9539-48de-8805-dcc6ee217b38")
-	)
-	(no_connect
 		(at 35.56 158.75)
 		(uuid "f0bb8374-c2c7-4ea0-b6db-51429c3054da")
 	)
 	(no_connect
 		(at 35.56 76.2)
 		(uuid "fe6d4aa7-8372-448c-9d7c-a0a2dcacb588")
-	)
-	(no_connect
-		(at 35.56 78.74)
-		(uuid "fef822dc-20e9-4418-81f4-f6ec6798e793")
 	)
 	(wire
 		(pts
@@ -5737,6 +5721,30 @@
 			)
 		)
 	)
+	(global_label "STEPPER1_DIAG"
+		(shape output)
+		(at 35.56 73.66 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "7148c798-4acf-4df7-8aea-d7f7c403b0d4")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 17.8792 73.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
 	(global_label "VALVE2"
 		(shape input)
 		(at 247.65 50.8 180)
@@ -5942,6 +5950,30 @@
 		(uuid "c886caa4-1cf7-4d36-be00-6d4ea24f4dc3")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 195.6791 27.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(global_label "STEPPER2_DIAG"
+		(shape output)
+		(at 35.56 156.21 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "cccaf5e0-b3e2-42b4-97cf-f35551d8474e")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 17.8792 156.21 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6211,7 +6243,7 @@
 				)
 			)
 		)
-		(property "MPN" "CC0603KRX7R9BB104"
+		(property "MPN" "CC0805KRX7R9BB104"
 			(at 54.61 110.49 0)
 			(hide yes)
 			(show_name no)
@@ -6223,6 +6255,17 @@
 			)
 		)
 		(property "Manufacturer" "YAGEO"
+			(at 54.61 110.49 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C49678"
 			(at 54.61 110.49 0)
 			(hide yes)
 			(show_name no)
@@ -6348,7 +6391,7 @@
 				)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "M1"
 			(at 255.27 62.23 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6391,7 +6434,7 @@
 				)
 			)
 		)
-		(property "MPN" "0201WMF1002TEE"
+		(property "MPN" "0402WGF1003TCE"
 			(at 255.27 62.23 0)
 			(hide yes)
 			(show_name no)
@@ -6403,6 +6446,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 255.27 62.23 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25741"
 			(at 255.27 62.23 0)
 			(hide yes)
 			(show_name no)
@@ -6494,7 +6548,7 @@
 				)
 			)
 		)
-		(property "MPN" "LTST-C230KRKT"
+		(property "MPN" "P2-1206RTCS2-0.9T-F"
 			(at 247.65 62.23 0)
 			(hide yes)
 			(show_name no)
@@ -6505,7 +6559,7 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Lite-On"
+		(property "Manufacturer" "TUOZHAN"
 			(at 247.65 62.23 0)
 			(hide yes)
 			(show_name no)
@@ -6517,6 +6571,17 @@
 			)
 		)
 		(property "Sim.Pins" "1=K 2=A"
+			(at 247.65 62.23 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C2827254"
 			(at 247.65 62.23 0)
 			(hide yes)
 			(show_name no)
@@ -6729,6 +6794,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C6119901"
+			(at 71.12 27.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "de33510b-527f-4cfb-82e9-1fc85db7572f")
 		)
@@ -6810,7 +6886,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM033R61A104KE15D"
+		(property "MPN" "CC0805KRX7R9BB104"
 			(at 31.75 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -6821,7 +6897,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Murata Electronics"
+		(property "Manufacturer" "YAGEO"
+			(at 31.75 115.57 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C49678"
 			(at 31.75 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -6842,6 +6929,85 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
 					(reference "C48")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 35.56 161.29 270)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "0b337a2d-30b5-4d98-bcf3-832f4b78a879")
+		(property "Reference" "#PWR0201"
+			(at 29.21 161.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 31.75 161.2899 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 35.56 161.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 35.56 161.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 35.56 161.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "c4d2edc6-5ded-4071-a062-91396f61afa4")
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
+					(reference "#PWR0201")
 					(unit 1)
 				)
 			)
@@ -6913,7 +7079,7 @@
 				)
 			)
 		)
-		(property "MPN" "CC0603KRX7R9BB104"
+		(property "MPN" "CC0805KRX7R9BB104"
 			(at 54.61 27.94 0)
 			(hide yes)
 			(show_name no)
@@ -6925,6 +7091,17 @@
 			)
 		)
 		(property "Manufacturer" "YAGEO"
+			(at 54.61 27.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C49678"
 			(at 54.61 27.94 0)
 			(hide yes)
 			(show_name no)
@@ -7036,6 +7213,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C6119901"
+			(at 81.28 110.49 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "aaca16c0-94c1-4c90-86bc-50239c6e54c6")
 		)
@@ -7106,6 +7294,17 @@
 			)
 		)
 		(property "Description" "Quadruple Bus Buffer Gates With 3-State Outputs"
+			(at 128.27 128.27 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C155176"
 			(at 128.27 128.27 0)
 			(hide yes)
 			(show_name no)
@@ -7598,6 +7797,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C2150710"
+			(at 50.8 58.42 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "18"
 			(uuid "dda917ec-3ad8-4362-bf62-da1e71554c00")
 		)
@@ -7770,6 +7980,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 247.65 54.61 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C11702"
 			(at 247.65 54.61 0)
 			(hide yes)
 			(show_name no)
@@ -8171,6 +8392,39 @@
 				)
 			)
 		)
+		(property "MPN" "SS34"
+			(at 262.89 21.59 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "MDD(Microdiode Semiconductor)"
+			(at 262.89 21.59 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C8678"
+			(at 262.89 21.59 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "ad690ad2-aed7-45d7-adbc-5aecd5116f50")
 		)
@@ -8208,7 +8462,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "390m"
+		(property "Value" "100m"
 			(at 69.088 166.37 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8263,7 +8517,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" " FOJAN"
+		(property "Manufacturer" "FOJAN"
+			(at 67.31 165.1 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7467250"
 			(at 67.31 165.1 0)
 			(hide yes)
 			(show_name no)
@@ -8433,7 +8698,7 @@
 				)
 			)
 		)
-		(property "MPN" "LTST-C230KRKT"
+		(property "MPN" "P2-1206RTCS2-0.9T-F"
 			(at 194.31 127 0)
 			(hide yes)
 			(show_name no)
@@ -8444,7 +8709,7 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Lite-On"
+		(property "Manufacturer" "TUOZHAN"
 			(at 194.31 127 0)
 			(hide yes)
 			(show_name no)
@@ -8456,6 +8721,17 @@
 			)
 		)
 		(property "Sim.Pins" "1=K 2=A"
+			(at 194.31 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C2827254"
 			(at 194.31 127 0)
 			(hide yes)
 			(show_name no)
@@ -8502,7 +8778,7 @@
 				)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "M1"
 			(at 255.27 91.44 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8545,7 +8821,7 @@
 				)
 			)
 		)
-		(property "MPN" "0201WMF1002TEE"
+		(property "MPN" "0402WGF1003TCE"
 			(at 255.27 91.44 0)
 			(hide yes)
 			(show_name no)
@@ -8557,6 +8833,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 255.27 91.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25741"
 			(at 255.27 91.44 0)
 			(hide yes)
 			(show_name no)
@@ -8683,7 +8970,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "390m"
+		(property "Value" "100m"
 			(at 69.596 83.82 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8738,7 +9025,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" " FOJAN"
+		(property "Manufacturer" "FOJAN"
+			(at 68.58 82.55 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7467250"
 			(at 68.58 82.55 0)
 			(hide yes)
 			(show_name no)
@@ -8819,6 +9117,39 @@
 			)
 		)
 		(property "Description" "Polarized capacitor"
+			(at 140.97 39.37 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "RVT1V101M0607"
+			(at 140.97 39.37 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "ROQANG"
+			(at 140.97 39.37 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C72478"
 			(at 140.97 39.37 0)
 			(hide yes)
 			(show_name no)
@@ -8910,7 +9241,7 @@
 				)
 			)
 		)
-		(property "MPN" "LTST-C230KRKT"
+		(property "MPN" "P2-1206RTCS2-0.9T-F"
 			(at 191.77 95.25 0)
 			(hide yes)
 			(show_name no)
@@ -8921,7 +9252,7 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Lite-On"
+		(property "Manufacturer" "TUOZHAN"
 			(at 191.77 95.25 0)
 			(hide yes)
 			(show_name no)
@@ -8933,6 +9264,17 @@
 			)
 		)
 		(property "Sim.Pins" "1=K 2=A"
+			(at 191.77 95.25 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C2827254"
 			(at 191.77 95.25 0)
 			(hide yes)
 			(show_name no)
@@ -9856,6 +10198,39 @@
 				)
 			)
 		)
+		(property "MPN" "0402WGF1002TCE"
+			(at 120.65 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 120.65 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25744"
+			(at 120.65 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "98666bf3-9253-4f9a-b0ea-ea4147636cc2")
 		)
@@ -9926,6 +10301,17 @@
 			)
 		)
 		(property "Description" "Quadruple Bus Buffer Gates With 3-State Outputs"
+			(at 113.03 165.1 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C155176"
 			(at 113.03 165.1 0)
 			(hide yes)
 			(show_name no)
@@ -10063,6 +10449,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 252.73 115.57 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C11702"
 			(at 252.73 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -10465,7 +10862,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM033R61A104KE15D"
+		(property "MPN" "CL05B104KO5NNNC"
 			(at 41.91 107.95 0)
 			(hide yes)
 			(show_name no)
@@ -10476,7 +10873,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Murata Electronics"
+		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 41.91 107.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C1525"
 			(at 41.91 107.95 0)
 			(hide yes)
 			(show_name no)
@@ -10523,7 +10931,7 @@
 				)
 			)
 		)
-		(property "Value" "1k"
+		(property "Value" "k1"
 			(at 199.39 87.63 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10566,7 +10974,7 @@
 				)
 			)
 		)
-		(property "MPN" "0402WGF1001TCE"
+		(property "MPN" "0402WGF1000TCE"
 			(at 199.39 87.63 0)
 			(hide yes)
 			(show_name no)
@@ -10578,6 +10986,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 199.39 87.63 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25076"
 			(at 199.39 87.63 0)
 			(hide yes)
 			(show_name no)
@@ -10746,7 +11165,7 @@
 				)
 			)
 		)
-		(property "MPN" "LTST-C230KRKT"
+		(property "MPN" "P2-1206RTCS2-0.9T-F"
 			(at 252.73 123.19 0)
 			(hide yes)
 			(show_name no)
@@ -10757,7 +11176,7 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Lite-On"
+		(property "Manufacturer" "TUOZHAN"
 			(at 252.73 123.19 0)
 			(hide yes)
 			(show_name no)
@@ -10769,6 +11188,17 @@
 			)
 		)
 		(property "Sim.Pins" "1=K 2=A"
+			(at 252.73 123.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C2827254"
 			(at 252.73 123.19 0)
 			(hide yes)
 			(show_name no)
@@ -10928,6 +11358,39 @@
 			)
 		)
 		(property "Description" "40V 3A Schottky Diode, SMA"
+			(at 207.01 82.55 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "SS34"
+			(at 207.01 82.55 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "MDD(Microdiode Semiconductor)"
+			(at 207.01 82.55 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C8678"
 			(at 207.01 82.55 0)
 			(hide yes)
 			(show_name no)
@@ -11098,7 +11561,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM033R61A104KE15D"
+		(property "MPN" "CL05B104KO5NNNC"
 			(at 41.91 25.4 0)
 			(hide yes)
 			(show_name no)
@@ -11109,7 +11572,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Murata Electronics"
+		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 41.91 25.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C1525"
 			(at 41.91 25.4 0)
 			(hide yes)
 			(show_name no)
@@ -11312,7 +11786,7 @@
 				)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "M1"
 			(at 260.35 123.19 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11355,7 +11829,7 @@
 				)
 			)
 		)
-		(property "MPN" "0201WMF1002TEE"
+		(property "MPN" "0402WGF1003TCE"
 			(at 260.35 123.19 0)
 			(hide yes)
 			(show_name no)
@@ -11367,6 +11841,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 260.35 123.19 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25741"
 			(at 260.35 123.19 0)
 			(hide yes)
 			(show_name no)
@@ -11413,7 +11898,7 @@
 				)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "M1"
 			(at 199.39 95.25 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11456,7 +11941,7 @@
 				)
 			)
 		)
-		(property "MPN" "0201WMF1002TEE"
+		(property "MPN" "0402WGF1003TCE"
 			(at 199.39 95.25 0)
 			(hide yes)
 			(show_name no)
@@ -11468,6 +11953,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 199.39 95.25 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25741"
 			(at 199.39 95.25 0)
 			(hide yes)
 			(show_name no)
@@ -11637,6 +12133,39 @@
 				)
 			)
 		)
+		(property "MPN" "SS34"
+			(at 262.89 78.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "MDD(Microdiode Semiconductor)"
+			(at 262.89 78.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C8678"
+			(at 262.89 78.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "0f491dba-3f67-459a-a352-457f6688c47a")
 		)
@@ -11731,6 +12260,17 @@
 			)
 		)
 		(property "Manufacturer" "TRINAMIC Motion Control GmbH"
+			(at 50.8 140.97 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C2150710"
 			(at 50.8 140.97 0)
 			(hide yes)
 			(show_name no)
@@ -12453,7 +12993,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM033R61A104KE15D"
+		(property "MPN" "CC0805KRX7R9BB104"
 			(at 31.75 33.02 0)
 			(hide yes)
 			(show_name no)
@@ -12464,7 +13004,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Murata Electronics"
+		(property "Manufacturer" "YAGEO"
+			(at 31.75 33.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C49678"
 			(at 31.75 33.02 0)
 			(hide yes)
 			(show_name no)
@@ -12669,7 +13220,7 @@
 				)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "M1"
 			(at 201.93 127 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12712,7 +13263,7 @@
 				)
 			)
 		)
-		(property "MPN" "0201WMF1002TEE"
+		(property "MPN" "0402WGF1003TCE"
 			(at 201.93 127 0)
 			(hide yes)
 			(show_name no)
@@ -12724,6 +13275,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 201.93 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25741"
 			(at 201.93 127 0)
 			(hide yes)
 			(show_name no)
@@ -12990,6 +13552,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C11702"
+			(at 194.31 119.38 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "53b7af27-51fe-4bfc-a1ff-437fca22df71")
 		)
@@ -13060,6 +13633,17 @@
 			)
 		)
 		(property "Description" "Quadruple Bus Buffer Gates With 3-State Outputs"
+			(at 127 144.78 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C155176"
 			(at 127 144.78 0)
 			(hide yes)
 			(show_name no)
@@ -13256,6 +13840,39 @@
 			)
 		)
 		(property "Description" "40V 3A Schottky Diode, SMA"
+			(at 209.55 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "SS34"
+			(at 209.55 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "MDD(Microdiode Semiconductor)"
+			(at 209.55 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C8678"
 			(at 209.55 114.3 0)
 			(hide yes)
 			(show_name no)
@@ -13618,7 +14235,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "390m"
+		(property "Value" "100m"
 			(at 78.74 83.8199 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13673,7 +14290,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" " FOJAN"
+		(property "Manufacturer" "FOJAN"
+			(at 76.2 82.55 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7467250"
 			(at 76.2 82.55 0)
 			(hide yes)
 			(show_name no)
@@ -13836,6 +14464,39 @@
 			)
 		)
 		(property "Description" "Resistor"
+			(at 116.84 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "0402WGF1002TCE"
+			(at 116.84 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 116.84 30.48 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25744"
 			(at 116.84 30.48 0)
 			(hide yes)
 			(show_name no)
@@ -14198,7 +14859,7 @@
 				)
 			)
 		)
-		(property "MPN" "LTST-C230KRKT"
+		(property "MPN" "P2-1206RTCS2-0.9T-F"
 			(at 247.65 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -14209,7 +14870,7 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Lite-On"
+		(property "Manufacturer" "TUOZHAN"
 			(at 247.65 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -14221,6 +14882,17 @@
 			)
 		)
 		(property "Sim.Pins" "1=K 2=A"
+			(at 247.65 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C2827254"
 			(at 247.65 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -14332,6 +15004,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C6119901"
+			(at 71.12 110.49 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "675505fd-de8b-48c5-98dd-b4234e09a0c5")
 		)
@@ -14414,7 +15097,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM155R71H223KA12D"
+		(property "MPN" "0402B223K500NT"
 			(at 67.31 69.85 0)
 			(hide yes)
 			(show_name no)
@@ -14425,7 +15108,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Murata Electronics"
+		(property "Manufacturer" "FH(Guangdong Fenghua Advanced Tech)"
+			(at 67.31 69.85 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C1532"
 			(at 67.31 69.85 0)
 			(hide yes)
 			(show_name no)
@@ -14594,6 +15288,39 @@
 				)
 			)
 		)
+		(property "MPN" "0402WGF1001TCE"
+			(at 107.95 31.75 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 107.95 31.75 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C11702"
+			(at 107.95 31.75 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "fc589b9a-98aa-4d2d-b6d1-d7aed313665a")
 		)
@@ -14698,6 +15425,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C12530"
+			(at 67.31 139.7 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "93018dd4-ef5f-42ff-95ea-015cd732bcc0")
 		)
@@ -14792,6 +15530,17 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 67.31 57.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C12530"
 			(at 67.31 57.15 0)
 			(hide yes)
 			(show_name no)
@@ -14960,7 +15709,7 @@
 				)
 			)
 		)
-		(property "MPN" "LTST-C230KRKT"
+		(property "MPN" "P2-1206RTCS2-0.9T-F"
 			(at 247.65 91.44 0)
 			(hide yes)
 			(show_name no)
@@ -14971,7 +15720,7 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Lite-On"
+		(property "Manufacturer" "TUOZHAN"
 			(at 247.65 91.44 0)
 			(hide yes)
 			(show_name no)
@@ -14983,6 +15732,17 @@
 			)
 		)
 		(property "Sim.Pins" "1=K 2=A"
+			(at 247.65 91.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C2827254"
 			(at 247.65 91.44 0)
 			(hide yes)
 			(show_name no)
@@ -15075,7 +15835,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM155R71H223KA12D"
+		(property "MPN" "0402B223K500NT"
 			(at 67.31 152.4 0)
 			(hide yes)
 			(show_name no)
@@ -15086,7 +15846,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Murata Electronics"
+		(property "Manufacturer" "FH(Guangdong Fenghua Advanced Tech)"
+			(at 67.31 152.4 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C1532"
 			(at 67.31 152.4 0)
 			(hide yes)
 			(show_name no)
@@ -15177,6 +15948,39 @@
 				)
 			)
 		)
+		(property "MPN" "RVT1V101M0607"
+			(at 135.89 39.37 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "ROQANG"
+			(at 135.89 39.37 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C72478"
+			(at 135.89 39.37 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "6a8e1eaf-e12a-4197-b0b7-4842a4df10d6")
 		)
@@ -15213,7 +16017,7 @@
 				)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "M1"
 			(at 255.27 34.29 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15256,7 +16060,7 @@
 				)
 			)
 		)
-		(property "MPN" "0201WMF1002TEE"
+		(property "MPN" "0402WGF1003TCE"
 			(at 255.27 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -15268,6 +16072,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 255.27 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25741"
 			(at 255.27 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -15515,7 +16330,7 @@
 				)
 			)
 		)
-		(property "MPN" "CC0603KRX7R9BB104"
+		(property "MPN" "CC0805KRX7R9BB104"
 			(at 63.5 27.94 0)
 			(hide yes)
 			(show_name no)
@@ -15527,6 +16342,17 @@
 			)
 		)
 		(property "Manufacturer" "YAGEO"
+			(at 63.5 27.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C49678"
 			(at 63.5 27.94 0)
 			(hide yes)
 			(show_name no)
@@ -15618,7 +16444,7 @@
 				)
 			)
 		)
-		(property "MPN" "CC0603KRX7R9BB104"
+		(property "MPN" "CC0805KRX7R9BB104"
 			(at 63.5 110.49 0)
 			(hide yes)
 			(show_name no)
@@ -15630,6 +16456,17 @@
 			)
 		)
 		(property "Manufacturer" "YAGEO"
+			(at 63.5 110.49 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C49678"
 			(at 63.5 110.49 0)
 			(hide yes)
 			(show_name no)
@@ -15676,7 +16513,7 @@
 				)
 			)
 		)
-		(property "Value" "1k"
+		(property "Value" "k1"
 			(at 255.27 54.61 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15719,7 +16556,7 @@
 				)
 			)
 		)
-		(property "MPN" "0402WGF1001TCE"
+		(property "MPN" "0402WGF1000TCE"
 			(at 255.27 54.61 0)
 			(hide yes)
 			(show_name no)
@@ -15731,6 +16568,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 255.27 54.61 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25076"
 			(at 255.27 54.61 0)
 			(hide yes)
 			(show_name no)
@@ -15921,6 +16769,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C11702"
+			(at 247.65 26.67 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "fcf92b3b-8d3d-44cf-a514-5af65917b8a0")
 		)
@@ -15931,6 +16790,85 @@
 			(project "pcb_factory_control_unit"
 				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
 					(reference "R58")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 35.56 78.74 270)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "c20da353-6818-4494-af58-c1c22bfa875c")
+		(property "Reference" "#PWR0200"
+			(at 29.21 78.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GND"
+			(at 31.75 78.7399 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 35.56 78.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 35.56 78.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 35.56 78.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "4e39c9b5-366e-4f46-bc8d-e5a576b32050")
+		)
+		(instances
+			(project "pcb_factory_control_unit"
+				(path "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5"
+					(reference "#PWR0200")
 					(unit 1)
 				)
 			)
@@ -16203,7 +17141,7 @@
 				)
 			)
 		)
-		(property "MPN" ""
+		(property "MPN" "0402WGF1002TCE"
 			(at 176.53 24.13 0)
 			(hide yes)
 			(show_name no)
@@ -16214,7 +17152,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" ""
+		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 176.53 24.13 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25744"
 			(at 176.53 24.13 0)
 			(hide yes)
 			(show_name no)
@@ -16419,7 +17368,7 @@
 				)
 			)
 		)
-		(property "Value" "1k"
+		(property "Value" "k1"
 			(at 255.27 83.82 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16462,7 +17411,7 @@
 				)
 			)
 		)
-		(property "MPN" "0402WGF1001TCE"
+		(property "MPN" "0402WGF1000TCE"
 			(at 255.27 83.82 0)
 			(hide yes)
 			(show_name no)
@@ -16474,6 +17423,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 255.27 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25076"
 			(at 255.27 83.82 0)
 			(hide yes)
 			(show_name no)
@@ -16663,6 +17623,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C11702"
+			(at 201.93 119.38 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "6e5bf8e8-c3e2-4930-8b1c-01b7ba275c28")
 		)
@@ -16701,7 +17672,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "390m"
+		(property "Value" "100m"
 			(at 78.74 166.3699 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16756,7 +17727,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" " FOJAN"
+		(property "Manufacturer" "FOJAN"
+			(at 76.2 165.1 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7467250"
 			(at 76.2 165.1 0)
 			(hide yes)
 			(show_name no)
@@ -16927,6 +17909,39 @@
 				)
 			)
 		)
+		(property "MPN" "SS34"
+			(at 262.89 49.53 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "MDD(Microdiode Semiconductor)"
+			(at 262.89 49.53 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C8678"
+			(at 262.89 49.53 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "0308764c-286b-4d00-977e-b6c3cd430cea")
 		)
@@ -17086,7 +18101,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM033R61A104KE15D"
+		(property "MPN" "CL05B104KO5NNNC"
 			(at 132.08 161.29 0)
 			(hide yes)
 			(show_name no)
@@ -17097,7 +18112,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Murata Electronics"
+		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 132.08 161.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C1525"
 			(at 132.08 161.29 0)
 			(hide yes)
 			(show_name no)
@@ -17178,6 +18204,17 @@
 			)
 		)
 		(property "Description" "Quadruple Bus Buffer Gates With 3-State Outputs"
+			(at 128.27 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C155176"
 			(at 128.27 109.22 0)
 			(hide yes)
 			(show_name no)
@@ -17306,6 +18343,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C155176"
+			(at 143.51 161.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "2e4c9f1d-7894-422a-812f-fbc179351275")
 		)
@@ -17378,7 +18426,7 @@
 				)
 			)
 		)
-		(property "Value" "1k"
+		(property "Value" "k1"
 			(at 260.35 115.57 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17421,7 +18469,7 @@
 				)
 			)
 		)
-		(property "MPN" "0402WGF1001TCE"
+		(property "MPN" "0402WGF1000TCE"
 			(at 260.35 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -17433,6 +18481,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 260.35 115.57 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25076"
 			(at 260.35 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -17560,7 +18619,7 @@
 				)
 			)
 		)
-		(property "Value" "1k"
+		(property "Value" "k1"
 			(at 255.27 26.67 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17603,7 +18662,7 @@
 				)
 			)
 		)
-		(property "MPN" "0402WGF1001TCE"
+		(property "MPN" "0402WGF1000TCE"
 			(at 255.27 26.67 0)
 			(hide yes)
 			(show_name no)
@@ -17615,6 +18674,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 255.27 26.67 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25076"
 			(at 255.27 26.67 0)
 			(hide yes)
 			(show_name no)
@@ -17716,6 +18786,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 191.77 87.63 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C11702"
 			(at 191.77 87.63 0)
 			(hide yes)
 			(show_name no)
@@ -18079,6 +19160,39 @@
 			)
 		)
 		(property "Description" "40V 3A Schottky Diode, SMA"
+			(at 267.97 110.49 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "SS34"
+			(at 267.97 110.49 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "MDD(Microdiode Semiconductor)"
+			(at 267.97 110.49 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C8678"
 			(at 267.97 110.49 0)
 			(hide yes)
 			(show_name no)
@@ -18626,6 +19740,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C6119901"
+			(at 81.28 27.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "3f4e6c46-973d-4580-98f3-dc85279bba1e")
 		)
@@ -19029,6 +20154,17 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 247.65 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C11702"
 			(at 247.65 83.82 0)
 			(hide yes)
 			(show_name no)

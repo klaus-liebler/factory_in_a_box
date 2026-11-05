@@ -4939,6 +4939,39 @@
 				)
 			)
 		)
+		(property "MPN" "CGA0805X5R106K500MT"
+			(at 121.92 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "HRE"
+			(at 121.92 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C6119889"
+			(at 121.92 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "7b5dab7f-2cf2-4bd8-b6e1-33dd40a7cc6b")
 		)
@@ -5174,6 +5207,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C25852"
+			(at 127 80.01 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "1eee059e-b36a-49ef-9307-ed692d73f101")
 		)
@@ -5245,6 +5289,39 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor"
+			(at 97.79 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "GRM1555C1H471JA01D"
+			(at 97.79 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "Murata Electronics"
+			(at 97.79 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C76971"
 			(at 97.79 40.64 0)
 			(hide yes)
 			(show_name no)
@@ -5328,6 +5405,17 @@
 			)
 		)
 		(property "Description" "LAN8720 Ethernet PHY with RMII interface, QFN-24"
+			(at 105.41 77.47 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C621425"
 			(at 105.41 77.47 0)
 			(hide yes)
 			(show_name no)
@@ -5487,6 +5575,39 @@
 				)
 			)
 		)
+		(property "MPN" "BLM18PG221SN1D"
+			(at 105.41 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "Murata Electronics"
+			(at 105.41 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C80165"
+			(at 105.41 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "9b463267-5573-4a47-8243-8e9aeacbab75")
 		)
@@ -5558,6 +5679,17 @@
 			)
 		)
 		(property "Description" "Resistor"
+			(at 139.7 57.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25120"
 			(at 139.7 57.15 0)
 			(hide yes)
 			(show_name no)
@@ -5647,6 +5779,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C25105"
+			(at 57.15 72.39 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "0d40dff4-f852-4279-a1df-1b15ff09af62")
 		)
@@ -5716,6 +5859,17 @@
 			)
 		)
 		(property "Description" "Four pin crystal, GND on pins 2 and 4"
+			(at 80.01 113.03 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C19711739"
 			(at 80.01 113.03 0)
 			(hide yes)
 			(show_name no)
@@ -5811,6 +5965,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C25105"
+			(at 59.69 77.47 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "968565fe-56fb-4913-88c5-02aeeb57de50")
 		)
@@ -5882,6 +6047,17 @@
 			)
 		)
 		(property "Description" "Resistor"
+			(at 63.5 97.79 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25879"
 			(at 63.5 97.79 0)
 			(hide yes)
 			(show_name no)
@@ -5973,6 +6149,39 @@
 				)
 			)
 		)
+		(property "MPN" "FCC0402B103K500AT"
+			(at 111.76 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "FOJAN"
+			(at 111.76 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5137480"
+			(at 111.76 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "077192a1-757e-4ded-a568-a85491c15323")
 		)
@@ -6054,6 +6263,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C25120"
+			(at 134.62 57.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "41a06a69-b633-4f5b-8cae-d433f14d0ee6")
 		)
@@ -6091,7 +6311,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "22p"
+		(property "Value" "10p"
 			(at 74.93 123.19 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6113,7 +6333,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "C85914"
+		(property "Datasheet" ""
 			(at 74.93 120.65 0)
 			(hide yes)
 			(show_name no)
@@ -6125,6 +6345,39 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor"
+			(at 74.93 120.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "CC0402JRNPO9BN100"
+			(at 74.93 120.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "YAGEO"
+			(at 74.93 120.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C106199"
 			(at 74.93 120.65 0)
 			(hide yes)
 			(show_name no)
@@ -6294,6 +6547,39 @@
 				)
 			)
 		)
+		(property "MPN" "FCC0402B103K500AT"
+			(at 83.82 50.8 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "FOJAN"
+			(at 83.82 50.8 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5137480"
+			(at 83.82 50.8 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "8126d454-77d9-46fa-abcd-d9ca99d657bd")
 		)
@@ -6363,6 +6649,17 @@
 			)
 		)
 		(property "Description" "Resistor"
+			(at 57.15 69.85 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25105"
 			(at 57.15 69.85 0)
 			(hide yes)
 			(show_name no)
@@ -6612,6 +6909,39 @@
 				)
 			)
 		)
+		(property "MPN" "CL05A105KA5NQNC"
+			(at 92.71 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 92.71 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C52923"
+			(at 92.71 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "65e5d0be-b190-4ba4-a96e-6f79263301bf")
 		)
@@ -6694,7 +7024,7 @@
 				)
 			)
 		)
-		(property "MPN" "GRM155R71H223KA12D"
+		(property "MPN" "0402B223K500NT"
 			(at 157.48 81.28 0)
 			(hide yes)
 			(show_name no)
@@ -6705,7 +7035,18 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Murata Electronics"
+		(property "Manufacturer" "FH(Guangdong Fenghua Advanced Tech)"
+			(at 157.48 81.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C1532"
 			(at 157.48 81.28 0)
 			(hide yes)
 			(show_name no)
@@ -6753,7 +7094,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "22p"
+		(property "Value" "10p"
 			(at 85.09 123.19 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6775,7 +7116,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "C85914"
+		(property "Datasheet" ""
 			(at 85.09 120.65 0)
 			(hide yes)
 			(show_name no)
@@ -6787,6 +7128,39 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor"
+			(at 85.09 120.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "CC0402JRNPO9BN100"
+			(at 85.09 120.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "YAGEO"
+			(at 85.09 120.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C106199"
 			(at 85.09 120.65 0)
 			(hide yes)
 			(show_name no)
@@ -6866,6 +7240,39 @@
 			)
 		)
 		(property "Description" "Resistor"
+			(at 208.28 62.23 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "0402WGF3300TCE"
+			(at 208.28 62.23 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 208.28 62.23 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25104"
 			(at 208.28 62.23 0)
 			(hide yes)
 			(show_name no)
@@ -6957,6 +7364,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C25120"
+			(at 129.54 57.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "71227f55-6d52-4eb3-b974-017e78319bd5")
 		)
@@ -7038,6 +7456,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C25120"
+			(at 144.78 57.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "3630d77b-f0fc-4074-8233-6175775434c5")
 		)
@@ -7107,6 +7536,17 @@
 			)
 		)
 		(property "Description" "Resistor"
+			(at 81.28 90.17 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25105"
 			(at 81.28 90.17 0)
 			(hide yes)
 			(show_name no)
@@ -7433,6 +7873,39 @@
 				)
 			)
 		)
+		(property "MPN" "FCC0402B103K500AT"
+			(at 116.84 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "FOJAN"
+			(at 116.84 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5137480"
+			(at 116.84 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "8e59cecc-d6ed-42e2-ae0f-adda9188f982")
 		)
@@ -7749,6 +8222,39 @@
 				)
 			)
 		)
+		(property "MPN" "0402WGF1002TCE"
+			(at 132.08 87.63 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 132.08 87.63 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25744"
+			(at 132.08 87.63 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "dc578965-b1f9-496c-bfdd-0d29662b5f68")
 		)
@@ -7977,6 +8483,17 @@
 			)
 		)
 		(property "Description" "LAN Transformer Jack, RJ45, 10/100 BaseT"
+			(at 181.61 69.85 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C12074"
 			(at 181.61 69.85 0)
 			(hide yes)
 			(show_name no)
@@ -8325,6 +8842,39 @@
 			)
 		)
 		(property "Description" "Resistor"
+			(at 208.28 72.39 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "MPN" "0402WGF3300TCE"
+			(at 208.28 72.39 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+			(at 208.28 72.39 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25104"
 			(at 208.28 72.39 0)
 			(hide yes)
 			(show_name no)

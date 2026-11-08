@@ -101,7 +101,7 @@ public class sensors;
 public class i2c
 {
 	/// <summary>I2C bus</summary>
-	[Value("1", "I2C1"), Value("2", "I2C2"), Value("4", "I2C4")] public string bus;
+	[Value("1", "I2C1"), Value("2", "I2C2 (revisions 1/2)"), Value("3", "I2C3 (revision 3)"), Value("4", "I2C4")] public string bus;
 }
 
 /// <summary>read a register, or write a holding register</summary>

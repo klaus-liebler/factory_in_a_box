@@ -6,21 +6,12 @@ import { wsRequest } from "../ws-client.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import * as buildInfo from "../../generated/build-info.js";
 import { I2C_ADDRESS_CANDIDATES } from "../i2c-device-names.js";
+import { i2cBusSections } from "../i2c-scan.js";
 
 type SystemInfo = system.SystemInfoMessage.Payload;
 
 function formatOctets(bytes: readonly number[]): string {
 	return bytes.join(".");
-}
-
-// bytes ist ein 16-Byte-Bitfeld (128 Bit, LSB von Byte 0 = Adresse 0), s.
-// scan() in src/io.cpp (beim Start) und system_info() in src/web.cpp.
-function decodeI2cBitfield(bytes: readonly number[]): boolean[] {
-	const result: boolean[] = new Array(128);
-	for (let addr = 0; addr < 128; addr++) {
-		result[addr] = (bytes[Math.floor(addr / 8)] & (1 << addr % 8)) !== 0;
-	}
-	return result;
 }
 
 // Muss zu ResetCause in src/boot.hpp passen.
@@ -289,9 +280,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 						<div class="panel-label">I2C Diagnostics</div>
 						${info
 							? html`
-									${this.renderI2cBusSection("I2C1", decodeI2cBitfield(info.i2c1Scan))}
-									${this.renderI2cBusSection("I2C2", decodeI2cBitfield(info.i2c2Scan))}
-									${this.renderI2cBusSection("I2C4", decodeI2cBitfield(info.i2c4Scan))}
+									${i2cBusSections(info.i2cScans).map((s) => this.renderI2cBusSection(s.label, s.addresses))}
 								`
 							: html`<p class="panel-text">Noch keine Daten geladen.</p>`}
 					</div>

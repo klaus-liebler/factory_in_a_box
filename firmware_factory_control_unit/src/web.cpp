@@ -94,10 +94,17 @@ void system_info(SessionId id, const std::uint8_t* data, std::size_t len) {
     const net::PhyDiagnostics phy = net::phy_diagnostics();
     resp.phy = {.readOk = phy.read_ok, .tdrAvailable = phy.tdr_available, .bsr = phy.bsr, .physcsr = phy.physcsr,
                 .mcsr = phy.mcsr, .secr = phy.secr, .scsir = phy.scsir, .tcsr = phy.tcsr, .clr = phy.clr};
-    // the protocol's fields are named after revision 2's buses (I2C1, I2C2, I2C4): by role
-    std::memcpy(resp.i2c1Scan, io::i2c_scan(io::I2cBus::Color).data(), 16);
-    std::memcpy(resp.i2c2Scan, io::i2c_scan(io::I2cBus::Tof2).data(), 16);
-    std::memcpy(resp.i2c4Scan, io::i2c_scan(io::I2cBus::Supply).data(), 16);
+    // every bus with its number on this revision (the page labels them I2Cn)
+    std::array<std::uint8_t, io::i2c_bus_count * ws::system::SystemInfoMessageI2cScans_ELEMENT_SIZE> scans{};
+    std::size_t scan_pos = 0;
+    for (const auto bus : {io::I2cBus::Color, io::I2cBus::Tof2, io::I2cBus::Supply}) {
+        ws::system::I2cBusScan s{};
+        s.bus = static_cast<std::uint8_t>(io::i2c_bus_number(bus));
+        std::memcpy(s.devices, io::i2c_scan(bus).data(), sizeof s.devices);
+        scan_pos += ws::system::EncodeSystemInfoMessageI2cScansElement(s, scans.data() + scan_pos, scans.size() - scan_pos);
+    }
+    resp.i2cScansData = scans.data();
+    resp.i2cScansCount = io::i2c_bus_count;
     std::array<std::uint8_t, ws::system::SystemInfoMessage::SystemInfoMessage_MAX_SIZE> buf{};
     send(id, buf.data(), ws::system::SystemInfoMessage::Encode(resp, buf.data(), buf.size()));
 }

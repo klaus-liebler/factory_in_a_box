@@ -53,6 +53,15 @@ public class SystemInfoRequest
 {
 }
 
+/// <summary>Boot scan of one I2C bus: its number (I2Cn, per hardware revision) and which 7-bit
+/// addresses answered (bit n of the 128 = address n).</summary>
+[BinaryType]
+public struct I2cBusScan
+{
+	public byte bus;
+	[BinaryCount(16)] public byte[] devices;
+}
+
 [BinaryMessage(MessageKind.Response)]
 public class SystemInfoMessage
 {
@@ -62,7 +71,5 @@ public class SystemInfoMessage
 	[BinaryCount(4)] public byte[] netMask = new byte[4];
 	public byte resetCauseCode; // s. App::ResetCauseCode()
 	public PhyRegisters phy;
-	[BinaryCount(16)] public byte[] i2c1Scan = new byte[16]; // Bitfeld, s. App::i2c1_scan
-	[BinaryCount(16)] public byte[] i2c2Scan = new byte[16];
-	[BinaryCount(16)] public byte[] i2c4Scan = new byte[16];
+	[BinaryMaxItemCount(4)] public I2cBusScan[] i2cScans; // every bus of the board, s. io::i2c_scan
 }

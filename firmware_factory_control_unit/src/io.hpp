@@ -41,6 +41,9 @@ void events(std::uint32_t bits) noexcept;
 /// The boot scan of an I2C bus: 128 bits, bit n = a device answered at address n.
 /// The I2C buses by role (their numbers differ per revision: hw::i2c_tof2_bus, hw::i2c_supply_bus).
 enum class I2cBus : std::uint8_t { Color = 0, Tof2 = 1, Supply = 2 };
+inline constexpr std::size_t i2c_bus_count = 3;
 [[nodiscard]] std::span<const std::uint8_t, 16> i2c_scan(I2cBus bus) noexcept;
+/// The bus's number (I2Cn) on this hardware revision.
+[[nodiscard]] unsigned i2c_bus_number(I2cBus bus) noexcept;
 
 }  // namespace fcu::io

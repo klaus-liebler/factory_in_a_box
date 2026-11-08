@@ -510,6 +510,15 @@ void cycle(std::uint32_t now) noexcept {
 
 std::span<const std::uint8_t, 16> i2c_scan(I2cBus bus) noexcept { return scans[static_cast<std::size_t>(bus)]; }
 
+unsigned i2c_bus_number(I2cBus bus) noexcept {
+    switch (bus) {
+        case I2cBus::Color: return 1;
+        case I2cBus::Tof2: return hw::i2c_tof2_bus;
+        case I2cBus::Supply: return hw::i2c_supply_bus;
+    }
+    return 0;
+}
+
 }  // namespace fcu::io
 
 extern "C" void UART5_IRQHandler() noexcept { fcu::io::stepper_uart.on_irq(); }

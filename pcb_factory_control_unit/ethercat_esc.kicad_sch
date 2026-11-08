@@ -7459,7 +7459,7 @@
 		)
 		(uuid "fb3b642f-06a4-4040-8a91-650da6b5edea")
 	)
-	(global_label "ERRLED"
+	(global_label "CAT_ERRLED"
 		(shape output)
 		(at 142.24 149.86 0)
 		(fields_autoplaced yes)
@@ -7471,7 +7471,7 @@
 		)
 		(uuid "04dad8f8-2846-4f6d-a29a-21f8b9f5d1a8")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 152.3613 149.86 0)
+			(at 156.6551 149.86 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7483,7 +7483,7 @@
 			)
 		)
 	)
-	(global_label "ETHERCAT_IRQ"
+	(global_label "CAT_IRQ"
 		(shape output)
 		(at 50.8 31.75 0)
 		(fields_autoplaced yes)
@@ -7495,7 +7495,7 @@
 		)
 		(uuid "05680115-951c-42a8-9312-2b56aed7f27f")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 67.1504 31.75 0)
+			(at 61.2843 31.75 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7507,7 +7507,7 @@
 			)
 		)
 	)
-	(global_label "RUNLED"
+	(global_label "CAT_RUNLED"
 		(shape input)
 		(at 205.74 134.62 180)
 		(fields_autoplaced yes)
@@ -7519,7 +7519,7 @@
 		)
 		(uuid "0fdceb70-ddba-44a7-997d-40547a2687f3")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 195.3767 134.62 0)
+			(at 191.0829 134.62 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7531,7 +7531,7 @@
 			)
 		)
 	)
-	(global_label "LINKACTLED1"
+	(global_label "CAT_LINKACTLED1"
 		(shape input)
 		(at 260.35 143.51 180)
 		(fields_autoplaced yes)
@@ -7543,7 +7543,7 @@
 		)
 		(uuid "15e67e32-c1f3-4b53-a877-a70d112103bf")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 245.1486 143.51 0)
+			(at 240.8548 143.51 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7603,7 +7603,7 @@
 			)
 		)
 	)
-	(global_label "LINKACTLED0"
+	(global_label "CAT_LINKACTLED0"
 		(shape input)
 		(at 267.97 36.83 0)
 		(fields_autoplaced yes)
@@ -7615,7 +7615,7 @@
 		)
 		(uuid "35272ac2-a055-470c-90f4-6cea38eccb06")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 283.1714 36.83 0)
+			(at 287.4652 36.83 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7627,7 +7627,7 @@
 			)
 		)
 	)
-	(global_label "LINKACTLED1"
+	(global_label "CAT_LINKACTLED1"
 		(shape output)
 		(at 142.24 144.78 0)
 		(fields_autoplaced yes)
@@ -7639,7 +7639,7 @@
 		)
 		(uuid "387cd7dc-88c6-4740-8500-acc7a44c91de")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 157.4414 144.78 0)
+			(at 161.7352 144.78 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7651,7 +7651,7 @@
 			)
 		)
 	)
-	(global_label "RUNLED"
+	(global_label "CAT_RUNLED"
 		(shape output)
 		(at 142.24 147.32 0)
 		(fields_autoplaced yes)
@@ -7663,7 +7663,7 @@
 		)
 		(uuid "3b603db4-4071-4f53-b7d1-fc62e74d45f7")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 152.6033 147.32 0)
+			(at 156.8971 147.32 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7699,7 +7699,7 @@
 			)
 		)
 	)
-	(global_label "SYNC1"
+	(global_label "CAT_SYNC1"
 		(shape output)
 		(at 43.18 132.08 180)
 		(fields_autoplaced yes)
@@ -7711,7 +7711,7 @@
 		)
 		(uuid "50fe975c-aa48-4488-ae93-f3e974b161c1")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 34.0867 132.08 0)
+			(at 29.7929 132.08 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7723,7 +7723,7 @@
 			)
 		)
 	)
-	(global_label "LINKACTLED0"
+	(global_label "CAT_LINKACTLED0"
 		(shape input)
 		(at 260.35 139.7 180)
 		(fields_autoplaced yes)
@@ -7735,7 +7735,7 @@
 		)
 		(uuid "53270ab6-3ae9-4b93-b1a0-5b65821d44ed")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 245.1486 139.7 0)
+			(at 240.8548 139.7 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7747,7 +7747,7 @@
 			)
 		)
 	)
-	(global_label "ERRLED"
+	(global_label "CAT_ERRLED"
 		(shape input)
 		(at 204.47 149.86 180)
 		(fields_autoplaced yes)
@@ -7759,7 +7759,7 @@
 		)
 		(uuid "6bee594a-9b56-4752-b390-24df4ca1a83c")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 194.3487 149.86 0)
+			(at 190.0549 149.86 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7771,7 +7771,7 @@
 			)
 		)
 	)
-	(global_label "LINKACTLED0"
+	(global_label "CAT_LINKACTLED0"
 		(shape output)
 		(at 142.24 142.24 0)
 		(fields_autoplaced yes)
@@ -7783,7 +7783,7 @@
 		)
 		(uuid "834c4777-a973-4c99-844a-6589fdeb0a70")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 157.4414 142.24 0)
+			(at 161.7352 142.24 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7795,7 +7795,7 @@
 			)
 		)
 	)
-	(global_label "ETHERCAT_RESET"
+	(global_label "CAT_RESET"
 		(shape input)
 		(at 68.58 73.66 180)
 		(fields_autoplaced yes)
@@ -7807,7 +7807,7 @@
 		)
 		(uuid "8dc4b7ed-f5f2-409e-8add-c9c5b83fbd1b")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 49.6898 73.66 0)
+			(at 55.5559 73.66 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7819,7 +7819,7 @@
 			)
 		)
 	)
-	(global_label "ETHERCAT_IRQ"
+	(global_label "CAT_IRQ"
 		(shape output)
 		(at 68.58 76.2 180)
 		(fields_autoplaced yes)
@@ -7831,7 +7831,7 @@
 		)
 		(uuid "a37db9dc-4f19-4331-84d6-619c6c860e9e")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 52.2296 76.2 0)
+			(at 58.0957 76.2 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7843,7 +7843,7 @@
 			)
 		)
 	)
-	(global_label "SYNC0"
+	(global_label "CAT_SYNC0"
 		(shape output)
 		(at 43.18 129.54 180)
 		(fields_autoplaced yes)
@@ -7855,7 +7855,7 @@
 		)
 		(uuid "b8355d6a-352e-42ed-a9ce-f60e7a05fe36")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 34.0867 129.54 0)
+			(at 29.7929 129.54 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7891,7 +7891,7 @@
 			)
 		)
 	)
-	(global_label "LINKACTLED1"
+	(global_label "CAT_LINKACTLED1"
 		(shape input)
 		(at 267.97 88.9 0)
 		(fields_autoplaced yes)
@@ -7903,7 +7903,7 @@
 		)
 		(uuid "d41796d8-683b-483a-a91b-df17074253f8")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 283.1714 88.9 0)
+			(at 287.4652 88.9 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7915,7 +7915,7 @@
 			)
 		)
 	)
-	(global_label "ETHERCAT_RESET"
+	(global_label "CAT_RESET"
 		(shape output)
 		(at 50.8 29.21 0)
 		(fields_autoplaced yes)
@@ -7927,7 +7927,7 @@
 		)
 		(uuid "e5af2c9a-345f-4d23-86b1-ae716a2e4fbf")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 69.6902 29.21 0)
+			(at 63.8241 29.21 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)

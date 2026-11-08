@@ -1,17 +1,17 @@
 # IEC 61131-3 programming and runtime environment (specification)
 
-Status: **draft, review round 1 incorporated** (2026-11-08). No code yet. This file is the reference:
+Status: **draft, review rounds 1+2 incorporated** (2026-11-08). No code yet. This file is the reference:
 decisions are made here first and the code follows. Questions decided in the review and points
-deliberately postponed are under [§14](#14-entscheidungen-aus-dem-review-und-zurückgestellte-punkte).
+deliberately postponed are under [§14](#14-decisions-from-the-review-and-postponed-points).
 
 ## 1. Goal
 
 The FCU gets a PLC that is programmed **in the browser**:
 
 - Languages: **ST** (Structured Text), **FBD** (Function Block Diagram, "FUP"), **SFC** (Sequential
-  Function Chart, "AS"), following IEC 61131-3 Ed. 3.0 (subset, see [§5](#5-sprachumfang)).
+  Function Chart, "AS"), following IEC 61131-3 Ed. 3.0 (subset, see [§5](#5-language-scope)).
 - **Compiling in the browser** (TypeScript): source → machine-near code (bytecode, see
-  [§3](#3-grundsatzentscheidung-bytecode-vm-statt-nativem-maschinencode)) + debug information. The
+  [§3](#3-key-decision-bytecode-vm-instead-of-native-machine-code)) + debug information. The
   device only receives the finished image; it neither compiles nor parses.
 - **Debugging in the browser**: variable view (live), writing/forcing, breakpoints,
   single step, active SFC steps and FBD signal values live.
@@ -56,7 +56,7 @@ Principles:
    single source of truth, from which the C++ and TS sides are generated, like
    BestBinaryBuffers/UniversalRegisterAccess). The C++ VM runs on the target and in host tests,
    the TS VM in the browser simulator and in the compiler tests. Both are tested against each other
-   (differential tests, [§12](#12-teststrategie)).
+   (differential tests, [§12](#12-test-strategy)).
 2. **The register map stays the hub.** The PLC reads and writes the same
    `registers` bank as Modbus/OPC UA. `io.cpp` stays the only part that touches the hardware;
    the PLC does not know pins.
@@ -73,7 +73,7 @@ Principles:
 
 **Decision E1:** The compiler produces **bytecode for a VM** in the firmware, not Thumb-2 machine code.
 Native code generation stays possible as a later option (same IR, its own back end,
-[§13](#13-phasen) P7) if the measured performance is not enough.
+[§13](#13-phases) P8) if the measured performance is not enough.
 
 | Criterion | Bytecode VM | Native Thumb-2 |
 |---|---|---|
@@ -114,7 +114,7 @@ non-preemptive and preemptive scheduling.
   through the RTOS. With up to 3 different priorities this is effectively 1:1; with more the
   compiler merges neighboring classes and reports it.
 - Every PLC thread sleeps until the next due time of its tasks (kernel timer, 1 ms
-  resolution). A task not finished at its next due time counts as an overrun ([§4.2](#42-betriebszustände)).
+  resolution). A task not finished at its next due time counts as an overrun ([§4.2](#42-operating-states)).
 - Data consistency between tasks as in the standard: no automatic locks. Single accesses up to
   32 bits are atomic; LINT/LREAL/structures are not. The compiler **warns** when a global variable
   is written in one task and read in another, and **errors out** when two tasks write the same output.
@@ -124,9 +124,9 @@ non-preemptive and preemptive scheduling.
 
 **Stage 1 (P2):** exactly one cyclic task, one PLC thread, coupled to the I/O cycle (below).
 The VM context, image format (task table) and compiler are built for several tasks from
-P1 on, so P6 needs no redesign.
+P1 on, so P7 needs no redesign.
 
-**Several tasks with their own cycle times (P6)** additionally need fresh inputs: the
+**Several tasks with their own cycle times (P7)** additionally need fresh inputs: the
 register bank is only updated by the I/O cycle every 50 ms; a 10 ms task would see the same
 sensor value five times. Plan for that:
 
@@ -153,7 +153,7 @@ io thread (every 50 ms)                          plc thread
 - Process image per IEC: inputs are frozen at the start of the cycle, outputs only become visible at the end
   of the cycle. Latency input → output: ≤ 1 I/O cycle (50 ms) + PLC run time.
 - Task interval = n × I/O cycle (n ≥ 1, default 1 → 50 ms). 50 ms as the fastest cycle is enough for
-  Stage 1 (review F1); faster tasks come with several tasks in P6 (above).
+  Stage 1 (review F1); faster tasks come with several tasks in P7 (above).
 - Not finished within the interval (overrun): counted, after `max_overruns` (default 3 in a row)
   → ERROR. Per cycle there is also an instruction budget (default 2 M); exceeded → ERROR
   (catches endless loops deterministically, even in the emulators).
@@ -185,18 +185,19 @@ Reset kinds: **warm** (variables to initial values, RETAIN kept), **cold** (RETA
 initialized too). Variables keep their values on STOP→RUN.
 
 **Safe state**: for each output, the safe value from the register schema (new attribute
-`SafeValue`, default 0: valves closed, PWM 0, steppers: no new target, see [§6.3](#63-registerklassen-ausgang-kommando-parameter)).
+`SafeValue`, default 0: valves closed, PWM 0, steppers: no new target, see [§6.3](#63-register-classes-output-command-parameter)).
 
 ### 4.3 Boot
 
 1. Boot as today (identity, supply gate, power consumers, homing starts in `io`).
-2. `plc` mounts the program store, checks the image (magic, CRC, ISA version, I/O map hash).
+2. The PLC thread picks the active flash slot ([§4.5](#45-storage-decision-e3)) and checks the image (magic, CRC,
+   ISA version, I/O map hash). The SD card is not needed for that.
 3. Control source = the persisted mode. In IEC mode with *autostart* and a valid image: RUN
    at the first I/O cycle, **without any browser or network connection** (the network may even come
    up later or not at all). Without a valid image: IEC mode stays, state NO_PROGRAM/ERROR,
    outputs safe (no silent fallback to fieldbus).
 4. Hardware acceptance test for this: power-cycle the device without a network cable/USB, the program
-   runs (visible at the outputs and LEDs) — part of P2 ([§13](#13-phasen)).
+   runs (visible at the outputs and LEDs) — part of P2 ([§13](#13-phases)).
 
 ### 4.4 Resources (budget, configurable at compile time)
 
@@ -206,15 +207,52 @@ initialized too). Variables keep their values on STOP→RUN.
 | Data segment (globals, instances, stack) | 32 KB | 32 KB | H743 AXI RAM: 261 KB of 512 KB |
 | VM in flash | ≤ 40 KB | ≤ 40 KB | flash: ~500 KB of 2 MB |
 | Stack per PLC thread | ≤ 4 KB (size from the frames, rtoos rule; the IEC call stack lives in the data segment, not here) | | |
-| Program store (littlefs) | image + project source (brotli/deflate) + RETAIN | | |
+| Image (maximum) | 96 KB (code + data initial values + tables) | 96 KB | |
+| PLC flash area | 2 × 128 KB at `0x081C'0000` (16 sectors of 8 KB each per slot) | 2 × 128 KB at `0x081C'0000` (the last two 128 KB sectors of bank 2) | |
 
 The code lives in RAM so that loading never writes flash while running and the code area stays
 constant per cycle. The G431 (32 KB RAM) is not a target.
 
-Program store: its own littlefs region or the existing one from `roarm/missions.cpp`
-(only the I/O thread owns it there, littlefs has no locks). **Decision E3:** one shared store
-for the FCU with one owner thread (`io`), the PLC asks for flash work through a request (like
-the RoArm missions). H743: mind the 128 KB sectors (every file > 512 B takes its own block).
+### 4.5 Storage (decision E3)
+
+Since the RoArm missions moved to the SD card (commit `5c3014a`) the FCU has no shared flash store any more,
+and revision 3 no flash data area at all. Because of the autonomy requirement ([§1](#1-goal)) the
+PLC has to start **without an SD card** too. So the storage is split:
+
+| What | Where | Why |
+|---|---|---|
+| Image + device configuration (control source, autostart, safe state on halt) | **own internal flash area**, A/B slots | needed for the start; a missing or faulty card must not stop the PLC |
+| Project source (for "Upload from device") | SD card, `/PLC/project.fcuplc.json` | large, not needed for the start |
+| RETAIN variables (P7) | SD card, `/PLC/retain.a` / `retain.b` alternating, with CRC + sequence number | written often; flash sectors of 128 KB are not suited to that |
+
+**Flash area.** The same address on both chips: `0x081C'0000`, 256 KB, at the end of bank 2. The
+firmware image (today ~500 KB) stays in bank 1, so erasing and programming never stall the
+running code. `rtos_add_firmware(... FLASH_DATA_START 0x081C0000)` for **all** revisions (today
+rev 1/2 only). On the H563 the area today still holds the old mission littlefs, which the first SD mount
+migrates and erases: before P2, either remove the migration or let it run only when the area does not
+yet carry a PLC slot header (decided in P2, with a regression test).
+
+**A/B slots, power-loss safe:**
+
+- Each slot: header (magic, sequence number, image length, CRC) | image | configuration journal at the
+  end of the slot (append-only records of one flash word each: H743 32 B, H563 16 B; the newest
+  valid record wins).
+- Download: the image goes into the **inactive** slot (erase, program, read back, check CRC); only
+  then is the slot made active by a higher sequence number. Boot: the valid slot with the highest
+  sequence number. A power loss at any point leaves the old or the new program, never half of
+  one. The previous program stays in the other slot (rollback in the IDE possible, P7).
+- Configuration changes (switch, autostart) append a record; a full journal is copied
+  together with the image into the other slot (rare: one record per switch).
+- Flow: the net thread only receives the upload into a RAM staging buffer, namely the PLC's own
+  code+data segments, which are unused in STOP (hence the 96 KB maximum). Erasing and programming are done by the
+  PLC thread (in STOP anyway) in bounded steps; an H743 sector erase (128 KB)
+  takes a long time, the net thread must not be blocked by it (rtoos fairness rule). The upload is
+  answered only after the commit or with an error.
+
+**SD card:** FileX belongs to the `io` thread (like the missions); the PLC asks for reads/writes
+through requests to `io`. Without a card: the PLC runs; "Upload from device" is not available
+(the IDE says so); RETAIN variables start with their initial values, with a warning in the log and
+a status bit.
 
 ## 5. Language scope
 
@@ -224,9 +262,9 @@ the RoArm missions). H743: mind the 128 KB sectors (every file > 512 B takes its
 |---|---|---|
 | Elementary types | BOOL, SINT/INT/DINT/LINT, USINT/UINT/UDINT/ULINT, BYTE/WORD/DWORD/LWORD, REAL, LREAL, TIME, STRING | LTIME, DATE, TOD, DT, WSTRING, CHAR |
 | Derived types | enums, structures, arrays (up to 3 dimensions, constant bounds), subranges, type alias | ARRAY[*], REF_TO, unions |
-| POUs | PROGRAM, FUNCTION_BLOCK, FUNCTION | METHOD, INTERFACE, EXTENDS |
-| Variables | VAR, VAR_INPUT, VAR_OUTPUT, VAR_IN_OUT, VAR_TEMP, VAR_GLOBAL, VAR_EXTERNAL, CONSTANT, AT %I/%Q/%M | RETAIN (P6), VAR_ACCESS |
-| Configuration | one CONFIGURATION, one RESOURCE, one cyclic TASK, several PROGRAM instances | several cyclic tasks with their own interval and priority (P6, [§4.1](#41-iec-tasks-und-rtos-threads)), then SINGLE/event tasks |
+| POUs | in the language: PROGRAM, FUNCTION_BLOCK, FUNCTION (the standard and FCU libraries use all of them); **in the project: exactly one PROGRAM `PLC_PRG`** (P1–P3) | several user POUs of every type (P4, [§5.8](#58-pous-in-the-project-and-libraries)); METHOD, INTERFACE, EXTENDS |
+| Variables | VAR, VAR_INPUT, VAR_OUTPUT, VAR_IN_OUT, VAR_TEMP, VAR_GLOBAL, VAR_EXTERNAL, CONSTANT, AT %I/%Q/%M | RETAIN (P7), VAR_ACCESS |
+| Configuration | one CONFIGURATION, one RESOURCE, one cyclic TASK, several PROGRAM instances | several cyclic tasks with their own interval and priority (P7, [§4.1](#41-iec-tasks-and-rtos-threads)), then SINGLE/event tasks |
 | Literals | all of the standard (typed, `16#FF`, `T#1s500ms`, `2#1010_0101`) | |
 
 LREAL on the H563 (Cortex-M33, single-precision FPU only) runs in software, so it is slower;
@@ -277,7 +315,7 @@ implemented in C++ and TS).
 
 ### 5.6 FCU library
 
-Access to device functions that are more than "write a register" ([§6.3](#63-registerklassen-ausgang-kommando-parameter)):
+Access to device functions that are more than "write a register" ([§6.3](#63-register-classes-output-command-parameter)):
 
 | FB | Purpose |
 |---|---|
@@ -302,6 +340,45 @@ The list is not final; it grows with the register schema.
 | SFC evolution | one evolution step per cycle (E4) |
 
 This table is the compliance statement the standard requires; it lives in the IDE help too.
+
+### 5.8 POUs in the project and libraries
+
+**Stage 1 (P1–P3): one POU.** The project has exactly one program `PLC_PRG` (the name as in
+CODESYS), in ST, called by the one cyclic task. Its declaration part holds its own variables;
+the I/O variables come as generated globals ([§6.1](#61-symbolic-io-variables-from-the-register-schema)). It may use FBs and functions
+of the standard and FCU libraries (TON, R_TRIG, `FCU_StepperHome` …), but cannot define any of its own.
+
+The compiler, project format and debug info are still built for **several POUs** from P1 on
+(the libraries already consist of FBs and functions); only the IDE allows no second POU
+yet. So P4 adds no new compiler concepts, just objects in the project tree.
+
+**P4: several POUs of different types.** In the project, any number of:
+
+| Object | Content | Languages |
+|---|---|---|
+| Program (PRG) | PROGRAM, assigned to a task | ST; FBD (P5), SFC (P6) |
+| Function block (FB) | FUNCTION_BLOCK, instantiated in programs/FBs | ST; FBD, SFC |
+| Function (FUN) | FUNCTION with a return type | ST; FBD |
+| Data type (DUT) | STRUCT, enum, alias, subrange | declaration (ST) |
+| Global variable list (GVL) | VAR_GLOBAL (several lists, by topic) | declaration (ST) |
+| Task configuration | tasks and their programs (Stage 1: one task, P7: several) | form |
+
+Each POU has one implementation language, chosen when it is created and fixed afterwards (the declaration
+part is always ST). Renaming updates every reference in the project.
+
+**P7: creating and including libraries.**
+
+- A library is a project of FBs/FUNs/DUTs/GVLs without a program, saved as a library file
+  (`*.fculib.json`: name, version, author, description, source or precompiled IR + interface
+  declarations, dependencies).
+- Inclusion: the project's library manager lists the libraries with a fixed version; their POUs
+  live in their own **namespace** (IEC 61131-3 Ed. 3, `NAMESPACE`/`USING`), e.g.
+  `Conveyor.FB_Sorter`, so that two libraries never collide.
+- The standard library and the FCU library become libraries in this format themselves (versioned,
+  as dependencies of every project). The compiler's symbol tables have namespaces from P1 on,
+  so P7 needs no redesign.
+- Library sources: file import, and libraries on the device's SD card (`/PLC/LIB/`), so that
+  several projects on one FCU share them.
 
 ## 6. I/O mapping and control source
 
@@ -328,7 +405,7 @@ END_VAR
   rejects the image (no wrong mapping after a firmware update) and the IDE says
   "Recompile the project".
 - `%M` (marker memory): its own data area, not visible to Modbus. Exporting PLC variables to Modbus/OPC UA
-  is P6 ([§13](#13-phasen)).
+  is P7 ([§13](#13-phases)).
 
 ### 6.2 Control source switch
 
@@ -351,7 +428,7 @@ Behavior:
 
 - **Fieldbus mode (0)**: as today. The PLC may run (e.g. for monitoring calculations), but its output image
   is **not** written to the registers; the IDE shows that clearly ("outputs not active").
-- **IEC mode (1)**: every *output register* ([§6.3](#63-registerklassen-ausgang-kommando-parameter)) belongs to the PLC.
+- **IEC mode (1)**: every *output register* ([§6.3](#63-register-classes-output-command-parameter)) belongs to the PLC.
   External writes to it are rejected:
   - Modbus TCP/RTU: exception response **0x02 ILLEGAL DATA ADDRESS** (decided, F3). A block write
     that touches even one blocked register is rejected as a whole (no partial write).
@@ -400,7 +477,7 @@ Little-endian, 4-byte aligned:
 | Section | Content |
 |---|---|
 | Header | magic `FCUPLC\0\1`, ISA version, image length, CRC-32 over everything, I/O map hash (32-bit), project hash (links the image ↔ debug info in the IDE), compiler version, build time |
-| Task table | per IEC task: interval (Stage 1: multiple of the I/O cycle, P6: ms), priority → PLC thread, order within the thread, instruction budget, max overruns, stack size of the execution context, program entry points in call order, list of the inputs read and outputs written (task-local process image) |
+| Task table | per IEC task: interval (Stage 1: multiple of the I/O cycle, P7: ms), priority → PLC thread, order within the thread, instruction budget, max overruns, stack size of the execution context, program entry points in call order, list of the inputs read and outputs written (task-local process image) |
 | Code | bytecode of all POUs (absolute offsets in the code segment) |
 | Data init | initial values of the data segment (compressed as zero runs), RETAIN area bounds |
 | I/O binding | per `%I/%Q` variable: register address, width, data address, class |
@@ -408,7 +485,7 @@ Little-endian, 4-byte aligned:
 
 Debug info (source mapping, variable layout, instance tree) **is not** in the image; it stays in the
 project (browser), linked by the project hash. The device also keeps the **project source**
-(compressed) so that any browser can reload the project from the device ("Upload from
+on the SD card ([§4.5](#45-storage-decision-e3)) so that any browser can reload the project from the device ("Upload from
 device").
 
 ## 8. Bytecode VM (outline, detailed in its own ISA document in P1)
@@ -446,7 +523,7 @@ Pipeline:
 1. **Lexer/parser ST**: hand-written recursive descent with error recovery (several
    errors per run, exact positions for editor diagnostics). No GPL code (MatIEC, OpenPLC);
    the project is MIT.
-2. **FBD/SFC**: the graphical models (JSON, [§11](#11-projektformat)) are turned into the AST
+2. **FBD/SFC**: the graphical models (JSON, [§11](#11-project-format)) are turned into the AST
    ([§5.3](#53-fbd), [§5.4](#54-sfc)); positions = element ids.
 3. **Semantics**: name resolution (scopes, VAR_EXTERNAL ↔ VAR_GLOBAL), types and overloads
    (ANY_NUM …), constant evaluation, checks (assignment to CONSTANT/inputs, uninitialized
@@ -474,19 +551,88 @@ so the dashboard does not get slower. To check in P2: the single-file plugin
 second resource. Budget: ≤ 350 KB brotli. Development: `npm run dev` against a real device works as
 before.
 
-### 10.2 Functions
+### 10.2 Interface (layout and workflows)
 
-- Project tree: data types, POUs, global variables, generated I/O list (read-only, with
-  live values), task configuration.
-- ST editor: CodeMirror 6 (MIT) with highlighting, autocompletion (variables, FB members,
-  standard functions with signature), live diagnostics, formatting.
-- FBD and SFC editor: own SVG editors in lit (no heavy graph library): place, connect,
-  automatic routing (orthogonal), execution order shown, undo/redo, copy/paste.
-- Build → download → RUN in one action ("Load and start"), with a confirmation if the
-  device is in IEC mode with machinery running.
-- Simulation: the program runs in the TS VM in the browser; the I/O list becomes editable (inputs
-  set by hand). No device needed, ideal for teaching.
+**How much the spec fixes:** structure, object model, workflows and online behavior, because they
+affect the protocol, the firmware and the tests. Not fixed: look (colors, spacing, icons),
+which follows the existing web UI. Before P2 there is a clickable mockup for review; this section is
+then corrected rather than re-specified.
+
+**Models:** CODESYS (the de facto standard for IEC 61131-3 environments, familiar to many users) and the
+[OpenPLC Editor](https://github.com/Autonomy-Logic/openplc-editor) (a modern web-technology IDE).
+OpenPLC is GPLv3: we borrow **concepts** only, never code (the FCU web UI is MIT). Its structure shows
+the same building blocks as CODESYS: explorer/project tree, a dialog to create objects (type +
+language + name), a variable table with a table/text switch, task and instance tables, a library tree,
+console/PLC log, a debugger with a variable tree and value badges in the graphical editors, cycle time
+statistics.
+
+**Layout** (desktop, from 1280 px wide):
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│ Toolbar: Build │ Connect │ Download │ ▶ Run ■ Stop ⟲ Reset │ Debug: ⏵ ⤼ ⤵ ⤴ │ Simulation │
+├───────────────┬──────────────────────────────────────────────────────────────────────┤
+│ Project tree  │ [PLC_PRG ●] [FB_Sorter] [GVL_Machine] [I/O]        tabs, ● = modified │
+│               │ ┌──────────────────────────────────────────────────────────────────┐ │
+│ ▾ FCU (online)│ │ declaration part      [table | text]    online: value │ prepared  │ │
+│   ▾ App       │ ├────────────────────────── divider ───────────────────────────────┤ │
+│     PLC_PRG   │ │ implementation (ST / FBD / SFC)                                  │ │
+│     POUs …    │ │   online: inline values, active SFC steps, BOOL lines in color   │ │
+│     DUTs …    │ └──────────────────────────────────────────────────────────────────┘ │
+│     GVLs …    ├──────────────────────────────────────────────────────────────────────┤
+│     Tasks     │ Panel: Messages │ Watch 1–4 │ Call stack │ Device log │ Cross refs    │
+│   I/O (gen.)  │                                                                      │
+│   Libraries   │                                                                      │
+├───────────────┴──────────────────────────────────────────────────────────────────────┤
+│ Status: ● online │ RUN │ source: IEC │ cycle 0.4/0.9 ms │ ⚠ project ≠ device │ 2 forced │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Element | Behavior (borrowed from) |
+|---|---|
+| Project tree | device → application → objects; context menu "Add object …" (both). In P1–P3 only `PLC_PRG`, I/O and libraries (read-only) |
+| "Add object" dialog | type (PRG/FB/FUN/DUT/GVL), name (checked for validity and uniqueness straight away), language; FUN also return type (both) |
+| POU editor | declaration part above, implementation below, divider adjustable (CODESYS). The declaration part can be switched between **table** (name, class, type, initial value, comment) and **text**; both edit the same ST text (CODESYS tabular declaration, OpenPLC variables table + view mode toggle) |
+| ST editor | CodeMirror 6 (MIT): highlighting, autocompletion (variables, FB members, standard functions with signature), live diagnostics, formatting, folding |
+| FBD/SFC editors | own SVG editors in lit (no heavy graph library): palette, drag & drop, orthogonal routing, execution order shown, undo/redo, copy/paste, zoom |
+| I/O view | the generated I/O variables as a table: name, address, type, unit, update period, comment; online with live values (CODESYS I/O mapping) |
+| Messages | build errors/warnings, a click jumps to the place (both) |
+| Watch lists | up to 4, variables via context menu/drag, freely named (CODESYS watch lists) |
+| Device log | the PLC entries of the device journal (ERROR with location, switches, downloads) |
+| Status bar | connection, PLC state with color, control source, cycle time current/max, project-vs-device indicator, number of forced values (CODESYS status bar) |
+
+**Online workflow** (CODESYS "Login"):
+
+1. *Connect*: the IDE compares the project hash with the image on the device.
+   - Same: online, monitoring straight away.
+   - Different: dialog "Download the project (PLC goes to STOP)" / "Upload the project from the device" /
+     "Cancel". (No online change; P7 at the earliest.)
+2. Online the editors show values: ST **inline** behind every variable (CODESYS inline
+   monitoring), the declaration table gets the "current value" and "prepared value" columns.
+3. **Prepared values** (CODESYS): enter values for several variables, then *Write*
+   (once) or *Force* (permanently); all prepared values go out together and take effect in the **same**
+   cycle. Forced values are marked in color everywhere; "release every force" in the toolbar.
+4. Opening an FB online asks which instance (CODESYS); the watch view shows instances as a
+   tree (OpenPLC debugger tree).
+5. Debug: set a breakpoint per line/FBD box (gutter click), continue, step into, step over,
+   step out, run to cursor. The call stack panel shows the frame chain; a click jumps there.
+
+**Other things:**
+
+- *Load and start*: build → download → RUN in one action, with a confirmation when the device is in IEC
+  mode and RUN (machinery may move).
+- *Simulation*: the program runs in the TS VM in the browser; the I/O view becomes editable (set inputs
+  by hand), outputs are only shown. Same operation as online; no device needed, ideal
+  for teaching.
 - Project: autosave in IndexedDB, export/import as a file, upload/download from the device.
+- Keyboard shortcuts based on CODESYS (F9 breakpoint, F10 step over, F8 step into …) where the
+  browser allows it; keys the browser keeps or that collide (F5 reload, F11
+  full screen, Shift+F10 context menu …) get alternatives. The final assignment is tested in the
+  browsers in P2/P3 and documented in the IDE help.
+- Narrow screens (phone): no editing; status, RUN/STOP and watch lists only (read-only).
+
+Not borrowed: LD and IL, cloud/source-control functions, the OpenPLC hardware/fieldbus configuration
+(the I/O comes from the register schema at the FCU).
 
 ### 10.3 Online debugging
 
@@ -517,7 +663,7 @@ Over the existing WebSocket (BestBinaryBuffers, new schema file
   stay until another browser releases them or the program is stopped/reloaded. A halted program
   does **not** continue by itself (no unexpected start of motion); the PLC page shows it to every
   browser on connect, and the terminal can continue it too (`plc continue`).
-- Several tasks (P6): a breakpoint halts **all** IEC tasks ("stop the world": the others do not
+- Several tasks (P7): a breakpoint halts **all** IEC tasks ("stop the world": the others do not
   start a new cycle, a running cycle finishes), so the variable view is consistent. Single step
   only runs the halted task.
 - While HALTED: the instruction budget and overrun watchdog are suspended; time keeps running (TON fires
@@ -530,7 +676,7 @@ Over the existing WebSocket (BestBinaryBuffers, new schema file
 |---|---|
 | `GET /api/plc/status` | state, image info, control source |
 | `PUT /api/plc/image` | upload the image (binary); check, store, load (STOP first) |
-| `GET/PUT /api/plc/project` | project source on the device |
+| `GET/PUT /api/plc/project` | project source on the device (SD card; without a card 503 with a message) |
 | `PUT /api/plc/config` | autostart, safe state on halt, task interval |
 
 Large uploads go through REST, not the WebSocket. To check in P2: request body size and streaming
@@ -540,17 +686,22 @@ into the flash in the `Http::WebServer` (background work in bounded steps, rtoos
 
 JSON (`*.fcuplc.json`), versioned:
 
+Stage 1 (P1–P3), exactly one program:
+
 ```json
-{ "format": 1, "name": "Sortieranlage", "ioMapHash": "…",
-  "types": [ { "name": "E_Mode", "st": "TYPE E_Mode : (Manual, Auto); END_TYPE" } ],
-  "pous":  [ { "name": "Main", "kind": "PROGRAM", "lang": "ST",  "src": "PROGRAM Main …" },
-             { "name": "Seq",  "kind": "PROGRAM", "lang": "SFC", "decl": "VAR … END_VAR", "graph": { … } } ],
-  "globals": "VAR_GLOBAL … END_VAR",
-  "task": { "intervalCycles": 1, "programs": ["Main", "Seq"] } }
+{ "format": 1, "name": "Ampel", "ioMapHash": "…",
+  "libraries": [ { "name": "Standard", "version": "1.0.0" }, { "name": "FCU", "version": "1.0.0" } ],
+  "objects": [ { "id": "…", "name": "PLC_PRG", "kind": "PRG", "lang": "ST",
+                 "decl": "PROGRAM PLC_PRG VAR … END_VAR", "body": "…" } ],
+  "tasks": [ { "name": "MainTask", "intervalCycles": 1, "programs": ["PLC_PRG"] } ] }
 ```
 
-Declaration parts are always ST text, the bodies of FBD/SFC are graphs with stable element ids
-(debug mapping, diffs). PLCopen TC6 XML import/export: P6.
+From P4 `objects` holds any number of entries of every type (`PRG`, `FB`, `FUN`, `DUT`, `GVL`),
+grouped in folders (`"folder": "Sortierung"`), `body` for FBD/SFC is a graph with stable element
+ids (debug mapping, diffs). The format already has `objects`, `libraries` and `tasks` as lists in
+Stage 1, so P4/P7 need no format change. A library file (`*.fculib.json`, P7) has
+the same structure without `tasks`, plus `version`, `namespace` and `dependencies`. PLCopen TC6 XML
+import/export: P7.
 
 ## 12. Test strategy
 
@@ -558,8 +709,8 @@ Per the project rules (CLAUDE.md, regression tests binding):
 
 | Level | Where | What |
 |---|---|---|
-| Compiler | npm package, vitest | parser (positive/negative), semantics errors, golden images, debug mapping |
-| TS VM | npm package, vitest | ISA tests per opcode, standard library |
+| Compiler | `web/src/plc/compiler`, vitest | parser (positive/negative), semantics errors, golden images, debug mapping |
+| TS VM | `web/src/plc`, vitest | ISA tests per opcode, standard library |
 | **Differential** | rtoos host test + vitest | shared test corpus `plc-corpus/*.st` with input sequences; the TS VM and C++ VM must produce byte-identical traces (variable values per cycle) |
 | C++ VM | rtoos `ctest --preset host` | ISA, bounds/budget/error stops, breakpoint/step, image checks (corrupt CRC, wrong I/O hash, unknown native) |
 | Runtime on the target | rtoos self-test in QEMU + Renode (`arm`, `arm-h743`) | thread, cycle coupling, overrun detection, measured VM speed (instructions, not cycles: the emulators only count instructions) |
@@ -567,7 +718,7 @@ Per the project rules (CLAUDE.md, regression tests binding):
 | IDE | `web/` vitest | editor models, FBD/SFC → AST, debug protocol (mocked WS) |
 | Hardware | FCU rev 2 + rev 3 | download, RUN, switch with real valves/PWM, breakpoint with running steppers, power cycle with autostart |
 
-Performance measurement on real hardware (DWT cycles) against the target from [§3](#3-grundsatzentscheidung-bytecode-vm-statt-nativem-maschinencode).
+Performance measurement on real hardware (DWT cycles) against the target from [§3](#3-key-decision-bytecode-vm-instead-of-native-machine-code).
 
 ## 13. Phases
 
@@ -576,13 +727,14 @@ Each phase ends with something usable and tested; hardware verification where ha
 | Phase | Content | Done when |
 |---|---|---|
 | **P0** | this specification, review, open questions answered | spec "accepted" |
-| **P1** | ISA document + opcode table/generator; compiler ST (types, POUs, standard library without strings); TS VM; C++ VM in rtoos (host) | the differential test corpus (≥ 50 programs) runs the same on both VMs |
-| **P2** | runtime in the firmware: PLC thread (pool with 1 thread), process image, register classes (E5), write filter, control source switch incl. RoArm, image upload/storage, autostart, RUN/STOP, status registers, terminal command `plc`; minimal IDE (ST editor, build, load, state) | traffic light/sorting example in ST runs on rev 2 and rev 3; also after a power cycle without network and browser; Modbus write in IEC mode answered with 0x02 |
-| **P3** | debugging: watch, write/force, breakpoints, single step, debug lease; simulation in the browser | step through an ST program on the HW, forced values in the register panel |
-| **P4** | FBD: editor, lowering, live values | the same example as FBD, debuggable |
-| **P5** | SFC: editor, lowering, action qualifiers, step display | sequence example (conveyor + valves + light barrier) as SFC on the HW |
-| **P6** | several tasks with their own cycle time (thread pool of 3, fast I/O, `UpdateMs` in the schema), RETAIN, strings/date, FCU library complete, PLC variables → Modbus/OPC UA, PLCopen XML | as needed; several tasks first |
-| **P7** (optional) | native Thumb-2 back end from the same IR, only if P2–P5 measurements show the VM is too slow | |
+| **P1** | ISA document + opcode table/generator; compiler ST (types, `PLC_PRG` + standard library without strings, internally already multi-POU with namespaces); TS VM; C++ VM in rtoos (host) | the differential test corpus (≥ 50 programs) runs the same on both VMs |
+| **P2** | runtime in the firmware: PLC thread (pool with 1 thread), process image, register classes (E5), write filter, control source switch incl. RoArm, flash A/B slots + project on the SD card (E3), autostart, RUN/STOP, status registers, terminal command `plc`; clickable GUI mockup reviewed; minimal IDE (project tree, `PLC_PRG` in ST, build, connect, download, state) | traffic light/sorting example in ST runs on rev 2 and rev 3; also after a power cycle without network, browser **and SD card**; power cut during the download leaves the old program; Modbus write in IEC mode answered with 0x02 |
+| **P3** | debugging: online workflow, inline values, watch lists, prepared values write/force, breakpoints, single step, call stack, debug lease; simulation in the browser | step through `PLC_PRG` on the HW, forced values in the register panel |
+| **P4** | several POUs: PRG/FB/FUN/DUT/GVL in the project, "Add object" dialog, declaration table ↔ text, renaming with references, cross references, FB instance selection online | sorting example split into FB + PRG + GVL, debuggable |
+| **P5** | FBD: editor, lowering, live values | an FB of the example as FBD, debuggable |
+| **P6** | SFC: editor, lowering, action qualifiers, step display | sequence example (conveyor + valves + light barrier) as SFC on the HW |
+| **P7** | libraries (create, version, include, namespaces, standard/FCU library as libraries); several tasks with their own cycle time (thread pool of 3, fast I/O, `UpdateMs` in the schema); RETAIN (SD card); strings/date; FCU library complete; PLC variables → Modbus/OPC UA; PLCopen XML; rollback to the previous slot | as needed |
+| **P8** (optional) | native Thumb-2 back end from the same IR, only if P2–P6 measurements show the VM is too slow | |
 
 P1 can be developed entirely without hardware (host + browser).
 
@@ -592,12 +744,21 @@ Review round 1 (2026-11-08):
 
 | # | Question | Decision | Where in the spec |
 |---|---|---|---|
-| — | Where does the program run? | autonomously on the STM32; the browser only for programming/debugging | [§1](#1-ziel), [§4.3](#43-boot) |
-| F1 | 50 ms as the fastest cycle? | enough for Stage 1; several IEC tasks with their own cycle time later (P6), mapped onto a thread pool (E2) instead of 1:1 | [§4.1](#41-iec-tasks-und-rtos-threads) |
-| F2 | Who may switch the control source? | web UI and terminal only; read-only over Modbus/OPC UA, RUN/STOP too | [§6.2](#62-steuerquellen-umschaltung) |
-| F3 | Modbus exception on a blocked write | 0x02 ILLEGAL DATA ADDRESS | [§6.2](#62-steuerquellen-umschaltung) |
-| F5 | RoArm part of the switch? | yes: no teach mode in IEC mode, missions through `FCU_RoArmRunMission` | [§6.2](#62-steuerquellen-umschaltung), [§5.6](#56-fcu-bibliothek) |
-| F6 | Where do the compiler/IDE live? | not a separate package: `web/src/plc/` (compiler in `web/src/plc/compiler/`), VM in rtoos | [§2](#2-gesamtarchitektur), [§9](#9-compiler-typescript) |
+| — | Where does the program run? | autonomously on the STM32; the browser only for programming/debugging | [§1](#1-goal), [§4.3](#43-boot) |
+| F1 | 50 ms as the fastest cycle? | enough for Stage 1; several IEC tasks with their own cycle time later (P7), mapped onto a thread pool (E2) instead of 1:1 | [§4.1](#41-iec-tasks-and-rtos-threads) |
+| F2 | Who may switch the control source? | web UI and terminal only; read-only over Modbus/OPC UA, RUN/STOP too | [§6.2](#62-control-source-switch) |
+| F3 | Modbus exception on a blocked write | 0x02 ILLEGAL DATA ADDRESS | [§6.2](#62-control-source-switch) |
+| F5 | RoArm part of the switch? | yes: no teach mode in IEC mode, missions through `FCU_RoArmRunMission` | [§6.2](#62-control-source-switch), [§5.6](#56-fcu-library) |
+| F6 | Where do the compiler/IDE live? | not a separate package: `web/src/plc/` (compiler in `web/src/plc/compiler/`), VM in rtoos | [§2](#2-overall-architecture), [§9](#9-compiler-typescript) |
+
+Review round 2 (2026-11-08):
+
+| # | Question | Decision | Where in the spec |
+|---|---|---|---|
+| E3 | Storage after the missions moved to the SD card | image + configuration in their own flash area (A/B slots at `0x081C'0000`, both chips), project source and RETAIN on the SD card; the PLC starts without a card | [§4.5](#45-storage-decision-e3) |
+| — | Several POUs | several POUs of every type (P4); until then exactly one `PLC_PRG`; compiler/format built for several from P1 on | [§5.8](#58-pous-in-the-project-and-libraries) |
+| — | Libraries | create and include (P7), versioned, with namespaces | [§5.8](#58-pous-in-the-project-and-libraries) |
+| — | How much GUI in the spec? | structure, object model, workflows, online behavior after CODESYS/OpenPLC; look via a mockup before P2 | [§10.2](#102-interface-layout-and-workflows) |
 
 **Postponed (deliberately accepted for now, take up again later):**
 

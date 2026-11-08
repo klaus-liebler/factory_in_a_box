@@ -15,6 +15,7 @@
 //   TIM5        USB-PD deadlines (1 MHz, 32 bit; revision 1)
 //   ADC1        pressure sensor (INP18), FDCAN1 500 kbit/s, CPU temperature (DTS on the
 //               STM32H563, ADC3's sensor on the STM32H743)
+//   SDMMC1      SD card: the RoArm missions (FAT, FileX)
 #pragma once
 
 #include "board/chip.hpp"
@@ -31,6 +32,7 @@
 #include "rtos/port/stm32h7/exti.hpp"
 #include "rtos/port/stm32h7/fdcan.hpp"
 #include "rtos/port/stm32h7/i2c.hpp"
+#include "rtos/port/stm32h7/sdmmc.hpp"
 #include "rtos/port/stm32h7/spi.hpp"
 #include "rtos/port/stm32h7/timer.hpp"
 #include "rtos/port/stm32h7/usart.hpp"
@@ -41,6 +43,7 @@
 #include "rtos/port/stm32h5/fdcan.hpp"
 #include "rtos/port/stm32h5/gpdma.hpp"
 #include "rtos/port/stm32h5/i2c.hpp"
+#include "rtos/port/stm32h5/sdmmc.hpp"
 #include "rtos/port/stm32h5/spi.hpp"
 #include "rtos/port/stm32h5/timer.hpp"
 #include "rtos/port/stm32h5/ucpd.hpp"
@@ -91,6 +94,8 @@ void enable_i2c_irqs() noexcept {
 }
 using Spi2 = chip::SpiMaster<chip::SpiId::Spi2, {.kernel_hz = board::pll1_q_hz, .max_bus_hz = 1'000'000,
                                                  .cpu_hz = board::sysclk_hz}>;
+/// SD card slot (J3): SDMMC1, 1-bit bus (board::init_sdcard()); the RoArm missions live there.
+using SdHost = chip::Sdmmc<chip::SdmmcId::Sdmmc1, {.kernel_hz = board::pll1_q_hz, .cpu_hz = board::sysclk_hz}>;
 using StepperUart = chip::BufferedUart<chip::UsartId::Uart5, {.kernel_hz = clocks.pclk1_hz(), .baud = 115'200}, 64, 64>;
 
 // ---- sensors ------------------------------------------------------------------------------------

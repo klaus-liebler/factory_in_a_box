@@ -31,17 +31,18 @@ endforeach()
 
 file(GLOB_RECURSE FCU_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
-# The RoArm missions (littlefs) in flash, outside the image: STM32H563 the last 256 KB (32 sectors
-# of 8 KB in bank 2), STM32H743 the whole bank 2 (1 MB, 8 sectors of 128 KB). src/roarm/missions.cpp
-# has the same region.
+# The RoArm missions are on the SD card (FileX). STM32H563 boards had them in the last 256 KB of
+# the flash (littlefs): that area stays outside the image, so the first start moves them onto the
+# card (src/roarm/missions.cpp). The STM32H743 (revision 3) has no flash data area.
 if(RTOS_FCU_REVISION STREQUAL "3")
-    set(FCU_FLASH_DATA_START 0x08100000)
+    rtos_add_firmware(firmware_factory_control_unit
+        SOURCES ${FCU_SOURCES}
+        LIBRARIES rtos_board_fcu rtos_tls rtos_opcua rtos_filex)
 else()
-    set(FCU_FLASH_DATA_START 0x081C0000)
+    rtos_add_firmware(firmware_factory_control_unit
+        SOURCES ${FCU_SOURCES}
+        LIBRARIES rtos_board_fcu rtos_tls rtos_opcua rtos_filex rtos_littlefs
+        FLASH_DATA_START 0x081C0000)
 endif()
-rtos_add_firmware(firmware_factory_control_unit
-    SOURCES ${FCU_SOURCES}
-    LIBRARIES rtos_board_fcu rtos_tls rtos_opcua rtos_filex rtos_littlefs
-    FLASH_DATA_START ${FCU_FLASH_DATA_START})
 target_include_directories(firmware_factory_control_unit PRIVATE src ${FCU_GENERATED})
 target_compile_options(firmware_factory_control_unit PRIVATE -Wall -Wextra -Werror --embed-dir=${FCU_ASSETS})

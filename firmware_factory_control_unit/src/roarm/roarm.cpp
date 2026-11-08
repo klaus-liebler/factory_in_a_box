@@ -350,9 +350,7 @@ void pose_broadcast(std::uint32_t now) {
 void setup() noexcept {
     servo_uart.start();
     enable_irq(hw::ServoUart::irq, irq_priority_net);
-    if (!missions::mount()) {
-        RTOS_LOG_ERROR("RoArm: mission store (littlefs) not mountable");
-    }
+    (void)missions::mount();  // the SD card; without one the missions come when it does (missions.hpp)
 }
 
 void cycle(std::uint32_t now) noexcept {

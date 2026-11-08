@@ -1,9 +1,11 @@
-// RoArm missions in the internal flash: littlefs outside the image (FLASH_DATA_START in
-// CMakeLists.txt; STM32H563: the last 256 KB, 32 sectors of 8 KB; STM32H743: bank 2, 1 MB in 8
-// sectors of 128 KB - littlefs gives every file above 512 bytes blocks of its own: there only 5
-// to 6 such missions fit), one file "/<index>.msn" per mission holding the
-// encoded WsProtocol::roarm::Mission (name and steps). Same layout as the former firmware: the
-// missions on a board survive the update. Owned by the I/O thread (littlefs has no locks).
+// RoArm missions on the SD card (J3, FAT12/16/32 - not exFAT: FileX): one file
+// "/MISSIONS/<index>.MSN" per mission holding the encoded WsProtocol::roarm::Mission (name and
+// steps), written as "<index>.TMP" and renamed, so a power loss keeps the old or the new one.
+// The card is mounted at the start and, if it is missing or fails, again at the next request
+// (at most every 5 s): a card inserted later is found. Without a card there are no missions.
+// STM32H563 boards (revisions 1/2) had the missions in the internal flash (littlefs, the last
+// 256 KB): the first mount moves them onto the card (a mission already on the card wins) and
+// removes them from the flash. Owned by the I/O thread (FileX and littlefs have no locks).
 #pragma once
 
 #include <array>

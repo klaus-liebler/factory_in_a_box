@@ -27,7 +27,7 @@ Stepper steps come from TIM2/TIM3 compare outputs, their periods from DMA (STM32
 | `src/hardware.hpp` | all peripheral and chip types with their compile-time configuration |
 | `src/boot.*` | reset cause, identity, banner, supply gate, USB-PD |
 | `src/io.*` | the I/O cycle: inputs, sensors (INA226, VL53L0X x3, TCS34725, HX711, CPU temperature: DTS on the H563, ADC3's sensor on the H743), outputs (valves, vacuum, PWM), steppers with sensorless homing, WS2812, CAN, health bits, heartbeat |
-| `src/roarm/*` | RoArm-M3: kinematics, joint tracking, teach mode, missions in the internal flash (littlefs, same files as before) |
+| `src/roarm/*` | RoArm-M3: kinematics, joint tracking, teach mode, missions on the SD card (FAT, `/MISSIONS/<index>.MSN`; STM32H563 boards move their former flash missions onto the card at the first start); end-to-end test in Renode without hardware: `tools/test-missions-sd-renode.py` (revision 3 build, TAP adapter) |
 | `src/network.*` | Ethernet (DHCP, mDNS, SNTP), USB CDC-NCM + DHCP server and CDC-ACM Modbus RTU, HTTPS/WebSocket, Modbus TCP, OPC UA |
 | `src/web.*` | WebSocket protocol (`ws_protocol.hh`): register panel, system info, log records to every browser; RoArm and terminal requests go to the I/O thread |
 | `src/terminal.*` | the commands of the web UI's Terminal page (inputs, outputs, PWM, GPIO, ADC, supply, sensors, I2C scan, registers, steppers and their homing, LEDs, reset) and the live value lookups; the catalog is `schema/terminal/commands.cs` |

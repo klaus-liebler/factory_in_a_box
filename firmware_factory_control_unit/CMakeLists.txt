@@ -1,6 +1,7 @@
-# Factory Control Unit firmware on rtoos (GCC 16, C++26, STM32H563).
+# Factory Control Unit firmware on rtoos (GCC 16, C++26): STM32H563 (hardware revisions 1/2),
+# STM32H743 (revision 3).
 #
-#   cmake --preset Release          (or Debug, Release-Rev1, Debug-Rev1: hardware revision)
+#   cmake --preset Release          (or Debug, Release-Rev1, Debug-Rev1, Release-Rev3, Debug-Rev3)
 #   cmake --build --preset Release
 #
 # The builder (builder/, docs/build-process.md) provides what the firmware embeds:
@@ -30,10 +31,17 @@ endforeach()
 
 file(GLOB_RECURSE FCU_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
-# The last 256 KB of flash (sectors of bank 2) hold the RoArm missions (littlefs).
+# The RoArm missions (littlefs) in flash, outside the image: STM32H563 the last 256 KB (32 sectors
+# of 8 KB in bank 2), STM32H743 the whole bank 2 (1 MB, 8 sectors of 128 KB). src/roarm/missions.cpp
+# has the same region.
+if(RTOS_FCU_REVISION STREQUAL "3")
+    set(FCU_FLASH_DATA_START 0x08100000)
+else()
+    set(FCU_FLASH_DATA_START 0x081C0000)
+endif()
 rtos_add_firmware(firmware_factory_control_unit
     SOURCES ${FCU_SOURCES}
     LIBRARIES rtos_board_fcu rtos_tls rtos_opcua rtos_filex rtos_littlefs
-    FLASH_DATA_START 0x081C0000)
+    FLASH_DATA_START ${FCU_FLASH_DATA_START})
 target_include_directories(firmware_factory_control_unit PRIVATE src ${FCU_GENERATED})
 target_compile_options(firmware_factory_control_unit PRIVATE -Wall -Wextra -Werror --embed-dir=${FCU_ASSETS})

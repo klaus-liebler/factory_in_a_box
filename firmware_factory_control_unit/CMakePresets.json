@@ -19,31 +19,83 @@
       "name": "Debug",
       "displayName": "FCU revision 2 (current PCB), debug",
       "inherits": "gcc16",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "RTOS_FCU_REVISION": "2" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "RTOS_FCU_REVISION": "2"
+      }
     },
     {
       "name": "Release",
       "displayName": "FCU revision 2 (current PCB), release",
       "inherits": "gcc16",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "MinSizeRel", "RTOS_FCU_REVISION": "2" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "RTOS_FCU_REVISION": "2"
+      }
     },
     {
       "name": "Debug-Rev1",
       "displayName": "FCU revision 1 (first boards), debug",
       "inherits": "gcc16",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "RTOS_FCU_REVISION": "1" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "RTOS_FCU_REVISION": "1"
+      }
     },
     {
       "name": "Release-Rev1",
       "displayName": "FCU revision 1 (first boards), release",
       "inherits": "gcc16",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "MinSizeRel", "RTOS_FCU_REVISION": "1" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "RTOS_FCU_REVISION": "1"
+      }
+    },
+    {
+      "name": "Debug-Rev3",
+      "displayName": "FCU revision 3 (STM32H743), debug",
+      "inherits": "gcc16",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "RTOS_CHIP": "stm32h743",
+        "RTOS_FCU_REVISION": "3"
+      }
+    },
+    {
+      "name": "Release-Rev3",
+      "displayName": "FCU revision 3 (STM32H743), release",
+      "inherits": "gcc16",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "RTOS_CHIP": "stm32h743",
+        "RTOS_FCU_REVISION": "3"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "Debug", "configurePreset": "Debug" },
-    { "name": "Release", "configurePreset": "Release" },
-    { "name": "Debug-Rev1", "configurePreset": "Debug-Rev1" },
-    { "name": "Release-Rev1", "configurePreset": "Release-Rev1" }
+    {
+      "name": "Debug",
+      "configurePreset": "Debug"
+    },
+    {
+      "name": "Release",
+      "configurePreset": "Release"
+    },
+    {
+      "name": "Debug-Rev1",
+      "configurePreset": "Debug-Rev1"
+    },
+    {
+      "name": "Release-Rev1",
+      "configurePreset": "Release-Rev1"
+    },
+    {
+      "name": "Debug-Rev3",
+      "configurePreset": "Debug-Rev3"
+    },
+    {
+      "name": "Release-Rev3",
+      "configurePreset": "Release-Rev3"
+    }
   ]
 }

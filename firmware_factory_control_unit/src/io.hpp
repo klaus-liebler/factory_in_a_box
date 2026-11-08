@@ -38,7 +38,9 @@ void set_event_thread(Kernel::Thread& thread) noexcept;
 /// Handle the event bits that woke the thread.
 void events(std::uint32_t bits) noexcept;
 
-/// The boot scan of I2C bus 1, 2 or 4: 128 bits, bit n = a device answered at address n.
-[[nodiscard]] std::span<const std::uint8_t, 16> i2c_scan(unsigned bus) noexcept;
+/// The boot scan of an I2C bus: 128 bits, bit n = a device answered at address n.
+/// The I2C buses by role (their numbers differ per revision: hw::i2c_tof2_bus, hw::i2c_supply_bus).
+enum class I2cBus : std::uint8_t { Color = 0, Tof2 = 1, Supply = 2 };
+[[nodiscard]] std::span<const std::uint8_t, 16> i2c_scan(I2cBus bus) noexcept;
 
 }  // namespace fcu::io

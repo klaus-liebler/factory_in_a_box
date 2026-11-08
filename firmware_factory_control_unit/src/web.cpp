@@ -94,9 +94,10 @@ void system_info(SessionId id, const std::uint8_t* data, std::size_t len) {
     const net::PhyDiagnostics phy = net::phy_diagnostics();
     resp.phy = {.readOk = phy.read_ok, .tdrAvailable = phy.tdr_available, .bsr = phy.bsr, .physcsr = phy.physcsr,
                 .mcsr = phy.mcsr, .secr = phy.secr, .scsir = phy.scsir, .tcsr = phy.tcsr, .clr = phy.clr};
-    std::memcpy(resp.i2c1Scan, io::i2c_scan(1).data(), 16);
-    std::memcpy(resp.i2c2Scan, io::i2c_scan(2).data(), 16);
-    std::memcpy(resp.i2c4Scan, io::i2c_scan(4).data(), 16);
+    // the protocol's fields are named after revision 2's buses (I2C1, I2C2, I2C4): by role
+    std::memcpy(resp.i2c1Scan, io::i2c_scan(io::I2cBus::Color).data(), 16);
+    std::memcpy(resp.i2c2Scan, io::i2c_scan(io::I2cBus::Tof2).data(), 16);
+    std::memcpy(resp.i2c4Scan, io::i2c_scan(io::I2cBus::Supply).data(), 16);
     std::array<std::uint8_t, ws::system::SystemInfoMessage::SystemInfoMessage_MAX_SIZE> buf{};
     send(id, buf.data(), ws::system::SystemInfoMessage::Encode(resp, buf.data(), buf.size()));
 }

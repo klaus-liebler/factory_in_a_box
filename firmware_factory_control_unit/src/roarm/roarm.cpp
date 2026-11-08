@@ -10,7 +10,6 @@
 
 #include "hardware.hpp"
 #include "rtos/devices/feetech_sts.hpp"
-#include "rtos/port/cm33/port.hpp"
 #include "rtos/sync/message_queue.hpp"
 #include "roarm/kinematics.hpp"
 #include "roarm/missions.hpp"
@@ -24,7 +23,6 @@ namespace {
 
 namespace ws = WsProtocol::roarm;
 namespace rm = register_map;
-namespace cm33 = rtos::port::cm33;
 using std::numbers::pi;
 
 struct KernelClock {
@@ -351,8 +349,7 @@ void pose_broadcast(std::uint32_t now) {
 
 void setup() noexcept {
     servo_uart.start();
-    cm33::nvic::ipr(hw::ServoUart::irq) = irq_priority_net << (8 - RTOS_CM33_PRIO_BITS);
-    cm33::nvic::enable(hw::ServoUart::irq);
+    enable_irq(hw::ServoUart::irq, irq_priority_net);
     if (!missions::mount()) {
         RTOS_LOG_ERROR("RoArm: mission store (littlefs) not mountable");
     }
@@ -389,4 +386,8 @@ void post(net::Server::SessionId id, std::span<const std::uint8_t> message) noex
 
 }  // namespace fcu::roarm
 
+#if RTOS_FCU_REVISION == 3
+extern "C" void USART1_IRQHandler() noexcept { fcu::roarm::servo_uart.on_irq(); }
+#else
 extern "C" void UART7_IRQHandler() noexcept { fcu::roarm::servo_uart.on_irq(); }
+#endif

@@ -7,7 +7,7 @@
 
 #include "network.hpp"
 #include "rtos/net/tls_memory.hpp"
-#include "rtos/port/cm33/cycle_counter.hpp"
+#include "board/chip.hpp"
 #include "ws_protocol.hh"
 
 namespace fcu::task_monitor {
@@ -32,7 +32,7 @@ void fill(std::uint8_t (&out)[N], const char* text) noexcept {
 }
 
 std::size_t tasks(std::uint16_t request_id, std::span<std::uint8_t> reply) noexcept {
-    const std::uint32_t now = rtos::port::cm33::CycleCounter::now();
+    const std::uint32_t now = board::CycleCounter::now();
     const std::uint32_t wall = sampled ? now - last_sample : 0;
     std::array<std::uint8_t, KernelConfig::max_threads * ws::TaskListMessageItems_ELEMENT_SIZE> items{};
     std::size_t pos = 0;

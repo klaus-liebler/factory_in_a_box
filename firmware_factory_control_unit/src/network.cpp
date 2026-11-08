@@ -8,6 +8,7 @@
 #include <optional>
 #include <string_view>
 
+#include "board/chip.hpp"
 #include "board/fcu.hpp"
 #include "device_ids.hh"
 #include "pins.hpp"
@@ -26,26 +27,21 @@
 #include "rtos/opcua/clock.hpp"
 #include "rtos/opcua/ns0_base.hpp"
 #include "rtos/opcua/registers.hpp"
-#include "rtos/port/cm33/cycle_counter.hpp"
-#include "rtos/port/stm32h5/cache.hpp"
-#include "rtos/port/stm32h5/ethernet.hpp"
-#include "rtos/port/stm32h5/rng.hpp"
+#if FCU_USB_DEVICE
 #include "rtos/port/stm32h5/usb_device.hpp"
 #include "rtos/usb/cdc_acm.hpp"
 #include "rtos/usb/cdc_ncm.hpp"
 #include "rtos/usb/descriptors.hpp"
 #include "rtos/usb/device.hpp"
+#endif
 #include "task_monitor.hpp"
 #include "web.hpp"
 
 namespace fcu::net {
 namespace {
 
-namespace h5 = rtos::port::stm32h5;
 namespace rn = rtos::net;
 namespace ua = rtos::opcua;
-namespace usb = rtos::usb;
-namespace cm33 = rtos::port::cm33;
 
 // ---- assets from the builder (build/assets, #embed) -------------------------------------------
 constexpr unsigned char index_html_br[] = {
@@ -78,7 +74,7 @@ constexpr rn::MacAddress mac(const std::uint8_t (&m)[6]) {
 
 // ---- stack and drivers ------------------------------------------------------------------------
 constexpr std::size_t eth_rx_descriptors = 8;
-using Ethernet = h5::Ethernet<Pool, eth_rx_descriptors>;
+using Ethernet = board::Ethernet<Pool, eth_rx_descriptors>;
 static_assert(Pool::capacity() >= eth_rx_descriptors + StackConfig::rx_reserve + StackConfig::tcp_connections,
               "packet pool too small for RX ring + receive reserve + one segment per connection");
 
@@ -87,7 +83,9 @@ RTOS_DMA_BUFFER Ethernet ethernet{packet_pool, mac(DEVICE_ETH_MAC), board::phy_a
 Stack stack{packet_pool};
 constexpr rn::InterfaceId eth_if = 0;  // first attach(): unconfigured until DHCP
 
+#if FCU_USB_DEVICE
 // ---- USB: CDC-NCM (interfaces 0, 1) + CDC-ACM for Modbus RTU (interfaces 2, 3) -----------------
+namespace usb = rtos::usb;
 // The PC's NIC gets DEVICE_USB_NCM_MAC (iMACAddress); this end uses the same address with the
 // lowest bit of the last octet flipped, so the two ends of the link differ.
 constexpr rn::MacAddress usb_device_mac = rn::MacAddress::from(
@@ -104,7 +102,7 @@ constexpr std::array<std::string_view, 6> usb_strings{
     DEVICE_USB_NCM_MAC_STRING, "FactoryControl Modbus RTU"};
 constexpr usb::DeviceDescriptors usb_descriptors{usb_device_descriptor, usb_configuration, usb_strings};
 
-using UsbController = h5::UsbDrdFs<>;
+using UsbController = rtos::port::stm32h5::UsbDrdFs<>;
 UsbController usb_fs;
 RTOS_DMA_BUFFER usb::CdcNcm<Pool> ncm{ncm_info, packet_pool, usb_device_mac};
 usb::CdcAcm<> acm{acm_info};
@@ -115,6 +113,7 @@ constexpr rn::Ipv4Config usb_address{.address = rn::Ipv4Address::from(192, 168, 
                                      .netmask = rn::Ipv4Address::from(255, 255, 255, 0)};
 rn::DhcpServer<Stack> usb_dhcp{stack, 1, {.first = rn::Ipv4Address::from(192, 168, 173, 2), .count = 1}};
 rtos::modbus::RtuService<usb::CdcAcm<>, Stack> modbus_rtu{acm, stack, registers, 1, 5};
+#endif
 
 // ---- name services, time ------------------------------------------------------------------------
 rn::MdnsResponder<Stack> mdns{stack, DEVICE_HOSTNAME};
@@ -207,7 +206,7 @@ void on_mdns_renamed(void*, std::string_view name) noexcept {
 const rn::DhcpClient<Stack>::Handler dhcp_handler{nullptr, &on_dhcp_bound, &on_dhcp_lost, &on_dhcp_declined};
 rn::DhcpClient<Stack> dhcp{stack, eth_if, DEVICE_HOSTNAME, dhcp_handler};
 
-/// Link and VBUS polling, SNTP log line.
+/// Link and VBUS polling (USB device: connected while VBUS is there), SNTP log line.
 struct LinkTasks {
     static constexpr rtos::Tick poll_ms = 250;
     rtos::Tick next_poll = 0;
@@ -226,14 +225,20 @@ struct LinkTasks {
         }
         if (const bool v = pins::gpio::read(pins::usb_vsense); v != vbus) {
             vbus = v;
+#if FCU_USB_DEVICE
             if (v) {
                 usb_device.connect();
             } else {
                 usb_device.disconnect();
             }
             RTOS_LOG_INFO("usb: VBUS %s", v ? "present, connected" : "gone, disconnected");
+#else
+            RTOS_LOG_INFO("usb: VBUS %s (no USB device on this revision yet)", v ? "present" : "gone");
+#endif
         }
+#if FCU_USB_DEVICE
         usb_configured = usb_device.state() == usb::DeviceState::Configured;
+#endif
         if (sntp.synchronized() && !synced) {
             synced = true;
             RTOS_LOG_INFO("net: sntp synchronized");
@@ -244,7 +249,7 @@ struct LinkTasks {
 
 bool rng_fill(std::span<std::byte> out) noexcept {
     for (std::size_t i = 0; i < out.size(); i += 4) {
-        const std::uint32_t r = h5::Rng::next();
+        const std::uint32_t r = board::Rng::next();
         for (std::size_t j = 0; j < 4 && i + j < out.size(); ++j) {
             out[i + j] = static_cast<std::byte>(r >> (8 * j));
         }
@@ -254,28 +259,28 @@ bool rng_fill(std::span<std::byte> out) noexcept {
 
 void net_main(void*) {
     board::init_ethernet();
-    if (!ethernet.init(board::sysclk_hz)) {
+    if (!ethernet.init(board::hclk_hz)) {
         RTOS_LOG_ERROR("net: ETH DMA reset timed out (no RMII reference clock?)");
     }
-    h5::Rng::init();
+    board::Rng::init();
     [[maybe_unused]] const rn::InterfaceId e = stack.attach(ethernet);
     contract_assert(e == eth_if);
+#if FCU_USB_DEVICE
     [[maybe_unused]] const rn::InterfaceId u = stack.attach(ncm, usb_address);
     contract_assert(u == 1);
-    stack.set_random([](void*) noexcept { return h5::Rng::next(); }, nullptr);
+#endif
+    stack.set_random([](void*) noexcept { return board::Rng::next(); }, nullptr);
 
-    h5::UsbHardware::enable_clocks();
+#if FCU_USB_DEVICE
+    rtos::port::stm32h5::UsbHardware::enable_clocks();
     usb_fs.start();
-
-    constexpr unsigned eth_irq = 106;
-    cm33::nvic::ipr(eth_irq) = irq_priority_net << (8 - RTOS_CM33_PRIO_BITS);
-    cm33::nvic::enable(eth_irq);
-    cm33::nvic::ipr(UsbController::irq) = irq_priority_net << (8 - RTOS_CM33_PRIO_BITS);
-    cm33::nvic::enable(UsbController::irq);
+    enable_irq(UsbController::irq, irq_priority_net);
+#endif
+    enable_irq(Ethernet::irq_number, irq_priority_net);
 
     if (!rn::TlsServerContext::initialize_library(
             &rng_fill, []() noexcept -> std::uint32_t { return kernel.now() / 1000; },
-            []() noexcept { return cm33::CycleCounter::now(); })) {
+            []() noexcept { return board::CycleCounter::now(); })) {
         RTOS_LOG_ERROR("tls: library init failed");
         return;
     }
@@ -296,7 +301,9 @@ void net_main(void*) {
 
     mdns.start(rn::InterfaceSet::all(), &on_mdns_renamed);
     dhcp.start();
+#if FCU_USB_DEVICE
     usb_dhcp.start();
+#endif
     sntp.start();
     server.start(443);
     if (!modbus_tcp.start()) {
@@ -308,10 +315,14 @@ void net_main(void*) {
     outbox.set_wake([](void*) noexcept { kernel.notify(net_tcb, slot_wake, 1, rtos::NotifyAction::SetBits); },
                     nullptr);
 
+#if FCU_USB_DEVICE
     runtime.add(usb_device, "usb");  // first: drains the controller's events
+#endif
     runtime.add(link_tasks, "link");
     runtime.add(dhcp, "dhcp");
+#if FCU_USB_DEVICE
     runtime.add(usb_dhcp, "usb-dhcp");
+#endif
     runtime.add(dns, "dns");
     runtime.add(mdns, "mdns");
     runtime.add(sntp, "sntp");
@@ -319,9 +330,11 @@ void net_main(void*) {
     runtime.add(outbox, "ws-outbox");
     runtime.add(web::log_mirror(), "log-mirror");
     runtime.add(modbus_tcp, "modbus");
+#if FCU_USB_DEVICE
     runtime.add(modbus_rtu, "modbus-rtu");
+#endif
     runtime.add(opcua, "opcua");
-    runtime.set_cycle_counter([]() noexcept { return cm33::CycleCounter::now(); });
+    runtime.set_cycle_counter([]() noexcept { return board::CycleCounter::now(); });
     RTOS_LOG_INFO("net: https://%s.local/, opc.tcp://%s.local:4840, modbus tcp 502", DEVICE_HOSTNAME, DEVICE_HOSTNAME);
     for (;;) {
         const std::uint32_t wake = runtime.run_once(kernel.now());
@@ -373,8 +386,8 @@ PhyDiagnostics phy_diagnostics() noexcept {
         return d;
     }
     ethernet.phy_write(tcsr, tcsr_tdr_enable);
-    const std::uint32_t start = cm33::CycleCounter::now();
-    while (cm33::CycleCounter::now() - start < board::sysclk_hz / 500) {  // 2 ms for the reflection measurement
+    const std::uint32_t start = board::CycleCounter::now();
+    while (board::CycleCounter::now() - start < board::sysclk_hz / 500) {  // 2 ms for the reflection measurement
     }
     d.tcsr = ethernet.phy_read(tcsr);
     d.clr = ethernet.phy_read(clr);
@@ -390,7 +403,9 @@ extern "C" void ETH_IRQHandler() noexcept {
     }
 }
 
+#if FCU_USB_DEVICE
 extern "C" void USB_DRD_FS_IRQHandler() noexcept {
     fcu::net::usb_fs.on_irq();
     kernel.notify_from_isr(fcu::net::net_tcb, fcu::net::slot_wake, 1, rtos::NotifyAction::SetBits);
 }
+#endif

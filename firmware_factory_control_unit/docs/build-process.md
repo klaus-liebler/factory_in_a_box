@@ -47,16 +47,19 @@ nach `web/node_modules/`, wo `WebAppBuildService` sowie
 ### Gesamt-Pipelines
 
 ```
-dotnet run --project builder -- PipelineLazy   -- --preset <Release|Debug|Release-Rev1|Debug-Rev1>   # kein Flash
-dotnet run --project builder -- PipelineForced -- --preset <Release|Debug|Release-Rev1|Debug-Rev1>   # wie lazy, Zertifikat erzwungen
-dotnet run --project builder -- PipelineFlash  -- --preset <Release|Debug|Release-Rev1|Debug-Rev1>   # wie lazy, danach flashen
+dotnet run --project builder -- PipelineLazy   -- --preset <Release|Debug|Release-Rev1|Debug-Rev1|Release-Rev3|Debug-Rev3>   # kein Flash
+dotnet run --project builder -- PipelineForced -- --preset <Release|Debug|Release-Rev1|Debug-Rev1|Release-Rev3|Debug-Rev3>   # wie lazy, Zertifikat erzwungen
+dotnet run --project builder -- PipelineFlash  -- --preset <Release|Debug|Release-Rev1|Debug-Rev1|Release-Rev3|Debug-Rev3>   # wie lazy, danach flashen
 ```
 
 `--preset` fehlt -> Default `Release` (s. `Stm32BuildContext.Preset`). Das Preset waehlt die
 Hardware-Revision der Platine (`RTOS_FCU_REVISION`, Pin-Belegung in `src/pins.hpp`):
-`Release`/`Debug` = Revision 2 (aktuelle Platine, `pcb_factory_control_unit`), `Release-Rev1`/
-`Debug-Rev1` = Revision 1 (erste Platinen, Pin-Belegung des frueheren CubeMX-Projekts). Das
-Nucleo-Testboard wird nicht mehr unterstuetzt.
+`Release`/`Debug` = Revision 2 (STM32H563 mit CH224K), `Release-Rev1`/`Debug-Rev1` = Revision 1
+(erste Platinen, STM32H563, Pin-Belegung des frueheren CubeMX-Projekts), `Release-Rev3`/`Debug-Rev3`
+= Revision 3 (STM32H743VIT6, aktuelle Platine `pcb_factory_control_unit`; `RTOS_CHIP=stm32h743`).
+Das Nucleo-Testboard wird nicht mehr unterstuetzt. Die Unique-ID liest der Builder je nach Chip an
+der richtigen Adresse (Device ID beim Verbinden: 0x484 STM32H563 -> 0x08FFF800, 0x450 STM32H743 ->
+0x1FF1E800, `Stm32HardwareIdentityService`).
 
 Beispiel fuer den alltaeglichen Zyklus (Board an ST-Link, provisionieren + bauen + flashen):
 
@@ -238,7 +241,7 @@ firmware_factory_control_unit/
 ├── build/                         # komplett gitignored (CMake-Output + generierte Assets)
 │   ├── .last-board-id             # "letztes bekanntes Board"-Cache, s. Abschnitt 2
 │   ├── assets/                    # device_certificate.der, device_key.der, index.html.br
-│   └── Release/, Debug/, Release-Rev1/, Debug-Rev1/   # je Preset ein eigener CMake-Binärordner
+│   └── Release/, Debug/, Release-Rev1/, Debug-Rev1/, Release-Rev3/, Debug-Rev3/   # je Preset ein eigener CMake-Binärordner
 ├── schema/
 │   ├── best_binary_buffers/       # C#-Protokollschema (BestBinaryBuffers) + ids.txt
 │   ├── register_map/              # C#-Registerschema (Modbus + OPC UA), s. Abschnitt 3

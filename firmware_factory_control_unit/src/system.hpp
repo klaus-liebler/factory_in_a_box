@@ -6,16 +6,27 @@
 //   io   10   boot sequence (supply voltage, USB-PD, power consumers), then the I/O cycle
 //             every 50 ms: sensors, actuators, steppers, RoArm, heartbeat
 //   log  14   console: writes the log journal to USART3
+//
+// The chip comes from the board package (board/chip.hpp): STM32H563 (Cortex-M33) on revisions
+// 1/2, STM32H743 (Cortex-M7) on revision 3.
 #pragma once
 
 #include <cstddef>
 #include <cstdint>
 
+#include "board/chip.hpp"
 #include "register_map.hpp"
 #include "rtos/log/log.hpp"
 #include "rtos/modbus/register_bank.hpp"
-#include "rtos/port/cm33/port.hpp"
 #include "rtos/rtos.hpp"
+
+/// The USB device (CDC-NCM + CDC-ACM for Modbus RTU): the STM32H563's USB DRD on revisions 1/2.
+/// Revision 3 (STM32H743 USB OTG_FS) has no rtoos driver yet: no USB there for now.
+#if RTOS_FCU_REVISION == 3
+#define FCU_USB_DEVICE 0
+#else
+#define FCU_USB_DEVICE 1
+#endif
 
 namespace fcu {
 
@@ -24,7 +35,7 @@ struct KernelConfig : rtos::DefaultConfig {
     static constexpr std::size_t notify_slots = 2;
 };
 
-using Port = rtos::port::cm33::Cm33Port;
+using Port = board::Port;
 using Kernel = rtos::Kernel<Port, KernelConfig>;
 
 /// The Modbus/OPC UA register map (schema/register_map/*.cs, generated register_map.hpp):
@@ -44,6 +55,12 @@ inline constexpr std::uint8_t log_priority = 14;
 inline constexpr std::uint8_t irq_priority_motion = 4; ///< stepper DMA refill (deadline: one step), no kernel calls
 inline constexpr std::uint8_t irq_priority_net = 6;    ///< ETH, USB, I2C (wakes the waiting thread)
 inline constexpr std::uint8_t irq_priority_pd = 7;     ///< UCPD and its deadline timer (same level)
+
+/// Sets the NVIC priority of `irq` and enables it.
+inline void enable_irq(unsigned irq, std::uint8_t priority) noexcept {
+    board::nvic::ipr(irq) = static_cast<std::uint8_t>(priority << (8 - board::irq_priority_bits));
+    board::nvic::enable(irq);
+}
 
 }  // namespace fcu
 

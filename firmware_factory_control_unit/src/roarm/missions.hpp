@@ -1,5 +1,7 @@
-// RoArm missions in the internal flash: littlefs in the last 256 KB (bank 2, 32 sectors of
-// 8 KB; FLASH_DATA_START in CMakeLists.txt), one file "/<index>.msn" per mission holding the
+// RoArm missions in the internal flash: littlefs outside the image (FLASH_DATA_START in
+// CMakeLists.txt; STM32H563: the last 256 KB, 32 sectors of 8 KB; STM32H743: bank 2, 1 MB in 8
+// sectors of 128 KB - littlefs gives every file above 512 bytes blocks of its own: there only 5
+// to 6 such missions fit), one file "/<index>.msn" per mission holding the
 // encoded WsProtocol::roarm::Mission (name and steps). Same layout as the former firmware: the
 // missions on a board survive the update. Owned by the I/O thread (littlefs has no locks).
 #pragma once

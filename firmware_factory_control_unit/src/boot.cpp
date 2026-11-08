@@ -8,39 +8,46 @@
 #include "firmware_constants.hh"
 #include "gitconstants.hh"
 #include "hardware.hpp"
-#include "rtos/port/stm32h5/cache.hpp"
-#include "rtos/port/cm33/port.hpp"
 #include "system.hpp"
 
 namespace fcu::boot {
 namespace {
 
-namespace h5 = rtos::port::stm32h5;
-namespace cm33 = rtos::port::cm33;
+namespace chip = board::chip;
 namespace pd = rtos::usb_pd;
 
 ResetCause g_reset_cause = ResetCause::Unknown;
 
+#if RTOS_FCU_REVISION == 3
+// RCC_RSR (stm32h743xx.h: RCC_BASE 0x58024400, RSR at 0xD0, RCC_RSR_*_Pos)
+using RCC_RSR = chip::Reg<0x5802'4400 + 0xD0>;
+constexpr std::uint32_t rsr_rmvf = 1u << 16, rsr_borrstf = 1u << 21, rsr_pinrstf = 1u << 22, rsr_sftrstf = 1u << 24,
+                        rsr_iwdgrstf = 1u << 26, rsr_wwdgrstf = 1u << 28, rsr_lpwrrstf = 1u << 30;
+constexpr std::uintptr_t uid_base = 0x1FF1'E800;  // stm32h743xx.h: UID_BASE
+#else
 // RCC_RSR (RM0481, SVD v1.8: RCC base 0x44020C00 + 0xF4)
-using RCC_RSR = h5::PReg<0x0402'0C00 + 0xF4>;
+using RCC_RSR = chip::PReg<0x0402'0C00 + 0xF4>;
 constexpr std::uint32_t rsr_rmvf = 1u << 23, rsr_pinrstf = 1u << 26, rsr_borrstf = 1u << 27, rsr_sftrstf = 1u << 28,
                         rsr_iwdgrstf = 1u << 29, rsr_wwdgrstf = 1u << 30, rsr_lpwrrstf = 1u << 31;
+constexpr std::uintptr_t uid_base = 0x08FF'F800;  // RM0481: UID_BASE
+#endif
 
 std::array<std::uint32_t, 3> chip_uid() noexcept {
-    const auto* uid = reinterpret_cast<const volatile std::uint32_t*>(0x08FF'F800);  // RM0481: UID_BASE
+    const auto* uid = reinterpret_cast<const volatile std::uint32_t*>(uid_base);
     return {uid[0], uid[1], uid[2]};
 }
 
 // ---- supply gate ----------------------------------------------------------------------------------
 constexpr std::int32_t supply_min_mv = 18'000;
-constexpr int pd_request_mv = 20'000;  // revision 2: the CH224K's request (CFG1 open)
+constexpr int pd_request_mv = 20'000;  // revisions 2/3: the CH224K's/CH224Q's request (CFG1)
 
+#if RTOS_FCU_REVISION != 3
 // UCPD1 sink, revision 1 (board::has_ucpd); unused on revision 2
-
 hw::PdClock pd_clock;
 RTOS_DMA_BUFFER hw::Ucpd ucpd;
 pd::Sink<hw::Ucpd, hw::PdClock, Kernel::Lock> pd_sink{ucpd, pd_clock};
 bool pd_started = false;
+#endif
 
 }  // namespace
 
@@ -77,7 +84,8 @@ void announce() noexcept {
         b.add(" version   %.*s, commit %.*s (%.*s)%s", static_cast<int>(git::VERSION.size()), git::VERSION.data(),
                static_cast<int>(git::COMMIT_HASH.size()), git::COMMIT_HASH.data(), static_cast<int>(git::BRANCH.size()),
                git::BRANCH.data(), git::IS_DIRTY ? ", dirty" : "");
-        b.add(" clocks    SYSCLK %u MHz, PCLK1 %u MHz", static_cast<unsigned>(board::sysclk_hz / 1'000'000),
+        b.add(" clocks    %.*s, CPU %u MHz, PCLK1 %u MHz", static_cast<int>(board::mcu_name.size()),
+               board::mcu_name.data(), static_cast<unsigned>(board::sysclk_hz / 1'000'000),
                static_cast<unsigned>(hw::clocks.pclk1_hz() / 1'000'000));
         b.add(" chip      %08lX-%08lX-%08lX", static_cast<unsigned long>(uid[0]), static_cast<unsigned long>(uid[1]),
                static_cast<unsigned long>(uid[2]));
@@ -90,8 +98,11 @@ void announce() noexcept {
 }
 
 void update_pd_registers() noexcept {
-    if constexpr (!board::has_ucpd) {
-        // The CH224K reports nothing to the MCU (PG not wired): the measured bus voltage is all
+#if RTOS_FCU_REVISION != 3
+    if constexpr (!board::has_ucpd)
+#endif
+    {
+        // The CH224K/CH224Q reports nothing the firmware reads: the measured bus voltage is all
         // there is. At 18 V or more the 20 V contract (or another supply) holds.
         const auto m = hw::Supply::read();
         const bool up = m && m->bus_mv >= supply_min_mv;
@@ -100,14 +111,17 @@ void update_pd_registers() noexcept {
         register_map::set_pwr_pd_status(registers, up ? 0 : 2);
         return;
     }
+#if RTOS_FCU_REVISION != 3
     const pd::SinkStatus s = pd_sink.status();
     const std::uint16_t status = !s.connected ? 2 : (s.active_mv < pd_request_mv ? 1 : 0);
     register_map::set_pwr_pd_voltage_mv(registers, static_cast<std::uint16_t>(s.active_mv));
     register_map::set_pwr_pd_current_ma(registers, static_cast<std::uint16_t>(s.active_ma));
     register_map::set_pwr_pd_status(registers, status);
+#endif
 }
 
 void poll_pd_events() noexcept {
+#if RTOS_FCU_REVISION != 3
     if (!pd_started) {
         return;
     }
@@ -131,14 +145,15 @@ void poll_pd_events() noexcept {
         }
     });
     update_pd_registers();
+#endif
 }
 
 bool wait_for_supply() noexcept {
-    h5::gpio::configure<pins::supply_pins>();
-    hw::I2c4::init();
-    hw::enable_i2c_irqs<hw::I2c4>();
+    chip::gpio::configure<pins::supply_pins>();
+    hw::I2cSupply::init();
+    hw::enable_i2c_irqs<hw::I2cSupply>();
     if (!hw::Supply::probe() || !hw::Supply::init()) {
-        RTOS_LOG_ERROR("supply: INA226 (I2C4, 0x40) not found, supply voltage unknown");
+        RTOS_LOG_ERROR("supply: INA226 (I2C%u, 0x40) not found, supply voltage unknown", hw::i2c_supply_bus);
         return false;
     }
     kernel.sleep(40);  // first measurement: 16 x (1.1 ms + 1.1 ms) = 35.2 ms (hw::Supply)
@@ -161,18 +176,20 @@ bool wait_for_supply() noexcept {
         update_pd_registers();
         return true;
     }
+#if RTOS_FCU_REVISION != 3
     if constexpr (board::has_ucpd) {
         RTOS_LOG_INFO("supply: only %ld mV, asking USB-PD for %d mV", static_cast<long>(mv), pd_request_mv);
         hw::PdClock::init();
         (void)pd_sink.request_power(pd_request_mv);
         ucpd.start();
         pd_started = true;
-        for (const unsigned irq : {static_cast<unsigned>(hw::Ucpd::irq), static_cast<unsigned>(hw::PdClock::irq)}) {
-            cm33::nvic::ipr(irq) = irq_priority_pd << (8 - RTOS_CM33_PRIO_BITS);
-            cm33::nvic::enable(irq);
-        }
-    } else {
-        RTOS_LOG_INFO("supply: only %ld mV, waiting for the CH224K's %d mV", static_cast<long>(mv), pd_request_mv);
+        enable_irq(hw::Ucpd::irq, irq_priority_pd);
+        enable_irq(hw::PdClock::irq, irq_priority_pd);
+    } else
+#endif
+    {
+        RTOS_LOG_INFO("supply: only %ld mV, waiting for the %s's %d mV", static_cast<long>(mv),
+                      board::revision == 3 ? "CH224Q" : "CH224K", pd_request_mv);
     }
     rtos::Tick last_log = kernel.now();
     while (mv < supply_min_mv) {
@@ -193,6 +210,7 @@ bool wait_for_supply() noexcept {
 
 }  // namespace fcu::boot
 
+#if RTOS_FCU_REVISION != 3
 extern "C" void UCPD1_IRQHandler() noexcept { fcu::boot::ucpd.on_irq(fcu::boot::pd_sink); }
 
 extern "C" void TIM5_IRQHandler() noexcept {
@@ -200,3 +218,4 @@ extern "C" void TIM5_IRQHandler() noexcept {
         fcu::boot::pd_sink.on_timer();
     }
 }
+#endif

@@ -5,22 +5,21 @@
 #include <algorithm>
 #include <array>
 
+#include "board/chip.hpp"
 #include "board/fcu.hpp"
 #include "boot.hpp"
 #include "io.hpp"
 #include "network.hpp"
-#include "rtos/port/cm33/cycle_counter.hpp"
 #include "system.hpp"
 #include "task_monitor.hpp"
 
 fcu::Kernel kernel;
-RTOS_CM33_BIND_KERNEL(kernel)
+RTOS_BOARD_BIND_KERNEL(kernel)
 fcu::Registers registers;
 fcu::Journal journal;
 
 namespace {
 
-namespace cm33 = rtos::port::cm33;
 using fcu::Kernel;
 
 // ---- console: the journal to USART3 ------------------------------------------------------------
@@ -95,7 +94,7 @@ void io_main(void*) {
 int main() {
     fcu::boot::read_reset_cause();
     board::init();
-    cm33::CycleCounter::enable();
+    board::CycleCounter::enable();
     fcu::Port::configure(board::sysclk_hz, 1000);
     rtos::log::set_sink(journal.sink([]() noexcept { return kernel.now(); }));
     std::ranges::fill(log_stack, fcu::task_monitor::paint);

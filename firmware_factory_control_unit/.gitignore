@@ -1,6 +1,4 @@
 build
-mx.scratch
-!.settings
 
 # Generierter Code (s. docs/build-process.md) -- wird von den builder/-Phasen erzeugt, nicht
 # eingecheckt. Quelle der Wahrheit ist jeweils das Board-Archiv unter stm32_boards/<id>/generated/.

@@ -7,10 +7,8 @@
 
 #include "boot.hpp"
 #include "hardware.hpp"
-#include "rtos/port/stm32h5/cache.hpp"
 #include "network.hpp"
 #include "rtos/devices/tmc2209.hpp"
-#include "rtos/port/cm33/port.hpp"
 #include "roarm/roarm.hpp"
 #include "system.hpp"
 #include "terminal.hpp"
@@ -20,12 +18,11 @@
 namespace fcu::io {
 namespace {
 
-namespace h5 = rtos::port::stm32h5;
+namespace chip = board::chip;
 namespace dev = rtos::devices;
-namespace cm33 = rtos::port::cm33;
 namespace rm = register_map;
-using h5::gpio::read;
-using h5::gpio::write;
+using chip::gpio::read;
+using chip::gpio::write;
 
 // ---- the buses' interrupts (byte channels) ------------------------------------------------------
 hw::StepperUart stepper_uart;
@@ -76,7 +73,7 @@ void read_supply(std::uint32_t now) noexcept {
         rm::set_pwr_power_mw(registers, static_cast<std::uint16_t>(m->power_mw));
     } else if (++supply_failures <= 3 || supply_failures % 20 == 0) {
         RTOS_LOG_WARN("INA226: read failed (%u in a row)", supply_failures);
-        hw::I2c4::recover();
+        hw::I2cSupply::recover();
     }
 }
 
@@ -143,11 +140,11 @@ void cpu_temperature() noexcept {
 
 std::uint32_t can_rx = 0;
 void can() noexcept {
-    h5::CanFrame f;
+    chip::CanFrame f;
     while (hw::Can::receive(f)) {
         ++can_rx;
     }
-    const h5::CanStatus s = hw::Can::status();
+    const chip::CanStatus s = hw::Can::status();
     rm::set_can_rx_count(registers, can_rx);
     rm::set_can_error_count(registers, std::uint32_t{s.tx_errors} + s.rx_errors);
     rm::set_can_last_error(registers, s.last_error);
@@ -175,10 +172,10 @@ void inputs() noexcept {
     if constexpr (pins::rev1) {
         rm::set_lightbarrier3(registers, !read(*pins::light_barrier3) || barrier_interrupted[2].exchange(false) ? 1 : 0);
     }
-    rm::set_pressure_raw(registers, hw::Pressure::read());  // continuous conversion
+    rm::set_pressure_raw(registers, hw::pressure_raw());  // continuous conversion
 }
 
-// ---- steppers: TMC2209 on UART5, steps by TIM2 (1) and TIM3 (2) with GPDMA ----------------------------
+// ---- steppers: TMC2209 on UART5, steps by TIM2 (1) and TIM3 (2) with DMA ----------------------------
 RTOS_DMA_BUFFER hw::Stepper1 stepper1;  // the period buffers are DMA sources
 RTOS_DMA_BUFFER hw::Stepper2 stepper2;
 dev::Tmc2209<hw::StepperUart, KernelClock> tmc[2]{{stepper_uart, 0b10}, {stepper_uart, 0b00}};
@@ -187,7 +184,7 @@ bool homed[2] = {};  ///< the position is referenced: the last homing found the 
 std::atomic<bool> diag_stall[2] = {};  ///< DIAG rose (EXTI), taken by homing()
 
 template <class Stepper>
-void move(Stepper& s, rtos::port::stm32h5::gpio::Pin dir, std::int32_t steps) noexcept {
+void move(Stepper& s, pins::Pin dir, std::int32_t steps) noexcept {
     write(dir, steps > 0);
     (void)s.start(steps);
 }
@@ -360,23 +357,19 @@ void pneumatics_broadcast(std::uint32_t now) noexcept {
     }
 }
 
-void enable_irq(unsigned irq, std::uint8_t priority) noexcept {
-    cm33::nvic::ipr(irq) = static_cast<std::uint8_t>(priority << (8 - RTOS_CM33_PRIO_BITS));
-    cm33::nvic::enable(irq);
-}
-
 }  // namespace
 
 void setup(bool supply_up) noexcept {
-    h5::gpio::configure<pins::io_pins>();
+    hw::close_analog_switches();
+    chip::gpio::configure<pins::io_pins>();
     hw::I2c1::init();
-    hw::I2c2::init();
+    hw::I2cTof2::init();
     hw::enable_i2c_irqs<hw::I2c1>();
-    hw::enable_i2c_irqs<hw::I2c2>();
+    hw::enable_i2c_irqs<hw::I2cTof2>();
     // the scans first: the sensors' own probing (NACKs) must not colour them
     scan<hw::I2c1>(1, scans[0]);
-    scan<hw::I2c2>(2, scans[1]);
-    scan<hw::I2c4>(4, scans[2]);
+    scan<hw::I2cTof2>(hw::i2c_tof2_bus, scans[1]);
+    scan<hw::I2cSupply>(hw::i2c_supply_bus, scans[2]);
 
     supply_present = hw::Supply::probe() && hw::Supply::init() && hw::Supply::enable_conversion_ready_alert();
     hw::SupplyAlert::init();
@@ -471,7 +464,7 @@ void setup(bool supply_up) noexcept {
     hw::LedTimer::configure_pwm<2>();
     hw::LedTimer::enable_compare_dma<1>();
     hw::LedTimer::enable_update_dma();
-    hw::LedTimer::configure_dma_burst(0x38, 1, 1);  // DMAR -> CCR2 at each update
+    hw::configure_led_burst();  // DMAR -> CCR2 at each update
     hw::LedTimer::start();
     hw::LedStripDma::init();
     hw::LedSingleDma::init();
@@ -515,9 +508,7 @@ void cycle(std::uint32_t now) noexcept {
     pneumatics_broadcast(now);
 }
 
-std::span<const std::uint8_t, 16> i2c_scan(unsigned bus) noexcept {
-    return scans[bus == 1 ? 0 : (bus == 2 ? 1 : 2)];
-}
+std::span<const std::uint8_t, 16> i2c_scan(I2cBus bus) noexcept { return scans[static_cast<std::size_t>(bus)]; }
 
 }  // namespace fcu::io
 
@@ -532,7 +523,8 @@ void stall_from_isr(std::size_t i) noexcept {
     }
 }
 
-/// The EXTI interrupt `Irq` (EXTI0..15 = 11..26): the lines of this revision that use it.
+/// The EXTI interrupt `Irq`: the lines of this revision that use it (STM32H563: one interrupt per
+/// line, EXTI0..15 = 11..26; STM32H743: EXTI0..4 = 6..10, lines 5-9 share 23, lines 10-15 40).
 template <unsigned Irq>
 void exti_irq() noexcept {
     if constexpr (hw::ScaleReady::irq == Irq) {
@@ -567,6 +559,15 @@ void exti_irq() noexcept {
 }  // namespace
 }  // namespace fcu::io
 
+#if RTOS_FCU_REVISION == 3
+extern "C" void EXTI0_IRQHandler() noexcept { fcu::io::exti_irq<6>(); }
+extern "C" void EXTI1_IRQHandler() noexcept { fcu::io::exti_irq<7>(); }
+extern "C" void EXTI2_IRQHandler() noexcept { fcu::io::exti_irq<8>(); }
+extern "C" void EXTI3_IRQHandler() noexcept { fcu::io::exti_irq<9>(); }
+extern "C" void EXTI4_IRQHandler() noexcept { fcu::io::exti_irq<10>(); }
+extern "C" void EXTI9_5_IRQHandler() noexcept { fcu::io::exti_irq<23>(); }
+extern "C" void EXTI15_10_IRQHandler() noexcept { fcu::io::exti_irq<40>(); }
+#else
 extern "C" void EXTI0_IRQHandler() noexcept { fcu::io::exti_irq<11>(); }
 extern "C" void EXTI2_IRQHandler() noexcept { fcu::io::exti_irq<13>(); }
 extern "C" void EXTI4_IRQHandler() noexcept { fcu::io::exti_irq<15>(); }
@@ -574,6 +575,7 @@ extern "C" void EXTI6_IRQHandler() noexcept { fcu::io::exti_irq<17>(); }
 extern "C" void EXTI7_IRQHandler() noexcept { fcu::io::exti_irq<18>(); }
 extern "C" void EXTI8_IRQHandler() noexcept { fcu::io::exti_irq<19>(); }
 extern "C" void EXTI9_IRQHandler() noexcept { fcu::io::exti_irq<20>(); }
+#endif
 
 /// HX711: the SPI's end of transfer - the reading that the DOUT edge started.
 extern "C" void SPI2_IRQHandler() noexcept {
@@ -584,11 +586,20 @@ extern "C" void SPI2_IRQHandler() noexcept {
 
 extern "C" void I2C1_EV_IRQHandler() noexcept { fcu::hw::I2c1::on_event_irq(); }
 extern "C" void I2C1_ER_IRQHandler() noexcept { fcu::hw::I2c1::on_error_irq(); }
-extern "C" void I2C2_EV_IRQHandler() noexcept { fcu::hw::I2c2::on_event_irq(); }
-extern "C" void I2C2_ER_IRQHandler() noexcept { fcu::hw::I2c2::on_error_irq(); }
-extern "C" void I2C4_EV_IRQHandler() noexcept { fcu::hw::I2c4::on_event_irq(); }
-extern "C" void I2C4_ER_IRQHandler() noexcept { fcu::hw::I2c4::on_error_irq(); }
+#if RTOS_FCU_REVISION == 3
+extern "C" void I2C3_EV_IRQHandler() noexcept { fcu::hw::I2cSupply::on_event_irq(); }
+extern "C" void I2C3_ER_IRQHandler() noexcept { fcu::hw::I2cSupply::on_error_irq(); }
+extern "C" void I2C4_EV_IRQHandler() noexcept { fcu::hw::I2cTof2::on_event_irq(); }
+extern "C" void I2C4_ER_IRQHandler() noexcept { fcu::hw::I2cTof2::on_error_irq(); }
+extern "C" void DMA1_Stream2_IRQHandler() noexcept { fcu::io::stepper1.on_dma_irq(); }
+extern "C" void DMA1_Stream3_IRQHandler() noexcept { fcu::io::stepper2.on_dma_irq(); }
+#else
+extern "C" void I2C2_EV_IRQHandler() noexcept { fcu::hw::I2cTof2::on_event_irq(); }
+extern "C" void I2C2_ER_IRQHandler() noexcept { fcu::hw::I2cTof2::on_error_irq(); }
+extern "C" void I2C4_EV_IRQHandler() noexcept { fcu::hw::I2cSupply::on_event_irq(); }
+extern "C" void I2C4_ER_IRQHandler() noexcept { fcu::hw::I2cSupply::on_error_irq(); }
 extern "C" void GPDMA1_CH4_IRQHandler() noexcept { fcu::io::stepper1.on_dma_irq(); }
 extern "C" void GPDMA1_CH5_IRQHandler() noexcept { fcu::io::stepper2.on_dma_irq(); }
+#endif
 extern "C" void TIM2_IRQHandler() noexcept { (void)fcu::io::stepper1.on_timer_irq(); }
 extern "C" void TIM3_IRQHandler() noexcept { (void)fcu::io::stepper2.on_timer_irq(); }

@@ -6,15 +6,24 @@
 
 #include "board/fcu.hpp"
 #include "rtos/log/log.hpp"
+#if RTOS_FCU_REVISION == 3
+#include "rtos/port/stm32h7/flash_program.hpp"
+#else
 #include "rtos/port/stm32h5/flash_program.hpp"
+#endif
 #include "rtos/storage/littlefs.hpp"
 #include "ws_protocol.hh"
 
 namespace fcu::roarm::missions {
 namespace {
 
-namespace h5 = rtos::port::stm32h5;
-using MissionFlash = h5::flash::Region<0x081C'0000, 256 * 1024, board::sysclk_hz>;
+#if RTOS_FCU_REVISION == 3
+// STM32H743: the whole bank 2, 1 MB in 8 sectors of 128 KB (FLASH_DATA_START 0x08100000)
+using MissionFlash = rtos::port::stm32h7::flash::Region<0x0810'0000, 1024 * 1024, board::sysclk_hz>;
+#else
+// STM32H563: the last 256 KB of bank 2, 32 sectors of 8 KB (FLASH_DATA_START 0x081C0000)
+using MissionFlash = rtos::port::stm32h5::flash::Region<0x081C'0000, 256 * 1024, board::sysclk_hz>;
+#endif
 MissionFlash flash;
 rtos::storage::LittleFs<MissionFlash> fs{flash};
 using File = rtos::storage::LittleFs<MissionFlash>::File;

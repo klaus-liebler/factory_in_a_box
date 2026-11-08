@@ -9,7 +9,6 @@
 #include "device_ids.hh"
 #include "gitconstants.hh"
 #include "hardware.hpp"
-#include "rtos/port/cm33/port.hpp"
 #include "rtos/sync/message_queue.hpp"
 #include "rtos/terminal/terminal.hpp"
 #include "system.hpp"
@@ -19,10 +18,10 @@
 namespace fcu::terminal {
 namespace {
 
-namespace h5 = rtos::port::stm32h5;
+namespace gpio = board::chip::gpio;
 namespace rm = register_map;
-using h5::gpio::GpioPort;
-using h5::gpio::Pin;
+using gpio::GpioPort;
+using gpio::Pin;
 
 namespace ws = WsProtocol::terminal;
 namespace cat = terminal_catalog;
@@ -38,8 +37,8 @@ using Handler = rtos::terminal::Handler<cat::Command, Out>;
 
 // ---- helpers --------------------------------------------------------------------------------------
 using rtos::terminal::number;
-using h5::gpio::parse_pin;
-using h5::gpio::port_letter;
+using gpio::parse_pin;
+using gpio::port_letter;
 constexpr auto parse_level = rtos::terminal::level;
 
 // ---- named inputs and outputs ------------------------------------------------------------------------
@@ -57,12 +56,12 @@ std::span<const NamedPin> inputs() {
         NamedPin{"usb_vsense", pins::usb_vsense, false},        NamedPin{"current_alert", pins::current_alert, true},
         NamedPin{"hx711_dout", pins::hx711_dout, false},
     };
-    // light_barrier3 exists on revision 1 only, power_good on revision 2 only (pins.hpp: std::optional)
+    // light_barrier3 exists on revision 1 only, power_good on revisions 2/3 (pins.hpp: std::optional)
     static constexpr auto all = [] {
         std::array<NamedPin, common.size() + 1> a{};
         for (std::size_t i = 0; i < common.size(); ++i) a[i] = common[i];
         if (pins::light_barrier3) a[common.size()] = {"light_barrier3", *pins::light_barrier3, true};
-        if (pins::power_good) a[common.size()] = {"power_good", *pins::power_good, true};
+        if (pins::power_good) a[common.size()] = {"power_good", *pins::power_good, pins::power_good_active_low};
         return a;
     }();
     return all;
@@ -99,7 +98,7 @@ bool cmd_in(Args a, Out& o) {
     bool found = false;
     for (const NamedPin& p : inputs()) {
         if (a.empty() || a[0] == p.name) {
-            const bool level = h5::gpio::read(p.pin);
+            const bool level = gpio::read(p.pin);
             o.line("%-15s P%c%-2u %s%s", p.name.data(), port_letter(p.pin), p.pin.number, level ? "high" : "low",
                    level != p.active_low ? "  (active)" : "");
             found = true;
@@ -144,16 +143,16 @@ bool cmd_gpio(Args a, Out& o) {
     if (a.size() == 2) {
         const auto level = parse_level(a[1]);
         if (!level) return false;
-        h5::gpio::write(*pin, *level);
+        gpio::write(*pin, *level);
         o.line("P%c%u <- %s (an output pin of the I/O cycle is overwritten by it within 50 ms)", port_letter(*pin),
                pin->number, *level ? "high" : "low");
     }
-    o.line("P%c%u = %s", port_letter(*pin), pin->number, h5::gpio::read(*pin) ? "high" : "low");
+    o.line("P%c%u = %s", port_letter(*pin), pin->number, gpio::read(*pin) ? "high" : "low");
     return true;
 }
 
 bool cmd_adc(Args, Out& o) {
-    o.line("pressure sensor (ADC1 INP18): %u of 4095", hw::Pressure::read());
+    o.line("pressure sensor (ADC1 INP18): %u of 4095", hw::pressure_raw());
     return true;
 }
 
@@ -198,8 +197,8 @@ bool cmd_i2c(Args a, Out& o) {
     if (!bus) return false;
     switch (*bus) {
         case 1: scan<hw::I2c1>(1, o); return true;
-        case 2: scan<hw::I2c2>(2, o); return true;
-        case 4: scan<hw::I2c4>(4, o); return true;
+        case hw::i2c_tof2_bus: scan<hw::I2cTof2>(hw::i2c_tof2_bus, o); return true;
+        case hw::i2c_supply_bus: scan<hw::I2cSupply>(hw::i2c_supply_bus, o); return true;
         default: return false;
     }
 }
@@ -288,7 +287,7 @@ void lookup(cat::Lookup l, Out& o) {
     switch (l) {  // no default: -Wswitch reports a lookup without an answer
         case cat::Lookup::inputs:
             for (const NamedPin& p : inputs()) {
-                const bool level = h5::gpio::read(p.pin);
+                const bool level = gpio::read(p.pin);
                 o.line("%s\tP%c%u %s%s", p.name.data(), port_letter(p.pin), p.pin.number, level ? "high" : "low",
                        level != p.active_low ? " (active)" : "");
             }
@@ -301,9 +300,9 @@ void lookup(cat::Lookup l, Out& o) {
             }
             return;
         case cat::Lookup::pins:
-            for (const auto& [port, number] : h5::gpio::package_pins) {
+            for (const auto& [port, number] : gpio::package_pins) {
                 const Pin p{port, number};
-                o.line("P%c%u\t%s", port_letter(p), p.number, h5::gpio::read(p) ? "high" : "low");
+                o.line("P%c%u\t%s", port_letter(p), p.number, gpio::read(p) ? "high" : "low");
             }
             return;
     }

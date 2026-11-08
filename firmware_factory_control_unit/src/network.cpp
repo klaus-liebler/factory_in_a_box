@@ -27,13 +27,10 @@
 #include "rtos/opcua/clock.hpp"
 #include "rtos/opcua/ns0_base.hpp"
 #include "rtos/opcua/registers.hpp"
-#if FCU_USB_DEVICE
-#include "rtos/port/stm32h5/usb_device.hpp"
 #include "rtos/usb/cdc_acm.hpp"
 #include "rtos/usb/cdc_ncm.hpp"
 #include "rtos/usb/descriptors.hpp"
 #include "rtos/usb/device.hpp"
-#endif
 #include "task_monitor.hpp"
 #include "web.hpp"
 
@@ -83,7 +80,6 @@ RTOS_DMA_BUFFER Ethernet ethernet{packet_pool, mac(DEVICE_ETH_MAC), board::phy_a
 Stack stack{packet_pool};
 constexpr rn::InterfaceId eth_if = 0;  // first attach(): unconfigured until DHCP
 
-#if FCU_USB_DEVICE
 // ---- USB: CDC-NCM (interfaces 0, 1) + CDC-ACM for Modbus RTU (interfaces 2, 3) -----------------
 namespace usb = rtos::usb;
 // The PC's NIC gets DEVICE_USB_NCM_MAC (iMACAddress); this end uses the same address with the
@@ -102,7 +98,7 @@ constexpr std::array<std::string_view, 6> usb_strings{
     DEVICE_USB_NCM_MAC_STRING, "FactoryControl Modbus RTU"};
 constexpr usb::DeviceDescriptors usb_descriptors{usb_device_descriptor, usb_configuration, usb_strings};
 
-using UsbController = rtos::port::stm32h5::UsbDrdFs<>;
+using UsbController = board::UsbDevice;
 UsbController usb_fs;
 RTOS_DMA_BUFFER usb::CdcNcm<Pool> ncm{ncm_info, packet_pool, usb_device_mac};
 usb::CdcAcm<> acm{acm_info};
@@ -113,7 +109,6 @@ constexpr rn::Ipv4Config usb_address{.address = rn::Ipv4Address::from(192, 168, 
                                      .netmask = rn::Ipv4Address::from(255, 255, 255, 0)};
 rn::DhcpServer<Stack> usb_dhcp{stack, 1, {.first = rn::Ipv4Address::from(192, 168, 173, 2), .count = 1}};
 rtos::modbus::RtuService<usb::CdcAcm<>, Stack> modbus_rtu{acm, stack, registers, 1, 5};
-#endif
 
 // ---- name services, time ------------------------------------------------------------------------
 rn::MdnsResponder<Stack> mdns{stack, DEVICE_HOSTNAME};
@@ -225,20 +220,14 @@ struct LinkTasks {
         }
         if (const bool v = pins::gpio::read(pins::usb_vsense); v != vbus) {
             vbus = v;
-#if FCU_USB_DEVICE
             if (v) {
                 usb_device.connect();
             } else {
                 usb_device.disconnect();
             }
             RTOS_LOG_INFO("usb: VBUS %s", v ? "present, connected" : "gone, disconnected");
-#else
-            RTOS_LOG_INFO("usb: VBUS %s (no USB device on this revision yet)", v ? "present" : "gone");
-#endif
         }
-#if FCU_USB_DEVICE
         usb_configured = usb_device.state() == usb::DeviceState::Configured;
-#endif
         if (sntp.synchronized() && !synced) {
             synced = true;
             RTOS_LOG_INFO("net: sntp synchronized");
@@ -265,17 +254,13 @@ void net_main(void*) {
     board::Rng::init();
     [[maybe_unused]] const rn::InterfaceId e = stack.attach(ethernet);
     contract_assert(e == eth_if);
-#if FCU_USB_DEVICE
     [[maybe_unused]] const rn::InterfaceId u = stack.attach(ncm, usb_address);
     contract_assert(u == 1);
-#endif
     stack.set_random([](void*) noexcept { return board::Rng::next(); }, nullptr);
 
-#if FCU_USB_DEVICE
-    rtos::port::stm32h5::UsbHardware::enable_clocks();
+    board::init_usb();
     usb_fs.start();
     enable_irq(UsbController::irq, irq_priority_net);
-#endif
     enable_irq(Ethernet::irq_number, irq_priority_net);
 
     if (!rn::TlsServerContext::initialize_library(
@@ -301,9 +286,7 @@ void net_main(void*) {
 
     mdns.start(rn::InterfaceSet::all(), &on_mdns_renamed);
     dhcp.start();
-#if FCU_USB_DEVICE
     usb_dhcp.start();
-#endif
     sntp.start();
     server.start(443);
     if (!modbus_tcp.start()) {
@@ -315,14 +298,10 @@ void net_main(void*) {
     outbox.set_wake([](void*) noexcept { kernel.notify(net_tcb, slot_wake, 1, rtos::NotifyAction::SetBits); },
                     nullptr);
 
-#if FCU_USB_DEVICE
     runtime.add(usb_device, "usb");  // first: drains the controller's events
-#endif
     runtime.add(link_tasks, "link");
     runtime.add(dhcp, "dhcp");
-#if FCU_USB_DEVICE
     runtime.add(usb_dhcp, "usb-dhcp");
-#endif
     runtime.add(dns, "dns");
     runtime.add(mdns, "mdns");
     runtime.add(sntp, "sntp");
@@ -330,9 +309,7 @@ void net_main(void*) {
     runtime.add(outbox, "ws-outbox");
     runtime.add(web::log_mirror(), "log-mirror");
     runtime.add(modbus_tcp, "modbus");
-#if FCU_USB_DEVICE
     runtime.add(modbus_rtu, "modbus-rtu");
-#endif
     runtime.add(opcua, "opcua");
     runtime.set_cycle_counter([]() noexcept { return board::CycleCounter::now(); });
     RTOS_LOG_INFO("net: https://%s.local/, opc.tcp://%s.local:4840, modbus tcp 502", DEVICE_HOSTNAME, DEVICE_HOSTNAME);
@@ -403,9 +380,7 @@ extern "C" void ETH_IRQHandler() noexcept {
     }
 }
 
-#if FCU_USB_DEVICE
-extern "C" void USB_DRD_FS_IRQHandler() noexcept {
+extern "C" void RTOS_BOARD_USB_IRQ_HANDLER() noexcept {
     fcu::net::usb_fs.on_irq();
     kernel.notify_from_isr(fcu::net::net_tcb, fcu::net::slot_wake, 1, rtos::NotifyAction::SetBits);
 }
-#endif

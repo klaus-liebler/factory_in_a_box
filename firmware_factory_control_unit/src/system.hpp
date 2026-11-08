@@ -20,14 +20,6 @@
 #include "rtos/modbus/register_bank.hpp"
 #include "rtos/rtos.hpp"
 
-/// The USB device (CDC-NCM + CDC-ACM for Modbus RTU): the STM32H563's USB DRD on revisions 1/2.
-/// Revision 3 (STM32H743 USB OTG_FS) has no rtoos driver yet: no USB there for now.
-#if RTOS_FCU_REVISION == 3
-#define FCU_USB_DEVICE 0
-#else
-#define FCU_USB_DEVICE 1
-#endif
-
 namespace fcu {
 
 struct KernelConfig : rtos::DefaultConfig {

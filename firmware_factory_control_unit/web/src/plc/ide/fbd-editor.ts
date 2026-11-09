@@ -6,6 +6,7 @@
 import { LitElement, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { BOXES, catalog, networkTypes, newId, pinKey, pinsOf, type FbdNetwork, type FbdNode, type BoxCatalog, type FbdPou, type FbdProblem, type NetworkTypes, type PinRef, type TypeClass } from "./fbd.ts";
+import { evalBox, parseLive } from "./fbd-live.ts";
 
 const BOX_W = 112;
 const HEAD = 22;
@@ -298,16 +299,32 @@ export class FbdEditor extends LitElement {
 			${p.inputs.map((name) => pin(name, "in"))}
 			${p.outputs.map((name) => pin(name, "out"))}
 			${d?.kind === "fb" ? p.outputs.map((name, i) => value(`${n.instance}.${name}`, n.x + w + 8, n.y + HEAD + 8 + i * PIN_DY, "start")) : nothing}
+			${d && d.kind !== "fb" && this.lookup ? p.outputs.map((name) => {
+				// one output: above the box's right edge (right of it the wire leaves - a label there would cover it)
+				const v = this.sourceValue(net, { node: n.id, pin: name });
+				return v === null ? nothing : svg`<text class="fbd-value fbd-value-calc" x=${n.x + w} y=${n.y - 5} text-anchor="end"><title>berechnet aus den Werten der Eingänge</title>${v}</text>`;
+			}) : nothing}
 		</g>`;
 	}
 
-	/** The variable a source pin carries (for its online value): an input variable's expression, an instance output. */
-	private sourceExpr(net: FbdNetwork, from: PinRef): string | null {
+	/** The online value a source pin carries: an input variable's value (or the constant itself), an
+	 *  instance output (read), an operator's or function's output (computed from its inputs, fbd-live.ts). */
+	private sourceValue(net: FbdNetwork, from: PinRef, seen = new Set<string>()): string | null {
+		if (!this.lookup) return null;
 		const n = net.nodes.find((x) => x.id === from.node);
-		if (!n) return null;
-		if (n.kind === "input") return n.expr;
-		if (n.kind === "box" && this.cat(n.type)?.kind === "fb") return `${n.instance}.${from.pin}`;
-		return null;
+		if (!n || n.kind === "output") return null;
+		if (n.kind === "input") return this.lookup(n.expr) ?? (parseLive(n.expr) ? n.expr.trim() : null);
+		const d = this.cat(n.type);
+		if (!d) return null;
+		if (d.kind === "fb") return this.lookup(`${n.instance}.${from.pin}`);
+		if (seen.has(n.id)) return null;  // a loop of operators (an error of the network anyway)
+		seen.add(n.id);
+		const inputs = d.inputs.map((pin) => {
+			const w = net.wires.find((x) => x.to.node === n.id && x.to.pin === pin);
+			return w ? this.sourceValue(net, w.from, seen) : null;
+		});
+		seen.delete(n.id);
+		return evalBox(d, inputs);
 	}
 
 	private renderNetwork(net: FbdNetwork, index: number) {
@@ -333,8 +350,7 @@ export class FbdEditor extends LitElement {
 					${net.wires.map((w, i) => {
 						const a = byId.get(w.from.node), b = byId.get(w.to.node);
 						if (!a || !b) return nothing;
-						const src = this.sourceExpr(net, w.from);
-						const v = src ? this.lookup?.(src) : null;
+						const v = this.sourceValue(net, w.from);
 						const on = v === "TRUE";
 						const selected = this.sel && "wire" in this.sel && this.sel.net === net.id && this.sel.wire === i;
 						const t = types.pins.get(pinKey(w.from.node, "out", w.from.pin)) ?? "any";

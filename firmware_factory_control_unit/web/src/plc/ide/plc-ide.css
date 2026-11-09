@@ -1570,3 +1570,9 @@ plc-st-editor {
 .ide-xref input {
 	min-width: 260px;
 }
+
+/* ---- P5: computed values of operator outputs (not read from a variable) ---- */
+.fbd-value.fbd-value-calc {
+	font-style: italic;
+	opacity: 0.85;
+}

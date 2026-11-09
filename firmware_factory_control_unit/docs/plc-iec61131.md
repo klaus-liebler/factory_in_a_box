@@ -956,8 +956,14 @@ Open: breakpoints on boxes and steps (debug mapping).
   time.
 
 Tested: both lowerings compile and run in the VM (the FBD sorting example counts and stops at 10; the
-SFC example through both alternatives, the parallel split and join, N/S/R/P and the jump). Open: their
-own debug mapping (breakpoints on boxes and steps), live wire values for operator outputs.
+SFC example through both alternatives, the parallel split and join, N/S/R/P and the jump). Live
+values of operator outputs (`ide/fbd-live.ts`): the lowering inlines operators, so no variable holds
+them; the editor computes them from the online values of the box's inputs (variables, constants,
+instance outputs, other operators) and shows them in italics above the box, a TRUE wire from an
+operator is drawn thick red like any other. A display aid: the inputs are the values after the
+cycle, integer results are not wrapped to the type's width, a / 0 and user functions show nothing.
+Tested against the VM: a network of 19 operators (INT, REAL, TIME, BOOL) over several input sets
+gives the same values as the VM computed. Postponed (2026-11-09): breakpoints on boxes and steps.
 
 ## 14. Decisions from the review and postponed points
 

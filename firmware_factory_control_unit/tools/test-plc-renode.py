@@ -319,13 +319,26 @@ PROJECT = json.dumps({"format": 1, "name": "Renode",
                      ensure_ascii=False).encode()
 
 
+read_generation = 0x8000
+
+
 def read_var(ws, name, fmt):
-    addr = meta["symbols"][name]
-    r = ws.call(PLC, 9, struct.pack("<IH", addr, struct.calcsize(fmt)), 10)
-    ok, address, count = struct.unpack_from("<BIH", r, 0)
+    """A variable's value, as the IDE gets it: a watch subscription of it, its first WatchValues, then none."""
+    global read_generation
+    read_generation = (read_generation + 1) & 0xFFFF
+    gen = read_generation
+    ok, _ = watch(ws, gen, [(meta["symbols"][name], struct.calcsize(fmt))])
     if not ok:
         return None
-    return struct.unpack_from(fmt, r, 7)[0]
+    value = None
+    end = time.monotonic() + 3
+    while value is None and time.monotonic() < end:
+        for g, _, _, data in watch_frames(ws, 0.15):
+            if g == gen and len(data) == struct.calcsize(fmt):
+                value = struct.unpack(fmt, data)[0]
+                break
+    watch(ws, gen, [])
+    return value
 
 
 def download(ws, image=image):

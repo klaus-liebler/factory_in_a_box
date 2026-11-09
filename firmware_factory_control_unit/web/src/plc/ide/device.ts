@@ -208,9 +208,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private busy = false;
 	// ---- watch subscription: the variables the IDE showed since the last poll are subscribed; the FCU
-	// pushes their values (WatchValues) after its cycles, at most 10 Hz. "poll": the firmware does not
-	// know WatchRequest (older) - read the data segment as before.
-	private watchMode: "push" | "poll" = "push";
+	// pushes their values (WatchValues) after its cycles, at most 10 Hz.
 	private touched = new Map<number, number>();
 	private watched: { addresses: number[]; lengths: number[]; key: string } | null = null;
 	private generation = Math.floor(Math.random() * 0xffff);
@@ -243,14 +241,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	}
 
 	activate(): void {
-		if (!this.unlisten) {
-			try {
-				this.unlisten = registerWsProtocolListener(plc.NAMESPACE_ID, { onWsMessage: (type, view) => this.onPush(type, view) });
-			} catch {
-				this.unlisten = null;  // another listener (not expected): values by polling
-				this.watchMode = "poll";
-			}
-		}
+		this.unlisten ??= registerWsProtocolListener(plc.NAMESPACE_ID, { onWsMessage: (type, view) => this.onPush(type, view) });
 		if (this.timer === null) void this.poll();
 	}
 
@@ -280,38 +271,24 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 		this.emit();
 	}
 
-	/** Replaces the subscription (null: ends it). false: the firmware does not answer it (older one). */
-	private async subscribe(w: { addresses: number[]; lengths: number[]; key: string } | null): Promise<boolean> {
+	/** Replaces the subscription (null: ends it). */
+	private async subscribe(w: { addresses: number[]; lengths: number[]; key: string } | null): Promise<void> {
 		this.generation = (this.generation + 1) & 0xffff;
 		this.watched = w;
 		this.lastValues = Date.now();
-		try {
-			const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.WatchRequest.encode({ requestId, generation: this.generation,
-				addresses: w?.addresses ?? [], lengths: w?.lengths ?? [] }), plc.WatchResponse);
-			if (!r.ok) this.note("warn", `watch: ${r.message}`);
-			return true;
-		} catch {
-			return false;
-		}
+		const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.WatchRequest.encode({ requestId, generation: this.generation,
+			addresses: w?.addresses ?? [], lengths: w?.lengths ?? [] }), plc.WatchResponse);
+		if (!r.ok) this.note("warn", `watch: ${r.message}`);
 	}
 
-	/** Once per poll: subscribe what the IDE showed since the last one (if it changed), or poll it. */
+	/** Once per poll: subscribe what the IDE showed since the last one, if it changed. */
 	private async refreshWatch(): Promise<void> {
 		const wanted = this.debug ? watchRanges(this.touched) : null;
 		this.touched = new Map();
-		if (this.watchMode === "poll") {
-			if (this.debug) await this.readData();
-			return;
-		}
 		// no values for 2 s although subscribed: the connection was new (the device forgot us) - again
 		const silent = this.watched !== null && Date.now() - this.lastValues > 2000;
 		if ((wanted?.key ?? null) === (this.watched?.key ?? null) && !silent) return;
-		if (!(await this.subscribe(wanted))) {
-			this.watchMode = "poll";
-			this.watched = null;
-			this.note("info", "the firmware has no watch subscriptions: values by polling");
-			if (this.debug) await this.readData();
-		}
+		await this.subscribe(wanted);
 	}
 
 	private async poll(): Promise<void> {
@@ -353,16 +330,6 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	private errorAt(trap: number, code: number, pc: number): PlcError {
 		const st = this.debug ? [...this.debug.statements].filter((s) => s.pc <= pc).sort((a, b) => b.pc - a.pc)[0] : undefined;
 		return { trap: TRAP_NAMES[trap] ?? String(trap), pc, line: st ? st.span.start.line : null, file: st ? st.span.start.file : null, pou: st?.pou ?? "?", code } as PlcError;
-	}
-
-	/** The variables (not the frame areas at the end): up to 4 KB per poll. */
-	private async readData(): Promise<void> {
-		const end = Math.min(this.debug!.dataSize, 4096);
-		for (let at = 0; at < end; at += CHUNK) {
-			const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.ReadRequest.encode({ requestId, address: at, length: Math.min(CHUNK, end - at) }), plc.ReadResponse);
-			if (!r.ok) return;
-			this.data.set(r.data, r.address);
-		}
 	}
 
 	private async control(command: plc.PlcCommand, what: string): Promise<boolean> {

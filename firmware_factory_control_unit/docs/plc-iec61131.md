@@ -736,7 +736,7 @@ The web UI talks to the firmware over binary WebSockets only (project decision: 
 | `ControlRequest` | PLC thread | RUN, STOP, warm/cold reset, control source IEC/fieldbus, autostart on/off (stored in the flash slot's journal) |
 | `UploadRequest` | PLC thread | a chunk of up to 1 KB of the image into the device's RAM (offset 0 starts; the PLC must not be in RUN) |
 | `CommitRequest` | PLC thread | CRC, VM verifier, I/O bindings against the register map, then the flash slot (A/B); answered when the flash is written |
-| `ReadRequest` | network thread | up to 1 KB of the data segment (online values) |
+| `WatchRequest` | PLC thread | subscribe ranges of the data segment (online values); `WatchValues` pushed after cycles, at most 10 Hz (10.3) |
 | `WriteRequest` | PLC thread | up to 64 bytes into the data segment between two cycles (prepared values) |
 
 The chunks keep every message under the server's 1280 bytes; flash work runs in the PLC thread, so the
@@ -907,8 +907,9 @@ state at the I/O rate), sends each due one its values - read between two cycles,
 cycle end - at most every 100 ms, with the generation, the cycle counter and the state; the browser
 takes only values of its current generation. A closed WebSocket ends its subscription (an atomic mask
 the PLC thread applies before installing or sending: session ids are reused). The browser subscribes
-anew after 2 s without values (a new connection) and falls back to reading the data segment by
-polling when the firmware does not answer `WatchRequest` (an older one). Status stays polled (400 ms).
+anew after 2 s without values (a new connection). This is the only way to the values: the earlier
+`ReadRequest` (reading the data segment by polling) is gone - there is only the current firmware, no
+compatibility with older ones (its wire ids 9/10 stay reserved in `ids.txt`). Status stays polled (400 ms).
 Tested in Renode on the STM32H743: values arrive, at most every 2 cycles, generation and state echoed,
 `n` and the device's cycle counter differ by the same amount in every push (consistent), more than
 1024 bytes refused, an empty list ends the pushes, a session opened after a closed subscriber gets

@@ -133,22 +133,6 @@ public class CommitResponse
 	[BinaryMaxEncodedByteLength(120)] public string message = "";
 }
 
-/// <summary>Bytes of the program's data segment (online values, watch lists).</summary>
-[BinaryMessage(MessageKind.Request)]
-public class ReadRequest
-{
-	public uint address;
-	public ushort length;
-}
-
-[BinaryMessage(MessageKind.Response)]
-public class ReadResponse
-{
-	public bool ok;
-	public uint address;
-	[BinaryMaxItemCount(1024)] public byte[] data = System.Array.Empty<byte>();
-}
-
 /// <summary>Writes bytes into the program's data segment once, between two cycles (prepared values).</summary>
 [BinaryMessage(MessageKind.Request)]
 public class WriteRequest

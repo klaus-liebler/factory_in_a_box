@@ -790,15 +790,6 @@ void on_message(SessionId id, std::uint16_t type, const std::uint8_t* d, std::si
             .leasedByOther = lease.load() != no_session && lease.load() != id};
         std::array<std::uint8_t, ws::StatusResponse::StatusResponse_MAX_SIZE> buf{};
         send(std::span(buf).first(ws::StatusResponse::Encode(p, buf.data(), buf.size())));
-    } else if (type == ws::ReadRequest::TYPE_ID) {
-        ws::ReadRequest::Payload q{};
-        if (!ws::ReadRequest::Decode(d, len, q)) return;
-        // the values of the last cycles (a value may be read half-updated while a cycle runs)
-        const bool ok = machine.loaded() && q.length <= 1024 && std::uint64_t{q.address} + q.length <= machine.data_size();
-        const ws::ReadResponse::Payload p{.requestId = q.requestId, .ok = ok, .address = q.address,
-                                          .dataData = ok ? &data[q.address] : nullptr, .dataCount = ok ? q.length : 0u};
-        std::array<std::uint8_t, ws::ReadResponse::ReadResponse_MAX_SIZE> buf{};
-        send(std::span(buf).first(ws::ReadResponse::Encode(p, buf.data(), buf.size())));
     } else if (type == ws::ControlRequest::TYPE_ID) {
         ws::ControlRequest::Payload q{};
         if (!ws::ControlRequest::Decode(d, len, q)) return;

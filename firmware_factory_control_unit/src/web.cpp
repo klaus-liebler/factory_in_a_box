@@ -187,6 +187,7 @@ LogMirror& log_mirror() noexcept { return mirror; }
 
 void on_opened(void*, SessionId id) noexcept { RTOS_LOG_INFO("ws: client %u connected", static_cast<unsigned>(id)); }
 void on_closed(void*, SessionId id) noexcept {
+    plc::session_closed(id);  // its debug lease ends
     // a session the server reset because its TLS failed (e.g. MEMORY_E from the static pool) says so
     static std::uint32_t tls_failures = 0;
     if (const std::uint32_t f = net::server.tls_failures(); f != tls_failures) {

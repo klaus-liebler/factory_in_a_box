@@ -11,6 +11,8 @@
     "PLC_PRG.home.ErrorID": 230,
     "PLC_PRG.move.Busy": 259,
     "PLC_PRG.move.Error": 261,
-    "PLC_PRG.move.ErrorID": 262
+    "PLC_PRG.move.ErrorID": 262,
+    "ConveyorPwm": 148,
+    "TimerTick": 8
   }
 }

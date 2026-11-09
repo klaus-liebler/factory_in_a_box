@@ -43,7 +43,7 @@ describe("PLC Renode fixture", () => {
 			{ io: ioBindings(), ioMapHash: ioMapHash() });
 		if (!r.ok) throw new Error(r.diagnostics.map(formatDiagnostic).join("\n"));
 		const symbols = Object.fromEntries(["PLC_PRG.n", "PLC_PRG.tick", "PLC_PRG.lamp", "PLC_PRG.home.Busy", "PLC_PRG.home.Done", "PLC_PRG.home.Error",
-			"PLC_PRG.home.ErrorID", "PLC_PRG.move.Busy", "PLC_PRG.move.Error", "PLC_PRG.move.ErrorID"].map((p) => [p, r.debug!.resolve(p)!.addr]));
+			"PLC_PRG.home.ErrorID", "PLC_PRG.move.Busy", "PLC_PRG.move.Error", "PLC_PRG.move.ErrorID", "ConveyorPwm", "TimerTick"].map((p) => [p, r.debug!.resolve(p)!.addr]));
 		const meta = JSON.stringify({ bytes: r.image!.length, crc: crc32(r.image!), symbols }, null, 2) + "\n";
 		const files: [string, Uint8Array][] = [["test.img", r.image!], ["test.json", new TextEncoder().encode(meta)]];
 		for (const [f, bytes] of files) {

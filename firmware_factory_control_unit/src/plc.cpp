@@ -204,9 +204,40 @@ const char* state_name(ws::PlcState s) noexcept {
     return "?";
 }
 
+// ---- forcing and the debug lease (docs/plc-iec61131.md 10.3) -------------------------------------------
+/// A forced variable: its bytes go into the data segment after the inputs are read and again after
+/// the program ran - an input force beats the input image, an output force beats the program.
+struct Force {
+    std::uint32_t address = 0;
+    std::uint8_t length = 0;  ///< 0: free
+    std::array<std::uint8_t, 8> bytes{};
+};
+std::array<Force, 32> forces{};  // the PLC thread only
+std::atomic<std::uint8_t> force_count{0};
+/// The session that forces holds the lease: the others may watch, not change. Ends with the last
+/// force or when its WebSocket closes (the forces stay then, docs/plc-iec61131.md 10.3).
+constexpr SessionId no_session = net::Outbox::all_sessions;  // never a client's id
+std::atomic<SessionId> lease{no_session};
+
+void apply_forces() noexcept {
+    if (force_count.load(std::memory_order_relaxed) == 0) return;
+    const std::span<std::uint8_t> d = machine.data();
+    for (const Force& f : forces) {
+        if (f.length != 0) std::memcpy(&d[f.address], f.bytes.data(), f.length);
+    }
+}
+
+void release_forces(const char* why) noexcept {
+    if (const unsigned n = force_count.load(); n != 0) RTOS_LOG_INFO("plc: %u forced value(s) released (%s)", n, why);
+    forces = {};
+    force_count = 0;
+    lease = no_session;
+}
+
 void enter(ws::PlcState s) noexcept {
     const ws::PlcState old = state.exchange(s);
     if (old == s) return;
+    if (s != ws::PlcState::Run) release_forces(state_name(s));
     if (s != ws::PlcState::Run && iec.load()) safe_state();
     if (s == ws::PlcState::Run) max_instructions = 0;
     RTOS_LOG_INFO("plc: %s", state_name(s));
@@ -266,6 +297,7 @@ void check_store_area() noexcept {
 
 void set_source(bool to_iec) noexcept {
     if (to_iec == iec.load()) return;
+    release_forces("control source switched");
     if (to_iec) {
         iec = true;  // from now on the filter refuses external writes ...
         safe_state();  // ... and the outputs start from the safe state
@@ -287,7 +319,7 @@ const char* persist() noexcept {
 }
 
 // ---- requests from the network thread -------------------------------------------------------------------
-enum class Kind : std::uint8_t { control, upload, commit, write };
+enum class Kind : std::uint8_t { control, upload, commit, write, force, unforce };
 
 struct Request {
     SessionId session{};
@@ -337,8 +369,54 @@ const char* control(ws::PlcCommand c) noexcept {
             if (*store_problem != '\0') return store_problem;
             autostart = c == C::AutostartOn;
             return persist();
+        case C::UnforceAll:
+            release_forces("released");
+            return nullptr;
     }
     return "unknown command";
+}
+
+/// A force (the PLC thread): replaces one at the same address. nullptr: done.
+const char* force(const Request& r) noexcept {
+    if (!machine.loaded()) return "no program loaded";
+    if (r.length == 0 || r.length > 8 || std::uint64_t{r.address} + r.length > machine.data_size()) {
+        return "not a variable of the program";
+    }
+    Force* slot = nullptr;
+    for (Force& f : forces) {
+        if (f.length != 0 && f.address == r.address) slot = &f;
+    }
+    if (slot == nullptr) {
+        for (Force& f : forces) {
+            if (f.length == 0 && slot == nullptr) slot = &f;
+        }
+        if (slot == nullptr) return "too many forced values (32)";
+        ++force_count;
+    }
+    slot->address = r.address;
+    slot->length = static_cast<std::uint8_t>(r.length);
+    std::memcpy(slot->bytes.data(), r.bytes.data(), r.length);
+    lease = r.session;
+    apply_forces();  // visible at once, also in STOP
+    RTOS_LOG_WARN("plc: forced %u byte(s) at %lu (client %u)", static_cast<unsigned>(r.length),
+                  static_cast<unsigned long>(r.address), static_cast<unsigned>(r.session));
+    return nullptr;
+}
+
+const char* unforce(const Request& r) noexcept {
+    if (r.address == 0xFFFF'FFFFu) {
+        release_forces("released by the IDE");
+        return nullptr;
+    }
+    for (Force& f : forces) {
+        if (f.length != 0 && f.address == r.address) {
+            f = Force{};
+            --force_count;
+            RTOS_LOG_INFO("plc: force at %lu released", static_cast<unsigned long>(r.address));
+        }
+    }
+    if (force_count.load() == 0) lease = no_session;
+    return nullptr;
 }
 
 const char* upload(const Request& r) noexcept {
@@ -389,9 +467,14 @@ const char* commit(const Request& r) noexcept {
 void handle(const Request& r) noexcept {
     std::array<std::uint8_t, 256> buf{};  // the responses: a flag and a message of at most 120 bytes
     const auto out = [&](std::size_t n) { reply(r.session, std::span(buf).first(n)); };
+    // the debug lease: another browser that forces may be watched, not overruled (the terminal may)
+    const SessionId holder = lease.load();
+    const char* leased = !r.terminal && holder != no_session && holder != r.session
+                             ? "another browser is debugging this PLC (forced values): release them there or with 'plc unforce'"
+                             : nullptr;
     switch (r.kind) {
         case Kind::control: {
-            const char* e = control(r.command);
+            const char* e = leased ? leased : control(r.command);
             if (r.terminal) {
                 if (e != nullptr) RTOS_LOG_WARN("plc: terminal command refused: %s", e);
                 else RTOS_LOG_INFO("plc: terminal command done (%s, control source %s, autostart %s)", state_name(state.load()),
@@ -402,7 +485,7 @@ void handle(const Request& r) noexcept {
             break;
         }
         case Kind::upload: {
-            const char* e = upload(r);
+            const char* e = leased ? leased : upload(r);
             out(ws::UploadResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
             break;
         }
@@ -412,9 +495,19 @@ void handle(const Request& r) noexcept {
             break;
         }
         case Kind::write: {
-            const bool ok = machine.loaded() && r.address + r.length <= machine.data_size();
+            const bool ok = leased == nullptr && machine.loaded() && r.address + r.length <= machine.data_size();
             if (ok) std::memcpy(&machine.data()[r.address], r.bytes.data(), r.length);
             out(ws::WriteResponse::Encode({.requestId = r.request_id, .ok = ok}, buf.data(), buf.size()));
+            break;
+        }
+        case Kind::force: {
+            const char* e = leased ? leased : force(r);
+            out(ws::ForceResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            break;
+        }
+        case Kind::unforce: {
+            const char* e = leased ? leased : unforce(r);
+            out(ws::UnforceResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
             break;
         }
     }
@@ -423,6 +516,7 @@ void handle(const Request& r) noexcept {
 // ---- the thread -------------------------------------------------------------------------------------------
 void run_cycle() noexcept {
     copy_inputs();
+    apply_forces();  // forced inputs beat the input image
     const vm::RunResult r = machine.run_cycle(0, kernel.now());
     cycles.fetch_add(1, std::memory_order_relaxed);
     last_instructions = r.instructions;
@@ -436,6 +530,7 @@ void run_cycle() noexcept {
         enter(ws::PlcState::Error);
         return;
     }
+    apply_forces();  // forced outputs beat the program
     copy_outputs();
 }
 
@@ -485,7 +580,16 @@ Status status() noexcept {
     return {.state = state_name(state.load()), .iec = iec.load(), .autostart = autostart,
             .image_bytes = loaded ? image_bytes : 0, .max_image_bytes = static_cast<std::uint32_t>(image_ram.size()),
             .cycles = cycles.load(), .last_instructions = last_instructions.load(), .max_instructions = max_instructions.load(),
-            .trap = trap.load(), .trap_code = trap_code.load(), .trap_pc = trap_pc.load(), .problem = store_problem};
+            .trap = trap.load(), .trap_code = trap_code.load(), .trap_pc = trap_pc.load(), .problem = store_problem,
+            .forces = force_count.load()};
+}
+
+void session_closed(SessionId id) noexcept {
+    SessionId holder = id;
+    if (lease.compare_exchange_strong(holder, no_session)) {
+        RTOS_LOG_INFO("plc: the debug lease of client %u ended (its %u forced value(s) stay)", static_cast<unsigned>(id),
+                      static_cast<unsigned>(force_count.load()));
+    }
 }
 
 bool command(ws::PlcCommand c) noexcept { return post({.terminal = true, .kind = Kind::control, .command = c}); }
@@ -508,7 +612,8 @@ void on_message(SessionId id, std::uint16_t type, const std::uint8_t* d, std::si
             .projectHash = machine.loaded() ? machine.project_hash() : 0, .ioMapHash = machine.loaded() ? machine.io_map_hash() : 0,
             .trap = trap.load(), .trapCode = trap_code.load(), .trapPc = trap_pc.load(),
             .maxImageBytes = static_cast<std::uint32_t>(image_ram.size()), .dataBytes = static_cast<std::uint32_t>(data.size()),
-            .storeProblem = store_problem};
+            .storeProblem = store_problem, .forces = force_count.load(),
+            .leasedByOther = lease.load() != no_session && lease.load() != id};
         std::array<std::uint8_t, ws::StatusResponse::StatusResponse_MAX_SIZE> buf{};
         send(std::span(buf).first(ws::StatusResponse::Encode(p, buf.data(), buf.size())));
     } else if (type == ws::ReadRequest::TYPE_ID) {
@@ -542,6 +647,17 @@ void on_message(SessionId id, std::uint16_t type, const std::uint8_t* d, std::si
                   .length = static_cast<std::uint16_t>(q.dataCount)};
         std::memcpy(r.bytes.data(), q.dataData, q.dataCount);
         post(r);
+    } else if (type == ws::ForceRequest::TYPE_ID) {
+        ws::ForceRequest::Payload q{};
+        if (!ws::ForceRequest::Decode(d, len, q) || q.dataCount > 8) return;
+        Request r{.session = id, .request_id = q.requestId, .kind = Kind::force, .address = q.address,
+                  .length = static_cast<std::uint16_t>(q.dataCount)};
+        std::memcpy(r.bytes.data(), q.dataData, q.dataCount);
+        post(r);
+    } else if (type == ws::UnforceRequest::TYPE_ID) {
+        ws::UnforceRequest::Payload q{};
+        if (!ws::UnforceRequest::Decode(d, len, q)) return;
+        post({.session = id, .request_id = q.requestId, .kind = Kind::unforce, .address = q.address});
     }
 }
 

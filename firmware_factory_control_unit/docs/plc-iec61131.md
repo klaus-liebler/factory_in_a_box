@@ -850,6 +850,19 @@ TX DMA used up all retransmissions within 100 ms; fixed in rtoos f2c5d57). `FCU_
 untouched); `FCU_Ws2812` dropped, `FCU_Log` moved to P7 ([§5.6](#56-fcu-library)). Still open in P2: the
 hardware test on the boards.
 
+**P3 state (2026-11-09, tested on the STM32H743 only).** Forcing on the FCU: `ForceRequest` (address,
+up to 8 bytes) / `UnforceRequest` (one address, or 0xFFFFFFFF for all), 32 entries in the PLC thread,
+applied after the inputs are read and again after the program ran (an input force beats the input
+image, an output force the program). Released on STOP/ERROR/NO_PROGRAM, a control source switch, a
+reset and a download; every force is logged. Debug lease: the browser that forces holds it; the
+others get "another browser is debugging" for force, write, RUN/STOP/reset and download, and see
+`forces`/`leasedByOther` in the status. Releasing the last force or closing the WebSocket ends the
+lease - the forces stay then, the terminal's `plc unforce` releases them. The IDE forces on the FCU
+like in the simulator and shows the device's count and the lease. Renode rev 3: output and input
+forced, the lease against a second browser, the lease ending with the WebSocket, `plc unforce`, STOP.
+Open in P3: watch subscriptions (`PlcWatch`, instead of polling), breakpoints, single step, call
+stack (both VMs), the halted state in the IDE.
+
 ## 14. Decisions from the review and postponed points
 
 Review round 1 (2026-11-08):

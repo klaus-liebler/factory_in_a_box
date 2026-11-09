@@ -41,6 +41,11 @@ export class Simulator extends EventTarget implements PlcDevice {
 	iec = true;
 	autostart = false;
 	storeProblem = "";
+	/** One browser, no lease. */
+	readonly leasedByOther = false;
+	get forcedOnDevice(): number {
+		return this.forces.size;
+	}
 	attach(): void {
 		// the simulator's debug information comes with its download
 	}

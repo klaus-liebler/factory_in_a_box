@@ -63,3 +63,7 @@ message plc.PutProjectRequest 13
 message plc.PutProjectResponse 14
 message plc.GetProjectRequest 15
 message plc.GetProjectResponse 16
+message plc.ForceRequest 17
+message plc.ForceResponse 18
+message plc.UnforceRequest 19
+message plc.UnforceResponse 20

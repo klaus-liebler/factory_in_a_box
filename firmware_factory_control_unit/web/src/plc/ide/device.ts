@@ -37,6 +37,10 @@ export interface PlcDevice extends EventTarget {
 	autostart: boolean;
 	/** Why downloads are refused ("": they are not). */
 	storeProblem: string;
+	/** Another browser holds the debug lease (it forces): this one may watch, not change. */
+	leasedByOther: boolean;
+	/** Forced values on the device, any browser's (the simulator: its own). */
+	forcedOnDevice: number;
 
 	download(r: CompileResult): boolean | Promise<boolean>;
 	start(): void | Promise<void>;
@@ -71,7 +75,7 @@ const COMMIT_TIMEOUT_MS = 30_000;
 export class FcuDevice extends EventTarget implements PlcDevice {
 	readonly kind = "fcu";
 	readonly label = "FCU";
-	readonly canForce = false;
+	readonly canForce = true;
 	readonly canSingleCycle = false;
 	readonly hasPlant = false;
 	readonly hasControlSource = true;
@@ -90,6 +94,8 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	iec = false;
 	autostart = false;
 	storeProblem = "";
+	leasedByOther = false;
+	forcedOnDevice = 0;
 	private imageBytes = 0;
 	private builds: { hash: number; bytes: number; debug: DebugInfo }[] = [];
 	private timer: ReturnType<typeof setTimeout> | null = null;
@@ -145,6 +151,13 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 			this.projectHash = s.projectHash;
 			this.imageBytes = s.imageBytes;
 			this.storeProblem = s.storeProblem;
+			this.leasedByOther = s.leasedByOther;
+			this.forcedOnDevice = s.forces;
+			if (s.forces === 0 && this.forces.size > 0) {
+				// released on the device: STOP, a switch, a download, another browser or 'plc unforce'
+				this.forces.clear();
+				this.note("info", "the device released every forced value");
+			}
 			this.matchDebug();
 			this.error = this.state === "ERROR" ? this.errorAt(s.trap, s.trapCode, s.trapPc) : null;
 			if (this.debug && (this.state === "RUN" || this.state === "STOP" || this.state === "ERROR")) await this.readData();
@@ -304,10 +317,51 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 		}
 	}
 
-	force(): void {
-		this.note("warn", "forcing on the FCU comes with P3 (debugging)");
+	/** Force (v) or release (null) a variable on the device: its bytes after the inputs and after the
+	 *  program, every cycle (docs/plc-iec61131.md 10.3). Forcing takes the debug lease. */
+	force(path: string, v: Value | null): void {
+		void this.forceAsync(path, v);
 	}
+
+	private async forceAsync(path: string, v: Value | null): Promise<void> {
+		const s = this.debug?.resolve(path);
+		if (!s) {
+			this.note("error", `force ${path}: not a variable of the program on the device`);
+			return;
+		}
+		const key = path.toUpperCase();
+		try {
+			if (v === null) {
+				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.UnforceRequest.encode({ requestId, address: s.addr }), plc.UnforceResponse);
+				if (!r.ok) return this.note("error", `unforce ${path}: ${r.message}`);
+				this.forces.delete(key);
+				this.note("info", `unforce ${path}`);
+			} else {
+				const bytes = new Uint8Array(sizeOf(s.type));
+				writeValue(bytes, { addr: 0, type: s.type }, v);
+				if (bytes.length > 8) return this.note("error", `force ${path}: only scalar variables (at most 8 bytes)`);
+				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.ForceRequest.encode({ requestId, address: s.addr, data: Array.from(bytes) }), plc.ForceResponse);
+				if (!r.ok) return this.note("error", `force ${path}: ${r.message}`);
+				this.forces.set(key, v);
+				this.note("warn", `force ${path} := ${String(v)}`);
+			}
+		} catch (e) {
+			this.note("error", `force ${path}: ${(e as Error).message}`);
+		}
+		void this.poll();
+	}
+
 	unforceAll(): void {
-		// nothing is forced on the FCU yet
+		void (async () => {
+			try {
+				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.UnforceRequest.encode({ requestId, address: 0xffffffff }), plc.UnforceResponse);
+				if (!r.ok) return this.note("error", `release the forces: ${r.message}`);
+				this.forces.clear();
+				this.note("info", "every forced value released");
+			} catch (e) {
+				this.note("error", `release the forces: ${(e as Error).message}`);
+			}
+			void this.poll();
+		})();
 	}
 }

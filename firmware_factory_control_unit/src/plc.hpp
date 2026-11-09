@@ -42,12 +42,17 @@ struct Status {
     std::uint16_t trap_code;
     std::uint32_t trap_pc;
     const char* problem;  ///< why downloads and switching are refused ("": they are not)
+    std::uint8_t forces;  ///< forced values (any browser's)
 };
 [[nodiscard]] Status status() noexcept;
 
 /// Terminal (I/O thread): queue a command for the PLC thread - it may write the flash, the I/O thread
-/// does not wait for that. The PLC thread logs the result. false: the queue is full.
+/// does not wait for that. The PLC thread logs the result. false: the queue is full. The debug lease
+/// of a browser does not hold the terminal back.
 bool command(WsProtocol::plc::PlcCommand c) noexcept;
+
+/// Network thread: a WebSocket closed - its debug lease ends, its forced values stay.
+void session_closed(net::Server::SessionId id) noexcept;
 
 /// WebSocket messages of the namespace "plc" (network thread).
 void on_message(net::Server::SessionId id, std::uint16_t type, const std::uint8_t* data, std::size_t len) noexcept;

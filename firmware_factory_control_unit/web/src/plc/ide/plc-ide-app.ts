@@ -425,7 +425,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 						@change=${(e: Event) => this.dev.setAutostart((e.target as HTMLInputElement).checked)} /> Autostart</label>
 				</div>` : nothing}
 				<div class="ide-tb-group ide-tb-right">
-					<button title="Alle Force-Werte aufheben" ?disabled=${this.dev.forces.size === 0} @click=${() => this.dev.unforceAll()}>⊘ Forces (${this.dev.forces.size})</button>
+					<button title="Alle Force-Werte aufheben" ?disabled=${this.dev.forcedOnDevice === 0 || this.dev.leasedByOther} @click=${() => this.dev.unforceAll()}>⊘ Forces (${this.dev.forcedOnDevice})</button>
 				</div>
 			</div>`;
 	}
@@ -729,7 +729,8 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<span>Zyklus ${this.dev.cycleMs} ms · ${this.dev.cycles} Zyklen</span>
 				<span title="ausgeführte Befehle der VM pro Zyklus (Budget 2 000 000)">Befehle ${this.dev.lastInstructions} (max ${this.dev.maxInstructions})</span>
 				${this.stale ? html`<span class="ide-warn">⚠ Projekt ≠ Gerät</span>` : nothing}
-				${this.dev.forces.size ? html`<span class="ide-warn">${this.dev.forces.size} geforct</span>` : nothing}
+				${this.dev.forcedOnDevice ? html`<span class="ide-warn" title="geforcte Werte auf dem Gerät (aller Browser); STOP, Umschalten oder 'plc unforce' im Terminal heben sie auf">${this.dev.forcedOnDevice} geforct</span>` : nothing}
+				${this.dev.leasedByOther ? html`<span class="ide-warn" title="Ein anderer Browser forct Werte (Debug-Lease): hier nur beobachten; Aufheben dort oder mit 'plc unforce' im Terminal">🔒 anderer Browser debuggt</span>` : nothing}
 				<span class="ide-status-right">${this.dev.kind === "fcu" && this.dev.connected && this.dev.projectHash !== 0 && !this.dev.debug ? "Programm auf dem FCU stammt nicht aus diesem Browser: keine Online-Werte" : ""}</span>
 			</footer>`;
 	}

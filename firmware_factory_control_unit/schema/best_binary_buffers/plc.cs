@@ -37,6 +37,8 @@ public enum PlcCommand : byte
 	SourceIec = 6,
 	AutostartOn = 7,
 	AutostartOff = 8,
+	/// <summary>Release every forced value (and the debug lease); the terminal's `plc unforce`.</summary>
+	UnforceAll = 9,
 }
 
 [BinaryMessage(MessageKind.Request)]
@@ -69,6 +71,10 @@ public class StatusResponse
 	public uint dataBytes;
 	/// <summary>Why downloads are refused right now ("" if they are not).</summary>
 	[BinaryMaxEncodedByteLength(120)] public string storeProblem = "";
+	/// <summary>Forced values on the device (any browser's); 0 after STOP, a switch, a download.</summary>
+	public byte forces;
+	/// <summary>Another browser holds the debug lease (forcing): this one may watch, not change.</summary>
+	public bool leasedByOther;
 }
 
 [BinaryMessage(MessageKind.Request)]
@@ -182,5 +188,37 @@ public class GetProjectResponse
 	public uint totalBytes;
 	public uint offset;
 	[BinaryMaxItemCount(1024)] public byte[] data = System.Array.Empty<byte>();
+	[BinaryMaxEncodedByteLength(120)] public string message = "";
+}
+
+/// <summary>Force a variable of the program's data segment (docs/plc-iec61131.md 10.3): its bytes are
+/// written after the inputs are read and again after the program ran, every cycle, until released.
+/// Takes the debug lease: while one browser forces, the others may watch, not change. Every force is
+/// released on STOP, a switch of the control source, a reset and a download.</summary>
+[BinaryMessage(MessageKind.Request)]
+public class ForceRequest
+{
+	public uint address;
+	[BinaryMaxItemCount(8)] public byte[] data = System.Array.Empty<byte>();
+}
+
+[BinaryMessage(MessageKind.Response)]
+public class ForceResponse
+{
+	public bool ok;
+	[BinaryMaxEncodedByteLength(120)] public string message = "";
+}
+
+/// <summary>Release the force at `address`, or every force with 0xFFFFFFFF (which also ends the lease).</summary>
+[BinaryMessage(MessageKind.Request)]
+public class UnforceRequest
+{
+	public uint address;
+}
+
+[BinaryMessage(MessageKind.Response)]
+public class UnforceResponse
+{
+	public bool ok;
 	[BinaryMaxEncodedByteLength(120)] public string message = "";
 }

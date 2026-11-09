@@ -288,6 +288,7 @@ bool cmd_plc(Args a, Out& o) {
             o.line("runtime error %u (code %u) at pc %lu", s.trap, s.trap_code, static_cast<unsigned long>(s.trap_pc));
         }
         if (*s.problem != '\0') o.line("refused: %s", s.problem);
+        if (s.forces != 0) o.line("%u forced value(s) - 'plc unforce' releases them", static_cast<unsigned>(s.forces));
         return true;
     }
     using C = WsProtocol::plc::PlcCommand;
@@ -303,6 +304,7 @@ bool cmd_plc(Args a, Out& o) {
     else if (action == "source" && option == "iec") c = C::SourceIec;
     else if (action == "autostart" && option == "on") c = C::AutostartOn;
     else if (action == "autostart" && option == "off") c = C::AutostartOff;
+    else if (action == "unforce" && option.empty()) c = C::UnforceAll;
     if (!c) return false;
     if (!plc::command(*c)) {
         o.line("the PLC is busy (request queue full), try again");

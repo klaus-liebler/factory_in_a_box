@@ -157,7 +157,8 @@ public class plc
 	[Value("run", "start the program (STOP -> RUN)"), Value("stop", "stop it, outputs to the safe state"),
 	 Value("reset", "reload the program from the flash slot: warm | cold"),
 	 Value("source", "who controls the outputs: fieldbus | iec (stored)"),
-	 Value("autostart", "RUN after a restart: on | off (stored)")] public string? action;
+	 Value("autostart", "RUN after a restart: on | off (stored)"),
+	 Value("unforce", "release every forced value (also a browser's debug lease)")] public string? action;
 	/// <summary>reset: warm | cold; source: fieldbus | iec; autostart: on | off</summary>
 	[Value("warm"), Value("cold"), Value("fieldbus"), Value("iec"), Value("on"), Value("off")] public string? option;
 }

@@ -216,9 +216,21 @@ def status(ws):
     r = ws.call(PLC, 1, b"", 2)
     state, source, autostart, cycle_ms, cycles, last, mx, img, proj, iomap, trap, trap_code, trap_pc, max_img, data = \
         struct.unpack_from("<BBBHIIIIIIBHIII", r, 0)
-    problem, _ = cstr(r, struct.calcsize("<BBBHIIIIIIBHIII"))
+    problem, pos = cstr(r, struct.calcsize("<BBBHIIIIIIBHIII"))
+    forces, leased = struct.unpack_from("<BB", r, pos)
     return {"state": STATES[state], "iec": source == 1, "autostart": bool(autostart), "cycles": cycles, "image": img,
-            "trap": trap, "problem": problem, "instructions": last}
+            "trap": trap, "problem": problem, "instructions": last, "forces": forces, "leased_by_other": bool(leased)}
+
+
+def force(ws, name, value_bytes):
+    """ForceRequest 17 -> 18 for a variable of test.json's symbols."""
+    body = struct.pack("<IH", meta["symbols"][name], len(value_bytes)) + value_bytes
+    return ok_message(ws.call(PLC, 17, body, 18))
+
+
+def unforce(ws, name=None):
+    """UnforceRequest 19 -> 20; without a name every force."""
+    return ok_message(ws.call(PLC, 19, struct.pack("<I", meta["symbols"][name] if name else 0xFFFFFFFF), 20))
 
 
 def ok_message(r):
@@ -418,6 +430,37 @@ try:
     check("FCU_StepperMoveAbsolute: axis not referenced -> Error, ErrorID 1, the target untouched",
           move == [0, 1, 1] and holding(mb, STEPPER2_TARGET, 2) == [0, 0], f"Busy/Error/ErrorID {move}, target {holding(mb, STEPPER2_TARGET, 2)}")
 
+    # forcing (docs/plc-iec61131.md 10.3): an output beats the program, an input the input image
+    ok, msg = force(ws, "ConveyorPwm", struct.pack("<H", 777))
+    check("force: output ConveyorPwm := 777 (the program writes 123)", ok and until(lambda: holding(mb, CONVEYOR) == [777]), msg)
+    ok, msg = force(ws, "TimerTick", struct.pack("<H", 4242))
+    check("force: input TimerTick := 4242 reaches the program", ok and until(lambda: read_var(ws, "PLC_PRG.tick", "<H") == 4242), msg)
+    check("force: the status counts 2", status(ws)["forces"] == 2)
+    # a second browser: may watch, not change (debug lease)
+    ws2 = Ws()
+    st2 = status(ws2)
+    check("lease: the second browser sees the forces and the lease", st2["forces"] == 2 and st2["leased_by_other"], str(st2))
+    ok, msg = force(ws2, "ConveyorPwm", struct.pack("<H", 1))
+    check("lease: its force is refused", not ok and "another browser" in msg, msg)
+    ok, msg = control(ws2, "stop")
+    check("lease: its STOP is refused", not ok and "another browser" in msg, msg)
+    check("lease: the first browser holds it", not status(ws)["leased_by_other"])
+    ok, msg = unforce(ws, "ConveyorPwm")
+    check("unforce one: the program's 123 again", ok and until(lambda: holding(mb, CONVEYOR) == [123]), msg)
+    ok, msg = unforce(ws)
+    check("unforce all: none left, the lease free", ok and status(ws)["forces"] == 0 and not status(ws2)["leased_by_other"], msg)
+    # the lease ends with the WebSocket, the forces stay
+    ok, msg = force(ws2, "ConveyorPwm", struct.pack("<H", 555))
+    check("lease: the second browser forces now", ok and until(lambda: holding(mb, CONVEYOR) == [555]), msg)
+    ws2.close()
+    until(lambda: not status(ws)["leased_by_other"])
+    st = status(ws)
+    check("lease: ends with its WebSocket, the force stays", st["forces"] == 1 and not st["leased_by_other"]
+          and holding(mb, CONVEYOR) == [555], str(st))
+    ok, msg = term(ws, "plc unforce")
+    check("terminal 'plc unforce' releases it", ok and until(lambda: status(ws)["forces"] == 0)
+          and until(lambda: holding(mb, CONVEYOR) == [123]), msg)
+
     ok, msg = control(ws, "autostart_on")
     check("autostart on (journal in the flash slot)", ok, msg)
     # a software reset: the program must come back by itself - no browser, no download
@@ -442,8 +485,11 @@ try:
     data, msg = get_project(ws)
     check("project: still on the SD card after the reset", data == PROJECT, msg)
 
+    ok, msg = force(ws, "ConveyorPwm", struct.pack("<H", 321))
+    check("force before STOP", ok and status(ws)["forces"] == 1, msg)
     ok, msg = control(ws, "stop")
     check("STOP", ok, msg)
+    check("STOP releases every force", status(ws)["forces"] == 0)
     check("STOP: outputs in the safe state", holding(mb, CONVEYOR) == [0] and holding(mb, VALVE2) == [0])
     check("STOP: the 32-bit stepper target keeps its value (no new target)", holding(mb, STEPPER1_TARGET, 2) == [1, 4464])
     # the terminal command `plc`: the state directly, commands through the PLC thread (result in the log)

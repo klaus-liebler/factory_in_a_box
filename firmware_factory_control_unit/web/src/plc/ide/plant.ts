@@ -18,6 +18,8 @@ export class Plant {
 	private pressure = 0; // raw 0..4095
 	private steppers = [0, 0];
 	private homingMs = [0, 0];
+	/** Referenced axes: the device homes at its start when the motor supply is up. */
+	private homed = [true, true];
 	private missionMs = 0;
 	private elapsed = 0;
 	/** Workpieces pushed off at light barrier 2 (valve 1) and those that reached the end. */
@@ -30,6 +32,7 @@ export class Plant {
 		this.pressure = 0;
 		this.steppers = [0, 0];
 		this.homingMs = [0, 0];
+		this.homed = [true, true];
 		this.missionMs = 0;
 		this.elapsed = 0;
 		this.ejected = 0;
@@ -76,14 +79,16 @@ export class Plant {
 		this.pressure = Math.min(4095, Math.max(0, this.pressure + ((inflow - outflow) * dtMs) / 1000));
 		io.set("PressureRaw", Math.round(this.pressure));
 
-		// steppers: 2000 steps/s toward the target while enabled
-		if (bool("StepperEnable")) {
-			const targets = [num("Stepper1Target"), num("Stepper2Target")];
-			for (let i = 0; i < 2; i++) {
-				const d = targets[i] - this.steppers[i];
-				const step = Math.sign(d) * Math.min(Math.abs(d), (2000 * dtMs) / 1000);
-				this.steppers[i] = Math.round(this.steppers[i] + step);
-			}
+		// steppers: 2000 steps/s toward the target while enabled and referenced (as the firmware)
+		const enabled = bool("StepperEnable");
+		const targets = [num("Stepper1Target"), num("Stepper2Target")];
+		const moving = [false, false];
+		for (let i = 0; i < 2; i++) {
+			if (!enabled || !this.homed[i]) continue;
+			const d = targets[i] - this.steppers[i];
+			const step = Math.sign(d) * Math.min(Math.abs(d), (2000 * dtMs) / 1000);
+			this.steppers[i] = Math.round(this.steppers[i] + step);
+			moving[i] = this.steppers[i] !== targets[i];
 		}
 		// the command registers (FCU library): homing takes 1 s, then position 0 and the answer 0;
 		// a mission runs 2 s (mission 99 does not exist: -1)
@@ -94,8 +99,10 @@ export class Plant {
 				continue;
 			}
 			this.homingMs[i] += dtMs;
+			this.homed[i] = false;  // as the firmware: no longer referenced while homing
 			if (this.homingMs[i] >= 1000) {
 				this.steppers[i] = 0;
+				this.homed[i] = true;
 				io.set(cmd, 0);
 			}
 		}
@@ -106,6 +113,12 @@ export class Plant {
 			io.set("__RoArmMissionControl", -1);
 		} else if ((this.missionMs += dtMs) >= 2000) {
 			io.set("__RoArmMissionControl", 0);
+		}
+		// status: bit 0 enabled, 1 moving, 3 in position, 4 homing, 5 referenced (StepperStatus.cs)
+		for (let i = 0; i < 2; i++) {
+			const status = (enabled ? 1 : 0) | (moving[i] ? 2 : 0) | (!moving[i] && this.steppers[i] === targets[i] ? 8 : 0) |
+				(this.homingMs[i] > 0 ? 16 : 0) | (this.homed[i] ? 32 : 0);
+			io.set(`Stepper${i + 1}Status`, status);
 		}
 		io.set("Stepper1Position", this.steppers[0]);
 		io.set("Stepper2Position", this.steppers[1]);

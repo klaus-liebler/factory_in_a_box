@@ -21,15 +21,23 @@ VAR
     axis : UINT := 1;
     goMission : BOOL;
     index : INT := 1;
+    move : FCU_StepperMoveAbsolute;
+    goMove : BOOL;
+    moveAxis : UINT := 2;
+    goal : DINT;
+    speed : UINT;
 END_VAR
 home(Axis := axis, Execute := goHome);
 mission(Index := index, Execute := goMission);
+move(Axis := moveAxis, Execute := goMove, Position := goal, Velocity := speed);
 END_PROGRAM
 `;
 
-/** The program on a device: holding registers, the control source, the cycle with the copy rules. */
+/** The program on a device: holding and input registers (16-bit words), the control source, the cycle
+ *  with the copy rules of src/plc.cpp (32-bit values high word first). */
 class Device {
 	readonly holding = new Map<number, number>();
+	readonly input = new Map<number, number>();
 	iec = true;
 	private readonly vm: Vm;
 	private readonly debug: DebugInfo;
@@ -54,21 +62,43 @@ class Device {
 	reg(r: number): number {
 		return this.holding.get(r) ?? 0;
 	}
+	/** A 32-bit holding value (two registers, high word first). */
+	reg32(r: number): number {
+		return ((this.reg(r) << 16) | this.reg(r + 1)) | 0;
+	}
+	setInput32(r: number, v: number): void {
+		this.input.set(r, (v >>> 16) & 0xffff);
+		this.input.set(r + 1, v & 0xffff);
+	}
 
 	cycle(n = 1): void {
 		for (let i = 0; i < n; i++) {
-			const commands = this.vm.io.filter((b) => b.kind === IoKind.Command);
-			const before = commands.map((b) => {
-				const v = this.reg(b.reg);
-				this.dv.setUint16(b.addr, v, true);
-				return v;
-			});
+			// registers -> variables: inputs, parameters, the commands' answers
+			const before = new Map<number, number>();
+			for (const b of this.vm.io) {
+				if (b.kind === IoKind.Output) continue;
+				const table = b.area === 0 ? this.input : this.holding;
+				const w = (r: number) => table.get(r) ?? 0;
+				const v = b.bits === 32 ? ((w(b.reg) << 16) | w(b.reg + 1)) >>> 0 : w(b.reg);
+				if (b.bits === 1) this.data[b.addr] = v !== 0 ? 1 : 0;
+				else if (b.bits === 16) this.dv.setUint16(b.addr, v, true);
+				else this.dv.setUint32(b.addr, v, true);
+				if (b.kind === IoKind.Command) before.set(b.addr, v);
+			}
 			expect(this.vm.runCycle(0, (this.t += 50)).state).not.toBe("trapped");
 			if (!this.iec) continue;
-			commands.forEach((b, k) => {
-				const v = this.dv.getUint16(b.addr, true);
-				if (v !== before[k]) this.holding.set(b.reg, v);
-			});
+			// variables -> registers: every output, a command only when the program changed it
+			for (const b of this.vm.io) {
+				if (b.kind !== IoKind.Output && b.kind !== IoKind.Command) continue;
+				const v = b.bits === 1 ? this.data[b.addr] : b.bits === 16 ? this.dv.getUint16(b.addr, true) : this.dv.getUint32(b.addr, true);
+				if (b.kind === IoKind.Command && v === before.get(b.addr)) continue;
+				if (b.bits === 32) {
+					this.holding.set(b.reg, (v >>> 16) & 0xffff);
+					this.holding.set(b.reg + 1, v & 0xffff);
+				} else {
+					this.holding.set(b.reg, v);
+				}
+			}
 		}
 	}
 
@@ -156,5 +186,82 @@ describe("FCU library: command registers", () => {
 		d.holding.set(MISSION, 0xffff); // roarm: -1, not found
 		d.cycle();
 		expect(d.outputs("mission")).toEqual({ done: false, busy: false, error: true, id: 1 });
+	});
+});
+
+describe("FCU library: FCU_StepperMoveAbsolute", () => {
+	const ENABLE = 60, TARGET2 = 65, SPEED2 = 67, POSITION2 = 243, STATUS2 = 245;
+	const ENABLED = 1, MOVING = 2, IN_POSITION = 8, REFERENCED = 32;
+
+	/** Axis 2 standing referenced at `position`; the program enables the drivers (an output). */
+	function ready(position = 0): Device {
+		const d = new Device();
+		d.set("StepperEnable", true);
+		d.setInput32(POSITION2, position);
+		d.input.set(STATUS2, ENABLED | REFERENCED | IN_POSITION);  // standing at the old target
+		d.cycle();
+		expect(d.reg(ENABLE)).toBe(1);
+		return d;
+	}
+	const out = (d: Device) => ({ done: d.get("PLC_PRG.move.Done"), busy: d.get("PLC_PRG.move.Busy"),
+		aborted: d.get("PLC_PRG.move.CommandAborted"), error: d.get("PLC_PRG.move.Error"), id: d.get("PLC_PRG.move.ErrorID") });
+
+	// The status bit "in position" still describes the old target in the cycle that writes the new
+	// one: the block takes Done only from the position register reaching the goal.
+	it("writes the target (32 bits) and the speed, Done when the axis stands at the goal", () => {
+		const d = ready();
+		d.set("PLC_PRG.goal", -70000);
+		d.set("PLC_PRG.speed", 800);
+		d.set("PLC_PRG.goMove", true);
+		d.cycle();
+		expect(d.reg32(TARGET2)).toBe(-70000);
+		expect(d.reg(SPEED2)).toBe(800);
+		expect(out(d)).toMatchObject({ busy: true, done: false });
+		d.cycle(3);  // the firmware has not even started: InPosition is still set for the old target
+		expect(out(d)).toMatchObject({ busy: true, done: false });
+		d.setInput32(POSITION2, -30000);
+		d.input.set(STATUS2, ENABLED | REFERENCED | MOVING);
+		d.cycle();
+		expect(out(d)).toMatchObject({ busy: true, done: false });
+		d.setInput32(POSITION2, -70000);
+		d.input.set(STATUS2, ENABLED | REFERENCED | IN_POSITION);
+		d.cycle();
+		expect(out(d)).toEqual({ done: true, busy: false, aborted: false, error: false, id: 0 });
+	});
+
+	it("speed 0 keeps the speed register", () => {
+		const d = ready();
+		d.set("Stepper2Speed", 1234);
+		d.set("PLC_PRG.goal", 10);
+		d.set("PLC_PRG.goMove", true);
+		d.cycle();
+		expect(d.reg(SPEED2)).toBe(1234);
+	});
+
+	it("refuses an axis that is not referenced (ErrorID 1) or drivers that are off (2)", () => {
+		const d = ready();
+		d.input.set(STATUS2, ENABLED);  // not referenced
+		d.set("PLC_PRG.goal", 500);
+		d.set("PLC_PRG.goMove", true);
+		d.cycle();
+		expect(out(d)).toMatchObject({ busy: false, error: true, id: 1 });
+		expect(d.reg32(TARGET2)).toBe(0);  // nothing written
+
+		const e = ready();
+		e.set("StepperEnable", false);
+		e.set("PLC_PRG.goal", 500);
+		e.set("PLC_PRG.goMove", true);
+		e.cycle();
+		expect(out(e)).toMatchObject({ busy: false, error: true, id: 2 });
+	});
+
+	it("CommandAborted when another target is written while it moves", () => {
+		const d = ready();
+		d.set("PLC_PRG.goal", 500);
+		d.set("PLC_PRG.goMove", true);
+		d.cycle();
+		d.set("Stepper2Target", 900);  // the program (or another block) sets a new target
+		d.cycle();
+		expect(out(d)).toMatchObject({ busy: false, done: false, aborted: true });
 	});
 });

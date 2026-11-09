@@ -79,6 +79,55 @@ ELSIF Busy THEN
     END_IF;
 END_IF;
 END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK FCU_StepperMoveAbsolute
+(* Moves a stepper to Position [steps], over StepperXTarget (and StepperXSpeed when Velocity > 0;
+   0 keeps the speed). Axis: 1 or 2. A rising edge of Execute starts it; Busy until the axis stands
+   at the target (position register = target, not moving) - then Done; CommandAborted when another
+   target was written meanwhile. Error with ErrorID 1 = axis not referenced (home it first),
+   2 = stepper drivers disabled (StepperEnable), 16#100 = no such axis. The firmware moves only a
+   referenced, enabled axis; outputs stay while Execute is TRUE (else for one call). *)
+VAR_INPUT Axis : UINT := 1; Execute : BOOL; Position : DINT; Velocity : UINT; END_VAR
+VAR_OUTPUT Done : BOOL; Busy : BOOL; CommandAborted : BOOL; Error : BOOL; ErrorID : UINT; END_VAR
+VAR Edge : R_TRIG; Active : UINT; Goal : DINT; Status : UINT; Pos : DINT; Target : DINT; END_VAR
+IF NOT Execute AND NOT Busy THEN
+    Done := FALSE; CommandAborted := FALSE; Error := FALSE; ErrorID := 0;
+END_IF;
+Edge(CLK := Execute);
+IF Axis = 1 THEN Status := Stepper1Status; ELSE Status := Stepper2Status; END_IF;
+IF Edge.Q AND NOT Busy THEN
+    Done := FALSE; CommandAborted := FALSE; Error := FALSE; ErrorID := 0;
+    IF Axis <> 1 AND Axis <> 2 THEN
+        Error := TRUE; ErrorID := 16#100;
+    ELSIF NOT StepperEnable THEN
+        Error := TRUE; ErrorID := 2;
+    ELSIF (Status / 32) MOD 2 = 0 THEN
+        Error := TRUE; ErrorID := 1;
+    ELSE
+        Active := Axis; Goal := Position; Busy := TRUE;
+        IF Axis = 1 THEN
+            Stepper1Target := Position;
+            IF Velocity > 0 THEN Stepper1Speed := Velocity; END_IF;
+        ELSE
+            Stepper2Target := Position;
+            IF Velocity > 0 THEN Stepper2Speed := Velocity; END_IF;
+        END_IF;
+    END_IF;
+ELSIF Busy THEN
+    IF Active = 1 THEN
+        Status := Stepper1Status; Pos := Stepper1Position; Target := Stepper1Target;
+    ELSE
+        Status := Stepper2Status; Pos := Stepper2Position; Target := Stepper2Target;
+    END_IF;
+    IF Target <> Goal THEN
+        Busy := FALSE; CommandAborted := TRUE;
+    ELSIF NOT StepperEnable THEN
+        Busy := FALSE; Error := TRUE; ErrorID := 2;
+    ELSIF Pos = Goal AND (Status / 2) MOD 2 = 0 THEN
+        Busy := FALSE; Done := TRUE;
+    END_IF;
+END_IF;
+END_FUNCTION_BLOCK
 `;
 
 /** The library's source: the reserved command globals and the blocks. */

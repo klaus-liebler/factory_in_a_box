@@ -335,10 +335,10 @@ Access to device functions that are more than "write a register" ([§6.3](#63-re
 | FB | Purpose |
 |---|---|
 | `FCU_StepperHome` | homing with a handshake (Execute/Done/Busy/Error/ErrorID, PLCopen style) over `StepperXStartHoming` |
-| `FCU_StepperMoveAbsolute` | target position, Done when "in position" (status bit 3) |
+| `FCU_StepperMoveAbsolute` | target position (and speed), Done when the axis stands at the goal |
 | `FCU_RoArmRunMission` | start a stored RoArm mission by index (Execute/Done/Busy/Error) over the mission register (holding 110) |
-| `FCU_Ws2812` | LED colors |
-| `FCU_Log` | log entry into the device journal (rate-limited) |
+| ~~`FCU_Ws2812`~~ | dropped for now: the register map has one pattern index per channel (`Ws2812Ch1Pattern`, `Ws2812Ch2Pattern`), ordinary outputs - a block would add nothing until the firmware offers LED colours |
+| `FCU_Log` | log entry into the device journal (rate-limited) - **P7**: needs STRING, a native in both VMs and the rate limit in the firmware |
 
 The list is not final; it grows with the register schema. Implemented (P2): `FCU_StepperHome`
 (Axis, Execute → Done/Busy/Error/ErrorID: 2 timeout, 3 TMC2209 silent, 16#100 no such axis) and
@@ -348,6 +348,14 @@ The list is not final; it grows with the register schema. Implemented (P2): `FCU
 kind *command*. The idle value 0 is also the answer "done": a block takes 0 as success only after it
 has seen its own start value in the register (otherwise, with the fieldbus as control source, the
 start never arrives and the block would report a false Done - it stays Busy instead).
+
+`FCU_StepperMoveAbsolute` (Axis, Execute, Position: DINT, Velocity: UINT, 0 = keep → Done/Busy/
+CommandAborted/Error/ErrorID: 1 not referenced, 2 drivers disabled, 16#100 no such axis) writes the
+output variables `StepperXTarget`/`StepperXSpeed` - ordinary outputs, no command registers; whoever
+writes the target last wins, and the block then reports CommandAborted. The firmware moves only an
+enabled, referenced axis, so the block refuses the others at the start instead of waiting forever.
+Done comes from the position register reaching the goal with the axis standing, not from status bit 3
+("in position"): in the cycle that writes the new target, that bit still describes the old one.
 
 ### 5.7 Implementation-dependent parameters (Stage 1)
 
@@ -837,8 +845,10 @@ PLC thread logs the result (Renode: state, refused arguments, source and autosta
 The project source on the SD card ("Vom Gerät", [§10.4](#104-device-interface-websocket)), Renode-tested on both
 revisions with a FAT16 card image: none at first, stored in chunks, read back the same, a chunk out of
 order refused, still there after a reset. This test exposed a TCP bug in rtoos (a segment held by the
-TX DMA used up all retransmissions within 100 ms; fixed in rtoos f2c5d57). Still open in P2: the other
-FCU blocks (`FCU_StepperMoveAbsolute`, `FCU_Ws2812`, `FCU_Log`) and the hardware test on the boards.
+TX DMA used up all retransmissions within 100 ms; fixed in rtoos f2c5d57). `FCU_StepperMoveAbsolute`
+(tests against the firmware's copy rules; Renode rev 3: an unreferenced axis gives ErrorID 1, the target
+untouched); `FCU_Ws2812` dropped, `FCU_Log` moved to P7 ([§5.6](#56-fcu-library)). Still open in P2: the
+hardware test on the boards.
 
 ## 14. Decisions from the review and postponed points
 

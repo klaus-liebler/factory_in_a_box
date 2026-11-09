@@ -21,6 +21,7 @@ VAR
     blink : TON;
     lamp : BOOL;
     home : FCU_StepperHome;  (* a command register: the start reaches the firmware, its answer the block *)
+    move : FCU_StepperMoveAbsolute;  (* axis 2 is never referenced in the emulator: ErrorID 1 *)
 END_VAR
 n := n + 1;
 tick := TimerTick;
@@ -31,6 +32,8 @@ blink(IN := NOT blink.Q, PT := T#200ms);
 IF blink.Q THEN lamp := NOT lamp; END_IF;
 Valve3 := lamp;
 home(Axis := 1, Execute := TRUE);
+StepperEnable := TRUE;
+move(Axis := 2, Execute := n > 2, Position := 1000);
 END_PROGRAM
 `;
 
@@ -40,7 +43,7 @@ describe("PLC Renode fixture", () => {
 			{ io: ioBindings(), ioMapHash: ioMapHash() });
 		if (!r.ok) throw new Error(r.diagnostics.map(formatDiagnostic).join("\n"));
 		const symbols = Object.fromEntries(["PLC_PRG.n", "PLC_PRG.tick", "PLC_PRG.lamp", "PLC_PRG.home.Busy", "PLC_PRG.home.Done", "PLC_PRG.home.Error",
-			"PLC_PRG.home.ErrorID"].map((p) => [p, r.debug!.resolve(p)!.addr]));
+			"PLC_PRG.home.ErrorID", "PLC_PRG.move.Busy", "PLC_PRG.move.Error", "PLC_PRG.move.ErrorID"].map((p) => [p, r.debug!.resolve(p)!.addr]));
 		const meta = JSON.stringify({ bytes: r.image!.length, crc: crc32(r.image!), symbols }, null, 2) + "\n";
 		const files: [string, Uint8Array][] = [["test.img", r.image!], ["test.json", new TextEncoder().encode(meta)]];
 		for (const [f, bytes] of files) {

@@ -312,7 +312,7 @@ def holding(mb, reg, count=1):
     return mb.read(0x03, reg, count)
 
 
-CONVEYOR, VALVE2, VALVE3, STEPPER1_TARGET, HOMING1, MISSION = 40, 21, 22, 61, 69, 110
+CONVEYOR, VALVE2, VALVE3, STEPPER1_TARGET, STEPPER2_TARGET, HOMING1, MISSION = 40, 21, 22, 61, 65, 69, 110
 
 ws = mb = None
 if args.old_mission_store:
@@ -412,6 +412,11 @@ try:
     time.sleep(1)
     check("command: written only on the edge - the answer stays (no second start)", holding(mb, HOMING1) == [3]
           and sum("stepper 1: homing" in line for line in log[run_mark:]) == 1)
+    # FCU_StepperMoveAbsolute on axis 2: the firmware's status says "not referenced" (no TMC2209, no homing)
+    until(lambda: read_var(ws, "PLC_PRG.move.Error", "<B") == 1)
+    move = [read_var(ws, f"PLC_PRG.move.{v}", f) for v, f in (("Busy", "<B"), ("Error", "<B"), ("ErrorID", "<H"))]
+    check("FCU_StepperMoveAbsolute: axis not referenced -> Error, ErrorID 1, the target untouched",
+          move == [0, 1, 1] and holding(mb, STEPPER2_TARGET, 2) == [0, 0], f"Busy/Error/ErrorID {move}, target {holding(mb, STEPPER2_TARGET, 2)}")
 
     ok, msg = control(ws, "autostart_on")
     check("autostart on (journal in the flash slot)", ok, msg)

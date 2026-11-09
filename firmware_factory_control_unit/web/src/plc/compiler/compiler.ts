@@ -3,7 +3,7 @@
 // PLC bytecode (rtoos/docs/plc.md). check*() turns expressions into a typed tree with the implicit
 // conversions made explicit; emit*() writes bytecode. DOM-free.
 import { Native, Op } from "../generated/isa.ts";
-import { writeImage, type ImageContents, type TaskInfo } from "../image.ts";
+import { IoArea, IoKind, writeImage, type ImageContents, type IoBinding, type TaskInfo } from "../image.ts";
 import type * as A from "./ast.ts";
 import { Diagnostics, type Diagnostic, type Span } from "./diagnostics.ts";
 import { Emitter, type Label } from "./emitter.ts";
@@ -32,12 +32,26 @@ export interface TaskDef {
 	programs: string[];
 }
 
+/** A global variable bound to a register of the device (rtoos/docs/plc.md "I/O binding"). */
+export interface IoBindingDef {
+	/** Name of the global variable (case-insensitive). */
+	name: string;
+	register: number;
+	area: "input" | "holding";
+	kind: "input" | "output";
+	/** 1: BOOL, 16: INT/UINT, 32: DINT/UDINT in two registers (high word first). */
+	bits: 1 | 16 | 32;
+	signed: boolean;
+}
+
 export interface CompileOptions {
 	/** Data segment capacity of the target (bytes). */
 	maxData?: number;
 	/** Code segment capacity of the target (bytes). */
 	maxCode?: number;
 	ioMapHash?: number;
+	/** The I/O variables and their registers; each must be declared as a global variable. */
+	io?: IoBindingDef[];
 }
 
 export interface StatementInfo {
@@ -1943,6 +1957,29 @@ class Compiler {
 		}
 	}
 
+	// ---- I/O --------------------------------------------------------------------------------------------
+	private ioBindings(span: Span): IoBinding[] {
+		const out: IoBinding[] = [];
+		for (const d of this.options.io ?? []) {
+			const g = this.globals.get(d.name.toUpperCase());
+			if (!g) {
+				this.diag.error(span, `I/O variable '${d.name}' (register ${d.register}) is not declared`);
+				continue;
+			}
+			if (!ioTypeOk(g.type, d)) {
+				const need = d.bits === 1 ? "BOOL" : `a ${d.signed ? "signed" : "unsigned"} ${d.bits}-bit integer`;
+				this.diag.error(g.span, `I/O variable '${d.name}' is ${typeName(g.type)}; register ${d.register} needs ${need}`);
+				continue;
+			}
+			if (d.kind === "output" && d.area !== "holding") this.diag.error(g.span, `output '${d.name}' must be a holding register`);
+			out.push({
+				reg: d.register, area: d.area === "input" ? IoArea.Input : IoArea.Holding, kind: d.kind === "input" ? IoKind.Input : IoKind.Output,
+				bits: d.bits, signed: d.signed, addr: g.offset,
+			});
+		}
+		return out;
+	}
+
 	// ---- linking ------------------------------------------------------------------------------------
 	private link(programs: Map<string, number>, taskDefs: TaskDef[], sources: SourceUnit[]): CompileResult {
 		// frame sizes are final now
@@ -2003,9 +2040,15 @@ class Compiler {
 			i = j;
 		}
 
+		const io = this.ioBindings(nowhere);
+		for (const t of tasks) {
+			t.ioFirst = 0;
+			t.ioCount = io.length;
+		}
+		if (this.diag.hasErrors) return this.result(null, null);
 		const projectHash = crc32Text(sources.map((s) => `${s.file}\n${s.text}`).join("\n\0"));
 		const contents: ImageContents = {
-			code, dataSize, init, tasks, io: [], natives: [...this.natives].sort((a, b) => a - b),
+			code, dataSize, init, tasks, io, natives: [...this.natives].sort((a, b) => a - b),
 			ioMapHash: this.options.ioMapHash ?? 0, projectHash, compilerVersion: COMPILER_VERSION,
 		};
 		const image = writeImage(contents);
@@ -2021,6 +2064,15 @@ class Compiler {
 		};
 		return this.result(image, debug);
 	}
+}
+
+/** The type a register binding needs for its width and signedness. */
+function ioTypeOk(t: Type, d: IoBindingDef): boolean {
+	const e = elemOf(t);
+	if (e === null || t.k === "enum") return false;
+	if (d.bits === 1) return e === "BOOL";
+	if (d.bits === 16) return d.signed ? e === "INT" : e === "UINT" || e === "WORD";
+	return d.signed ? e === "DINT" : e === "UDINT" || e === "DWORD";
 }
 
 // ---- helpers ------------------------------------------------------------------------------------------

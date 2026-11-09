@@ -2,7 +2,7 @@
 // ST. Declaration and implementation are edited separately; for the compiler they are one text.
 import { compile, type CompileResult } from "../compiler/compiler.ts";
 import type { Diagnostic } from "../compiler/diagnostics.ts";
-import { IO_FILE, ioSource } from "./io-list.ts";
+import { IO_FILE, ioBindings, ioMapHash, ioSource } from "./io-list.ts";
 
 export interface PlcObject {
 	id: string;
@@ -103,7 +103,8 @@ export function sourceOf(o: PlcObject): string {
 export function build(p: Project): Build {
 	const o = p.objects[0];
 	const declLines = o.decl.split("\n").length;
-	const result = compile([{ file: o.name, text: sourceOf(o) }, { file: IO_FILE, text: ioSource() }], p.tasks);
+	const result = compile([{ file: o.name, text: sourceOf(o) }, { file: IO_FILE, text: ioSource() }], p.tasks,
+		{ io: ioBindings(), ioMapHash: ioMapHash() });
 	const located = result.diagnostics.map((d): Located => {
 		const s = d.span.start;
 		if (s.file === IO_FILE) return { part: "io", line: s.line, col: s.col, diagnostic: d };

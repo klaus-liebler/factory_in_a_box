@@ -90,3 +90,18 @@ describe("PLC IDE", () => {
 		expect(formatTime(62005)).toBe("T#1m2s5ms");
 	});
 });
+
+describe("PLC IDE: I/O bindings", () => {
+	it("the image binds every I/O variable to its register; command registers are not I/O", async () => {
+		const { Vm } = await import("../vm.ts");
+		const r = build(exampleProject()).result;
+		const vm = new Vm(new Uint8Array(32 * 1024));
+		expect(vm.load(r.image!)).toBe("none");
+		expect(vm.io.length).toBe(IO_VARS.length);
+		const pwm = vm.io.find((b) => b.reg === 40)!;
+		expect(pwm).toMatchObject({ area: 1, kind: 1, bits: 16, signed: false, addr: r.debug!.resolve("ConveyorPwm")!.addr });
+		const target = vm.io.find((b) => b.reg === 61)!;
+		expect(target).toMatchObject({ bits: 32, signed: true });
+		expect(IO_VARS.some((v) => v.name === "Stepper1StartHoming")).toBe(false);
+	});
+});

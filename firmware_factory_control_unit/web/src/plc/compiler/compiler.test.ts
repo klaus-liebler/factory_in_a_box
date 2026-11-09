@@ -409,3 +409,13 @@ describe("compiler: diagnostics", () => {
 		expect(r.get("PLC_PRG.a[4]")).toBe(16);
 	});
 });
+
+describe("compiler: I/O bindings", () => {
+	const io = [{ name: "Valve1", register: 20, area: "holding" as const, kind: "output" as const, bits: 1 as const, signed: false }];
+	it("rejects an I/O variable of the wrong type or a missing one", () => {
+		const r = compile([{ file: "PLC_PRG", text: "VAR_GLOBAL Valve1 : INT; END_VAR\n" + prg("x : INT;", "") }], undefined, { io });
+		expect(r.diagnostics.map((d) => d.message).join()).toMatch(/'Valve1' is INT; register 20 needs BOOL/);
+		const m = compile([{ file: "PLC_PRG", text: prg("x : INT;", "") }], undefined, { io });
+		expect(m.diagnostics.map((d) => d.message).join()).toMatch(/'Valve1' \(register 20\) is not declared/);
+	});
+});

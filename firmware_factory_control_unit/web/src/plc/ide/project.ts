@@ -2,6 +2,7 @@
 // ST. Declaration and implementation are edited separately; for the compiler they are one text.
 import { compile, projectHashOf, type CompileResult } from "../compiler/compiler.ts";
 import type { Diagnostic } from "../compiler/diagnostics.ts";
+import { FCU_LIB_FILE, fcuLibSource } from "./fcu-lib.ts";
 import { IO_FILE, ioBindings, ioMapHash, ioSource } from "./io-list.ts";
 
 export interface PlcObject {
@@ -100,16 +101,21 @@ export function sourceOf(o: PlcObject): string {
 	return `${o.decl}\n${o.body}\nEND_PROGRAM\n`;
 }
 
+/** A program for the FCU: its source, the I/O variables and the FCU library. */
+export function deviceSources(file: string, text: string): { file: string; text: string }[] {
+	return [{ file, text }, { file: IO_FILE, text: ioSource() }, { file: FCU_LIB_FILE, text: fcuLibSource() }];
+}
+
 /** The project hash an image of the project's current state has (also while it does not compile). */
 export function projectHash(p: Project): number {
 	const o = p.objects[0];
-	return projectHashOf([{ file: o.name, text: sourceOf(o) }, { file: IO_FILE, text: ioSource() }]);
+	return projectHashOf(deviceSources(o.name, sourceOf(o)));
 }
 
 export function build(p: Project): Build {
 	const o = p.objects[0];
 	const declLines = o.decl.split("\n").length;
-	const result = compile([{ file: o.name, text: sourceOf(o) }, { file: IO_FILE, text: ioSource() }], p.tasks,
+	const result = compile(deviceSources(o.name, sourceOf(o)), p.tasks,
 		{ io: ioBindings(), ioMapHash: ioMapHash() });
 	const located = result.diagnostics.map((d): Located => {
 		const s = d.span.start;

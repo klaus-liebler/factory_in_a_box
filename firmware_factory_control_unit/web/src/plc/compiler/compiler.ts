@@ -38,7 +38,9 @@ export interface IoBindingDef {
 	name: string;
 	register: number;
 	area: "input" | "holding";
-	kind: "input" | "output";
+	/** input: register -> variable; output: variable -> register every cycle; command: the answer in,
+	 *  the variable out only when the program changed it; parameter: like input, a holding register. */
+	kind: "input" | "output" | "command" | "parameter";
 	/** 1: BOOL, 16: INT/UINT, 32: DINT/UDINT in two registers (high word first). */
 	bits: 1 | 16 | 32;
 	signed: boolean;
@@ -1971,9 +1973,10 @@ class Compiler {
 				this.diag.error(g.span, `I/O variable '${d.name}' is ${typeName(g.type)}; register ${d.register} needs ${need}`);
 				continue;
 			}
-			if (d.kind === "output" && d.area !== "holding") this.diag.error(g.span, `output '${d.name}' must be a holding register`);
+			if (d.kind !== "input" && d.area !== "holding") this.diag.error(g.span, `${d.kind} '${d.name}' must be a holding register`);
+			const kind = { input: IoKind.Input, output: IoKind.Output, command: IoKind.Command, parameter: IoKind.Parameter }[d.kind];
 			out.push({
-				reg: d.register, area: d.area === "input" ? IoArea.Input : IoArea.Holding, kind: d.kind === "input" ? IoKind.Input : IoKind.Output,
+				reg: d.register, area: d.area === "input" ? IoArea.Input : IoArea.Holding, kind,
 				bits: d.bits, signed: d.signed, addr: g.offset,
 			});
 		}
@@ -2181,7 +2184,8 @@ function binaryOp(op: A.BinaryOp, e: ElemName): Op {
 
 /** The project hash in the image's header: CRC-32 over the sources (links the image to the IDE's project). */
 export function projectHashOf(sources: SourceUnit[]): number {
-	return crc32Text(sources.map((s) => `${s.file}\n${s.text}`).join("\n\0"));
+	// line ends do not count: the same project from a CRLF checkout (git autocrlf) gives the same image
+	return crc32Text(sources.map((s) => `${s.file}\n${s.text.replace(/\r\n?/g, "\n")}`).join("\n\0"));
 }
 
 function crc32Text(s: string): number {

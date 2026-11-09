@@ -7,8 +7,8 @@
 //   plc thread: input registers -> program variables, one cycle of the program,
 //               output variables -> holding registers (only while the control source is IEC)
 //
-// Control source IEC: every holding register except the command registers belongs to the program;
-// Modbus, OPC UA and the web UI cannot write them (the register bank's write filter answers
+// Control source IEC: every holding register except the parameters belongs to the program (outputs
+// every cycle, commands through the FCU library blocks); Modbus, OPC UA and the web UI cannot write them (the register bank's write filter answers
 // Modbus exception 0x02 / OPC UA Bad_NotWritable). Reading stays allowed everywhere.
 #pragma once
 

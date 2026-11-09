@@ -5,9 +5,12 @@ TAP adapter "rtoos-tap" (rtoos/emulation/renode/setup-tap.ps1); over wss:// (WsP
 "plc") and Modbus TCP:
 
   - fieldbus mode: Modbus writes the outputs as before
+  - an image built for another register map (I/O map hash) is refused
   - download of tools/plc-renode/test.img in chunks, commit into the flash slot
-  - control source IEC: the outputs go to the safe state, Modbus writes to them are refused with
-    exception 0x02, command registers stay writable
+  - control source IEC: the outputs go to the safe state, Modbus writes to them and to the command
+    registers are refused with exception 0x02
+  - a command register (Stepper1StartHoming) through the FCU library block FCU_StepperHome: the
+    start reaches the firmware's homing, its answer the block (the emulator has no TMC2209: 3)
   - RUN: the program writes its outputs into the holding registers (32-bit value high word first),
     reads inputs, its variables are readable online
   - autostart: after a software reset the program runs again by itself - no browser, no download
@@ -201,7 +204,7 @@ def read_var(ws, name, fmt):
     return struct.unpack_from(fmt, r, 7)[0]
 
 
-def download(ws):
+def download(ws, image=image):
     total = len(image)
     for offset in range(0, total, 1024):
         chunk = image[offset:offset + 1024]
@@ -268,6 +271,14 @@ try:
     check("status: NO_PROGRAM, fieldbus, no store problem", st["state"] == "NO_PROGRAM" and not st["iec"] and st["problem"] == "", str(st))
     check("fieldbus mode: Modbus writes the conveyor", modbus_write(mb, CONVEYOR, 500) is None and holding(mb, CONVEYOR) == [500])
 
+    # the same image, built for another register map (I/O map hash changed, CRC fixed up)
+    foreign = bytearray(image)
+    struct.pack_into("<I", foreign, 24, struct.unpack_from("<I", image, 24)[0] ^ 1)
+    struct.pack_into("<I", foreign, 16, zlib.crc32(foreign[20:]))
+    ok, msg = download(ws, bytes(foreign))
+    check("an image built for another register map is refused", not ok and "register map" in msg, msg)
+    check("... and nothing is loaded", status(ws)["image"] == 0)
+
     ok, msg = download(ws)
     check("download and commit into the flash slot", ok, msg)
     check("log: program stored", wait_log("plc: program stored", 10))
@@ -279,7 +290,9 @@ try:
     check("IEC: outputs in the safe state", holding(mb, CONVEYOR) == [0])
     check("IEC: Modbus write to an output -> exception 02", modbus_write(mb, CONVEYOR, 7) == 0x02)
     check("IEC: the refused write changed nothing", holding(mb, CONVEYOR) == [0])
-    check("IEC: command register stays writable (RoArm mission control)", modbus_write(mb, MISSION, 0) is None)
+    check("IEC: Modbus write to a command register -> exception 02 (the program's)", modbus_write(mb, MISSION, 1) == 0x02
+          and modbus_write(mb, HOMING1, 1) == 0x02)
+    run_mark = len(log)
 
     ok, msg = control(ws, "run")
     check("RUN", ok, msg)
@@ -299,6 +312,17 @@ try:
     lamps = set()
     until(lambda: lamps.add(holding(mb, VALVE3)[0]) or lamps == {0, 1}, step=0.1)
     check("the TON blinks Valve3", lamps == {0, 1}, str(lamps))
+    # the program's homing start went to the register once (no stale answer: the firmware logs this start)
+    check("command: the homing started by FCU_StepperHome reaches the firmware",
+          wait_log("stepper 1: homing", 20, run_mark))
+    until(lambda: read_var(ws, "PLC_PRG.home.Busy", "<B") == 0)
+    done, error, error_id = (read_var(ws, f"PLC_PRG.home.{v}", f) for v, f in (("Done", "<B"), ("Error", "<B"), ("ErrorID", "<H")))
+    answer = holding(mb, HOMING1)
+    check("command: the block has the firmware's answer (no TMC2209 in the emulator: Error 3)",
+          done == 0 and error == 1 and error_id == 3 and answer == [3], f"Done {done} Error {error} ErrorID {error_id}, register {answer}")
+    time.sleep(1)
+    check("command: written only on the edge - the answer stays (no second start)", holding(mb, HOMING1) == [3]
+          and sum("stepper 1: homing" in line for line in log[run_mark:]) == 1)
 
     ok, msg = control(ws, "autostart_on")
     check("autostart on (journal in the flash slot)", ok, msg)

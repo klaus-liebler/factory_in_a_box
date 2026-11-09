@@ -2,7 +2,7 @@
 // declaration table <-> text, value parsing.
 import { describe, expect, it } from "vitest";
 import { addRow, deleteRow, parseRows, updateRow } from "./decl-table.ts";
-import { IO_VARS, ioSource } from "./io-list.ts";
+import { COMMAND_VARS, IO_VARS, ioSource } from "./io-list.ts";
 import { build, exampleProject } from "./project.ts";
 import { Simulator } from "./simulator.ts";
 import { formatTime, parseValue } from "./values.ts";
@@ -97,11 +97,12 @@ describe("PLC IDE: I/O bindings", () => {
 		const r = build(exampleProject()).result;
 		const vm = new Vm(new Uint8Array(32 * 1024));
 		expect(vm.load(r.image!)).toBe("none");
-		expect(vm.io.length).toBe(IO_VARS.length);
+		expect(vm.io.length).toBe(IO_VARS.length + COMMAND_VARS.length);
 		const pwm = vm.io.find((b) => b.reg === 40)!;
 		expect(pwm).toMatchObject({ area: 1, kind: 1, bits: 16, signed: false, addr: r.debug!.resolve("ConveyorPwm")!.addr });
 		const target = vm.io.find((b) => b.reg === 61)!;
 		expect(target).toMatchObject({ bits: 32, signed: true });
 		expect(IO_VARS.some((v) => v.name === "Stepper1StartHoming")).toBe(false);
+		expect(vm.io.find((b) => b.reg === 69)).toMatchObject({ area: 1, kind: 2, bits: 16 }); // command
 	});
 });

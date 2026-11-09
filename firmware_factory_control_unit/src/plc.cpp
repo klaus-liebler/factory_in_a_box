@@ -57,11 +57,21 @@ std::uint32_t received = 0;      // bytes of the running download in image_ram
 bool downloading = false;
 
 // ---- registers ------------------------------------------------------------------------------------------
-/// Handshake registers the firmware answers in place (docs/plc-iec61131.md 6.3): never cyclic outputs.
-constexpr bool is_command(std::uint16_t reg) noexcept {
-    return reg == rm::holding::stepper1_start_homing || reg == rm::holding::stepper2_start_homing ||
-           reg == rm::holding::ro_arm_mission_control;
+/// The register classes come from the schema (Kind = Output | Command | Parameter, docs/plc-iec61131.md
+/// 6.3): outputs are written every cycle, commands (handshakes the firmware answers in the register)
+/// only when the program changed them, parameters stay writable from outside.
+using rm::RegisterKind;
+constexpr bool all_of_kind(std::uint16_t reg, unsigned words, RegisterKind k) noexcept {
+    for (unsigned w = 0; w < words; ++w) {
+        if (rm::holding_kind(static_cast<std::uint16_t>(reg + w)) != k) return false;
+    }
+    return true;
 }
+
+/// The command variables as the cycle found them (copy_inputs), in the order of the bindings:
+/// copy_outputs writes a command only if the program changed it - never the answer back over itself.
+constexpr std::size_t max_commands = 16;
+std::array<std::uint32_t, max_commands> command_before{};
 
 /// The outputs that go to 0 in the safe state (STOP, ERROR, switching the source). Stepper targets,
 /// speeds and accelerations stay as they are: the safe state of an axis is "no new target".
@@ -74,73 +84,111 @@ void safe_state() noexcept {
     for (const std::uint16_t r : safe_zero) registers.set_holding(r, 0);
 }
 
-/// The register bank's write filter: while the program is the control source, only the command
+/// The register bank's write filter: while the program is the control source, only the parameter
 /// registers stay writable for Modbus, OPC UA and the web UI. Runs with the bank's guard held.
 bool permit(void*, std::uint16_t start, std::uint16_t count) noexcept {
     if (!iec.load(std::memory_order_relaxed)) return true;
-    for (std::uint32_t r = start; r < std::uint32_t{start} + count; ++r) {
-        if (!is_command(static_cast<std::uint16_t>(r))) return false;
-    }
-    return true;
+    return all_of_kind(start, count, RegisterKind::parameter);
 }
 
 /// The image's I/O bindings against this firmware's register map; nullptr: fine.
 const char* check_io() noexcept {
+    if (machine.io_map_hash() != rm::map_hash) {
+        return "the program was built for another register map: recompile the project";
+    }
+    std::size_t commands = 0;
     for (std::size_t i = 0; i < machine.io_count(); ++i) {
         const vm::IoBinding b = machine.io(i);
         const unsigned words = b.bits == 32 ? 2 : 1;
         const std::size_t limit = b.area == vm::IoArea::input ? rm::input_count : rm::holding_count;
         if (b.reg + words > limit) return "the program binds a register this firmware does not have";
-        if (b.kind == vm::IoKind::output) {
-            if (b.area != vm::IoArea::holding) return "the program binds an output to an input register";
-            for (unsigned w = 0; w < words; ++w) {
-                if (is_command(static_cast<std::uint16_t>(b.reg + w))) return "the program binds a command register as an output";
-            }
-        } else if (b.kind != vm::IoKind::input) {
-            return "the program uses register classes this firmware does not support yet";
+        switch (b.kind) {
+            case vm::IoKind::input: break;
+            case vm::IoKind::output:
+                if (b.area != vm::IoArea::holding || !all_of_kind(b.reg, words, RegisterKind::output)) {
+                    return "the program binds an output to a register that is no output";
+                }
+                break;
+            case vm::IoKind::command:
+                if (b.area != vm::IoArea::holding || !all_of_kind(b.reg, words, RegisterKind::command)) {
+                    return "the program binds a command to a register that is no command";
+                }
+                if (++commands > max_commands) return "the program binds too many command registers";
+                break;
+            case vm::IoKind::parameter:
+                if (b.area != vm::IoArea::holding || !all_of_kind(b.reg, words, RegisterKind::parameter)) {
+                    return "the program binds a parameter to a register that is no parameter";
+                }
+                break;
+            default: return "the program uses an unknown register class";
         }
     }
     return nullptr;
 }
 
+std::uint32_t read_var(const vm::IoBinding& b) noexcept {
+    const std::span<const std::uint8_t> d = machine.data();
+    if (b.bits == 1) return d[b.addr];
+    if (b.bits == 16) {
+        std::uint16_t v;
+        std::memcpy(&v, &d[b.addr], 2);
+        return v;
+    }
+    std::uint32_t v;
+    std::memcpy(&v, &d[b.addr], 4);
+    return v;
+}
+
+void write_register(const vm::IoBinding& b, std::uint32_t v) noexcept {
+    if (b.bits == 1) {
+        registers.set_holding(b.reg, v != 0 ? 1 : 0);
+    } else if (b.bits == 16) {
+        registers.set_holding(b.reg, static_cast<std::uint16_t>(v));
+    } else {
+        const std::array<std::uint16_t, 2> words{static_cast<std::uint16_t>(v >> 16), static_cast<std::uint16_t>(v)};
+        registers.set_holdings(b.reg, words);  // one guard: never half a value
+    }
+}
+
+/// Registers -> program variables: inputs, parameters and the commands' answers.
 void copy_inputs() noexcept {
     std::array<std::uint16_t, rm::input_count> in{};
     std::array<std::uint16_t, rm::holding_count> hold{};
     registers.read_inputs(0, in);
     registers.read_holdings(0, hold);
     const std::span<std::uint8_t> d = machine.data();
+    std::size_t command = 0;
     for (std::size_t i = 0; i < machine.io_count(); ++i) {
         const vm::IoBinding b = machine.io(i);
-        if (b.kind != vm::IoKind::input) continue;
+        if (b.kind == vm::IoKind::output) continue;
         const std::uint16_t* t = b.area == vm::IoArea::input ? in.data() : hold.data();
+        std::uint32_t v;
         if (b.bits == 1) {
             d[b.addr] = t[b.reg] != 0 ? 1 : 0;
+            v = d[b.addr];
         } else if (b.bits == 16) {
             std::memcpy(&d[b.addr], &t[b.reg], 2);
+            v = t[b.reg];
         } else {
-            const std::uint32_t v = (std::uint32_t{t[b.reg]} << 16) | t[b.reg + 1];  // high word first
+            v = (std::uint32_t{t[b.reg]} << 16) | t[b.reg + 1];  // high word first
             std::memcpy(&d[b.addr], &v, 4);
         }
+        if (b.kind == vm::IoKind::command) command_before[command++] = v;
     }
 }
 
+/// Program variables -> registers (control source IEC only): every output, a command only when the
+/// program changed it in this cycle (a firmware answer that came meanwhile is not overwritten).
 void copy_outputs() noexcept {
     if (!iec.load(std::memory_order_relaxed)) return;
-    const std::span<const std::uint8_t> d = machine.data();
+    std::size_t command = 0;
     for (std::size_t i = 0; i < machine.io_count(); ++i) {
         const vm::IoBinding b = machine.io(i);
-        if (b.kind != vm::IoKind::output) continue;
-        if (b.bits == 1) {
-            registers.set_holding(b.reg, d[b.addr] != 0 ? 1 : 0);
-        } else if (b.bits == 16) {
-            std::uint16_t v;
-            std::memcpy(&v, &d[b.addr], 2);
-            registers.set_holding(b.reg, v);
-        } else {
-            std::uint32_t v;
-            std::memcpy(&v, &d[b.addr], 4);
-            const std::array<std::uint16_t, 2> words{static_cast<std::uint16_t>(v >> 16), static_cast<std::uint16_t>(v)};
-            registers.set_holdings(b.reg, words);  // one guard: never half a value
+        if (b.kind == vm::IoKind::output) {
+            write_register(b, read_var(b));
+        } else if (b.kind == vm::IoKind::command) {
+            const std::uint32_t v = read_var(b);
+            if (v != command_before[command++]) write_register(b, v);
         }
     }
 }
@@ -424,7 +472,9 @@ void io_cycle_done() noexcept { kernel.notify(plc_tcb, notify_slot, bit_cycle); 
 
 bool iec_controls() noexcept { return iec.load(std::memory_order_relaxed); }
 
-bool external_write_allowed(std::uint16_t reg) noexcept { return !iec_controls() || is_command(reg); }
+bool external_write_allowed(std::uint16_t reg) noexcept {
+    return !iec_controls() || rm::holding_kind(reg) == RegisterKind::parameter;
+}
 
 void on_message(SessionId id, std::uint16_t type, const std::uint8_t* d, std::size_t len) noexcept {
     const auto send = [id](std::span<const std::uint8_t> b) {

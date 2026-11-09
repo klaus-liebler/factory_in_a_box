@@ -3,14 +3,12 @@
 // copies the input registers into them before each cycle and the outputs into the holding registers
 // after it; the simulator's plant model reads and writes them directly.
 //
-// Command registers (handshakes the firmware answers in the same register, docs/plc-iec61131.md 6.3)
-// are not I/O variables: a cyclic output would overwrite the answers. They come with the FCU library
-// blocks (FCU_StepperHome, FCU_RoArmRunMission). Until the register schema carries the class
-// (Kind = Output | Command | Parameter), the list below names them.
-import { REGIONS, type RegisterDef } from "../../../generated/register-map.ts";
+// The register classes come from the schema (Kind, docs/plc-iec61131.md 6.3): outputs are %Q variables,
+// parameters read-only %I variables; command registers (handshakes the firmware answers in the same
+// register) are no I/O variables - a cyclic output would overwrite the answers. They are bound to
+// reserved globals (__Stepper1StartHoming, ...) that only the FCU library blocks use (fcu-lib.ts).
+import { REGIONS, REGISTER_MAP_HASH, type RegisterDef } from "../../../generated/register-map.ts";
 import type { IoBindingDef } from "../compiler/compiler.ts";
-
-const COMMAND_REGISTERS = new Set(["STEPPER1_START_HOMING", "STEPPER2_START_HOMING", "RO_ARM_MISSION_CONTROL"]);
 
 export type IoDirection = "input" | "output";
 
@@ -19,6 +17,8 @@ export interface IoVar {
 	name: string;
 	type: "BOOL" | "INT" | "UINT" | "DINT" | "UDINT";
 	direction: IoDirection;
+	/** The binding: input and parameter are read by the program, output written. */
+	binding: "input" | "output" | "parameter";
 	bits: 1 | 16 | 32;
 	signed: boolean;
 	/** %IW180, %QW40, %QD61 */
@@ -31,28 +31,54 @@ export interface IoVar {
 	max?: number;
 }
 
+/** A command register, bound to a reserved global of the FCU library. */
+export interface CommandVar {
+	/** __Stepper1StartHoming */
+	name: string;
+	type: IoVar["type"];
+	bits: 16 | 32;
+	signed: boolean;
+	register: number;
+}
+
 /** VALVE1 -> Valve1, CONVEYOR_PWM -> ConveyorPwm. */
 export function iecName(registerName: string): string {
 	return registerName.toLowerCase().split("_").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
 }
 
-function ioVar(def: RegisterDef, region: string): IoVar | null {
+function typeOf(def: RegisterDef): IoVar["type"] | null {
 	const count = def.combine?.count ?? 1;
 	if (count > 2) return null; // chip UID and the like: not a process value
-	if (COMMAND_REGISTERS.has(def.name)) return null;
-	const type: IoVar["type"] = def.display === "bool" ? "BOOL" : count === 2 ? (def.signed ? "DINT" : "UDINT") : def.signed ? "INT" : "UINT";
-	const direction: IoDirection = def.bank === "input" ? "input" : "output";
+	return def.display === "bool" ? "BOOL" : count === 2 ? (def.signed ? "DINT" : "UDINT") : def.signed ? "INT" : "UINT";
+}
+
+function ioVar(def: RegisterDef, region: string): IoVar | null {
+	const type = typeOf(def);
+	if (type === null || def.kind === "command") return null;
+	const count = def.combine?.count ?? 1;
+	const binding = def.bank === "input" ? "input" : def.kind === "parameter" ? "parameter" : "output";
+	const direction: IoDirection = binding === "output" ? "output" : "input";
 	const prefix = direction === "input" ? "%I" : "%Q";
 	const size = type === "BOOL" ? "X" : count === 2 ? "D" : "W";
 	return {
-		name: iecName(def.name), type, direction, bits: type === "BOOL" ? 1 : count === 2 ? 32 : 16, signed: type === "INT" || type === "DINT",
-		address: `${prefix}${size}${def.address}`, register: def.address, region,
+		name: iecName(def.name), type, direction, binding, bits: type === "BOOL" ? 1 : count === 2 ? 32 : 16,
+		signed: type === "INT" || type === "DINT", address: `${prefix}${size}${def.address}`, register: def.address, region,
 		description: def.description ?? "", unit: def.unit, min: def.min, max: def.max,
 	};
 }
 
 export const IO_VARS: readonly IoVar[] = REGIONS.flatMap((r) => r.registers.map((d) => ioVar(d, r.title)).filter((v): v is IoVar => v !== null))
 	.sort((a, b) => (a.direction === b.direction ? a.register - b.register : a.direction === "input" ? -1 : 1));
+
+export const COMMAND_VARS: readonly CommandVar[] = REGIONS.flatMap((r) => r.registers)
+	.filter((d) => d.kind === "command")
+	.map((d): CommandVar => {
+		const type = typeOf(d);
+		if (type === null || type === "BOOL") throw new Error(`command register ${d.name}: needs a 16- or 32-bit integer`);
+		const bits = type === "DINT" || type === "UDINT" ? 32 : 16;
+		return { name: `__${iecName(d.name)}`, type, bits, signed: type === "INT" || type === "DINT", register: d.address };
+	})
+	.sort((a, b) => a.register - b.register);
 
 export const IO_FILE = "I/O";
 
@@ -65,28 +91,29 @@ export function ioSource(): string {
 			region = v.region;
 			lines.push(`    (* ---- ${region} *)`);
 		}
-		const comment = [v.address, v.description, v.unit ? `[${v.unit}]` : ""].filter(Boolean).join("  ").replace(/\*\)/g, "* )");
+		const comment = [v.address, v.binding === "parameter" ? "parameter" : "", v.description, v.unit ? `[${v.unit}]` : ""]
+			.filter(Boolean).join("  ").replace(/\*\)/g, "* )");
 		lines.push(`    ${v.name} : ${v.type}; (* ${comment} *)`);
 	}
 	lines.push("END_VAR");
 	return lines.join("\n") + "\n";
 }
 
-/** The bindings for the compiler: every I/O variable to its register. */
+/** The bindings for the compiler: every I/O variable and every command register to its register. */
 export function ioBindings(): IoBindingDef[] {
-	return IO_VARS.map((v) => ({
-		name: v.name, register: v.register, area: v.direction === "input" ? "input" : "holding", kind: v.direction,
-		bits: v.bits, signed: v.signed,
-	}));
+	return [
+		...IO_VARS.map((v): IoBindingDef => ({
+			name: v.name, register: v.register, area: v.binding === "input" ? "input" : "holding", kind: v.binding,
+			bits: v.bits, signed: v.signed,
+		})),
+		...COMMAND_VARS.map((c): IoBindingDef => ({
+			name: c.name, register: c.register, area: "holding", kind: "command", bits: c.bits, signed: c.signed,
+		})),
+	];
 }
 
-/** CRC-32 of the I/O list: the image carries it (ioMapHash), so a changed register map is noticed. */
+/** The register map's layout hash (generated, the same as register_map::map_hash in the firmware): the
+ *  image carries it, the device refuses an image built for another map. */
 export function ioMapHash(): number {
-	const text = IO_VARS.map((v) => `${v.name}:${v.direction}:${v.register}:${v.bits}:${v.signed ? "s" : "u"}`).join(";");
-	let crc = 0xffffffff;
-	for (const b of new TextEncoder().encode(text)) {
-		crc ^= b;
-		for (let k = 0; k < 8; k++) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
-	}
-	return ~crc >>> 0;
+	return REGISTER_MAP_HASH >>> 0;
 }

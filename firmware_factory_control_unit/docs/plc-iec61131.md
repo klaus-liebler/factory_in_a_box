@@ -325,7 +325,14 @@ Access to device functions that are more than "write a register" ([§6.3](#63-re
 | `FCU_Ws2812` | LED colors |
 | `FCU_Log` | log entry into the device journal (rate-limited) |
 
-The list is not final; it grows with the register schema.
+The list is not final; it grows with the register schema. Implemented (P2): `FCU_StepperHome`
+(Axis, Execute → Done/Busy/Error/ErrorID: 2 timeout, 3 TMC2209 silent, 16#100 no such axis) and
+`FCU_RoArmRunMission` (Index, Execute → …, ErrorID 1 no such mission, 2 teach mode, 3 unreadable,
+4 another mission running), in `web/src/plc/ide/fcu-lib.ts`. They write reserved globals
+(`__Stepper1StartHoming`, …; `__` names are only allowed in library files) that the image binds with
+kind *command*. The idle value 0 is also the answer "done": a block takes 0 as success only after it
+has seen its own start value in the register (otherwise, with the fieldbus as control source, the
+start never arrives and the block would report a false Done - it stays Busy instead).
 
 ### 5.7 Implementation-dependent parameters (Stage 1)
 
@@ -481,7 +488,17 @@ ReadWrite):
 | Command | StepperXStartHoming, RoArm mission | only through FCU library FBs (written on an edge, the answer read back) | blocked |
 | Parameter | configuration values | read-only `%I`-like variable | allowed |
 
-Classifying every existing register is part of P2.
+Classified (P2): `Kind = RegisterKind.Command` on `Stepper1StartHoming`, `Stepper2StartHoming`,
+`RoArmMissionControl`; every other holding register is an Output (stepper speed and acceleration too:
+the program sets its motion profile). There is no Parameter register yet. The generator
+(UniversalRegisterAccess) passes the class on: `register_map::holding_kind()` in the firmware, `kind`
+in `register-map.ts`.
+
+Runtime rules per binding kind (`src/plc.cpp`): *input* and *parameter* register → variable before the
+cycle; *output* variable → register after every cycle; *command* register → variable before the cycle
+(the answer) and variable → register after it **only if the program changed the variable in this
+cycle** - so a firmware answer that arrives while the program runs is never overwritten, and a start
+is written exactly once. Outputs and commands only while the control source is IEC.
 
 ## 7. Image format (download)
 
@@ -703,12 +720,13 @@ The chunks keep every message under the server's 1280 bytes; flash work runs in 
 network thread never waits for an erase (rtoos fairness rule). Project upload/download from the SD card
 (`GetProject`/`PutProject`) follows with the IDE's device mode.
 
-**Interim, until the register schema carries the register classes (E5):** the firmware and the IDE name
-the command registers (`StepperXStartHoming`, `RoArmMissionControl`) in a list; they are no I/O
-variables, and in IEC mode they stay writable from outside (the FCU library blocks that would own them
-do not exist yet). The image's `ioMapHash` is not checked by the firmware yet (it needs a constant from
-the register generator); instead every binding is checked against the register map (register range,
-width, outputs only in holding registers, never a command register).
+**I/O check at the commit:** the image's `ioMapHash` must equal `register_map::map_hash`, a CRC-32 the
+register generator computes over the map's layout (bank, address, width, name, signedness, bool, class
+of every register; descriptions, units and limits do not count) and also writes to `register-map.ts`
+(`REGISTER_MAP_HASH`), which the IDE puts into the image. A firmware with another register map refuses
+the image ("recompile the project"). Each binding is checked as well: register range and width, and the
+register class (an output binding only on Output registers, a command binding only on Command
+registers, ...).
 
 ## 11. Project format
 
@@ -782,9 +800,15 @@ the emulated flash of both chips), control source with write filter (Modbus 0x02
 UI, terminal, RoArm teach), safe state, autostart after a reset without a browser, the refusal while the old
 mission store occupies the area. The IDE has the FCU as a second device (download, RUN/STOP, control source,
 autostart, online values); `tools/run-renode-fcu.py` runs the firmware in Renode to try it.
-Still open in P2: register classes in the register schema (E5; until then a list of the command registers),
-the firmware's check of `ioMapHash`, the FCU library blocks for the command registers, the terminal command
-`plc`, the project source on the SD card ("upload from device"), and the hardware test on the boards.
+Since then (same day): register classes in the schema (E5) with the binding kind *command* in the runtime,
+the firmware's check of `ioMapHash` against the generated `register_map::map_hash`, the FCU library blocks
+`FCU_StepperHome` and `FCU_RoArmRunMission` (simulated in the IDE's plant model). In IEC mode the command
+registers now belong to the program too (Modbus 0x02; the terminal's `home` refuses). Renode
+(`tools/test-plc-renode.py`, both revisions): an image for another register map is refused; the homing
+started by `FCU_StepperHome` reaches the firmware once, the block gets its answer (no TMC2209 in the
+emulator: Error 3). Still open in P2: the terminal command `plc`, the project source on the SD card
+("upload from device"), the other FCU blocks (`FCU_StepperMoveAbsolute`, `FCU_Ws2812`, `FCU_Log`), and
+the hardware test on the boards.
 
 ## 14. Decisions from the review and postponed points
 

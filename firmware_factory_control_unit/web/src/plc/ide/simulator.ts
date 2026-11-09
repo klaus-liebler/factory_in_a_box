@@ -4,7 +4,7 @@
 import type { CompileResult, DebugInfo } from "../compiler/compiler.ts";
 import { TRAP_NAMES } from "../generated/isa.ts";
 import { Vm, type RunResult } from "../vm.ts";
-import { IO_VARS } from "./io-list.ts";
+import { COMMAND_VARS, IO_VARS } from "./io-list.ts";
 import { Plant } from "./plant.ts";
 import type { PlcDevice } from "./device.ts";
 import { readValue, writeValue, type Value } from "./values.ts";
@@ -160,7 +160,11 @@ export class Simulator extends EventTarget implements PlcDevice {
 				set: (name, v) => {
 					if (this.forces.has(name.toUpperCase())) return;
 					const s = debug.resolve(name);
-					if (s && IO_VARS.some((x) => x.direction === "input" && x.name.toUpperCase() === name.toUpperCase())) writeValue(this.data, s, v);
+					const key = name.toUpperCase();
+					// the plant writes inputs and the commands' answers, never the program's outputs
+					const writable = IO_VARS.some((x) => x.direction === "input" && x.name.toUpperCase() === key) ||
+						COMMAND_VARS.some((c) => c.name.toUpperCase() === key);
+					if (s && writable) writeValue(this.data, s, v);
 				},
 			});
 		}

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { Trap } from "../generated/isa.ts";
 import { Vm } from "../vm.ts";
-import { compile, type CompileResult, type TaskDef } from "./compiler.ts";
+import { compile, projectHashOf, type CompileResult, type TaskDef } from "./compiler.ts";
 import { formatDiagnostic } from "./diagnostics.ts";
 import { ELEM, elemOf } from "./types.ts";
 
@@ -417,5 +417,19 @@ describe("compiler: I/O bindings", () => {
 		expect(r.diagnostics.map((d) => d.message).join()).toMatch(/'Valve1' is INT; register 20 needs BOOL/);
 		const m = compile([{ file: "PLC_PRG", text: prg("x : INT;", "") }], undefined, { io });
 		expect(m.diagnostics.map((d) => d.message).join()).toMatch(/'Valve1' \(register 20\) is not declared/);
+	});
+});
+
+// Regression: the project hash covered the raw text, and git (autocrlf) checks the corpus sources out
+// with CRLF on Windows - the same project gave other images there (corpus test failed on Windows only).
+describe("project hash", () => {
+	it("line ends do not count", () => {
+		const lf = "PROGRAM PLC_PRG\nVAR x : INT; END_VAR\nx := 1;\nEND_PROGRAM\n";
+		const crlf = lf.replace(/\n/g, "\r\n");
+		expect(projectHashOf([{ file: "PLC_PRG", text: crlf }])).toBe(projectHashOf([{ file: "PLC_PRG", text: lf }]));
+		expect(projectHashOf([{ file: "PLC_PRG", text: lf.replace("x := 1", "x := 2") }])).not.toBe(projectHashOf([{ file: "PLC_PRG", text: lf }]));
+		const a = compile([{ file: "PLC_PRG", text: crlf }]), b = compile([{ file: "PLC_PRG", text: lf }]);
+		expect(a.ok && b.ok).toBe(true);
+		expect(Buffer.compare(Buffer.from(a.image!), Buffer.from(b.image!))).toBe(0);
 	});
 });

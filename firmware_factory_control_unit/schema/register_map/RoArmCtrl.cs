@@ -8,6 +8,6 @@ public class RoArmCtrl
     /// Client wird nur uebernommen, wenn der aktuelle Wert &lt;=0 ist; versucht ein Client waehrend
     /// einer laufenden Mission zu ueberschreiben, schreibt die Firmware im naechsten Zyklus
     /// (&lt;=50ms) den tatsaechlich laufenden Index zurueck (siehe RoArmSetupAndLoop::Loop()).</summary>
-    [ModbusRegister(Access.ReadWrite), ModbusMapping(Address = 110)]
+    [ModbusRegister(Access.ReadWrite, Kind = RegisterKind.Command), ModbusMapping(Address = 110)]
     public short RoArmMissionControl;
 }

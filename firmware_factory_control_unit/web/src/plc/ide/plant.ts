@@ -17,6 +17,8 @@ export class Plant {
 	private spawnIn = 0;
 	private pressure = 0; // raw 0..4095
 	private steppers = [0, 0];
+	private homingMs = [0, 0];
+	private missionMs = 0;
 	private elapsed = 0;
 	/** Workpieces pushed off at light barrier 2 (valve 1) and those that reached the end. */
 	ejected = 0;
@@ -27,6 +29,8 @@ export class Plant {
 		this.spawnIn = 0;
 		this.pressure = 0;
 		this.steppers = [0, 0];
+		this.homingMs = [0, 0];
+		this.missionMs = 0;
 		this.elapsed = 0;
 		this.ejected = 0;
 		this.delivered = 0;
@@ -80,6 +84,28 @@ export class Plant {
 				const step = Math.sign(d) * Math.min(Math.abs(d), (2000 * dtMs) / 1000);
 				this.steppers[i] = Math.round(this.steppers[i] + step);
 			}
+		}
+		// the command registers (FCU library): homing takes 1 s, then position 0 and the answer 0;
+		// a mission runs 2 s (mission 99 does not exist: -1)
+		for (let i = 0; i < 2; i++) {
+			const cmd = `__Stepper${i + 1}StartHoming`;
+			if (num(cmd) !== 1) {
+				this.homingMs[i] = 0;
+				continue;
+			}
+			this.homingMs[i] += dtMs;
+			if (this.homingMs[i] >= 1000) {
+				this.steppers[i] = 0;
+				io.set(cmd, 0);
+			}
+		}
+		const mission = num("__RoArmMissionControl");
+		if (mission <= 0) {
+			this.missionMs = 0;
+		} else if (mission === 99) {
+			io.set("__RoArmMissionControl", -1);
+		} else if ((this.missionMs += dtMs) >= 2000) {
+			io.set("__RoArmMissionControl", 0);
 		}
 		io.set("Stepper1Position", this.steppers[0]);
 		io.set("Stepper2Position", this.steppers[1]);

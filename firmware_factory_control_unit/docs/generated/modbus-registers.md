@@ -93,7 +93,7 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
-| `ro_arm_mission_control` | Holding (R/W) | 110 | 1 | int16 |  |  |  | decimal |  | ns=1;i=5038 | Mission-Start/-Status: >0 = Mission mit diesem Index laeuft, 0 = Leerlauf/letzter Lauf erfolgreich, <0 = Leerlauf/letzter Lauf mit Fehlercode -Wert. Ein Schreiben durch den Client wird nur uebernommen, wenn der aktuelle Wert <=0 ist; versucht ein Client waehrend einer laufenden Mission zu ueberschreiben, schreibt die Firmware im naechsten Zyklus (<=50ms) den tatsaechlich laufenden Index zurueck (siehe RoArmSetupAndLoop::Loop()). |
+| `ro_arm_mission_control` | Holding (R/W, Command) | 110 | 1 | int16 |  |  |  | decimal |  | ns=1;i=5038 | Mission-Start/-Status: >0 = Mission mit diesem Index laeuft, 0 = Leerlauf/letzter Lauf erfolgreich, <0 = Leerlauf/letzter Lauf mit Fehlercode -Wert. Ein Schreiben durch den Client wird nur uebernommen, wenn der aktuelle Wert <=0 ist; versucht ein Client waehrend einer laufenden Mission zu ueberschreiben, schreibt die Firmware im naechsten Zyklus (<=50ms) den tatsaechlich laufenden Index zurueck (siehe RoArmSetupAndLoop::Loop()). |
 
 ### RoArm-M3 Status
 
@@ -128,8 +128,8 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | `stepper2_target` | Holding (R/W) | 65..66 | 2 | int32[^byteorder] |  |  |  | decimal |  | ns=1;i=5055 | Zielposition Stepper 2 |
 | `stepper2_speed` | Holding (R/W) | 67 | 1 | uint16 | Schritte/s |  |  | decimal |  | ns=1;i=5056 | Geschwindigkeit Stepper 2 |
 | `stepper2_accel` | Holding (R/W) | 68 | 1 | uint16 | Schritte/s^2 |  |  | decimal |  | ns=1;i=5057 | Beschleunigung Stepper 2 |
-| `stepper1_start_homing` | Holding (R/W) | 69 | 1 | uint16 |  | 0 | 255 | decimal |  | ns=1;i=5058 | 1=Homing starten (stoppt Stepper1, sensorloses Homing per StallGuard; beim Start automatisch, wenn die Motorversorgung da ist), 0=erfolgreich beendet, 2=Timeout (kein Anschlag), 3=TMC2209 antwortet nicht |
-| `stepper2_start_homing` | Holding (R/W) | 70 | 1 | uint16 |  | 0 | 255 | decimal |  | ns=1;i=5059 | 1=Homing starten (stoppt Stepper2, sensorloses Homing per StallGuard; beim Start automatisch, wenn die Motorversorgung da ist), 0=erfolgreich beendet, 2=Timeout (kein Anschlag), 3=TMC2209 antwortet nicht |
+| `stepper1_start_homing` | Holding (R/W, Command) | 69 | 1 | uint16 |  | 0 | 255 | decimal |  | ns=1;i=5058 | 1=Homing starten (stoppt Stepper1, sensorloses Homing per StallGuard; beim Start automatisch, wenn die Motorversorgung da ist), 0=erfolgreich beendet, 2=Timeout (kein Anschlag), 3=TMC2209 antwortet nicht |
+| `stepper2_start_homing` | Holding (R/W, Command) | 70 | 1 | uint16 |  | 0 | 255 | decimal |  | ns=1;i=5059 | 1=Homing starten (stoppt Stepper2, sensorloses Homing per StallGuard; beim Start automatisch, wenn die Motorversorgung da ist), 0=erfolgreich beendet, 2=Timeout (kein Anschlag), 3=TMC2209 antwortet nicht |
 
 ### Stepper-Status
 

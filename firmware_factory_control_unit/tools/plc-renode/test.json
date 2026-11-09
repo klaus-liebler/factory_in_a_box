@@ -1,9 +1,13 @@
 {
-  "bytes": 1224,
-  "crc": 2263553041,
+  "bytes": 1612,
+  "crc": 2939457453,
   "symbols": {
-    "PLC_PRG.n": 176,
-    "PLC_PRG.tick": 180,
-    "PLC_PRG.lamp": 208
+    "PLC_PRG.n": 184,
+    "PLC_PRG.tick": 188,
+    "PLC_PRG.lamp": 216,
+    "PLC_PRG.home.Busy": 228,
+    "PLC_PRG.home.Done": 227,
+    "PLC_PRG.home.Error": 229,
+    "PLC_PRG.home.ErrorID": 230
   }
 }

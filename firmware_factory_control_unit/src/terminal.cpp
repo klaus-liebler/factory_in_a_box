@@ -257,7 +257,9 @@ bool cmd_stepper(Args a, Out& o) {
 bool cmd_home(Args a, Out& o) {
     const auto n = a.size() == 1 ? number<unsigned>(a[0]) : std::nullopt;
     if (!n || (*n != 1 && *n != 2)) return false;
-    registers.set_holding(*n == 1 ? rm::holding::stepper1_start_homing : rm::holding::stepper2_start_homing, 1);
+    const std::uint16_t reg = *n == 1 ? rm::holding::stepper1_start_homing : rm::holding::stepper2_start_homing;
+    if (plc_owns(reg, o)) return true;  // IEC mode: FCU_StepperHome in the program
+    registers.set_holding(reg, 1);
     o.line("stepper %u: homing (sensorless, towards the end stop); result in the status and the log", *n);
     return true;
 }

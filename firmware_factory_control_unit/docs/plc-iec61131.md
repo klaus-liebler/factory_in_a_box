@@ -995,6 +995,29 @@ cycle, integer results are not wrapped to the type's width, a / 0 and user funct
 Tested against the VM: a network of 19 operators (INT, REAL, TIME, BOOL) over several input sets
 gives the same values as the VM computed. Postponed (2026-11-09): breakpoints on boxes and steps.
 
+Editor aids (2026-11-09):
+
+- Wire routing (`ide/fbd-route.ts`): all wires of a network at once, shorter ones first. A wire
+  keeps out of the boxes it does not belong to; every vertical segment and horizontal track of a
+  source has its own line (wires of one output may share, they carry one value). First choice: one
+  vertical in the middle of the free gap before the target (its right edge would block wires that
+  enter the target at the height this one leaves its source), else around the boxes along a free
+  track above or below. Tested: a wire past a box in between, many wires into one box, a feedback, a
+  grid of 12 boxes with 18 crossing wires - no wire through a box, no two sources on one line.
+- Sensors and actuators of the FCU in the FBD palette ("Sensoren · <region>", "Aktoren · <region>",
+  per region of the register map, from `generated/register-map.ts` via `io-list.ts`): a click puts a
+  variable node bound to the I/O variable; its pin has the data type's colour at once, the node shows
+  the unit (‰, mA, mm, 0,01° ...), the tooltip description, address, type and range. The register
+  map has 16/32-bit integers and BOOL only (no floats, no three-point registers); a scaled REAL view
+  (e.g. 0.01deg -> degrees) would be a conversion block.
+- ST code completion (`st-editor.ts`, `completionContext`): while typing an identifier, after a '.'
+  or on Ctrl+Space a list at the caret (fixed in the window, upwards near the bottom): keywords,
+  types, standard and FCU blocks and functions, the project's objects, the object's variables, the
+  globals, the I/O variables (with type, unit and description); after "x." the fields of x from the
+  last build that compiled (a standard FB instance also from its declaration). Arrows choose,
+  Enter/Tab take, Esc closes. Nothing in comments, strings and literals (16#FF, T#1s). Tested: the
+  context recognition.
+
 ## 14. Decisions from the review and postponed points
 
 Review round 1 (2026-11-08):

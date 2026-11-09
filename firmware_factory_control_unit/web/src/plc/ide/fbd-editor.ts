@@ -7,6 +7,45 @@ import { LitElement, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { BOXES, catalog, networkTypes, newId, pinKey, pinsOf, type FbdNetwork, type FbdNode, type BoxCatalog, type FbdPou, type FbdProblem, type NetworkTypes, type PinRef, type TypeClass } from "./fbd.ts";
 import { evalBox, parseLive } from "./fbd-live.ts";
+import { pathOf, routeWires, type Rect } from "./fbd-route.ts";
+import { IO_VARS, type IoVar } from "./io-list.ts";
+
+// ---- the FCU's sensors and actuators (generated from the register map, io-list.ts) ---------------------
+const IO_BY_NAME = new Map(IO_VARS.map((v) => [v.name.toUpperCase(), v]));
+const UNIT_SHORT: Record<string, string> = { Promille: "‰", Prozent: "%", "0.01deg": "0,01°", C: "°C" };
+
+/** The I/O variable an input/output node is bound to (its expression is just the name). */
+function ioOf(text: string): IoVar | undefined {
+	return IO_BY_NAME.get(text.trim().toUpperCase());
+}
+
+function unitOf(v: IoVar | undefined): string {
+	return v?.unit ? (UNIT_SHORT[v.unit] ?? v.unit) : "";
+}
+
+/** The tooltip of a bound node: what it is, where, its type and range. */
+function ioTitle(v: IoVar): string {
+	const range = v.min !== undefined && v.max !== undefined ? `, ${v.min}..${v.max}${v.unit ? ` ${unitOf(v)}` : ""}` : v.unit ? `, ${unitOf(v)}` : "";
+	return `${v.description} (${v.direction === "input" ? "Sensor/Eingang" : "Aktor/Ausgang"} ${v.address}, ${v.type}${range})`;
+}
+
+/** The palette groups: per region of the register map its sensors (inputs) and its actuators (outputs). */
+function ioGroups(): { label: string; out: boolean; vars: IoVar[] }[] {
+	const out: { label: string; out: boolean; vars: IoVar[] }[] = [];
+	for (const region of [...new Set(IO_VARS.map((v) => v.region))]) {
+		const ins = IO_VARS.filter((v) => v.region === region && v.direction === "input");
+		const outs = IO_VARS.filter((v) => v.region === region && v.direction === "output");
+		if (ins.length) out.push({ label: `Sensoren · ${region}`, out: false, vars: ins });
+		if (outs.length) out.push({ label: `Aktoren · ${region}`, out: true, vars: outs });
+	}
+	return out;
+}
+
+/** The text of a variable node: the name and, for a bound I/O variable, its unit. */
+function varLabel(text: string): string {
+	const u = unitOf(ioOf(text));
+	return u ? `${text} ${u}` : text;
+}
 
 const BOX_W = 112;
 const HEAD = 22;
@@ -33,8 +72,8 @@ function varWidth(text: string): number {
 }
 
 function size(n: FbdNode, cat: BoxCatalog): { w: number; h: number } {
-	if (n.kind === "input") return { w: varWidth(n.expr || "?"), h: VAR_H };
-	if (n.kind === "output") return { w: varWidth(n.target || "?"), h: VAR_H };
+	if (n.kind === "input") return { w: varWidth(varLabel(n.expr) || "?"), h: VAR_H };
+	if (n.kind === "output") return { w: varWidth(varLabel(n.target) || "?"), h: VAR_H };
 	const p = pinsOf(n, cat);
 	return { w: BOX_W, h: HEAD + Math.max(p.inputs.length, p.outputs.length, 1) * PIN_DY + 6 };
 }
@@ -236,8 +275,10 @@ export class FbdEditor extends LitElement {
 		const bottom = Math.max(10, ...net.nodes.map((n) => n.y + size(n, this.cat).h + 20));
 		const id = newId(net);
 		let node: FbdNode;
-		if (kind === "@input") node = { kind: "input", id, x: 20, y: bottom, expr: "Variable" };
-		else if (kind === "@output") node = { kind: "output", id, x: 520, y: bottom, target: "Variable" };
+		// "@in:Lightbarrier1" / "@out:Valve1": a sensor or an actuator of the FCU, bound right away
+		const io = /^@(in|out):(.+)$/.exec(kind);
+		if (kind === "@input" || io?.[1] === "in") node = { kind: "input", id, x: 20, y: bottom, expr: io?.[2] ?? "Variable" };
+		else if (kind === "@output" || io?.[1] === "out") node = { kind: "output", id, x: 520, y: bottom, target: io?.[2] ?? "Variable" };
 		else {
 			const d = this.cat(kind)!;
 			const n = net.nodes.filter((x) => x.kind === "box" && x.type === kind).length + 1;
@@ -280,9 +321,12 @@ export class FbdEditor extends LitElement {
 		};
 		if (n.kind === "input" || n.kind === "output") {
 			const text = n.kind === "input" ? n.expr : n.target;
-			return svg`<g class=${cls} @pointerdown=${(e: PointerEvent) => this.down(e, net.id, n)}>
+			const io = ioOf(text);
+			const unit = unitOf(io);
+			return svg`<g class="${cls} ${io ? "fbd-io" : ""}" @pointerdown=${(e: PointerEvent) => this.down(e, net.id, n)}>
+				${io ? svg`<title>${ioTitle(io)}</title>` : nothing}
 				<rect x=${n.x} y=${n.y} width=${w} height=${h} rx="3" />
-				<text class="fbd-var-text" x=${n.x + w / 2} y=${n.y + 16} text-anchor="middle">${text || "?"}</text>
+				<text class="fbd-var-text" x=${n.x + w / 2} y=${n.y + 16} text-anchor="middle">${text || "?"}${unit ? svg`<tspan class="fbd-unit"> ${unit}</tspan>` : nothing}</text>
 				${n.kind === "input" ? value(n.expr, n.x + w / 2, n.y - 4, "start") : value(n.target, n.x + w / 2, n.y - 4, "start")}
 				${n.kind === "input" ? pin("OUT", "out") : pin("IN", "in")}
 			</g>`;
@@ -335,6 +379,15 @@ export class FbdEditor extends LitElement {
 		const width = Math.max(760, ...net.nodes.map((n) => n.x + size(n, this.cat).w + 120));
 		const height = Math.max(120, ...net.nodes.map((n) => n.y + size(n, this.cat).h + 50));
 		const problems = this.problems.filter((p) => p.network === net.id);
+		// all wires of the network at once: around foreign boxes, every line of its own (fbd-route.ts)
+		const boxes = new Map<string, Rect>(net.nodes.map((n) => [n.id, { x: n.x, y: n.y, ...size(n, this.cat) }]));
+		const ends = net.wires.map((w) => {
+			const a = byId.get(w.from.node), b = byId.get(w.to.node);
+			return a && b ? { a: pinAt(a, w.from.pin, "out", this.cat), b: pinAt(b, w.to.pin, "in", this.cat), from: a.id, to: b.id, source: `${a.id}.${w.from.pin}` } : null;
+		});
+		const valid = ends.filter((e): e is NonNullable<typeof e> => e !== null);
+		const routed = routeWires(boxes, valid);
+		const paths = new Map(valid.map((e, k) => [e, pathOf(routed[k])]));
 		return html`
 			<section class="fbd-net">
 				<header class="fbd-net-head">
@@ -355,8 +408,7 @@ export class FbdEditor extends LitElement {
 						const selected = this.sel && "wire" in this.sel && this.sel.net === net.id && this.sel.wire === i;
 						const t = types.pins.get(pinKey(w.from.node, "out", w.from.pin)) ?? "any";
 						const mismatch = types.mismatches.has(i);
-						const ins = pinsOf(b, this.cat).inputs;
-						const d = route(pinAt(a, w.from.pin, "out", this.cat), pinAt(b, w.to.pin, "in", this.cat), Math.max(0, ins.length - 1 - ins.indexOf(w.to.pin)));
+						const d = paths.get(ends[i]!) ?? "";
 						return svg`<g class="fbd-wire fbd-t-${t} ${on ? "fbd-on" : ""} ${mismatch ? "fbd-mismatch" : ""} ${selected ? "fbd-sel" : ""}"
 							@pointerdown=${(e: PointerEvent) => {
 								e.stopPropagation();
@@ -417,6 +469,8 @@ export class FbdEditor extends LitElement {
 						@change=${(e: Event) => { const el = e.target as HTMLSelectElement; this.add(el.value); el.value = ""; }}>
 						<option value="">＋ Einfügen…</option>
 						<optgroup label="Variablen"><option value="@input">Eingangsvariable</option><option value="@output">Ausgangsvariable</option></optgroup>
+						${ioGroups().map((g) => html`<optgroup label=${g.label}>${g.vars.map((v) => html`<option value=${`@${g.out ? "out" : "in"}:${v.name}`}
+							title=${ioTitle(v)}>${v.name}${unitOf(v) ? ` [${unitOf(v)}]` : ""} - ${v.description.slice(0, 50)}</option>`)}</optgroup>`)}
 						${groups.map((g) => html`<optgroup label=${g}>${all.filter((b) => b.group === g).map((b) => html`<option value=${b.type}>${b.type} - ${b.title}</option>`)}</optgroup>`)}
 					</select>
 					<button @click=${() => this.addNetwork()}>＋ Netzwerk</button>

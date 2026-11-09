@@ -28,7 +28,13 @@ import { Simulator } from "./simulator.ts";
 import { FcuDevice, type PlcDevice } from "./device.ts";
 import { formatValue, parseValue, readValue, type Value } from "./values.ts";
 import { addRow, deleteRow, freeName, GVL_CLASSES, parseRows, updateRow, VAR_CLASSES, type DeclRow } from "./decl-table.ts";
-import type { LineMarker, StEditor } from "./st-editor.ts";
+import type { Completion, CompletionContext, LineMarker, StEditor } from "./st-editor.ts";
+import { ELEM } from "../compiler/types.ts";
+import type { DebugInfo } from "../compiler/compiler.ts";
+
+/** The standard functions (the compiler's intrinsics) for code completion. */
+const STD_FUNCTIONS = ["ABS", "SQRT", "LN", "LOG", "EXP", "EXPT", "SIN", "COS", "TAN", "ASIN", "ACOS", "ATAN", "MIN", "MAX", "LIMIT", "SEL",
+	"MUX", "MOVE", "SHL", "SHR", "ROL", "ROR", "ADD", "SUB", "MUL", "DIV", "MOD", "GT", "GE", "EQ", "LE", "LT", "NE", "TRUNC"];
 
 type View = "prg" | "io" | "lib" | "task";
 
@@ -218,9 +224,13 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		this.buildTimer = setTimeout(() => this.doBuild(false), 300);
 	}
 
+	/** The debug information of the last build that compiled (code completion of members while typing). */
+	private lastGoodDebug: DebugInfo | null = null;
+
 	private doBuild(explicit: boolean): Build {
 		const b = build(this.project);
 		this.lastBuild = b;
+		if (b.result.debug) this.lastGoodDebug = b.result.debug;
 		this.fcu.attach(b.result);
 		if (explicit) {
 			const errors = b.located.filter((l) => l.diagnostic.severity === "error").length + this.problemCount(b);
@@ -923,7 +933,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 						</div>` : nothing}
 					</div>
 					${o.kind === "GVL" && this.declMode === "table" ? this.renderDeclTable() : html`
-					<plc-st-editor id="decl-editor" .value=${o.decl} .markers=${this.markers("decl")} .minLines=${12}
+					<plc-st-editor id="decl-editor" .value=${o.decl} .completions=${this.completionsFor} .markers=${this.markers("decl")} .minLines=${12}
 						@change=${(e: CustomEvent<string>) => this.edit({ decl: e.detail })}></plc-st-editor>`}
 				</div>
 			</div>`}
@@ -938,7 +948,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 						</div>
 					</div>
 					${this.declMode === "table" ? this.renderDeclTable() : html`
-						<plc-st-editor id="decl-editor" .value=${o.decl} .markers=${this.markers("decl")} .minLines=${4}
+						<plc-st-editor id="decl-editor" .value=${o.decl} .completions=${this.completionsFor} .markers=${this.markers("decl")} .minLines=${4}
 							@change=${(e: CustomEvent<string>) => this.edit({ decl: e.detail })}></plc-st-editor>`}
 				</div>
 				<div class="ide-impl">
@@ -953,7 +963,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 						${this.online && this.scope ? html`<span class="ide-online ${this.stale ? "ide-online-stale" : ""}">${this.stale ? "Werte des geladenen Programms - Projekt geändert" : "online: Werte"}</span>` : nothing}
 					</div>
 					${o.lang !== "ST" ? this.renderGraphical(o, this.lastBuild?.generated.get(o.id)) : html`
-					<plc-st-editor id="body-editor" .value=${o.body} .markers=${this.markers("body")} .inline=${this.inlineValues(o.body)} .stale=${this.stale} .minLines=${12}
+					<plc-st-editor id="body-editor" .value=${o.body} .completions=${this.completionsFor} .markers=${this.markers("body")} .inline=${this.inlineValues(o.body)} .stale=${this.stale} .minLines=${12}
 						.breakpoints=${this.breakpointLines} .breakable=${this.breakableBody} .current=${this.haltedBodyLine}
 						@toggle-breakpoint=${(e: CustomEvent<number>) => this.toggleBreakpoint(e.detail)}
 						@change=${(e: CustomEvent<string>) => this.edit({ body: e.detail })}></plc-st-editor>`}
@@ -1104,6 +1114,46 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 						: this.panel === "plant" ? this.renderPlant() : this.panel === "stack" ? this.renderStack() : this.panel === "xref" ? this.renderXref() : this.renderLog()}
 				</div>
 			</section>`;
+	}
+
+	// ---- code completion ------------------------------------------------------------------------------------
+	/** The candidates at the caret of an ST editor of the object in the editor: after "x." the fields of x
+	 *  (its type from the last build that compiled; a standard FB also from its declaration), else every
+	 *  name: keywords, types, blocks, functions, the project's objects, the object's variables, the globals
+	 *  and the I/O variables. The editor filters by the prefix. */
+	private completionsFor = (ctx: CompletionContext): Completion[] => {
+		const o = this.obj;
+		if (ctx.object !== null) return this.memberCompletions(o, ctx.object);
+		const out: Completion[] = [];
+		for (const k of KEYWORDS) if (!(k in ELEM)) out.push({ label: k, detail: "Schlüsselwort", kind: "keyword" });
+		for (const t of Object.keys(ELEM)) out.push({ label: t, detail: "Datentyp", kind: "type" });
+		for (const b of this.std) out.push({ label: b.name, detail: "Standard-FB", kind: "fb" });
+		for (const f of STD_FUNCTIONS) out.push({ label: f, detail: "Standardfunktion", kind: "function" });
+		for (const b of boxesFor(this.project, o)) out.push({ label: b.type, detail: b.title, kind: b.kind === "fb" ? "fb" : "function" });
+		for (const x of this.project.objects) {
+			if (x.kind === "PRG" || x.kind === "DUT") out.push({ label: x.name, detail: KIND_NAMES[x.kind], kind: x.kind === "DUT" ? "type" : "pou" });
+			if (x.kind === "GVL") for (const r of parseRows(x.decl)) out.push({ label: r.name, detail: `global (${x.name}) : ${r.type}`, kind: "variable" });
+		}
+		if (o.kind !== "GVL") for (const r of parseRows(o.decl)) out.push({ label: r.name, detail: `${r.cls} : ${r.type}`, kind: "variable" });
+		for (const v of IO_VARS) out.push({ label: v.name, detail: `${v.type}${v.unit ? ` [${v.unit}]` : ""} - ${v.description}`, kind: "io" });
+		const seen = new Set<string>();
+		return out.filter((c) => !seen.has(c.label.toUpperCase()) && seen.add(c.label.toUpperCase()));
+	};
+
+	private memberCompletions(o: PlcObject, object: string): Completion[] {
+		const d = this.lastGoodDebug;
+		const scope = o.kind === "PRG" ? o.name : o.kind === "FB" && d ? this.instancesOf(o, d)[0] : undefined;
+		const s = d ? (scope ? d.resolve(`${scope}.${object}`) : null) ?? d.resolve(object) : null;
+		const fields = s?.type.k === "fb" ? s.type.layout.fields : s?.type.k === "struct" ? s.type.fields : null;
+		if (fields) return fields.map((f) => ({ label: f.name, detail: typeName(f.type), kind: "field" as const }));
+		// not compiled yet: a standard FB instance of the declaration
+		const row = parseRows(o.decl).find((r) => r.name.toUpperCase() === object.toUpperCase());
+		const std = row && this.std.find((b) => b.name === row.type.toUpperCase());
+		if (!std) return [];
+		return [...std.inputs, ...std.outputs].map((pin) => {
+			const [name, type] = pin.split(" : ");
+			return { label: name, detail: type ?? "", kind: "field" as const };
+		});
 	}
 
 	// ---- folders and cross references --------------------------------------------------------------------

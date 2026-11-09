@@ -167,8 +167,15 @@ plc-ide-app[hidden] {
 	color: var(--ui-color-text-muted);
 	font-weight: normal;
 }
+/* an action, not a muted entry (it looked disabled) */
 .ide .ide-add {
-	color: var(--ui-color-text-muted);
+	color: var(--ide-accent);
+	font-weight: 600;
+	border: 1px dashed var(--ide-accent);
+	margin-top: 4px;
+}
+.ide .ide-add:hover {
+	background: color-mix(in srgb, var(--ide-accent) 10%, transparent);
 }
 .ide-tree-actions {
 	margin-top: auto;
@@ -1575,4 +1582,69 @@ plc-st-editor {
 .fbd-value.fbd-value-calc {
 	font-style: italic;
 	opacity: 0.85;
+}
+
+/* ---- FBD: sensors and actuators of the FCU (bound to an I/O variable): unit, a solid edge ---- */
+.fbd .fbd-unit {
+	font-size: 10px;
+	fill: #64748b;
+}
+.fbd .fbd-io rect {
+	stroke-width: 1.6;
+}
+
+/* ---- ST editor: code completion ---------------------------------------------------------------------- */
+.ste-complete {
+	position: fixed;
+	z-index: 50;
+	margin: 0;
+	padding: 2px 0;
+	list-style: none;
+	min-width: 260px;
+	max-width: 560px;
+	max-height: 220px;
+	overflow-y: auto;
+	background: var(--ui-color-bg-surface);
+	border: 1px solid var(--ui-color-border);
+	border-radius: var(--ui-radius-md);
+	box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+	font-family: var(--ide-mono);
+	font-size: 12.5px;
+}
+.ste-complete li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 8px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.ste-complete li.on {
+	background: color-mix(in srgb, var(--ide-accent) 16%, transparent);
+}
+.ste-ck {
+	flex: 0 0 22px;
+	text-align: center;
+	font-size: 10px;
+	font-weight: 700;
+	border-radius: 3px;
+	color: #fff;
+	background: #94a3b8;
+}
+.ste-ck-keyword { background: #7c3aed; }
+.ste-ck-type { background: #0d9488; }
+.ste-ck-variable { background: #2563eb; }
+.ste-ck-io { background: #ea580c; }
+.ste-ck-fb, .ste-ck-function { background: #16a34a; }
+.ste-ck-pou { background: #475569; }
+.ste-ck-field { background: #0284c7; }
+.ste-cl {
+	font-weight: 600;
+}
+.ste-cd {
+	color: var(--ui-color-text-muted);
+	font-family: inherit;
+	font-size: 11.5px;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }

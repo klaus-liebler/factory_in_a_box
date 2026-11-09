@@ -2,10 +2,7 @@
 // holding the encoded WsProtocol::roarm::Mission (name and steps), written as "<index>.TMP" and
 // renamed, so a power loss keeps the old or the new one. The card is mounted at the start and, if it
 // is missing or fails, again at the next request (at most every 5 s): a card inserted later is
-// found. Without a card there are no missions.
-// STM32H563 boards (revisions 1/2) had the missions in the internal flash (littlefs, the last
-// 256 KB): the first mount moves them onto the card (a mission already on the card wins) and
-// removes them from the flash. Owned by the I/O thread (FileX and littlefs have no locks).
+// found. Without a card there are no missions. Owned by the I/O thread (FileX has no locks).
 #pragma once
 
 #include <array>

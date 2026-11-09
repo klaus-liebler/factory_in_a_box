@@ -41,15 +41,15 @@ public class DelayStep : IMissionStep
     public ushort durationMs;
 }
 
-/// <summary>Wire-/Flash-Format einer vollstaendigen Mission -- exakt diese encodierten Bytes legt
-/// roarm_mission_store als Dateiinhalt in littlefs ab (der 4-Byte-Nachrichtenkopf dient zugleich
-/// als Datei-Magic, kein separates Format noetig).</summary>
+/// <summary>Wire- und Dateiformat einer vollstaendigen Mission -- exakt diese encodierten Bytes legt
+/// src/roarm/missions.cpp als Datei /MISSIONS/<index>.MSN auf der SD-Karte ab (der 4-Byte-
+/// Nachrichtenkopf dient zugleich als Datei-Magic, kein separates Format noetig).</summary>
 [BinaryMessage(MessageKind.Event)]
 public class Mission
 {
     // Bounds match RoArmSetupAndLoop::kMaxNameLength / kMaxStepsPerMission (roarm.hh) -- this is
-    // also the on-flash littlefs file format, so these bounds are load-bearing for existing files,
-    // not just wire traffic.
+    // also the mission file format on the SD card, so these bounds are load-bearing for existing
+    // files, not just wire traffic.
     [BinaryMaxEncodedByteLength(31)] public string name = "";
     [BinaryMaxItemCount(64)] public IMissionStep[] steps = System.Array.Empty<IMissionStep>();
 }

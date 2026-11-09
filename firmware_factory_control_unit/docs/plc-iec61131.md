@@ -242,10 +242,10 @@ about 20,000 downloads or 2.5 million configuration changes.
 
 **Flash area.** The same address on both chips: `0x081C'0000`, 256 KB, at the end of bank 2. The
 firmware image (today ~500 KB) stays in bank 1, so erasing and programming never stall the
-running code. `rtos_add_firmware(... FLASH_DATA_START 0x081C0000)` for **all** revisions (today
-rev 1/2 only). On the H563 the area today still holds the old mission littlefs, which the first SD mount
-migrates and erases: before P2, either remove the migration or let it run only when the area does not
-yet carry a PLC slot header (decided in P2, with a regression test).
+running code. `rtos_add_firmware(... FLASH_DATA_START 0x081C0000)` for all revisions. The area
+belongs to the PLC alone: the RoArm missions are on the SD card; the former import of missions from
+an internal-flash littlefs (older firmware of the H563 boards) is gone - there is only the current
+firmware (2026-11-09).
 
 **A/B slots, power-loss safe:**
 

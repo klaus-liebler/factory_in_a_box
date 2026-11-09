@@ -342,11 +342,11 @@ function projectProblem(p: Project): string | null {
 	if (p?.format !== 1 || !Array.isArray(p.objects) || p.objects.length === 0) return "kein FCU-SPS-Projekt (Format 1)";
 	const names = new Set<string>();
 	for (const o of p.objects) {
-		if (!OBJECT_KINDS.includes(o.kind) || typeof o.decl !== "string" || typeof o.name !== "string" || !IDENT.test(o.name)) return `Objekt '${o.name}' ungültig`;
-		const lang = o.lang ?? "ST";
-		if (!LANGS_OF[o.kind].includes(lang)) return `Objekt '${o.name}': Sprache ${lang} geht für ${o.kind} nicht`;
-		if (lang === "FBD" && !Array.isArray(o.networks)) return `Objekt '${o.name}': FBD ohne Netzwerke`;
-		if (lang === "SFC" && !Array.isArray(o.chart)) return `Objekt '${o.name}': SFC ohne Ablauf`;
+		if (!OBJECT_KINDS.includes(o.kind) || typeof o.id !== "string" || !o.id || typeof o.decl !== "string" || typeof o.body !== "string" ||
+			typeof o.name !== "string" || !IDENT.test(o.name)) return `Objekt '${o.name}' ungültig`;
+		if (!LANGS_OF[o.kind].includes(o.lang)) return `Objekt '${o.name}': Sprache ${o.lang} geht für ${o.kind} nicht`;
+		if (o.lang === "FBD" && !Array.isArray(o.networks)) return `Objekt '${o.name}': FBD ohne Netzwerke`;
+		if (o.lang === "SFC" && !Array.isArray(o.chart)) return `Objekt '${o.name}': SFC ohne Ablauf`;
 		if (o.folder !== undefined && typeof o.folder !== "string") return `Objekt '${o.name}': Ordner ungültig`;
 		if (names.has(o.name.toUpperCase())) return `Objektname '${o.name}' doppelt`;
 		names.add(o.name.toUpperCase());
@@ -355,16 +355,12 @@ function projectProblem(p: Project): string | null {
 	return null;
 }
 
-function normalize(p: Project): Project {
-	return { ...p, objects: p.objects.map((o, i) => ({ ...o, id: o.id || `obj${i}`, lang: o.lang ?? "ST", body: o.body ?? "" })) };
-}
-
 export function loadProject(): Project {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (raw) {
 			const p = JSON.parse(raw) as Project;
-			if (projectProblem(p) === null) return normalize(p);
+			if (projectProblem(p) === null) return p;
 		}
 	} catch {
 		// private mode, broken data: start with the example
@@ -377,7 +373,7 @@ export function parseProject(text: string): Project {
 	const p = JSON.parse(text) as Project;
 	const problem = projectProblem(p);
 	if (problem) throw new Error(problem);
-	return normalize(p);
+	return p;
 }
 
 export function saveProject(p: Project): void {

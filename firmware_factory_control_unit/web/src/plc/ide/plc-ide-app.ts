@@ -1300,7 +1300,6 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<span><span class="ide-dot ide-dot-${this.online ? "run" : "no_program"}"></span>${this.online ? "online" : this.dev.connected ? "keine Werte" : "offline"} · ${this.dev.label}</span>
 				<span class="ide-state ide-state-${s.toLowerCase()}">${s}</span>
 				<span>Quelle der Ausgänge: <b>${this.dev.iec ? "IEC 61131" : "Feldbus"}</b></span>
-				${this.dev.storeProblem ? html`<span class="ide-warn" title=${this.dev.storeProblem}>⚠ Laden gesperrt</span>` : nothing}
 				<span>Zyklus ${this.dev.cycleMs} ms · ${this.dev.cycles} Zyklen</span>
 				<span title="ausgeführte Befehle der VM pro Zyklus (Budget 2 000 000)">Befehle ${this.dev.lastInstructions} (max ${this.dev.maxInstructions})</span>
 				${this.stale ? html`<span class="ide-warn">⚠ Projekt ≠ Gerät</span>` : nothing}

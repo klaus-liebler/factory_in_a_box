@@ -32,19 +32,10 @@ endforeach()
 file(GLOB_RECURSE FCU_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
 # The last 256 KB of the flash (0x081C0000, both chips) hold the PLC's program slots
-# (src/plc.cpp, docs/plc-iec61131.md 4.5) and stay outside the image. STM32H563 boards of the old
-# firmware had the RoArm missions there (littlefs): the first start with an SD card moves them onto
-# the card (src/roarm/missions.cpp); until then the PLC does not write the area.
-if(RTOS_FCU_REVISION STREQUAL "3")
-    rtos_add_firmware(firmware_factory_control_unit
-        SOURCES ${FCU_SOURCES}
-        LIBRARIES rtos_board_fcu rtos_tls rtos_opcua rtos_filex rtos_plc
-        FLASH_DATA_START 0x081C0000)
-else()
-    rtos_add_firmware(firmware_factory_control_unit
-        SOURCES ${FCU_SOURCES}
-        LIBRARIES rtos_board_fcu rtos_tls rtos_opcua rtos_filex rtos_littlefs rtos_plc
-        FLASH_DATA_START 0x081C0000)
-endif()
+# (src/plc.cpp, docs/plc-iec61131.md 4.5) and stay outside the image.
+rtos_add_firmware(firmware_factory_control_unit
+    SOURCES ${FCU_SOURCES}
+    LIBRARIES rtos_board_fcu rtos_tls rtos_opcua rtos_filex rtos_plc
+    FLASH_DATA_START 0x081C0000)
 target_include_directories(firmware_factory_control_unit PRIVATE src ${FCU_GENERATED})
 target_compile_options(firmware_factory_control_unit PRIVATE -Wall -Wextra -Werror --embed-dir=${FCU_ASSETS})

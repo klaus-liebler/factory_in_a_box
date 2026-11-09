@@ -287,7 +287,6 @@ bool cmd_plc(Args a, Out& o) {
         if (s.trap != 0) {
             o.line("runtime error %u (code %u) at pc %lu", s.trap, s.trap_code, static_cast<unsigned long>(s.trap_pc));
         }
-        if (*s.problem != '\0') o.line("refused: %s", s.problem);
         if (s.forces != 0) o.line("%u forced value(s) - 'plc unforce' releases them", static_cast<unsigned>(s.forces));
         return true;
     }

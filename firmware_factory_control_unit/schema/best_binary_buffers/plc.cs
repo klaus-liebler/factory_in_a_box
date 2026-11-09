@@ -78,8 +78,6 @@ public class StatusResponse
 	/// <summary>The largest image the flash slots hold and the data segment of the VM.</summary>
 	public uint maxImageBytes;
 	public uint dataBytes;
-	/// <summary>Why downloads are refused right now ("" if they are not).</summary>
-	[BinaryMaxEncodedByteLength(120)] public string storeProblem = "";
 	/// <summary>Forced values on the device (any browser's); 0 after STOP, a switch, a download.</summary>
 	public byte forces;
 	/// <summary>Another browser holds the debug lease (forcing): this one may watch, not change.</summary>

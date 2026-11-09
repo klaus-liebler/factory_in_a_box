@@ -47,7 +47,7 @@ void log_main(void*) {
 
 // ---- I/O thread: boot, then the cycle ------------------------------------------------------------
 Kernel::Thread io_tcb;
-// deepest path: the servo and stepper transactions, the mission store (littlefs) and a
+// deepest path: the servo and stepper transactions, the mission store (FileX) and a
 // 1.3 KB request copied out of the RoArm queue
 alignas(8) std::array<std::byte, 8 * 1024> io_stack;
 

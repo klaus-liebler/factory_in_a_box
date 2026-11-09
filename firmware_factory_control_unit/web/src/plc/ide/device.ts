@@ -43,7 +43,6 @@ export interface PlcDevice extends EventTarget {
 	iec: boolean;
 	autostart: boolean;
 	/** Why downloads are refused ("": they are not). */
-	storeProblem: string;
 	/** Another browser holds the debug lease (it forces): this one may watch, not change. */
 	leasedByOther: boolean;
 	/** Forced values on the device, any browser's (the simulator: its own). */
@@ -200,7 +199,6 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	connected = false;
 	iec = false;
 	autostart = false;
-	storeProblem = "";
 	leasedByOther = false;
 	forcedOnDevice = 0;
 	private imageBytes = 0;
@@ -306,7 +304,6 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 			this.maxInstructions = s.maxInstructions;
 			this.projectHash = s.projectHash;
 			this.imageBytes = s.imageBytes;
-			this.storeProblem = s.storeProblem;
 			this.leasedByOther = s.leasedByOther;
 			this.forcedOnDevice = s.forces;
 			if (s.forces === 0 && this.forces.size > 0) {

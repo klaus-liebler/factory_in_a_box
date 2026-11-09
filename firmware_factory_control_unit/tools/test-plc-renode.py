@@ -44,9 +44,6 @@ ROOT = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("--revision", type=int, choices=[2, 3], default=3)
 ap.add_argument("--elf", type=Path, help="default: build/Release-Rev3 (revision 3) or build/Release (2)")
-ap.add_argument("--old-mission-store", action="store_true",
-                help="revision 2: the flash area still holds the littlefs mission store of the old firmware "
-                     "(no SD card): the PLC must refuse to write it")
 ap.add_argument("--renode", default="C:/opt/renode/renode.exe")
 args = ap.parse_args()
 elf = args.elf or ROOT / f"build/{'Release-Rev3' if args.revision == 3 else 'Release'}/firmware_factory_control_unit.elf"
@@ -102,9 +99,6 @@ cmds = "; ".join([
     f"sysbus WriteDoubleWord {uid_at:#x} {uid[0]:#x}",
     f"sysbus WriteDoubleWord {uid_at + 4:#x} {uid[1]:#x}",
     f"sysbus WriteDoubleWord {uid_at + 8:#x} {uid[2]:#x}",
-    # the old mission store: a littlefs superblock ("littlefs" at offset 8 of block 0)
-    *([f"sysbus WriteDoubleWord {0x081C0008 + 4 * i:#x} {struct.unpack('<I', b'littlefs'[4 * i:4 * i + 4])[0]:#x}"
-       for i in range(2)] if args.old_mission_store else []),
     f"sysbus.sdmmc1 InsertCard @{card.as_posix()} true",
     f'emulation CreateServerSocketTerminal {port} "console" false',
     "connector Connect sysbus.usart3 console",
@@ -217,10 +211,9 @@ def status(ws):
     r = ws.call(PLC, 1, b"", 2)
     state, source, autostart, cycle_ms, cycles, last, mx, img, proj, iomap, trap, trap_code, trap_pc, max_img, data = \
         struct.unpack_from("<BBBHIIIIIIBHIII", r, 0)
-    problem, pos = cstr(r, struct.calcsize("<BBBHIIIIIIBHIII"))
-    forces, leased = struct.unpack_from("<BB", r, pos)
+    forces, leased = struct.unpack_from("<BB", r, struct.calcsize("<BBBHIIIIIIBHIII"))
     return {"state": STATES[state], "iec": source == 1, "autostart": bool(autostart), "cycles": cycles, "image": img,
-            "trap": trap, "problem": problem, "instructions": last, "forces": forces, "leased_by_other": bool(leased)}
+            "trap": trap, "instructions": last, "forces": forces, "leased_by_other": bool(leased)}
 
 
 def force(ws, name, value_bytes):
@@ -375,29 +368,6 @@ def holding(mb, reg, count=1):
 CONVEYOR, VALVE2, VALVE3, STEPPER1_TARGET, STEPPER2_TARGET, HOMING1, MISSION = 40, 21, 22, 61, 65, 69, 110
 
 ws = mb = None
-if args.old_mission_store:
-    if args.revision != 2:
-        sys.exit("--old-mission-store: revision 2 only (STM32H563)")
-    try:
-        check("DHCP lease", wait_log("dhcp: bound", 90))
-        check("log: the area still holds the missions", wait_log("plc: the flash still holds RoArm missions", 10))
-        ws = Ws()
-        st = status(ws)
-        check("status names the problem", "RoArm missions" in st["problem"], st["problem"])
-        ok, msg = download(ws)
-        check("download refused", not ok and "RoArm missions" in msg, msg)
-        check("no program loaded", status(ws)["image"] == 0)
-        ok, msg = control(ws, "iec")
-        check("switching the source is refused too (it would write the area)", not ok, msg)
-        check("... and nothing switched: still fieldbus", not status(ws)["iec"])
-    finally:
-        if ws is not None:
-            ws.close()
-        stop.set()
-        proc.kill()
-        proc.wait()
-    print("RESULT:", "PASS" if failures == 0 else f"FAIL ({failures})")
-    sys.exit(1 if failures else 0)
 try:
     check("DHCP lease", wait_log("dhcp: bound", 90))
     check("PLC thread up, no program", wait_log("plc: no program", 30))
@@ -405,7 +375,7 @@ try:
     mb = net_test.ModbusClient()
 
     st = status(ws)
-    check("status: NO_PROGRAM, fieldbus, no store problem", st["state"] == "NO_PROGRAM" and not st["iec"] and st["problem"] == "", str(st))
+    check("status: NO_PROGRAM, fieldbus", st["state"] == "NO_PROGRAM" and not st["iec"], str(st))
     check("fieldbus mode: Modbus writes the conveyor", modbus_write(mb, CONVEYOR, 500) is None and holding(mb, CONVEYOR) == [500])
 
     # the same image, built for another register map (I/O map hash changed, CRC fixed up)

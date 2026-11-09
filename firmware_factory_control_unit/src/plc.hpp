@@ -41,7 +41,6 @@ struct Status {
     std::uint8_t trap;  ///< 0: none
     std::uint16_t trap_code;
     std::uint32_t trap_pc;
-    const char* problem;  ///< why downloads and switching are refused ("": they are not)
     std::uint8_t forces;  ///< forced values (any browser's)
 };
 [[nodiscard]] Status status() noexcept;

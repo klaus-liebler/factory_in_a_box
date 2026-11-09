@@ -52,7 +52,6 @@ std::atomic<std::uint32_t> cycles{0}, last_instructions{0}, max_instructions{0};
 std::atomic<std::uint8_t> trap{0};
 std::atomic<std::uint16_t> trap_code{0};
 std::atomic<std::uint32_t> trap_pc{0};
-const char* store_problem = "";  // why downloads are refused ("": they are not)
 std::uint32_t received = 0;      // bytes of the running download in image_ram
 bool downloading = false;
 
@@ -309,22 +308,6 @@ void load_from_flash() noexcept {
     (void)load_ram_image();
 }
 
-/// STM32H563 boards of the old firmware kept the RoArm missions in littlefs in the same area. Until
-/// they are moved onto the SD card (src/roarm/missions.cpp), the PLC must not overwrite them.
-void check_store_area() noexcept {
-    store_problem = "";
-#if RTOS_FCU_REVISION != 3
-    if (store.has_slot()) return;
-    const auto magic_at = [](std::uint32_t block) {
-        return std::memcmp(reinterpret_cast<const void*>(slots_base + block * SlotFlash::block_bytes + 8), "littlefs", 8) == 0;
-    };
-    if (magic_at(0) || magic_at(1)) {
-        store_problem = "the flash still holds RoArm missions of the old firmware: insert an SD card and restart (they are moved there)";
-        RTOS_LOG_WARN("plc: %s", store_problem);
-    }
-#endif
-}
-
 void set_source(bool to_iec) noexcept {
     if (to_iec == iec.load()) return;
     release_forces("control source switched");
@@ -344,7 +327,6 @@ vm::SlotConfig config() noexcept {
 }
 
 const char* persist() noexcept {
-    if (*store_problem != '\0') return store_problem;
     return store.set_config(config()) == vm::SlotError::none ? nullptr : "the flash could not be written";
 }
 
@@ -476,13 +458,10 @@ const char* control(ws::PlcCommand c) noexcept {
             return load_ram_image();
         case C::SourceIec:
         case C::SourceFieldbus:
-            // the switch must survive a restart: nothing changes when it cannot be stored
-            if (*store_problem != '\0') return store_problem;
             set_source(c == C::SourceIec);
             return persist();
         case C::AutostartOn:
         case C::AutostartOff:
-            if (*store_problem != '\0') return store_problem;
             autostart = c == C::AutostartOn;
             return persist();
         case C::UnforceAll:
@@ -582,10 +561,6 @@ const char* commit(const Request& r) noexcept {
     if (const char* problem = load_ram_image()) {
         load_from_flash();  // keep the program that was there
         return problem;
-    }
-    if (*store_problem != '\0') {
-        load_from_flash();
-        return store_problem;
     }
     if (store.commit(img, config()) != vm::SlotError::none) {
         load_from_flash();
@@ -706,7 +681,6 @@ const char* debug_continue(vm::StepKind kind) noexcept {
 
 void plc_main(void*) {
     store.mount();
-    check_store_area();
     const vm::SlotConfig c = store.config();
     autostart = c.autostart != 0;
     registers.set_write_filter({nullptr, &permit});
@@ -753,7 +727,7 @@ Status status() noexcept {
     return {.state = state_name(state.load()), .iec = iec.load(), .autostart = autostart,
             .image_bytes = loaded ? image_bytes : 0, .max_image_bytes = static_cast<std::uint32_t>(image_ram.size()),
             .cycles = cycles.load(), .last_instructions = last_instructions.load(), .max_instructions = max_instructions.load(),
-            .trap = trap.load(), .trap_code = trap_code.load(), .trap_pc = trap_pc.load(), .problem = store_problem,
+            .trap = trap.load(), .trap_code = trap_code.load(), .trap_pc = trap_pc.load(),
             .forces = force_count.load()};
 }
 
@@ -785,8 +759,7 @@ void on_message(SessionId id, std::uint16_t type, const std::uint8_t* d, std::si
             .maxInstructions = max_instructions.load(), .imageBytes = machine.loaded() ? image_bytes : 0,
             .projectHash = machine.loaded() ? machine.project_hash() : 0, .ioMapHash = machine.loaded() ? machine.io_map_hash() : 0,
             .trap = trap.load(), .trapCode = trap_code.load(), .trapPc = trap_pc.load(),
-            .maxImageBytes = static_cast<std::uint32_t>(image_ram.size()), .dataBytes = static_cast<std::uint32_t>(data.size()),
-            .storeProblem = store_problem, .forces = force_count.load(),
+            .maxImageBytes = static_cast<std::uint32_t>(image_ram.size()), .dataBytes = static_cast<std::uint32_t>(data.size()), .forces = force_count.load(),
             .leasedByOther = lease.load() != no_session && lease.load() != id};
         std::array<std::uint8_t, ws::StatusResponse::StatusResponse_MAX_SIZE> buf{};
         send(std::span(buf).first(ws::StatusResponse::Encode(p, buf.data(), buf.size())));

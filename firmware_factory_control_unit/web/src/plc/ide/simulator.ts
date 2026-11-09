@@ -49,7 +49,6 @@ export class Simulator extends EventTarget implements PlcDevice {
 	/** The simulator has no fieldbus: the program always switches the outputs. */
 	iec = true;
 	autostart = false;
-	storeProblem = "";
 	/** One browser, no lease. */
 	readonly leasedByOther = false;
 	get forcedOnDevice(): number {

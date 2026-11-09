@@ -10,10 +10,6 @@
 #include "sd_card.hpp"
 #include "system.hpp"
 #include "ws_protocol.hh"
-#if RTOS_FCU_REVISION != 3
-#include "rtos/port/stm32h5/flash_program.hpp"
-#include "rtos/storage/littlefs.hpp"
-#endif
 
 namespace fcu::roarm::missions {
 namespace {
@@ -23,7 +19,7 @@ using sd::fx;
 std::uint32_t prepared = 0;  ///< the card (sd::generation()) the directory was set up on
 constexpr const char* directory = "/MISSIONS";
 
-std::array<std::uint8_t, max_mission_bytes> scratch;  // encoded mission (save, import)
+std::array<std::uint8_t, max_mission_bytes> scratch;  // encoded mission (save)
 std::array<CHAR, FX_MAX_LONG_NAME_LEN + 1> entry_name;
 
 std::array<char, 16> filename(std::uint16_t index, const char* extension = "msn") noexcept {
@@ -73,78 +69,6 @@ bool store(std::uint16_t index, std::span<const std::uint8_t> data) noexcept {
     return fx_file_rename(m, fx(tmp.data()), fx(path.data())) == FX_SUCCESS && sd::flush();
 }
 
-#if RTOS_FCU_REVISION != 3
-bool exists(std::uint16_t index) noexcept {
-    FX_FILE f{};
-    if (fx_file_open(sd::media(), &f, fx(filename(index).data()), FX_OPEN_FOR_READ) != FX_SUCCESS) {
-        return false;
-    }
-    (void)fx_file_close(&f);
-    return true;
-}
-
-// ---- import from the internal flash (STM32H563 boards: the missions were in littlefs) ------------
-using MissionFlash = rtos::port::stm32h5::flash::Region<0x081C'0000, 256 * 1024, board::sysclk_hz>;
-MissionFlash flash;
-rtos::storage::LittleFs<MissionFlash> lfs{flash};
-rtos::storage::LittleFs<MissionFlash>::File lfs_file;
-bool imported = false;
-
-/// Moves every mission of the flash store onto the card (once per start; a mission already on
-/// the card wins), then removes it from the flash: the card is the only store from then on.
-void import_from_flash() noexcept {
-    if (imported) {
-        return;
-    }
-    imported = true;
-    if (lfs.mount() != LFS_ERR_OK) {
-        return;  // never formatted: nothing to import
-    }
-    unsigned moved = 0, kept = 0, left = 0;
-    lfs_dir_t dir{};
-    if (lfs_dir_open(lfs.get(), &dir, "/") == LFS_ERR_OK) {
-        lfs_info info{};
-        while (lfs_dir_read(lfs.get(), &dir, &info) > 0) {
-            unsigned index = 0;
-            if (info.type != LFS_TYPE_REG || !parse_index(info.name, index)) {
-                continue;
-            }
-            std::array<char, LFS_NAME_MAX + 2> path{};
-            std::snprintf(path.data(), path.size(), "/%s", info.name);
-            if (exists(static_cast<std::uint16_t>(index))) {
-                ++kept;
-            } else {
-                if (lfs.open(lfs_file, path.data(), LFS_O_RDONLY) != LFS_ERR_OK) {
-                    ++left;
-                    continue;
-                }
-                const lfs_ssize_t got = lfs_file_read(lfs.get(), lfs_file.get(), scratch.data(), scratch.size());
-                lfs_file_close(lfs.get(), lfs_file.get());
-                if (got <= 0 || !store(static_cast<std::uint16_t>(index), {scratch.data(), static_cast<std::size_t>(got)})) {
-                    RTOS_LOG_WARN("missions: mission %u not copied to the SD card, stays in the flash", index);
-                    ++left;
-                    continue;
-                }
-                ++moved;
-            }
-            (void)lfs_remove(lfs.get(), path.data());
-        }
-        lfs_dir_close(lfs.get(), &dir);
-    }
-    (void)lfs.unmount();
-    if (moved + kept > 0) {
-        RTOS_LOG_INFO("missions: %u moved from the flash to the SD card, %u already there", moved, kept);
-    }
-    if (left == 0) {
-        // nothing of the old store is needed any more: erasing its superblocks (blocks 0 and 1)
-        // frees the area for the PLC's program slots (src/plc.cpp refuses to write while they exist)
-        if (flash.erase(0) && flash.erase(1)) {
-            RTOS_LOG_INFO("missions: the old mission store in the flash is removed; the area belongs to the PLC");
-        }
-    }
-}
-#endif
-
 /// The card mounted (sd::mount()) and, once per card, the mission directory set up: it becomes the
 /// default directory, the mission files are relative names in it (other users of the card take
 /// absolute paths).
@@ -166,9 +90,6 @@ bool ensure_mounted() noexcept {
     }
     prepared = sd::generation();
     RTOS_LOG_INFO("missions: in %s on the SD card", directory);
-#if RTOS_FCU_REVISION != 3
-    import_from_flash();
-#endif
     return true;
 }
 

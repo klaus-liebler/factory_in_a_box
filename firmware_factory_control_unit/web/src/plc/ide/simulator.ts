@@ -4,12 +4,14 @@
 import type { CompileResult, DebugInfo } from "../compiler/compiler.ts";
 import { TRAP_NAMES } from "../generated/isa.ts";
 import { Vm, type RunResult } from "../vm.ts";
+import { Debugger, type StepKind } from "./debugger.ts";
 import { COMMAND_VARS, IO_VARS } from "./io-list.ts";
 import { Plant } from "./plant.ts";
-import type { PlcDevice } from "./device.ts";
+import type { HaltInfo, PlcDevice } from "./device.ts";
 import { readValue, writeValue, type Value } from "./values.ts";
 
-export type PlcState = "NO_PROGRAM" | "STOP" | "RUN" | "ERROR";
+/** HALTED: a breakpoint or a step stopped the program inside a cycle (docs/plc-iec61131.md 4.2, 10.3). */
+export type PlcState = "NO_PROGRAM" | "STOP" | "RUN" | "HALTED" | "ERROR";
 
 export interface PlcError {
 	trap: string;
@@ -33,7 +35,12 @@ export class Simulator extends EventTarget implements PlcDevice {
 	readonly kind = "simulator";
 	readonly label = "Simulator";
 	readonly canForce = true;
+	readonly canDebug = true;
 	readonly canSingleCycle = true;
+	halt: HaltInfo | null = null;
+	private dbg: Debugger | null = null;
+	/** Breakpoint lines per source file: they survive a new download (applied to its debug information). */
+	private readonly breakpointLines = new Map<string, number[]>();
 	readonly hasPlant = true;
 	readonly hasControlSource = false;
 	connected = true;
@@ -93,6 +100,9 @@ export class Simulator extends EventTarget implements PlcDevice {
 		}
 		this.image = r.image;
 		this.debug = r.debug;
+		this.dbg = new Debugger(r.debug);
+		for (const [file, lines] of this.breakpointLines) this.dbg.setBreakpoints(file, lines);
+		this.halt = null;
 		this.projectHash = new DataView(r.image.buffer, r.image.byteOffset).getUint32(28, true);
 		this.state = "STOP";
 		this.error = null;
@@ -116,9 +126,67 @@ export class Simulator extends EventTarget implements PlcDevice {
 	stop(): void {
 		if (this.timer !== null) clearInterval(this.timer);
 		this.timer = null;
-		if (this.state === "RUN") {
+		if (this.state === "RUN" || this.state === "HALTED") {
+			this.vm.abandon(0);  // a halted cycle stays unfinished
+			this.dbg?.resume();  // no step carries over
+			this.halt = null;
 			this.state = "STOP";
 			this.note("info", "STOP");
+		}
+		this.emit();
+	}
+
+	// ---- debugging ------------------------------------------------------------------------------------
+	setBreakpoints(file: string, lines: number[]): number[] {
+		this.breakpointLines.set(file, [...lines]);
+		const set = this.dbg ? this.dbg.setBreakpoints(file, lines) : lines;
+		this.emit();
+		return set;
+	}
+
+	continueRun(): void {
+		if (this.state !== "HALTED" || !this.dbg) return;
+		this.dbg.resume();
+		this.proceed(true);
+	}
+
+	step(kind: StepKind): void {
+		if (this.state !== "HALTED" || !this.dbg) return;
+		this.dbg.stepFrom(kind, this.vm.contexts[0].calls.length);
+		this.proceed(true);
+	}
+
+	/** Runs the cycle (or resumes the halted one) with the debugger's stop predicate. */
+	private proceed(resume: boolean): void {
+		const debug = this.debug!;
+		this.vm.stop = this.dbg?.predicate() ?? null;
+		const r: RunResult = resume ? this.vm.resume(0) : this.vm.runCycle(0, (this.cycles * this.cycleMs) >>> 0);
+		this.lastInstructions = resume ? this.lastInstructions + r.instructions : r.instructions;
+		if (r.state === "halted") {
+			const c = this.vm.contexts[0];
+			const stepping = this.dbg?.stepping ?? false;
+			this.halt = { frames: this.dbg!.frames(c.pc, c.calls), reason: stepping ? "step" : "breakpoint" };
+			if (this.state !== "HALTED") {
+				const top = this.halt.frames[0];
+				this.note("info", `HALTED (${this.halt.reason}) in ${top?.pou ?? "?"}${top ? ` line ${top.line}` : ""}`);
+			}
+			this.state = "HALTED";
+			this.emit();
+			return;
+		}
+		this.halt = null;
+		this.applyForces();
+		this.cycles++;
+		this.maxInstructions = Math.max(this.maxInstructions, this.lastInstructions);
+		if (r.state === "trapped") {
+			const st = [...debug.statements].filter((s) => s.pc <= r.pc).sort((a, b) => b.pc - a.pc)[0];
+			this.error = { trap: TRAP_NAMES[r.trap] ?? String(r.trap), pc: r.pc, line: st ? st.span.start.line : null, pou: st?.pou ?? "?" };
+			this.stop();
+			this.state = "ERROR";
+			this.note("error", `runtime error ${this.error.trap} in ${this.error.pou}${this.error.line ? ` line ${this.error.line}` : ""} (pc ${r.pc})`);
+		} else {
+			this.dbg?.cycleEnded();  // a step past the end halts at the next cycle's first statement
+			if (this.state === "HALTED") this.state = this.timer !== null ? "RUN" : "STOP";  // STOP: a single cycle
 		}
 		this.emit();
 	}
@@ -173,20 +241,13 @@ export class Simulator extends EventTarget implements PlcDevice {
 				},
 			});
 		}
-		this.applyForces();
-		const r: RunResult = this.vm.runCycle(0, (this.cycles * this.cycleMs) >>> 0);
-		this.applyForces();
-		this.cycles++;
-		this.lastInstructions = r.instructions;
-		this.maxInstructions = Math.max(this.maxInstructions, r.instructions);
-		if (r.state === "trapped") {
-			const st = [...debug.statements].filter((s) => s.pc <= r.pc).sort((a, b) => b.pc - a.pc)[0];
-			this.error = { trap: TRAP_NAMES[r.trap] ?? String(r.trap), pc: r.pc, line: st ? st.span.start.line : null, pou: st?.pou ?? "?" };
-			this.stop();
-			this.state = "ERROR";
-			this.note("error", `runtime error ${this.error.trap} in ${this.error.pou}${this.error.line ? ` line ${this.error.line}` : ""} (pc ${r.pc})`);
+		// HALTED: the plant (time) runs on, the program waits for CONTINUE or a step - it never goes on by itself
+		if (this.state === "HALTED") {
+			this.emit();
+			return;
 		}
-		this.emit();
+		this.applyForces();
+		this.proceed(false);
 	}
 
 	read(path: string): { value: Value | null; symbol: ReturnType<DebugInfo["resolve"]> } {

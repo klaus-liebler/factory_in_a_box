@@ -17,7 +17,13 @@ export const CALL_DEPTH = 32;
 export const MAX_TASKS = 8;
 const NO_RETURN = 0xffffffff;
 
-export type RunState = "done" | "trapped";
+/** done: the cycle ran through; trapped: a runtime error; halted: stopped by `Vm.stop` (debugging),
+ *  the cycle continues with `resume()`. */
+export type RunState = "done" | "trapped" | "halted";
+
+/** Debugging: asked before every instruction while set; true halts before the instruction at `pc`.
+ *  `depth` is the call depth (1 = the program's body). */
+export type StopPredicate = (pc: number, depth: number) => boolean;
 export interface RunResult {
 	state: RunState;
 	trap: Trap;
@@ -113,6 +119,10 @@ export class Context {
 	frameTop = 0;
 	frameEnd = 0;
 	nowMs = 0;
+	/** The cycle in progress: the task's program it runs, the budget left (kept while halted). */
+	program = 0;
+	remaining = 0;
+	halted = false;
 }
 
 export class Vm {
@@ -308,30 +318,67 @@ export class Vm {
 	}
 
 	// ---- execution ----------------------------------------------------------------------------------
+	/** Debugging: halts the cycle before an instruction (breakpoints, single step); null: never. */
+	stop: StopPredicate | null = null;
+
 	runCycle(task: number, nowMs: number): RunResult {
 		if (!this.loaded_ || task >= this.tasks_.length) throw new Error("PLC VM: no such task");
 		const t = this.tasks_[task];
 		const c = this.contexts[task];
+		if (c.halted) throw new Error("PLC VM: the task is halted - resume() it");
 		c.nowMs = nowMs >>> 0;
 		c.frameTop = t.frameBase;
 		c.frameEnd = t.frameBase + t.frameSize;
-		const total: RunResult = { state: "done", trap: Trap.NONE, trapCode: 0, pc: 0, instructions: 0 };
-		let remaining = t.budget;
-		for (const p of t.programs) {
-			c.sp = 0;
-			c.pc = p.entry;
-			c.self = p.instance;
-			c.fp = c.frameTop;
-			c.calls = [{ returnPc: NO_RETURN, fp: c.fp, self: c.self }];
-			const r = this.execute(c, remaining);
-			total.instructions += r.instructions;
-			if (r.state === "trapped") return { ...r, instructions: total.instructions };
-			remaining -= r.instructions;
-		}
-		return total;
+		c.program = 0;
+		c.remaining = t.budget;
+		return this.proceed(task, false);
 	}
 
-	private execute(c: Context, budget: number): RunResult {
+	/** Continues a halted cycle where it stopped; the instruction there runs without asking `stop` again. */
+	resume(task: number): RunResult {
+		const c = this.contexts[task];
+		if (!this.loaded_ || !c?.halted) throw new Error("PLC VM: the task is not halted");
+		return this.proceed(task, true);
+	}
+
+	/** Is the task halted inside a cycle? */
+	halted(task: number): boolean {
+		return this.contexts[task]?.halted ?? false;
+	}
+
+	/** Leaves a halted cycle unfinished (STOP, reset, a new program). */
+	abandon(task: number): void {
+		const c = this.contexts[task];
+		if (c) c.halted = false;
+	}
+
+	private proceed(task: number, resumed: boolean): RunResult {
+		const t = this.tasks_[task];
+		const c = this.contexts[task];
+		let instructions = 0;
+		for (; c.program < t.programs.length; c.program++) {
+			if (!resumed) {
+				const p = t.programs[c.program];
+				c.sp = 0;
+				c.pc = p.entry;
+				c.self = p.instance;
+				c.fp = c.frameTop;
+				c.calls = [{ returnPc: NO_RETURN, fp: c.fp, self: c.self }];
+			}
+			const r = this.execute(c, c.remaining, resumed);
+			resumed = false;
+			instructions += r.instructions;
+			c.remaining -= r.instructions;
+			if (r.state !== "done") {
+				c.halted = r.state === "halted";
+				return { ...r, instructions };
+			}
+		}
+		c.halted = false;
+		return { state: "done", trap: Trap.NONE, trapCode: 0, pc: 0, instructions };
+	}
+
+	private execute(c: Context, budget: number, resumed = false): RunResult {
 		const code = this.image.subarray(this.codeOffset, this.codeOffset + this.codeSize);
 		const cv = new DataView(code.buffer, code.byteOffset, code.byteLength);
 		const data = this.data;
@@ -392,9 +439,20 @@ export class Vm {
 			pc = pc + cv.getInt32(at + 1, true);
 		};
 
+		const stop = this.stop;
+		let skip = resumed;  // the instruction it halted before runs now
 		try {
 			for (;;) {
 				at = pc;
+				if (stop !== null) {
+					if (skip) {
+						skip = false;
+					} else if (stop(pc, c.calls.length)) {
+						c.sp = sp;
+						c.pc = pc;
+						return { state: "halted", trap: Trap.NONE, trapCode: 0, pc, instructions: count };
+					}
+				}
 				if (count === budget) throw new TrapError(Trap.BUDGET);
 				count++;
 				const o: Op = code[pc];

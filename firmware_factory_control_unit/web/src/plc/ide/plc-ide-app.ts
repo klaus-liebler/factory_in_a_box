@@ -24,11 +24,10 @@ import { addRow, deleteRow, freeName, parseRows, updateRow, VAR_CLASSES, type De
 import type { LineMarker, StEditor } from "./st-editor.ts";
 
 type View = "prg" | "io" | "lib";
-type Panel = "messages" | "watch" | "log" | "plant";
+type Panel = "messages" | "watch" | "log" | "plant" | "stack";
 
 const WATCH_KEY = "fcu.plc.watch";
 const P2 = "kommt mit P2 (Laufzeit auf dem FCU)";
-const P3 = "Haltepunkte und Einzelschritt kommen mit P3";
 const P4 = "Weitere POUs (FB, FUN, DUT, GVL) kommen mit P4";
 
 interface StdBlock {
@@ -51,6 +50,8 @@ function stdBlocks(): StdBlock[] {
 export class PlcIdeApp extends LitElement implements DashboardApp {
 	@state() private project: Project = loadProject();
 	@state() private lastBuild: Build | null = null;
+	/** Breakpoints: lines of the implementation (body editor), sent to the device as compiled lines. */
+	@state() private breakpointLines = new Set<number>();
 	@state() private view: View = "prg";
 	@state() private declMode: "table" | "text" = "table";
 	@state() private panel: Panel = "messages";
@@ -114,8 +115,21 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			e.preventDefault();
 			saveProject(this.project);
 			this.flash("Projekt gespeichert (im Browser)");
+		} else if (this.dev.state === "HALTED" && (e.key === "F5" || e.key === "F10" || e.key === "F11")) {
+			e.preventDefault();
+			if (e.key === "F5") void this.dev.continueRun();
+			else if (e.key === "F10") void this.dev.step("over");
+			else void this.dev.step(e.shiftKey ? "out" : "into");
 		}
 	};
+
+	/** On a new halt the call stack comes to the front (once per halt, the user may switch away). */
+	private lastHalt: unknown = null;
+	protected willUpdate(): void {
+		const h = this.dev.state === "HALTED" ? this.dev.halt : null;
+		if (h && h !== this.lastHalt && this.lastHalt === null) this.panel = "stack";
+		this.lastHalt = h;
+	}
 
 	private flash(text: string): void {
 		this.notice = text;
@@ -167,12 +181,54 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			if (start && dev.iec && !confirm("Das Programm übernimmt die Ausgänge des FCU (Steuerquelle IEC 61131): Ventile, Motoren und Achsen können sich bewegen. Laden und starten?")) return;
 		}
 		if (await dev.download(b.result)) {
+			this.sendBreakpoints();  // the new program's statement offsets
 			// the source next to the program, for "from the device" in another browser (a missing card: a warning only)
 			if (dev.storeProject) await dev.storeProject(JSON.stringify(this.project));
 			if (start) await dev.start();
 		} else {
 			this.panel = "log";
 		}
+	}
+
+	// ---- debugging: breakpoints and the halted line ----------------------------------------------------
+	/** Body lines that can take a breakpoint (a statement begins there), from the last build. */
+	private get breakableBody(): Set<number> | null {
+		const b = this.lastBuild;
+		if (!this.dev.canDebug || !b?.result.debug) return null;
+		const file = this.project.objects[0].name;
+		const out = new Set<number>();
+		for (const s of b.result.debug.statements) {
+			if (s.span.start.file === file && s.span.start.line > b.declLines) out.add(s.span.start.line - b.declLines);
+		}
+		return out;
+	}
+
+	/** The body line the program halted on (0: not halted there). */
+	private get haltedBodyLine(): number {
+		const top = this.dev.state === "HALTED" ? this.dev.halt?.frames[0] : undefined;
+		const b = this.lastBuild;
+		if (!top || !b || top.file !== this.project.objects[0].name) return 0;
+		return top.line - b.declLines;
+	}
+
+	private toggleBreakpoint(line: number): void {
+		const next = new Set(this.breakpointLines);
+		if (!next.delete(line)) next.add(line);
+		this.breakpointLines = next;
+		this.sendBreakpoints();
+	}
+
+	private clearBreakpoints(): void {
+		this.breakpointLines = new Set();
+		this.sendBreakpoints();
+	}
+
+	private sendBreakpoints(): void {
+		const b = this.lastBuild;
+		if (!b || !this.dev.canDebug) return;
+		const offset = b.declLines;
+		const set = this.dev.setBreakpoints(this.project.objects[0].name, [...this.breakpointLines].map((l) => l + offset));
+		this.breakpointLines = new Set(set.map((l) => l - offset));  // lines without a statement drop out
 	}
 
 	private exportProject(): void {
@@ -404,15 +460,16 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				</div>
 				<div class="ide-tb-group">
 					<button title="Start (RUN)" ?disabled=${s !== "STOP"} @click=${() => this.dev.start()}>▶ Start</button>
-					<button title="Stop" ?disabled=${s !== "RUN"} @click=${() => this.dev.stop()}>■ Stop</button>
+					<button title="Stop" ?disabled=${s !== "RUN" && s !== "HALTED"} @click=${() => this.dev.stop()}>■ Stop</button>
 					<button title=${this.dev.canSingleCycle ? "Ein Zyklus (in STOP)" : "Einzelne Zyklen: nur im Simulator"} ?disabled=${s !== "STOP" || !this.dev.canSingleCycle} @click=${() => this.dev.singleCycle()}>⏭ Zyklus</button>
 					<button title="Reset warm: Variablen auf Initialwerte" ?disabled=${s === "NO_PROGRAM"} @click=${() => this.dev.reset("warm")}>↺ Reset</button>
 				</div>
-				<div class="ide-tb-group" title=${P3}>
-					<button disabled title="Haltepunkt (P3)">●</button>
-					<button disabled title="Prozedurschritt (P3)">⤼</button>
-					<button disabled title="Einzelschritt (P3)">⤵</button>
-					<button disabled title="Ausführen bis Rücksprung (P3)">⤴</button>
+				<div class="ide-tb-group" title=${this.dev.canDebug ? "Debuggen: Haltepunkt per Klick auf die Zeilennummer" : "Haltepunkte und Einzelschritt: auf dem FCU noch nicht (P3)"}>
+					<button title="Weiter (F5): bis zum nächsten Haltepunkt" ?disabled=${s !== "HALTED"} @click=${() => this.dev.continueRun()}>▶ Weiter</button>
+					<button title="Prozedurschritt (F10): die nächste Anweisung, Aufrufe laufen durch" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("over")}>⤼</button>
+					<button title="Einzelschritt (F11): in den Aufruf hinein" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("into")}>⤵</button>
+					<button title="Ausführen bis Rücksprung (Umschalt+F11)" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("out")}>⤴</button>
+					<button title="Alle Haltepunkte entfernen" ?disabled=${this.breakpointLines.size === 0} @click=${() => this.clearBreakpoints()}>○ Haltepunkte (${this.breakpointLines.size})</button>
 				</div>
 				${this.dev.hasControlSource ? html`
 				<div class="ide-tb-group" title="Wer schaltet die Ausgänge des FCU? Feldbus: Modbus, OPC UA, Web-UI. IEC 61131: das Programm (externe Schreibzugriffe werden abgewiesen).">
@@ -487,6 +544,8 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 						${this.online ? html`<span class="ide-online ${this.stale ? "ide-online-stale" : ""}">${this.stale ? "Werte des geladenen Programms - Projekt geändert" : "online: Werte"}</span>` : nothing}
 					</div>
 					<plc-st-editor id="body-editor" .value=${o.body} .markers=${this.markers("body")} .inline=${this.inlineValues(o.body)} .stale=${this.stale} .minLines=${12}
+						.breakpoints=${this.breakpointLines} .breakable=${this.breakableBody} .current=${this.haltedBodyLine}
+						@toggle-breakpoint=${(e: CustomEvent<number>) => this.toggleBreakpoint(e.detail)}
 						@change=${(e: CustomEvent<string>) => this.edit({ body: e.detail })}></plc-st-editor>
 				</div>
 			</div>`;
@@ -589,6 +648,27 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			</div>`;
 	}
 
+	/** The call stack of a halt: the halted statement first, then each caller at its call. */
+	private renderStack() {
+		const h = this.dev.state === "HALTED" ? this.dev.halt : null;
+		if (!h) return html`<p class="ide-empty">Das Programm ist nicht angehalten. Haltepunkt: Klick auf eine Zeilennummer der Implementierung.</p>`;
+		const user = this.project.objects[0].name;
+		const decl = this.lastBuild?.declLines ?? 0;
+		return html`
+			<p class="ide-stack-why">Angehalten: ${h.reason === "breakpoint" ? "Haltepunkt" : "Einzelschritt"} - das Programm wartet auf „Weiter“ oder einen Schritt (es läuft nie von selbst weiter).</p>
+			<table class="ide-table">
+				<thead><tr><th></th><th>POU</th><th>Zeile</th><th>Quelle</th></tr></thead>
+				<tbody>${h.frames.map((f, i) => html`
+					<tr class=${i === 0 ? "ide-stack-top" : ""}>
+						<td>${i === 0 ? "▶" : ""}</td>
+						<td>${f.pou}</td>
+						<td>${f.file === user ? f.line - decl : f.line}</td>
+						<td>${f.file === user ? "Implementierung" : f.file === "<stdlib>" ? "Standardbibliothek" : f.file === "<fcu>" ? "FCU-Bibliothek" : f.file}</td>
+					</tr>`)}
+				</tbody>
+			</table>`;
+	}
+
 	private renderPanel() {
 		const tab = (p: Panel, label: string, badge = "") => html`
 			<button class="ide-ptab ${this.panel === p ? "on" : ""}" @click=${() => (this.panel = p)}>${label}${badge ? html` <span class="ide-badge">${badge}</span>` : nothing}</button>`;
@@ -601,9 +681,11 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					${tab("watch", "Überwachung")}
 					${tab("plant", "Anlage (Simulation)")}
 					${tab("log", "Geräte-Log")}
+					${tab("stack", "Aufrufliste", this.dev.state === "HALTED" ? "⏸" : "")}
 				</div>
 				<div class="ide-pbody">
-					${this.panel === "messages" ? this.renderMessages(located) : this.panel === "watch" ? this.renderWatch() : this.panel === "plant" ? this.renderPlant() : this.renderLog()}
+					${this.panel === "messages" ? this.renderMessages(located) : this.panel === "watch" ? this.renderWatch()
+						: this.panel === "plant" ? this.renderPlant() : this.panel === "stack" ? this.renderStack() : this.renderLog()}
 				</div>
 			</section>`;
 	}

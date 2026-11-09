@@ -860,8 +860,19 @@ others get "another browser is debugging" for force, write, RUN/STOP/reset and d
 lease - the forces stay then, the terminal's `plc unforce` releases them. The IDE forces on the FCU
 like in the simulator and shows the device's count and the lease. Renode rev 3: output and input
 forced, the lease against a second browser, the lease ending with the WebSocket, `plc unforce`, STOP.
-Open in P3: watch subscriptions (`PlcWatch`, instead of polling), breakpoints, single step, call
-stack (both VMs), the halted state in the IDE.
+Breakpoints and single step in the simulator: the TypeScript VM halts before an instruction when a
+stop predicate says so (`Vm.stop`, asked only while debugging - otherwise full speed) and `resume()`s
+there; the context keeps the task's program and the remaining budget, so a halt mid-cycle loses
+nothing. `ide/debugger.ts` turns line breakpoints into the offsets of the statements that begin on
+those lines, a step into a predicate over statement starts and call depth (into: any depth, over: the
+same or above, out: above; a step past the end of the cycle halts at the next cycle's first
+statement), a halt into the call stack (the halted statement, then each caller at its call). The
+simulator's state HALTED: the plant (time) runs on, the program waits for CONTINUE or a step - never by
+itself; STOP from HALTED abandons the cycle. IDE: a click on a line number sets a breakpoint (only
+lines where a statement begins), the halted line is marked, Weiter/F5, Prozedurschritt/F10,
+Einzelschritt/F11, Rücksprung/Shift+F11, the "Aufrufliste" tab. Open in P3: the same on the FCU (C++
+VM: halt/resume, offsets per message, the HALTED state across the I/O cycle), watch subscriptions
+(`PlcWatch`, instead of polling).
 
 ## 14. Decisions from the review and postponed points
 

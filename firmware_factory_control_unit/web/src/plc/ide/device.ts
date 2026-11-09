@@ -10,6 +10,12 @@ import { wsRequest } from "../../ws-client.ts";
 import type { LogLine, PlcError, PlcState } from "./simulator.ts";
 import { sizeOf } from "../compiler/types.ts";
 import { readValue, writeValue, type Value } from "./values.ts";
+import type { Frame, StepKind } from "./debugger.ts";
+
+export interface HaltInfo {
+	frames: Frame[];
+	reason: "breakpoint" | "step";
+}
 
 export interface PlcDevice extends EventTarget {
 	readonly kind: "simulator" | "fcu";
@@ -58,6 +64,16 @@ export interface PlcDevice extends EventTarget {
 	/** The PLC page is visible (poll) or not. */
 	activate(): void;
 	deactivate(): void;
+	/** Breakpoints and single steps (docs/plc-iec61131.md 10.3); false: not on this device yet. */
+	readonly canDebug: boolean;
+	/** Where the program halted (state HALTED), the innermost frame first. */
+	halt: HaltInfo | null;
+	/** The breakpoints of a source file (replacing its earlier ones); returns the lines that got one. */
+	setBreakpoints(file: string, lines: number[]): number[];
+	/** HALTED: run on (only breakpoints stop). */
+	continueRun(): void | Promise<void>;
+	/** HALTED: one statement (into calls, over them, out of the current POU). */
+	step(kind: StepKind): void | Promise<void>;
 	/** The project source on the device (the FCU: its SD card, docs/plc-iec61131.md 4.5); absent: the
 	 *  device keeps none. */
 	storeProject?(json: string): Promise<boolean>;
@@ -76,6 +92,14 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	readonly kind = "fcu";
 	readonly label = "FCU";
 	readonly canForce = true;
+	/** Breakpoints on the FCU need the C++ VM's halt (next P3 step). */
+	readonly canDebug = false;
+	halt: HaltInfo | null = null;
+	setBreakpoints(): number[] {
+		return [];
+	}
+	continueRun(): void {}
+	step(): void {}
 	readonly canSingleCycle = false;
 	readonly hasPlant = false;
 	readonly hasControlSource = true;

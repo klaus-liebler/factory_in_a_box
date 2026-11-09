@@ -82,6 +82,11 @@ export class StEditor extends LitElement {
 	@property({ attribute: false }) inline = new Map<number, string>();
 	@property({ type: Boolean }) stale = false;
 	@property({ type: Number }) minLines = 4;
+	/** Debugging: lines with a breakpoint, lines that can take one (null: no breakpoints here), the
+	 *  line the program halted on (0: none). A click on a line number toggles ("toggle-breakpoint"). */
+	@property({ attribute: false }) breakpoints = new Set<number>();
+	@property({ attribute: false }) breakable: Set<number> | null = null;
+	@property({ type: Number }) current = 0;
 	@query("textarea") private input!: HTMLTextAreaElement;
 
 	protected createRenderRoot() {
@@ -139,15 +144,21 @@ export class StEditor extends LitElement {
 				<div class="ste-scroll">
 					<div class="ste-gutter" style="height:${height}px">
 						${Array.from({ length: count }, (_, i) => {
-							const m = byLine.get(i + 1);
-							return html`<div class="ste-ln ${m ? `ste-ln-${m.severity}` : ""}" title=${m?.message ?? nothing}>${i + 1}</div>`;
+							const n = i + 1;
+							const m = byLine.get(n);
+							const can = this.breakable?.has(n) ?? false;
+							const bp = this.breakpoints.has(n);
+							const title = m?.message ?? (can ? (bp ? "Haltepunkt entfernen" : "Haltepunkt setzen") : nothing);
+							return html`<div class="ste-ln ${m ? `ste-ln-${m.severity}` : ""} ${can ? "ste-ln-can" : ""} ${bp ? "ste-ln-bp" : ""} ${this.current === n ? "ste-ln-current" : ""}"
+								title=${title}
+								@click=${can ? () => this.dispatchEvent(new CustomEvent("toggle-breakpoint", { detail: n, bubbles: true })) : nothing}>${n}</div>`;
 						})}
 					</div>
 					<div class="ste-area" style="height:${height}px; min-width: calc(${longest + 40}ch)">
 						<pre class="ste-hl" aria-hidden="true">${lines.map((l, i) => {
 							const m = byLine.get(i + 1);
 							const v = this.inline.get(i + 1);
-							return html`<div class="ste-row ${m ? `ste-row-${m.severity}` : ""}">${unsafeHTML(l || " ")}${v ? html`<span class="ste-val ${this.stale ? "ste-val-stale" : ""}">${v}</span>` : nothing}</div>`;
+							return html`<div class="ste-row ${m ? `ste-row-${m.severity}` : ""} ${this.current === i + 1 ? "ste-row-current" : ""}">${unsafeHTML(l || " ")}${v ? html`<span class="ste-val ${this.stale ? "ste-val-stale" : ""}">${v}</span>` : nothing}</div>`;
 						})}</pre>
 						<textarea class="ste-input" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"
 							?readonly=${this.readonly}

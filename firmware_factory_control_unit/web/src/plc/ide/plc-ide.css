@@ -500,6 +500,48 @@ plc-st-editor {
 .ste-ln-runtime::before {
 	background: #7c3aed;
 }
+/* debugging: lines that take a breakpoint, the breakpoints, the line the program halted on */
+.ste-ln-can {
+	cursor: pointer;
+}
+.ste-ln-can:hover::before {
+	content: "";
+	position: absolute;
+	left: 3px;
+	top: 5px;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: #fca5a5;
+}
+.ste-ln-bp::before,
+.ste-ln-bp:hover::before {
+	content: "";
+	position: absolute;
+	left: 3px;
+	top: 5px;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: #dc2626;
+}
+.ste-ln-current {
+	color: #1f2937;
+	font-weight: 600;
+}
+.ste-ln-current::after {
+	content: "▶";
+	position: absolute;
+	left: 1px;
+	top: 0;
+	font-size: 11px;
+	color: #d97706;
+}
+.ste-row-current {
+	background: #fef3c7;
+	outline: 1px solid #f59e0b;
+	outline-offset: -1px;
+}
 .ste-area {
 	position: relative;
 	flex: 1;

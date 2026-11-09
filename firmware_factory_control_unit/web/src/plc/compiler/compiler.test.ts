@@ -433,3 +433,102 @@ describe("project hash", () => {
 		expect(Buffer.compare(Buffer.from(a.image!), Buffer.from(b.image!))).toBe(0);
 	});
 });
+
+describe("compiler: namespaces (IEC 61131-3 Ed. 3, 6.9)", () => {
+	// a library as it will come with P7: its own namespace, nested ones, a type, globals, an FB, a function
+	const lib = `
+NAMESPACE Lib
+    TYPE Mode : (Off, Slow, Fast) := Off; END_TYPE
+    VAR_GLOBAL CONSTANT
+        cMax : INT := 100;
+    END_VAR
+    VAR_GLOBAL
+        gCount : INT;
+    END_VAR
+    FUNCTION Scale : INT
+    VAR_INPUT x : INT; END_VAR
+        Scale := LIMIT(0, x * 2, cMax);   (* the namespace's own constant, unqualified *)
+    END_FUNCTION
+    NAMESPACE Valves
+        FUNCTION_BLOCK Valve
+        VAR_INPUT Open : BOOL; END_VAR
+        VAR_OUTPUT Q : BOOL; Speed : Mode; END_VAR
+            Q := Open;
+            Speed := SEL(Open, Off, Fast);
+            gCount := gCount + 1;      (* the enclosing namespace's global *)
+            Q := Q AND Scale(1) = 2;   (* the enclosing namespace's function *)
+        END_FUNCTION_BLOCK
+    END_NAMESPACE
+END_NAMESPACE
+`;
+
+	it("qualified names from outside: types, function blocks, functions, globals, constants", () => {
+		const r = ok(prg("    v : Lib.Valves.Valve;\n    m : Lib.Mode;\n    y : INT;\n    z : INT;\n    c : INT;\n    arr : ARRAY[1..Lib.cMax] OF BYTE;",
+			"v(Open := TRUE);\nm := v.Speed;\ny := Lib.Scale(70);\nz := Lib.gCount;\nc := Lib.cMax;"), lib);
+		r.cycle(3);
+		expect(r.get("PLC_PRG.v.Q")).toBe(true);
+		expect(r.get("PLC_PRG.m")).toBe(2);  // Fast
+		expect(r.get("PLC_PRG.y")).toBe(100);  // 140 limited to cMax
+		expect(r.get("PLC_PRG.z")).toBe(3);
+		expect(r.get("PLC_PRG.c")).toBe(100);
+	});
+
+	it("USING makes a namespace's names visible unqualified", () => {
+		const r = ok(`USING Lib, Lib.Valves;\n${prg("    v : Valve;\n    y : INT;", "v(Open := TRUE);\ny := Scale(3) + cMax;")}`, lib);
+		r.cycle(1);
+		expect(r.get("PLC_PRG.y")).toBe(106);
+		expect(r.get("PLC_PRG.v.Q")).toBe(true);
+	});
+
+	it("the same name in two namespaces is no conflict; unqualified it needs USING, and two USINGs make it ambiguous", () => {
+		const two = `${lib}
+NAMESPACE Other
+    FUNCTION Scale : INT
+    VAR_INPUT x : INT; END_VAR
+        Scale := x * 10;
+    END_FUNCTION
+END_NAMESPACE`;
+		const r = ok(prg("    a : INT;\n    b : INT;", "a := Lib.Scale(2);\nb := Other.Scale(2);"), two);
+		r.cycle(1);
+		expect([r.get("PLC_PRG.a"), r.get("PLC_PRG.b")]).toEqual([4, 20]);
+		const unknown = compile([{ file: "PLC_PRG", text: prg("    v : Valve;", "") }, { file: "lib", text: lib }]);
+		expect(unknown.diagnostics.map((d) => d.message)).toContain("unknown type 'VALVE'");
+		const ambiguous = compile([{ file: "PLC_PRG", text: `USING Lib, Other;\n${prg("    a : INT;", "a := Scale(2);")}` }, { file: "lib", text: two }]);
+		expect(ambiguous.ok).toBe(false);
+		expect(ambiguous.diagnostics.map((d) => d.message).join("\n")).toMatch(/ambiguous: LIB.SCALE, OTHER.SCALE/);
+	});
+
+	it("a name of the own namespace wins over a global one of the same name", () => {
+		const r = ok(prg("    a : INT;\n    b : INT;", "a := Twice(5);\nb := N.Use(5);"), `
+FUNCTION Twice : INT
+VAR_INPUT x : INT; END_VAR
+    Twice := x * 2;
+END_FUNCTION
+NAMESPACE N
+    FUNCTION Twice : INT
+    VAR_INPUT x : INT; END_VAR
+        Twice := x * 3;
+    END_FUNCTION
+    FUNCTION Use : INT
+    VAR_INPUT x : INT; END_VAR
+        Use := Twice(x);
+    END_FUNCTION
+END_NAMESPACE`);
+		r.cycle(1);
+		expect([r.get("PLC_PRG.a"), r.get("PLC_PRG.b")]).toEqual([10, 15]);
+	});
+
+	it("a variable named like a namespace stays a variable (Lib.x is its member)", () => {
+		const r = ok(`TYPE P : STRUCT cMax : INT; END_STRUCT END_TYPE\n${prg("    Lib : P;\n    y : INT;", "Lib.cMax := 7;\ny := Lib.cMax;")}`, lib);
+		r.cycle(1);
+		expect(r.get("PLC_PRG.y")).toBe(7);
+	});
+
+	it("parse errors: END_NAMESPACE missing or stray, recovery goes on", () => {
+		const missing = build(`NAMESPACE A\nFUNCTION F : INT\n    F := 1;\nEND_FUNCTION\n${prg("    a : INT;", "a := A.F();")}`);
+		expect(missing.diagnostics.some((d) => d.message.includes("END_NAMESPACE"))).toBe(true);
+		const stray = build(`END_NAMESPACE\n${prg("    a : INT;", "a := 1;")}`);
+		expect(stray.ok).toBe(false);
+		expect(stray.diagnostics.length).toBe(1);  // the program after it is parsed (no follow-up errors)
+	});
+});

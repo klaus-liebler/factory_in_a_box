@@ -40,6 +40,10 @@ export interface TypeDecl {
 		| { kind: "struct"; fields: VarDecl[] }
 		| { kind: "enum"; base: TypeRef | null; values: { name: string; key: string; value: Expr | null; span: Span }[]; init: string | null };
 	span: Span;
+	/** The enclosing namespace (upper case, dotted; "" or absent: global) and the namespaces made
+	 *  visible by USING where the unit is (IEC 61131-3 Ed. 3, 6.9). */
+	ns?: string;
+	using?: string[];
 }
 
 export type PouKind = "PROGRAM" | "FUNCTION_BLOCK" | "FUNCTION";
@@ -55,12 +59,20 @@ export interface Pou {
 	span: Span;
 	/** The source unit (file) the POU comes from. */
 	file: string;
+	/** The enclosing namespace (upper case, dotted; "" or absent: global) and the namespaces made
+	 *  visible by USING where the unit is (IEC 61131-3 Ed. 3, 6.9). */
+	ns?: string;
+	using?: string[];
 }
 
 export interface GlobalVars {
 	kind: "globals";
 	vars: VarDecl[];
 	span: Span;
+	/** The enclosing namespace (upper case, dotted; "" or absent: global) and the namespaces made
+	 *  visible by USING where the unit is (IEC 61131-3 Ed. 3, 6.9). */
+	ns?: string;
+	using?: string[];
 }
 
 export type Unit = TypeDecl | Pou | GlobalVars;

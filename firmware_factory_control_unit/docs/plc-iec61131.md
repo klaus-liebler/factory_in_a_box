@@ -822,8 +822,22 @@ the verifier in `rtoos/docs/plc.md`. C++ VM: `rtoos/src/plc/vm.cpp` (~13.5 KB on
 with the same cases, 37 compiler tests, and the differential corpus of 66 programs (26 written by hand in
 `web/src/plc/corpus/`, 40 from a seeded random generator) whose traces the C++ VM reproduces byte for byte
 (`npm run plc:corpus` regenerates `rtoos/tests/plc_corpus/`). A deliberately broken rounding in the C++ VM makes the
-corpus fail, so it does detect differences. Open from P1: the compiler's symbol tables have no namespaces yet
-(needed for libraries, P7); STRING is not implemented (P7).
+corpus fail, so it does detect differences. STRING is not implemented (P7).
+
+Namespaces (done 2026-11-09, IEC 61131-3 Ed. 3, 6.9; the base for the libraries of P7):
+`NAMESPACE A.B ... END_NAMESPACE` (nested too) around POUs, types and global variable lists, and
+`USING X, Y;` at the start of a text or a namespace (it applies to the units after it, inherited by
+nested namespaces). Everything is declared under its qualified name, so the same name in two
+namespaces is no conflict. A name is looked up in the unit's namespace and the enclosing ones
+(innermost first), then globally, then in the USING namespaces - more than one hit there is an error
+("ambiguous: ... - qualify it"). Qualified names: types and function blocks in declarations
+(`v : Lib.Valves.Valve;`), function calls (`Lib.Scale(x)`, also as a statement), global variables and
+constants (`Lib.gCount`, `ARRAY[1..Lib.cMax]`); a variable named like a namespace stays a variable
+(`Lib.x` is then its member). A function's result is its unqualified name in its body. Not yet:
+qualified enumeration literals (`Lib.Mode#Fast` - with USING `Mode#Fast` works), a program in a
+namespace in the task list needs its qualified name. Tested (vitest): all of these against the VM,
+the lookup order, the ambiguity, END_NAMESPACE missing or stray (recovery goes on); the corpus and
+the golden images are unchanged.
 
 **P2 state (2026-11-09, without hardware).** Done and tested in Renode on revision 3 (STM32H743) and 2
 (STM32H563), `tools/test-plc-renode.py`: PLC thread coupled to the I/O cycle, I/O bindings in the image,

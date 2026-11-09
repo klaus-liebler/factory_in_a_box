@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Recursive-descent parser for IEC 61131-3 Structured Text (Ed. 3): POUs, TYPE, VAR_GLOBAL.
+// Recursive-descent parser for IEC 61131-3 Structured Text (Ed. 3): POUs, TYPE, VAR_GLOBAL, NAMESPACE, USING.
 // Error recovery: a broken statement or declaration is skipped up to the next ';', so one run
 // reports several errors. DOM-free.
 import type * as A from "./ast.ts";
@@ -140,23 +140,56 @@ class Parser {
 
 	// ---- units ----
 	units(): A.Unit[] {
+		return this.unitList("", [], null);
+	}
+
+	/** The units up to `end` (END_NAMESPACE) or the end of the text. `ns`: the enclosing namespace (upper
+	 *  case, dotted; "" global); `inherited`: the namespaces made visible by USING outside. A USING applies
+	 *  to the units after it, up to the end of its namespace (or of the text). */
+	private unitList(ns: string, inherited: string[], end: string | null): A.Unit[] {
 		const out: A.Unit[] = [];
-		while (this.tok.kind !== "eof") {
+		const using = [...inherited];
+		const scoped = <U extends A.Unit>(u: U): U => ({ ...u, ns, using: [...using] });
+		while (this.tok.kind !== "eof" && !(end !== null && this.isKw(end))) {
+			const before = this.tok;
 			try {
-				if (this.isKw("PROGRAM") || this.isKw("FUNCTION_BLOCK") || this.isKw("FUNCTION")) out.push(this.pou());
-				else if (this.isKw("TYPE")) out.push(...this.types());
+				if (this.isKw("PROGRAM") || this.isKw("FUNCTION_BLOCK") || this.isKw("FUNCTION")) out.push(scoped(this.pou()));
+				else if (this.isKw("TYPE")) out.push(...this.types().map(scoped));
 				else if (this.isKw("VAR_GLOBAL")) {
 					const start = this.tok.span;
-					out.push({ kind: "globals", vars: this.varSection(), span: this.span(start) });
-				} else this.fail(`expected PROGRAM, FUNCTION_BLOCK, FUNCTION, TYPE or VAR_GLOBAL, found ${this.describe(this.tok)}`);
+					out.push(scoped({ kind: "globals", vars: this.varSection(), span: this.span(start) }));
+				} else if (this.acceptKw("NAMESPACE")) {
+					const name = this.dottedName();
+					out.push(...this.unitList(ns ? `${ns}.${name.key}` : name.key, using, "END_NAMESPACE"));
+					this.expectKw("END_NAMESPACE");
+				} else if (this.acceptKw("USING")) {
+					do using.push(this.dottedName().key);
+					while (this.acceptOp(","));
+					this.expectOp(";");
+				} else this.fail(`expected PROGRAM, FUNCTION_BLOCK, FUNCTION, TYPE, VAR_GLOBAL, NAMESPACE or USING, found ${this.describe(this.tok)}`);
 			} catch (e) {
 				if (!(e instanceof ParseError)) throw e;
-				// skip to the next unit
-				const starts = ["PROGRAM", "FUNCTION_BLOCK", "FUNCTION", "TYPE", "VAR_GLOBAL"];
+				// skip to the next unit (at least one token: a stray END_NAMESPACE must not stop us)
+				if (this.tok === before) this.next();
+				const starts = ["PROGRAM", "FUNCTION_BLOCK", "FUNCTION", "TYPE", "VAR_GLOBAL", "NAMESPACE", "END_NAMESPACE", "USING"];
 				for (let t = this.tok; t.kind !== "eof" && !(t.kind === "keyword" && starts.includes(t.text)); t = this.tok) this.next();
 			}
 		}
 		return out;
+	}
+
+	/** A name with dots (a namespace, a qualified type): Lib, Lib.Valves. */
+	private dottedName(): { text: string; key: string } {
+		const first = this.ident();
+		let text = first.text;
+		let key = first.key;
+		while (this.isOp(".") && this.peek().kind === "ident") {
+			this.next();
+			const n = this.ident();
+			text += `.${n.text}`;
+			key += `.${n.key}`;
+		}
+		return { text, key };
 	}
 
 	private pou(): A.Pou {
@@ -240,8 +273,9 @@ class Parser {
 			}
 			return { kind: "string", length, span: this.span(start) };
 		}
-		const n = this.ident();
-		const named: A.TypeRef = { kind: "named", name: n.text, key: n.key, span: n.span };
+		const nameStart = this.tok.span;
+		const n = this.dottedName();  // a type of a namespace: Lib.FB_Valve
+		const named: A.TypeRef = { kind: "named", name: n.text, key: n.key, span: this.span(nameStart) };
 		// subrange: INT (0..100)
 		if (this.isOp("(") && !(this.peek().kind === "ident" && (this.peek(2).text === ":=" || this.peek(2).text === "," || this.peek(2).text === ")"))) {
 			this.next();

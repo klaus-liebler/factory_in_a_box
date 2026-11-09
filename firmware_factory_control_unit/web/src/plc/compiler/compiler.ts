@@ -100,8 +100,19 @@ interface VarInfo {
 	span: Span;
 }
 
+/** Where a name is looked up (IEC 61131-3 Ed. 3, 6.9): the namespace of the unit and its USINGs. */
+interface Scope {
+	ns: string;
+	using: string[];
+}
+const GLOBAL: Scope = { ns: "", using: [] };
+const scopeOf = (u: { ns?: string; using?: string[] }): Scope => ({ ns: u.ns ?? "", using: u.using ?? [] });
+/** A unit's key in the tables: qualified with its namespace. */
+const qualified = (u: { ns?: string; key: string }) => (u.ns ? `${u.ns}.${u.key}` : u.key);
+
 interface PouInfo {
 	ast: A.Pou;
+	scope: Scope;
 	key: string;
 	name: string;
 	kind: A.PouKind;
@@ -175,6 +186,10 @@ class Compiler {
 	private pous = new Map<string, PouInfo>();
 	private globals = new Map<string, VarInfo>();
 	private enumValues = new Map<string, Type[]>();
+	/** The scope of each type declaration (its references are looked up there). */
+	private typeScopes = new Map<string, Scope>();
+	/** Where names are looked up now: the unit being laid out or compiled. */
+	private scope: Scope = GLOBAL;
 	private emitter = new Emitter();
 	private natives = new Set<Native>();
 	private statements: StatementInfo[] = [];
@@ -237,27 +252,77 @@ class Compiler {
 	// ---- declarations -----------------------------------------------------------------------------
 	private declare(units: A.Unit[]): void {
 		const taken = (key: string) => this.types.has(key) || this.pous.has(key);
+		// the name as shown: with its namespace (as the namespace was written is not kept: upper case)
+		const shown = (u: { ns?: string; name: string }) => (u.ns ? `${u.ns}.${u.name}` : u.name);
 		for (const u of units) {
+			const key = u.kind === "globals" ? "" : qualified(u);
 			if (u.kind === "type") {
-				if (taken(u.key) || isElemName(u.key)) this.diag.error(u.span, `'${u.name}' is already declared`);
-				else this.types.set(u.key, u);
+				if (taken(key) || isElemName(u.key)) this.diag.error(u.span, `'${shown(u)}' is already declared`);
+				else {
+					this.types.set(key, { ...u, key, name: shown(u) });
+					this.typeScopes.set(key, scopeOf(u));
+				}
 			} else if (u.kind === "pou") {
-				if (taken(u.key) || isElemName(u.key)) {
-					this.diag.error(u.span, `'${u.name}' is already declared`);
+				if (taken(key) || isElemName(u.key)) {
+					this.diag.error(u.span, `'${shown(u)}' is already declared`);
 					continue;
 				}
-				this.pous.set(u.key, {
-					ast: u, key: u.key, name: u.name, kind: u.pouKind, vars: new Map(), params: [], layout: null, frameSize: 0,
+				this.pous.set(key, {
+					ast: u, scope: scopeOf(u), key, name: shown(u), kind: u.pouKind, vars: new Map(), params: [], layout: null, frameSize: 0,
 					returnType: null, result: null, callees: new Set(), library: u.file.startsWith("<"), state: "new",
 				});
 			}
 		}
 	}
 
+	/** The key a name (upper case, maybe dotted) has in a table, from the current scope: its namespace and
+	 *  the enclosing ones (innermost first), then global, then the USING namespaces (more than one: an
+	 *  error). null: none. */
+	private findKey(key: string, has: (k: string) => boolean, span?: Span): string | null {
+		for (let ns = this.scope.ns; ns; ns = ns.includes(".") ? ns.slice(0, ns.lastIndexOf(".")) : "") {
+			if (has(`${ns}.${key}`)) return `${ns}.${key}`;
+		}
+		if (has(key)) return key;
+		const hits = [...new Set(this.scope.using.map((u) => `${u}.${key}`).filter(has))];
+		if (hits.length > 1 && span) this.diag.error(span, `'${key}' is ambiguous: ${hits.join(", ")} - qualify it`);
+		return hits[0] ?? null;
+	}
+
+	/** A member chain of names (Lib.Valves.Open) as a dotted name; null: anything else in it. */
+	private dottedOf(e: A.Expr): { name: string; key: string; root: string } | null {
+		if (e.kind === "name") return { name: e.name, key: e.key, root: e.key };
+		if (e.kind !== "member") return null;
+		const o = this.dottedOf(e.object);
+		return o ? { name: `${o.name}.${e.name}`, key: `${o.key}.${e.key}`, root: o.root } : null;
+	}
+
+	/** A qualified global variable (Lib.gMax, also Lib.gPos.X) as a name of the variable with the rest as
+	 *  members; null: an ordinary member access (its root is a variable, or no global matches). */
+	private qualifiedRef(e: A.Expr): A.Expr | null {
+		if (e.kind !== "member") return null;
+		const parts: { name: string; key: string }[] = [];
+		let x: A.Expr = e;
+		while (x.kind === "member") {
+			parts.unshift({ name: x.name, key: x.key });
+			x = x.object;
+		}
+		if (x.kind !== "name" || this.lookupVar(x.key)) return null;
+		parts.unshift({ name: x.name, key: x.key });
+		for (let n = parts.length; n >= 2; n--) {
+			const key = this.findKey(parts.slice(0, n).map((p) => p.key).join("."), (k) => this.globals.has(k));
+			if (!key) continue;
+			let out: A.Expr = { kind: "name", name: parts.slice(0, n).map((p) => p.name).join("."), key, span: e.span };
+			for (const p of parts.slice(n)) out = { kind: "member", object: out, name: p.name, key: p.key, span: e.span };
+			return out;
+		}
+		return null;
+	}
+
 	private resolveNamedType(key: string, span: Span): Type {
+		if (isElemName(key)) return T[key];
+		key = this.findKey(key, (k) => this.types.has(k) || this.pous.has(k), span) ?? key;
 		const done = this.resolvedTypes.get(key);
 		if (done) return done;
-		if (isElemName(key)) return T[key];
 		const decl = this.types.get(key);
 		if (!decl) {
 			const pou = this.pous.get(key);
@@ -278,6 +343,8 @@ class Compiler {
 			return ERROR;
 		}
 		this.resolving.add(key);
+		const outer = this.scope;
+		this.scope = this.typeScopes.get(key) ?? GLOBAL;  // its own references: where it is declared
 		let t: Type = ERROR;
 		const d = decl.def;
 		if (d.kind === "alias") {
@@ -332,6 +399,7 @@ class Compiler {
 				this.enumValues.set(k, list);
 			}
 		}
+		this.scope = outer;
 		this.resolving.delete(key);
 		this.resolvedTypes.set(key, t);
 		return t;
@@ -395,7 +463,9 @@ class Compiler {
 	private layoutGlobals(units: A.Unit[]): void {
 		for (const u of units) {
 			if (u.kind !== "globals") continue;
-			for (const v of u.vars) {
+			this.scope = scopeOf(u);
+			for (const v0 of u.vars) {
+				const v = { ...v0, key: qualified({ ns: u.ns, key: v0.key }), name: u.ns ? `${u.ns}.${v0.name}` : v0.name };
 				if (this.globals.has(v.key)) {
 					this.diag.error(v.span, `global variable '${v.name}' is declared twice`);
 					continue;
@@ -411,6 +481,7 @@ class Compiler {
 				this.globals.set(v.key, info);
 				this.initValue(addr, type, v.init, v.span);
 			}
+			this.scope = GLOBAL;
 		}
 	}
 
@@ -421,6 +492,8 @@ class Compiler {
 			return;
 		}
 		p.state = "laying";
+		const outer = this.scope;
+		this.scope = p.scope;
 		const instance = p.kind !== "FUNCTION";
 		const fields: Field[] = [];
 		let instSize = 0;
@@ -484,17 +557,19 @@ class Compiler {
 			}
 			p.returnType = rt;
 			frame = alignUp(frame, 8);
+			// the result is the function's own (unqualified) name in its body
 			p.result = {
-				name: p.name, key: p.key, type: rt, storage: "frame", offset: frame, cls: "RESULT", constant: false, byRef: false,
+				name: p.ast.name, key: p.ast.key, type: rt, storage: "frame", offset: frame, cls: "RESULT", constant: false, byRef: false,
 				init: null, span: p.ast.span,
 			};
-			p.vars.set(p.key, p.result);
+			p.vars.set(p.ast.key, p.result);
 			frame += 8;
 		} else {
 			p.layout = { key: p.key, name: p.name, size: alignUp(Math.max(instSize, 1), 8), fields };
 		}
 		p.frameSize = frame;
 		p.state = "laid";
+		this.scope = outer;
 	}
 
 	private placePrograms(taskDefs: TaskDef[]): Map<string, number> {
@@ -639,18 +714,22 @@ class Compiler {
 			case "bool": return { k: "bool", v: e.value };
 			case "time": return { k: "time", v: e.ms };
 			case "enumLit": {
-				const t = this.resolvedTypes.get(e.typeKey) ?? (this.types.has(e.typeKey) ? this.resolveNamedType(e.typeKey, e.span) : null);
+				const tk = this.findKey(e.typeKey, (k) => this.types.has(k)) ?? e.typeKey;
+				const t = this.resolvedTypes.get(tk) ?? (this.types.has(tk) ? this.resolveNamedType(tk, e.span) : null);
 				if (!t || t.k !== "enum") return null;
 				const v = t.values.get(e.key);
 				return v ? { k: "enum", type: t, v: v.value } : null;
+			}
+			case "member": {
+				const q = this.qualifiedRef(e);  // a constant of a namespace: Lib.cMax
+				return q ? this.constEval(q, hint) : null;
 			}
 			case "name": {
 				if (hint?.k === "enum") {
 					const v = hint.values.get(e.key);
 					if (v) return { k: "enum", type: hint, v: v.value };
 				}
-				const local = this.pou?.vars.get(e.key);
-				const g = local ?? this.globals.get(e.key);
+				const g = this.lookupVar(e.key);
 				if (g) {
 					if (g.constant && g.init?.kind === "expr") return this.constEval(g.init.expr, g.type);
 					return null;
@@ -697,6 +776,7 @@ class Compiler {
 	// ---- bodies -------------------------------------------------------------------------------------
 	private emitBody(p: PouInfo): void {
 		this.pou = p;
+		this.scope = p.scope;
 		this.loops = [];
 		const em = this.emitter;
 		this.entries.set(p.key, em.here);
@@ -736,6 +816,7 @@ class Compiler {
 		this.patchFrame(frameOperand);
 		p.state = "emitted";
 		this.pou = null;
+		this.scope = GLOBAL;
 	}
 
 	private entries = new Map<string, number>();
@@ -1022,7 +1103,9 @@ class Compiler {
 	private callStatement(c: A.CallExpr): void {
 		const callee = c.callee;
 		// a function call as a statement: its result is dropped
-		if (callee.kind === "name" && !this.lookupVar(callee.key)) {
+		const dotted = callee.kind === "member" ? this.dottedOf(callee) : null;
+		const qualifiedFunction = dotted !== null && !this.lookupVar(dotted.root) && this.findKey(dotted.key, (k) => this.pous.has(k)) !== null;
+		if ((callee.kind === "name" && !this.lookupVar(callee.key)) || qualifiedFunction) {
 			const r = this.check(c, null);
 			this.emitExpr(r);
 			if (r.type.k !== "error") this.emitter.op(Op.DROP);
@@ -1095,7 +1178,10 @@ class Compiler {
 
 	// ---- names and lvalues --------------------------------------------------------------------------
 	private lookupVar(key: string): VarInfo | null {
-		return this.pou?.vars.get(key) ?? this.globals.get(key) ?? null;
+		const local = this.pou?.vars.get(key);
+		if (local) return local;
+		const g = this.findKey(key, (k) => this.globals.has(k));
+		return g ? this.globals.get(g)! : null;
 	}
 
 	private varLV(v: VarInfo): LV {
@@ -1128,6 +1214,8 @@ class Compiler {
 				return this.varLV(v);
 			}
 			case "member": {
+				const q = this.qualifiedRef(e);  // Lib.gMax: a global variable of a namespace
+				if (q) return this.lvalueOrThrow(q);
 				const o = this.lvalueOrThrow(e.object);
 				const t = o.type;
 				if (t.k === "struct") {
@@ -1370,9 +1458,13 @@ class Compiler {
 	}
 
 	private checkCall(c: A.CallExpr, expected: Type | null): TExpr {
-		if (c.callee.kind !== "name") this.fatal(c.callee.span, "only functions can be called in an expression");
-		const key = c.callee.key;
-		const fn = this.pous.get(key);
+		// a function of a namespace: Lib.Scale(x) (its root is no variable)
+		const dotted = c.callee.kind === "member" ? this.dottedOf(c.callee) : null;
+		const named = c.callee.kind === "name" ? c.callee : dotted && !this.lookupVar(dotted.root) ? dotted : null;
+		if (!named) this.fatal(c.callee.span, "only functions can be called in an expression");
+		const key = named.key;
+		const fnKey = this.findKey(key, (k) => this.pous.has(k), c.callee.span);
+		const fn = fnKey ? this.pous.get(fnKey) : undefined;
 		if (fn) {
 			if (fn.kind !== "FUNCTION") this.fatal(c.span, `${fn.kind} '${fn.name}' cannot be called in an expression`);
 			return this.checkFunctionCall(fn, c);

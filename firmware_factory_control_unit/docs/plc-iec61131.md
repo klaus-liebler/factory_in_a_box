@@ -898,8 +898,13 @@ the instance chosen in the implementation's head (all instances found in the pro
 information, nested ones too), a function none. A halt brings the halted object into the editor.
 Tested: the split example sorts in the simulator, diagnostics per object, add/rename/remove with
 references, renaming leaves comments/strings/fields alone, a breakpoint in the FB halts with the
-caller in the stack and step out returns to it. Open in P4: declaration table for GVLs, folders,
-cross references.
+caller in the stack and step out returns to it. Also done: the declaration table for GVLs (class
+VAR_GLOBAL, online values); folders (`folder` per object, one level, tree: top level first, then
+the folders by name, collapsible; "📁 Ordner" in the object's head; only for the overview); cross
+references (panel "Querverweise", from the object's head or 🔍 at a variable row): every use of a
+name in all objects - declaration rows and headers marked "D", ST lines with column, FBD inputs,
+outputs, instances and boxes by network, SFC steps, actions, transitions and jumps - by name, not by
+scope; not in comments, strings or as a field after '.'.
 
 **P5/P6 state (2026-11-09, browser only).** FBD and SFC are implementation languages of project
 objects (`lang`, chosen in "Objekt hinzufügen": PRG and FB in ST/FBD/SFC, FUN in ST/FBD; the object

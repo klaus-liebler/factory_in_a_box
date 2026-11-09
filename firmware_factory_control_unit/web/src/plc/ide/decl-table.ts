@@ -4,6 +4,8 @@
 
 export const VAR_CLASSES = ["VAR", "VAR_INPUT", "VAR_OUTPUT", "VAR_IN_OUT", "VAR_TEMP"] as const;
 export type VarClass = (typeof VAR_CLASSES)[number];
+/** The classes of a global variable list. */
+export const GVL_CLASSES = ["VAR_GLOBAL"] as const;
 
 export interface DeclRow {
 	/** Index of the line in the declaration text. */

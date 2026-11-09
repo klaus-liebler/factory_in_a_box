@@ -19,7 +19,7 @@ import type * as A from "../compiler/ast.ts";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
 import { IO_VARS } from "./io-list.ts";
 import {
-	addObject, boxesFor, build, declLines, LANG_NAMES, LANGS_OF, type Generated, type Lang, exampleProject, hasBody, headerName, KIND_NAMES, loadProject, nameProblem, OBJECT_KINDS,
+	addObject, boxesFor, build, crossReferences, objectTree, setFolder, type CrossRef, declLines, LANG_NAMES, LANGS_OF, type Generated, type Lang, exampleProject, hasBody, headerName, KIND_NAMES, loadProject, nameProblem, OBJECT_KINDS,
 	parseProject, partLine, projectHash, removeObject, renameObject, saveProject, type Build, type Located, type ObjectKind, type PlcObject, type Project,
 } from "./project.ts";
 import type { FbdPou } from "./fbd.ts";
@@ -27,12 +27,12 @@ import { sfcWalk, type SfcPou } from "./sfc.ts";
 import { Simulator } from "./simulator.ts";
 import { FcuDevice, type PlcDevice } from "./device.ts";
 import { formatValue, parseValue, readValue, type Value } from "./values.ts";
-import { addRow, deleteRow, freeName, parseRows, updateRow, VAR_CLASSES, type DeclRow } from "./decl-table.ts";
+import { addRow, deleteRow, freeName, GVL_CLASSES, parseRows, updateRow, VAR_CLASSES, type DeclRow } from "./decl-table.ts";
 import type { LineMarker, StEditor } from "./st-editor.ts";
 
 type View = "prg" | "io" | "lib" | "task";
 
-type Panel = "messages" | "watch" | "log" | "plant" | "stack";
+type Panel = "messages" | "watch" | "log" | "plant" | "stack" | "xref";
 
 const WATCH_KEY = "fcu.plc.watch";
 const P2 = "kommt mit P2 (Laufzeit auf dem FCU)";
@@ -74,6 +74,10 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	/** Online values of a function block: the instance shown, per FB (id). */
 	@state() private instances = new Map<string, string>();
 	@state() private adding: AddForm | null = null;
+	/** Folders of the tree that are collapsed. */
+	@state() private collapsed = new Set<string>();
+	/** The name the cross references are shown for. */
+	@state() private xref = "";
 	@state() private view: View = "prg";
 	@state() private declMode: "table" | "text" = "table";
 	@state() private panel: Panel = "messages";
@@ -828,14 +832,20 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				</div>
 				<div class="ide-tree-device"><span class="ide-dot ide-dot-${this.dev.connected ? s.toLowerCase() : "offline"}"></span> ${this.dev.label} <span class="ide-node-sub">${this.dev.connected ? s : "offline"}</span></div>
 				<div class="ide-tree-group">Applikation</div>
-					${this.project.objects.map((o) => html`
-						<button class="ide-node ${this.view === "prg" && o.id === this.obj.id ? "ide-node-active" : ""}" title=${KIND_NAMES[o.kind]}
+					${objectTree(this.project).map(({ folder, objects }) => html`
+						${folder ? html`<button class="ide-node ide-folder" title="Ordner auf- oder zuklappen" @click=${() => {
+							const c = new Set(this.collapsed);
+							if (!c.delete(folder)) c.add(folder);
+							this.collapsed = c;
+						}}><span class="ide-node-icon">${this.collapsed.has(folder) ? "📁" : "📂"}</span><span>${folder}</span><span class="ide-node-sub">${objects.length}</span></button>` : nothing}
+						${folder && this.collapsed.has(folder) ? nothing : objects.map((o) => html`
+						<button class="ide-node ${folder ? "ide-node-in" : ""} ${this.view === "prg" && o.id === this.obj.id ? "ide-node-active" : ""}" title=${KIND_NAMES[o.kind]}
 							@click=${() => {
 								this.selectedId = o.id;
 								this.view = "prg";
 							}}>
 							<span class="ide-node-icon">${KIND_ICONS[o.kind]}</span><span>${o.name}</span><span class="ide-node-sub">${hasBody(o.kind) ? `${o.kind} · ${o.lang}` : o.kind}</span>
-						</button>`)}
+						</button>`)}`)}
 					${node("task", "⏱", this.project.tasks[0]?.name ?? "MainTask", `${this.dev.cycleMs} ms · ${this.project.tasks[0]?.programs.length ?? 0} PRG`)}
 					${this.adding ? this.renderAdd(this.adding) : html`<button class="ide-node ide-add" @click=${() => this.openAdd()}>＋ Objekt hinzufügen…</button>`}
 				<div class="ide-tree-group">Gerät</div>
@@ -897,15 +907,24 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<span class="ide-tab ide-tab-active">${KIND_ICONS[o.kind]} ${o.name} <span class="ide-node-sub">${KIND_NAMES[o.kind]}</span>${this.stale ? html` <span class="ide-modified" title="geändert seit dem Laden">●</span>` : nothing}</span>
 				<span class="ide-tab-actions">
 					<button class="ide-icon-btn" title="Umbenennen (alle Verweise im Projekt werden angepasst)" @click=${() => this.renameSelected()}>✎ Umbenennen</button>
+					<button class="ide-icon-btn" title="Wo wird dieses Objekt benutzt?" @click=${() => this.showXref(o.name)}>🔍 Querverweise</button>
+					<button class="ide-icon-btn" title="In einen Ordner legen (leer: oberste Ebene)" @click=${() => this.moveToFolder()}>📁 Ordner</button>
 					<button class="ide-icon-btn" title="Aus dem Projekt löschen" @click=${() => this.removeSelected()}>🗑 Löschen</button>
 				</span>
 			</div>
 			${body ? nothing : html`
 			<div class="ide-pou ide-pou-decl-only">
 				<div class="ide-decl">
-					<div class="ide-part-head"><span>${o.kind === "DUT" ? "Datentyp (TYPE … END_TYPE)" : "Globale Variablen (VAR_GLOBAL … END_VAR)"}</span></div>
+					<div class="ide-part-head">
+						<span>${o.kind === "DUT" ? "Datentyp (TYPE … END_TYPE)" : "Globale Variablen (VAR_GLOBAL … END_VAR)"}</span>
+						${o.kind === "GVL" ? html`<div class="ide-seg" role="group" aria-label="Ansicht der Deklaration">
+							<button class=${this.declMode === "table" ? "on" : ""} @click=${() => (this.declMode = "table")}>Tabelle</button>
+							<button class=${this.declMode === "text" ? "on" : ""} @click=${() => (this.declMode = "text")}>Text</button>
+						</div>` : nothing}
+					</div>
+					${o.kind === "GVL" && this.declMode === "table" ? this.renderDeclTable() : html`
 					<plc-st-editor id="decl-editor" .value=${o.decl} .markers=${this.markers("decl")} .minLines=${12}
-						@change=${(e: CustomEvent<string>) => this.edit({ decl: e.detail })}></plc-st-editor>
+						@change=${(e: CustomEvent<string>) => this.edit({ decl: e.detail })}></plc-st-editor>`}
 				</div>
 			</div>`}
 			${!body ? nothing : html`
@@ -944,6 +963,8 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 
 	private renderDeclTable() {
 		const decl = this.obj.decl;
+		// a GVL has global variables only; the POUs the classes of their declaration part
+		const classes: readonly string[] = this.obj.kind === "GVL" ? GVL_CLASSES : VAR_CLASSES;
 		const rows = parseRows(decl);
 		const errorsByLine = new Map<number, string>();
 		for (const m of this.markers("decl")) errorsByLine.set(m.line - 1, m.message);
@@ -958,12 +979,12 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<tbody>
 						${rows.map((r) => {
 							const err = errorsByLine.get(r.line);
-							const v = this.online && this.scope ? this.varValue(r.name) : null;
+							const v = this.online && (this.scope || this.obj.kind === "GVL") ? this.varValue(r.name) : null;
 							return html`
 							<tr class=${err ? "ide-row-error" : ""} title=${err ?? nothing}>
 								<td>
 									<select @change=${(e: Event) => set(r, { cls: (e.target as HTMLSelectElement).value })}>
-										${VAR_CLASSES.map((c) => html`<option ?selected=${c === r.cls}>${c}</option>`)}
+										${classes.map((c) => html`<option ?selected=${c === r.cls}>${c}</option>`)}
 									</select>${r.qualifier ? html`<span class="ide-qual">${r.qualifier}</span>` : nothing}
 								</td>
 								<td>${cell(r, "name")}</td>
@@ -971,12 +992,12 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 								<td>${cell(r, "init")}</td>
 								<td>${cell(r, "comment", true)}</td>
 								${this.online ? html`<td class="ide-value">${v?.text ?? ""}</td>` : nothing}
-								<td><button class="ide-icon-btn" title="Variable löschen" @click=${() => this.edit({ decl: deleteRow(decl, r) })}>✕</button></td>
+								<td class="ide-row-actions"><button class="ide-icon-btn" title="Querverweise: wo wird ${r.name} benutzt?" @click=${() => this.showXref(r.name)}>🔍</button><button class="ide-icon-btn" title="Variable löschen" @click=${() => this.edit({ decl: deleteRow(decl, r) })}>✕</button></td>
 							</tr>`;
 						})}
 					</tbody>
 				</table>
-				<button class="ide-add-row" @click=${() => this.edit({ decl: addRow(decl, { cls: "VAR", qualifier: "", name: freeName(rows), type: "BOOL", init: "", comment: "" }) })}>＋ Variable</button>
+				<button class="ide-add-row" @click=${() => this.edit({ decl: addRow(decl, { cls: classes[0], qualifier: "", name: freeName(rows), type: "BOOL", init: "", comment: "" }) })}>＋ Variable</button>
 			</div>`;
 	}
 
@@ -1076,12 +1097,75 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					${tab("plant", "Anlage (Simulation)")}
 					${tab("log", "Geräte-Log")}
 					${tab("stack", "Aufrufliste", this.dev.state === "HALTED" ? "⏸" : "")}
+					${tab("xref", "Querverweise")}
 				</div>
 				<div class="ide-pbody">
 					${this.panel === "messages" ? this.renderMessages(located) : this.panel === "watch" ? this.renderWatch()
-						: this.panel === "plant" ? this.renderPlant() : this.panel === "stack" ? this.renderStack() : this.renderLog()}
+						: this.panel === "plant" ? this.renderPlant() : this.panel === "stack" ? this.renderStack() : this.panel === "xref" ? this.renderXref() : this.renderLog()}
 				</div>
 			</section>`;
+	}
+
+	// ---- folders and cross references --------------------------------------------------------------------
+	private moveToFolder(): void {
+		const o = this.obj;
+		const f = prompt(`Ordner für ${o.name} (leer: oberste Ebene):`, o.folder ?? "");
+		if (f === null) return;
+		this.setProject(setFolder(this.project, o.id, f));
+	}
+
+	private showXref(name: string): void {
+		this.xref = name;
+		this.panel = "xref";
+	}
+
+	/** Names worth looking up: the objects, the declared variables of every object, the I/O variables. */
+	private xrefNames(): string[] {
+		const names = new Set<string>();
+		for (const o of this.project.objects) {
+			names.add(o.name);
+			for (const r of parseRows(o.decl)) names.add(r.name);
+		}
+		for (const v of IO_VARS) names.add(v.name);
+		return [...names];
+	}
+
+	private openXref(r: CrossRef): void {
+		if (r.where === "decl" || r.where === "body") {
+			this.reveal({ object: r.object, part: r.where, line: r.line, col: r.col });
+			return;
+		}
+		this.selectedId = r.object;
+		this.view = "prg";
+	}
+
+	private renderXref() {
+		const refs = this.xref ? crossReferences(this.project, this.xref) : [];
+		const where = (r: CrossRef) => (r.where === "decl" ? "Deklaration" : r.where === "body" ? "Implementierung" : r.where === "fbd" ? `FBD Netzwerk ${r.line}` : "SFC");
+		return html`
+			<div class="ide-xref">
+				<div class="ide-watch-actions">
+					<input list="ide-xref-names" placeholder="Name (Variable, POU, Typ, Instanz, Schritt)" .value=${this.xref}
+						@change=${(e: Event) => (this.xref = (e.target as HTMLInputElement).value.trim())} />
+					<datalist id="ide-xref-names">${this.xrefNames().map((n) => html`<option value=${n}></option>`)}</datalist>
+					${this.xref ? html`<span class="ide-node-sub">${refs.length} Stelle(n) - nach Namen, nicht nach Gültigkeitsbereich: gleichnamige lokale Variablen anderer POUs erscheinen mit ihrem Objekt</span>` : nothing}
+				</div>
+				${this.xref && refs.length === 0 ? html`<p class="ide-empty">„${this.xref}“ kommt im Projekt nicht vor${IO_VARS.some((v) => v.name.toUpperCase() === this.xref.toUpperCase()) ? " (eine I/O-Variable, die kein Objekt benutzt)" : ""}.</p>` : nothing}
+				${refs.length ? html`
+				<table class="ide-table">
+					<thead><tr><th>Objekt</th><th>Ort</th><th>Zeile</th><th></th><th>Text</th></tr></thead>
+					<tbody>${refs.map((r) => {
+						const o = this.project.objects.find((x) => x.id === r.object);
+						return html`<tr class="ide-stack-link" title="Im Editor zeigen" @click=${() => this.openXref(r)}>
+							<td>${o ? `${KIND_ICONS[o.kind]} ${o.name}` : ""}</td>
+							<td>${where(r)}</td>
+							<td>${r.where === "decl" || r.where === "body" ? `${r.line}:${r.col}` : ""}</td>
+							<td>${r.declares ? html`<span class="ide-force-tag" title="hier deklariert">D</span>` : nothing}</td>
+							<td class="ide-mono">${r.text}</td>
+						</tr>`;
+					})}</tbody>
+				</table>` : nothing}
+			</div>`;
 	}
 
 	private renderMessages(located: Located[]) {

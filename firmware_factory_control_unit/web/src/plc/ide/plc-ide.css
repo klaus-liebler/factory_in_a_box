@@ -1549,3 +1549,24 @@ plc-st-editor {
 .ide-task-off td {
 	color: var(--ui-color-text-muted);
 }
+
+/* ---- P4: folders in the tree, cross references ------------------------------------------------------ */
+.ide-folder {
+	font-weight: 600;
+	color: var(--ui-color-text-secondary);
+}
+.ide-node-in {
+	padding-left: 22px;
+}
+.ide-row-actions {
+	white-space: nowrap;
+}
+.ide-xref {
+	padding: 6px 10px;
+}
+.ide-xref .ide-watch-actions {
+	margin: 0 0 6px;
+}
+.ide-xref input {
+	min-width: 260px;
+}

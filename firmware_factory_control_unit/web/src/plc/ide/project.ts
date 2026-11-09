@@ -39,6 +39,8 @@ export interface PlcObject {
 	networks?: FbdNetwork[];
 	/** SFC: the chart (its first step is the initial step). */
 	chart?: SfcItem[];
+	/** The folder in the project tree ("" or absent: top level); only for the overview. */
+	folder?: string;
 }
 
 export interface Project {
@@ -242,6 +244,96 @@ export function headerName(o: PlcObject): string | null {
 	return m ? m[1] : null;
 }
 
+// ---- folders ----------------------------------------------------------------------------------------------
+/** A folder name as stored: trimmed, inner whitespace collapsed, no "/" (one level); "" = top level. */
+export function cleanFolder(name: string): string {
+	return name.replace(/\//g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function setFolder(p: Project, id: string, folder: string): Project {
+	const f = cleanFolder(folder);
+	return { ...p, objects: p.objects.map((o) => (o.id === id ? { ...o, folder: f || undefined } : o)) };
+}
+
+/** The tree: the top-level objects first (project order), then the folders by name with their objects. */
+export function objectTree(p: Project): { folder: string; objects: PlcObject[] }[] {
+	const top = p.objects.filter((o) => !o.folder);
+	const names = [...new Set(p.objects.map((o) => o.folder).filter((f): f is string => !!f))].sort((a, b) => a.localeCompare(b, "de"));
+	return [{ folder: "", objects: top }, ...names.map((folder) => ({ folder, objects: p.objects.filter((o) => o.folder === folder) }))];
+}
+
+// ---- cross references -------------------------------------------------------------------------------------
+export interface CrossRef {
+	object: string;
+	/** decl/body: a line of the declaration or the ST implementation; fbd: network `line` (1-based); sfc: the chart. */
+	where: "decl" | "body" | "fbd" | "sfc";
+	line: number;
+	col: number;
+	/** The line (decl/body) or the element's text (fbd/sfc). */
+	text: string;
+	/** The name is declared here (a variable's row, a POU header, an FBD instance, an SFC step). */
+	declares: boolean;
+}
+
+/** Positions (1-based line, column) of the identifier `key` (upper case) in ST text: not in comments
+ *  or strings, not as a field after '.'; enum literals `Name#Value` count. */
+function occurrences(text: string, key: string): { line: number; col: number }[] {
+	const toks = lex(text, "xref", new Diagnostics());
+	const out: { line: number; col: number }[] = [];
+	toks.forEach((t, i) => {
+		const prev = toks[i - 1];
+		if (prev && prev.kind === "op" && prev.text === ".") return;
+		if ((t.kind === "ident" || t.kind === "typed") && t.key === key) out.push({ line: t.span.start.line, col: t.span.start.col });
+	});
+	return out;
+}
+
+/** Every use of a name in the project (variable, POU, type, instance, step): all objects, their
+ *  declarations, implementations and graphics. By name, not by scope: a local variable of the same
+ *  name in another POU is listed too (its object says which). */
+export function crossReferences(p: Project, name: string): CrossRef[] {
+	const key = name.trim().toUpperCase();
+	if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) return [];
+	const declLine = new RegExp(`^\\s*(?:(?:PROGRAM|FUNCTION_BLOCK|FUNCTION|TYPE)\\s+)?${key}\\s*(?::|$)`, "i");
+	const out: CrossRef[] = [];
+	for (const o of p.objects) {
+		const lines = o.decl.split("\n");
+		for (const at of occurrences(o.decl, key)) {
+			const text = lines[at.line - 1] ?? "";
+			out.push({ object: o.id, where: "decl", ...at, text: text.trim(), declares: declLine.test(text) });
+		}
+		if (o.lang === "ST" && hasBody(o.kind)) {
+			const body = o.body.split("\n");
+			for (const at of occurrences(o.body, key)) out.push({ object: o.id, where: "body", ...at, text: (body[at.line - 1] ?? "").trim(), declares: false });
+		}
+		(o.networks ?? []).forEach((net, i) => {
+			for (const n of net.nodes) {
+				if (n.kind === "box") {
+					if (n.instance?.toUpperCase() === key) out.push({ object: o.id, where: "fbd", line: i + 1, col: 0, text: `${n.instance} : ${n.type}`, declares: true });
+					if (n.type.toUpperCase() === key) out.push({ object: o.id, where: "fbd", line: i + 1, col: 0, text: `Baustein ${n.type}`, declares: false });
+					continue;
+				}
+				const t = n.kind === "input" ? n.expr : n.target;
+				if (occurrences(t, key).length) out.push({ object: o.id, where: "fbd", line: i + 1, col: 0, text: n.kind === "input" ? `Eingang ${t}` : `Ausgang ${t}`, declares: false });
+			}
+		});
+		const walk = (items: SfcItem[]) => {
+			for (const it of items) {
+				if (it.kind === "step") {
+					if (it.name.toUpperCase() === key) out.push({ object: o.id, where: "sfc", line: 0, col: 0, text: `Schritt ${it.name}`, declares: true });
+					for (const a of it.actions) if (occurrences(a.body, key).length) out.push({ object: o.id, where: "sfc", line: 0, col: 0, text: `${it.name}: ${a.qualifier} ${a.body}`, declares: false });
+				} else if (it.kind === "trans") {
+					if (occurrences(it.condition, key).length) out.push({ object: o.id, where: "sfc", line: 0, col: 0, text: `Transition ${it.condition}`, declares: false });
+				} else if (it.kind === "jump") {
+					if (it.target.toUpperCase() === key) out.push({ object: o.id, where: "sfc", line: 0, col: 0, text: `Sprung zu ${it.target}`, declares: false });
+				} else walk(it.branches.flat());
+			}
+		};
+		walk(o.chart ?? []);
+	}
+	return out;
+}
+
 // ---- storage ---------------------------------------------------------------------------------------------
 const STORAGE_KEY = "fcu.plc.project";
 
@@ -255,6 +347,7 @@ function projectProblem(p: Project): string | null {
 		if (!LANGS_OF[o.kind].includes(lang)) return `Objekt '${o.name}': Sprache ${lang} geht für ${o.kind} nicht`;
 		if (lang === "FBD" && !Array.isArray(o.networks)) return `Objekt '${o.name}': FBD ohne Netzwerke`;
 		if (lang === "SFC" && !Array.isArray(o.chart)) return `Objekt '${o.name}': SFC ohne Ablauf`;
+		if (o.folder !== undefined && typeof o.folder !== "string") return `Objekt '${o.name}': Ordner ungültig`;
 		if (names.has(o.name.toUpperCase())) return `Objektname '${o.name}' doppelt`;
 		names.add(o.name.toUpperCase());
 	}

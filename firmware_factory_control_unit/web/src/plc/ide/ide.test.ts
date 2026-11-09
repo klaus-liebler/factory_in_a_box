@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { addRow, deleteRow, parseRows, updateRow } from "./decl-table.ts";
 import { COMMAND_VARS, IO_VARS, ioSource } from "./io-list.ts";
-import { addObject, build, declLines, exampleProject, nameProblem, removeObject, renameIn, renameObject, type Project } from "./project.ts";
+import { addObject, build, crossReferences, declLines, exampleProject, nameProblem, objectTree, parseProject, removeObject, renameIn, renameObject, setFolder, type CrossRef, type Project } from "./project.ts";
 import { Simulator } from "./simulator.ts";
 import { formatTime, parseValue } from "./values.ts";
 import { T } from "../compiler/types.ts";
@@ -134,6 +134,55 @@ describe("PLC IDE: several POUs (P4)", () => {
 		p = removeObject(p, added.object.id);
 		expect(p.tasks[0].programs).toEqual(["PLC_PRG"]);
 		expect(build(p).result.ok).toBe(true);
+	});
+
+	it("the declaration table edits a global variable list (VAR_GLOBAL rows)", () => {
+		const p = exampleProject();
+		const gvl = p.objects.find((o) => o.kind === "GVL")!;
+		const rows = parseRows(gvl.decl);
+		expect(rows.map((r) => [r.cls, r.name, r.type, r.init])).toEqual([["VAR_GLOBAL", "Enable", "BOOL", "TRUE"], ["VAR_GLOBAL", "PiecesMax", "INT", "10"]]);
+		gvl.decl = addRow(updateRow(gvl.decl, rows[1], { init: "12" }), { cls: "VAR_GLOBAL", qualifier: "", name: "Mode", type: "INT", init: "", comment: "new" });
+		expect(parseRows(gvl.decl).map((r) => r.name)).toEqual(["Enable", "PiecesMax", "Mode"]);
+		const b = build(p);
+		expect(b.ok).toBe(true);
+		expect(b.result.debug!.resolve("Mode")).toBeTruthy();
+		const sim = new Simulator();
+		sim.download(b.result);
+		expect(sim.read("PiecesMax").value).toBe(12);
+	});
+
+	it("folders: objects keep project order inside a folder, folders sorted by name, top level first; saved in the file", () => {
+		let p = exampleProject();
+		p = setFolder(p, "fb_ejector", "  Bausteine ");
+		p = setFolder(p, "sfc_prg", "Ablauf/Grafik");
+		p = setFolder(p, "fbd_prg", "Ablauf Grafik");
+		expect(objectTree(p).map((g) => [g.folder, g.objects.map((o) => o.name)])).toEqual([
+			["", ["GVL", "PLC_PRG"]], ["Ablauf Grafik", ["FBD_PRG", "SFC_PRG"]], ["Bausteine", ["FB_Ejector"]],
+		]);
+		const back = parseProject(JSON.stringify(p));
+		expect(back.objects.find((o) => o.id === "fb_ejector")!.folder).toBe("Bausteine");
+		p = setFolder(back, "fb_ejector", "");
+		expect(p.objects.find((o) => o.id === "fb_ejector")!.folder).toBeUndefined();
+		expect(build(p).ok).toBe(true);  // folders are only for the overview
+	});
+
+	it("cross references: declarations, ST uses, FBD and SFC, not comments or fields", () => {
+		const p = exampleProject();
+		const prg = prgOf(p);
+		prg.body += "(* Enable in a comment *)\nEjected := Ejector.Count;\n";
+		const refs = crossReferences(p, "enable");
+		const at = (r: CrossRef) => `${p.objects.find((o) => o.id === r.object)!.name}:${r.where}${r.declares ? ":D" : ""}`;
+		expect(refs.map(at)).toEqual(["GVL:decl:D", "PLC_PRG:body", "PLC_PRG:body", "FBD_PRG:fbd", "FBD_PRG:fbd"]);
+		expect(refs.filter((r) => r.where === "body").map((r) => r.line)).toEqual([3, 5]);
+		// a POU: its header, the instance declaration, an FBD box
+		const fb = crossReferences(p, "FB_Ejector").map(at);
+		expect(fb).toEqual(["FB_Ejector:decl:D", "PLC_PRG:decl"]);
+		// by name: FB_Ejector's output (declared, twice in "Count := Count + 1") and the SFC step Count; not
+		// PLC_PRG's "Ejector.Count" (a field after '.')
+		expect(crossReferences(p, "Count").map(at)).toEqual(["FB_Ejector:decl:D", "FB_Ejector:body", "FB_Ejector:body", "SFC_PRG:sfc:D"]);
+		// an FBD instance, an SFC step and its use in a transition condition
+		expect(crossReferences(p, "Eject").map(at)).toEqual(["FBD_PRG:fbd:D", "SFC_PRG:sfc:D", "SFC_PRG:sfc"]);
+		expect(crossReferences(p, "1x")).toEqual([]);
 	});
 
 	it("renaming leaves comments, strings and fields of the same name alone; enum literals follow", () => {

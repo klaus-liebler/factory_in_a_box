@@ -917,8 +917,13 @@ Simulator ausführen" runs one with a task of its own. Online values: as for ST 
 instance, an FB the chosen instance; pin colours offline from the last build). Tested: an FB in FBD
 called by an ST program (ends with END_FUNCTION_BLOCK, runs), two SFCs in one project, a program
 alone, structure problems block the build and compiler errors map to the object, renaming reaches
-FBD expressions and SFC conditions/actions. Open: breakpoints on boxes and steps (debug mapping),
-the project's own FBs and functions (and the FCU library) as FBD boxes.
+FBD expressions and SFC conditions/actions. FBD boxes beyond the standard ones (palette groups
+"Projekt" and "FCU-Bibliothek"): the project's other FBs and functions and the FCU library, their pins
+read from the declarations (VAR_INPUT/VAR_IN_OUT in, VAR_OUTPUT out, a function's result OUT, the
+declared types colour the pins); an unconnected input of such a function block is left out of the call
+(it keeps its value), a function needs all. Renaming an FB or function renames its boxes. Tested: an
+FBD program with a project FB (one input open), a project function and an FCU library block runs.
+Open: breakpoints on boxes and steps (debug mapping).
 
 - FBD (`ide/fbd.ts`, `ide/fbd-editor.ts`, SVG): networks of boxes (logic, comparison, arithmetic,
   SEL/MIN/MAX/LIMIT/MOVE, TON/TOF/TP, CTU/CTD, R_TRIG/F_TRIG, SR/RS), input variables (any ST

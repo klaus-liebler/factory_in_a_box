@@ -5,7 +5,7 @@
 // Online: the values of the variables and instance outputs at the pins, a TRUE wire in green.
 import { LitElement, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { BOXES, boxDef, networkTypes, newId, pinKey, pinsOf, type FbdNetwork, type FbdNode, type FbdPou, type FbdProblem, type NetworkTypes, type PinRef, type TypeClass } from "./fbd.ts";
+import { BOXES, catalog, networkTypes, newId, pinKey, pinsOf, type FbdNetwork, type FbdNode, type BoxCatalog, type FbdPou, type FbdProblem, type NetworkTypes, type PinRef, type TypeClass } from "./fbd.ts";
 
 const BOX_W = 112;
 const HEAD = 22;
@@ -31,19 +31,19 @@ function varWidth(text: string): number {
 	return Math.max(60, text.length * 7.4 + 18);
 }
 
-function size(n: FbdNode): { w: number; h: number } {
+function size(n: FbdNode, cat: BoxCatalog): { w: number; h: number } {
 	if (n.kind === "input") return { w: varWidth(n.expr || "?"), h: VAR_H };
 	if (n.kind === "output") return { w: varWidth(n.target || "?"), h: VAR_H };
-	const p = pinsOf(n);
+	const p = pinsOf(n, cat);
 	return { w: BOX_W, h: HEAD + Math.max(p.inputs.length, p.outputs.length, 1) * PIN_DY + 6 };
 }
 
 /** Where a pin is: inputs on the left edge, outputs on the right. */
-function pinAt(n: FbdNode, pin: string, side: "in" | "out"): { x: number; y: number } {
-	const { w } = size(n);
+function pinAt(n: FbdNode, pin: string, side: "in" | "out", cat: BoxCatalog): { x: number; y: number } {
+	const { w } = size(n, cat);
 	if (n.kind === "input") return { x: n.x + w, y: n.y + VAR_H / 2 };
 	if (n.kind === "output") return { x: n.x, y: n.y + VAR_H / 2 };
-	const p = pinsOf(n);
+	const p = pinsOf(n, cat);
 	const i = Math.max(0, (side === "in" ? p.inputs : p.outputs).indexOf(pin));
 	return { x: side === "in" ? n.x : n.x + w, y: n.y + HEAD + 12 + i * PIN_DY };
 }
@@ -96,6 +96,17 @@ export class FbdEditor extends LitElement {
 		return { x: e.clientX - r.left, y: e.clientY - r.top };
 	}
 
+	/** The boxes this POU can use: the standard ones and its extra ones (project, FCU library). */
+	private get cat(): BoxCatalog {
+		return catalog(this.pou.extra);
+	}
+
+	/** A new instance's name: TON -> Ton1, FB_Ejector -> Ejector1, FCU_StepperHome -> FCU_StepperHome1. */
+	private instanceName(type: string, n: number): string {
+		const base = /^FB_/i.test(type) ? type.slice(3) : type === type.toUpperCase() ? `${type.charAt(0)}${type.slice(1).toLowerCase()}` : type;
+		return `${base}${n}`;
+	}
+
 	// ---- pointer: drag nodes, draw wires, snap to pins -------------------------------------------------
 	/** The pin nearest to `p` within PIN_REACH (of one side, not on `exclude`). */
 	private nearestPin(netId: string, p: { x: number; y: number }, side?: "in" | "out", exclude?: string): NearPin | null {
@@ -103,11 +114,11 @@ export class FbdEditor extends LitElement {
 		let bestD = PIN_REACH * PIN_REACH;
 		for (const n of this.net(netId).nodes) {
 			if (n.id === exclude) continue;
-			const pins = pinsOf(n);
+			const pins = pinsOf(n, this.cat);
 			for (const s of ["in", "out"] as const) {
 				if (side && side !== s) continue;
 				for (const pin of s === "in" ? pins.inputs : pins.outputs) {
-					const at = pinAt(n, pin, s);
+					const at = pinAt(n, pin, s, this.cat);
 					const d = (at.x - p.x) ** 2 + (at.y - p.y) ** 2;
 					if (d < bestD) {
 						bestD = d;
@@ -121,7 +132,7 @@ export class FbdEditor extends LitElement {
 
 	private pinPos(w: NearPin): { x: number; y: number } {
 		const n = this.net(w.net).nodes.find((x) => x.id === w.node)!;
-		return pinAt(n, w.pin, w.side);
+		return pinAt(n, w.pin, w.side, this.cat);
 	}
 
 	private startWire(e: PointerEvent, from: NearPin): void {
@@ -221,15 +232,15 @@ export class FbdEditor extends LitElement {
 		if (!kind) return;
 		if (!this.pou.networks.length) this.addNetwork();
 		const net = this.targetNet();
-		const bottom = Math.max(10, ...net.nodes.map((n) => n.y + size(n).h + 20));
+		const bottom = Math.max(10, ...net.nodes.map((n) => n.y + size(n, this.cat).h + 20));
 		const id = newId(net);
 		let node: FbdNode;
 		if (kind === "@input") node = { kind: "input", id, x: 20, y: bottom, expr: "Variable" };
 		else if (kind === "@output") node = { kind: "output", id, x: 520, y: bottom, target: "Variable" };
 		else {
-			const d = boxDef(kind)!;
+			const d = this.cat(kind)!;
 			const n = net.nodes.filter((x) => x.kind === "box" && x.type === kind).length + 1;
-			node = { kind: "box", id, x: 200, y: bottom, type: kind, ...(d.kind === "fb" ? { instance: `${d.type.charAt(0)}${d.type.slice(1).toLowerCase()}${n}` } : {}) };
+			node = { kind: "box", id, x: 200, y: bottom, type: d.type, ...(d.kind === "fb" ? { instance: this.instanceName(d.type, n) } : {}) };
 		}
 		net.nodes.push(node);
 		this.sel = { net: net.id, node: id };
@@ -252,12 +263,12 @@ export class FbdEditor extends LitElement {
 
 	// ---- rendering ----------------------------------------------------------------------------------
 	private renderNode(net: FbdNetwork, n: FbdNode, types: NetworkTypes) {
-		const { w, h } = size(n);
+		const { w, h } = size(n, this.cat);
 		const selected = this.sel && "node" in this.sel && this.sel.net === net.id && this.sel.node === n.id;
 		const bad = this.problems.some((p) => p.network === net.id && p.node === n.id);
 		const cls = `fbd-node fbd-${n.kind} ${selected ? "fbd-sel" : ""} ${bad ? "fbd-bad" : ""}`;
 		const pin = (name: string, side: "in" | "out") => {
-			const at = pinAt(n, name, side);
+			const at = pinAt(n, name, side, this.cat);
 			const t = types.pins.get(pinKey(n.id, side, name)) ?? "any";
 			return svg`<circle class="fbd-pin fbd-pin-${side} fbd-t-${t}" cx=${at.x} cy=${at.y} r="5">
 				<title>${name}: ${TYPE_NAMES[t]} - ziehen, um zu verbinden</title></circle>`;
@@ -275,8 +286,8 @@ export class FbdEditor extends LitElement {
 				${n.kind === "input" ? pin("OUT", "out") : pin("IN", "in")}
 			</g>`;
 		}
-		const d = boxDef(n.type);
-		const p = pinsOf(n);
+		const d = this.cat(n.type);
+		const p = pinsOf(n, this.cat);
 		return svg`<g class=${cls} @pointerdown=${(e: PointerEvent) => this.down(e, net.id, n)}>
 			${d?.kind === "fb" ? svg`<text class="fbd-instance" x=${n.x + w / 2} y=${n.y - 6} text-anchor="middle">${n.instance || "?"}</text>` : nothing}
 			<rect x=${n.x} y=${n.y} width=${w} height=${h} rx="2" />
@@ -295,17 +306,17 @@ export class FbdEditor extends LitElement {
 		const n = net.nodes.find((x) => x.id === from.node);
 		if (!n) return null;
 		if (n.kind === "input") return n.expr;
-		if (n.kind === "box" && boxDef(n.type)?.kind === "fb") return `${n.instance}.${from.pin}`;
+		if (n.kind === "box" && this.cat(n.type)?.kind === "fb") return `${n.instance}.${from.pin}`;
 		return null;
 	}
 
 	private renderNetwork(net: FbdNetwork, index: number) {
 		const byId = new Map(net.nodes.map((n) => [n.id, n]));
-		const types = networkTypes(net, this.varType ?? (() => null));
+		const types = networkTypes(net, this.varType ?? (() => null), this.cat);
 		const near = this.near && this.near.net === net.id ? this.near : null;
 		const svgCls = this.drag?.net === net.id ? "fbd-grabbing" : near || this.wiring?.net === net.id ? "fbd-near" : "";
-		const width = Math.max(760, ...net.nodes.map((n) => n.x + size(n).w + 120));
-		const height = Math.max(120, ...net.nodes.map((n) => n.y + size(n).h + 50));
+		const width = Math.max(760, ...net.nodes.map((n) => n.x + size(n, this.cat).w + 120));
+		const height = Math.max(120, ...net.nodes.map((n) => n.y + size(n, this.cat).h + 50));
 		const problems = this.problems.filter((p) => p.network === net.id);
 		return html`
 			<section class="fbd-net">
@@ -328,8 +339,8 @@ export class FbdEditor extends LitElement {
 						const selected = this.sel && "wire" in this.sel && this.sel.net === net.id && this.sel.wire === i;
 						const t = types.pins.get(pinKey(w.from.node, "out", w.from.pin)) ?? "any";
 						const mismatch = types.mismatches.has(i);
-						const ins = pinsOf(b).inputs;
-						const d = route(pinAt(a, w.from.pin, "out"), pinAt(b, w.to.pin, "in"), Math.max(0, ins.length - 1 - ins.indexOf(w.to.pin)));
+						const ins = pinsOf(b, this.cat).inputs;
+						const d = route(pinAt(a, w.from.pin, "out", this.cat), pinAt(b, w.to.pin, "in", this.cat), Math.max(0, ins.length - 1 - ins.indexOf(w.to.pin)));
 						return svg`<g class="fbd-wire fbd-t-${t} ${on ? "fbd-on" : ""} ${mismatch ? "fbd-mismatch" : ""} ${selected ? "fbd-sel" : ""}"
 							@pointerdown=${(e: PointerEvent) => {
 								e.stopPropagation();
@@ -374,14 +385,15 @@ export class FbdEditor extends LitElement {
 			<button @click=${() => this.deleteSelected()}>Löschen</button>`;
 		if (n.kind === "output") return html`<h4>Ausgangsvariable</h4>${field("Variable", n.target, (v) => (n.target = v))}
 			<button @click=${() => this.deleteSelected()}>Löschen</button>`;
-		const d = boxDef(n.type);
+		const d = this.cat(n.type);
 		return html`<h4>${n.type}</h4><p class="fbd-hint">${d?.title ?? ""}</p>
 			${d?.kind === "fb" ? field("Instanz", n.instance ?? "", (v) => (n.instance = v)) : nothing}
 			<button @click=${() => this.deleteSelected()}>Löschen</button>`;
 	}
 
 	render() {
-		const groups = [...new Set(BOXES.map((b) => b.group))];
+		const all = [...BOXES, ...(this.pou.extra ?? [])];
+		const groups = [...new Set(all.map((b) => b.group))];
 		return html`
 			<div class="fbd" tabindex="0" @keydown=${(e: KeyboardEvent) => this.key(e)}>
 				<div class="fbd-toolbar">
@@ -389,7 +401,7 @@ export class FbdEditor extends LitElement {
 						@change=${(e: Event) => { const el = e.target as HTMLSelectElement; this.add(el.value); el.value = ""; }}>
 						<option value="">＋ Einfügen…</option>
 						<optgroup label="Variablen"><option value="@input">Eingangsvariable</option><option value="@output">Ausgangsvariable</option></optgroup>
-						${groups.map((g) => html`<optgroup label=${g}>${BOXES.filter((b) => b.group === g).map((b) => html`<option value=${b.type}>${b.type} - ${b.title}</option>`)}</optgroup>`)}
+						${groups.map((g) => html`<optgroup label=${g}>${all.filter((b) => b.group === g).map((b) => html`<option value=${b.type}>${b.type} - ${b.title}</option>`)}</optgroup>`)}
 					</select>
 					<button @click=${() => this.addNetwork()}>＋ Netzwerk</button>
 					<span class="fbd-legend" title="Datentypen an den Anschlüssen und Verbindungen (IEC 61131-3 schreibt keine Farben vor)">

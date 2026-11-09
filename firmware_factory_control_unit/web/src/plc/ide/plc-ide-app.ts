@@ -19,7 +19,7 @@ import type * as A from "../compiler/ast.ts";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
 import { IO_VARS } from "./io-list.ts";
 import {
-	addObject, build, declLines, LANG_NAMES, LANGS_OF, type Generated, type Lang, exampleProject, hasBody, headerName, KIND_NAMES, loadProject, nameProblem, OBJECT_KINDS,
+	addObject, boxesFor, build, declLines, LANG_NAMES, LANGS_OF, type Generated, type Lang, exampleProject, hasBody, headerName, KIND_NAMES, loadProject, nameProblem, OBJECT_KINDS,
 	parseProject, partLine, projectHash, removeObject, renameObject, saveProject, type Build, type Located, type ObjectKind, type PlcObject, type Project,
 } from "./project.ts";
 import type { FbdPou } from "./fbd.ts";
@@ -744,7 +744,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		const pou = { name: o.name, decl: o.decl };
 		return html`
 			${o.lang === "FBD" ? html`
-				<plc-fbd-editor .pou=${{ ...pou, networks: o.networks ?? [] }} .problems=${g?.problems ?? []}
+				<plc-fbd-editor .pou=${{ ...pou, networks: o.networks ?? [], extra: boxesFor(this.project, o) }} .problems=${g?.problems ?? []}
 					.lookup=${online ? (e: string) => this.gfxValue(e) : null}
 					.varType=${(name: string) => this.gfxVarType(name)}
 					@change=${(e: CustomEvent<FbdPou>) => this.editGraph({ networks: e.detail.networks })}></plc-fbd-editor>` : html`

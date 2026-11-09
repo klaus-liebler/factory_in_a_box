@@ -215,6 +215,50 @@ describe("PLC IDE: FBD and SFC objects of the project (P5/P6)", () => {
 		expect(b.located.map((l) => [l.object, l.part])).toEqual([["fbd_prg", "body"]]);
 	});
 
+	it("the project's FBs and functions and the FCU library are FBD boxes; renaming an FB renames its boxes", () => {
+		let p = addObject(exampleProject(), "FUN", "FUN_Twice", "INT").project;
+		const fun = p.objects.find((o) => o.name === "FUN_Twice")!;
+		fun.decl = "FUNCTION FUN_Twice : INT\nVAR_INPUT\n    X : INT;\nEND_VAR";
+		fun.body = "FUN_Twice := X * 2;\n";
+		const fbd = p.objects.find((o) => o.name === "FBD_PRG")!;
+		fbd.decl = "PROGRAM FBD_PRG\nVAR\n    Doubled : INT;\nEND_VAR";
+		fbd.networks = [{
+			id: "n1", title: "", wires: [
+				{ from: { node: "lb", pin: "OUT" }, to: { node: "ej", pin: "Arrive" } },
+				{ from: { node: "ej", pin: "Valve" }, to: { node: "v", pin: "IN" } },
+				{ from: { node: "ten", pin: "OUT" }, to: { node: "tw", pin: "X" } },
+				{ from: { node: "tw", pin: "OUT" }, to: { node: "d", pin: "IN" } },
+			],
+			nodes: [
+				{ kind: "input", id: "lb", x: 0, y: 0, expr: "Lightbarrier2" },
+				{ kind: "box", id: "ej", x: 100, y: 0, type: "FB_Ejector", instance: "Ejector1" },  // Select unconnected: left out
+				{ kind: "output", id: "v", x: 300, y: 0, target: "Valve1" },
+				{ kind: "input", id: "ten", x: 0, y: 100, expr: "INT#21" },
+				{ kind: "box", id: "tw", x: 100, y: 100, type: "FUN_Twice" },
+				{ kind: "output", id: "d", x: 300, y: 100, target: "Doubled" },
+				{ kind: "box", id: "home", x: 100, y: 200, type: "FCU_StepperHome", instance: "Home1" },
+			],
+		}];
+		p.tasks[0].programs = ["FBD_PRG"];
+		let b = build(p);
+		expect(b.located.map((l) => l.diagnostic.message)).toEqual([]);
+		expect(b.ok).toBe(true);
+		const st = b.generated.get("fbd_prg")!.text;
+		expect(st).toContain("Ejector1 : FB_Ejector;");
+		expect(st).toContain("Ejector1(Arrive := Lightbarrier2);");
+		expect(st).toContain("Home1 : FCU_StepperHome;");
+		const sim = new Simulator();
+		expect(sim.download(b.result)).toBe(true);
+		sim.state = "RUN";
+		cycles(sim, 1);
+		expect(sim.read("FBD_PRG.Doubled").value).toBe(42);
+
+		p = renameObject(p, "fb_ejector", "FB_Pusher");
+		expect(p.objects.find((o) => o.name === "FBD_PRG")!.networks![0].nodes.find((n) => n.id === "ej")).toMatchObject({ type: "FB_Pusher" });
+		b = build(p);
+		expect(b.ok).toBe(true);
+	});
+
 	it("renaming a function changes its calls in FBD expressions and SFC conditions and actions", () => {
 		let p = addObject(exampleProject(), "FUN", "FUN_Ok", "BOOL").project;
 		const fun = p.objects.find((o) => o.name === "FUN_Ok")!;

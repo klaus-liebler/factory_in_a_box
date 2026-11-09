@@ -12,9 +12,17 @@ export interface BoxDef {
 	outputs: string[];
 	/** op: the ST operator; unary: the prefix. */
 	op?: string;
-	group: "Logik" | "Vergleich" | "Arithmetik" | "Auswahl" | "Zeit" | "Zähler" | "Flanke/Speicher";
+	/** The palette group ("Logik", ..., "Projekt", "FCU-Bibliothek"). */
+	group: string;
 	title: string;
+	/** Declared pin types (the project's and the FCU library's blocks; the standard ones: FIXED). */
+	types?: Record<string, string>;
+	/** fb: an unconnected input is left out of the call (it keeps its value) instead of an error. */
+	omit?: boolean;
 }
+
+/** Looks a box type up (case-insensitive). */
+export type BoxCatalog = (type: string) => BoxDef | undefined;
 
 const op = (type: string, opText: string, group: BoxDef["group"], title: string, inputs = ["IN1", "IN2"]): BoxDef =>
 	({ type, kind: "op", op: opText, inputs, outputs: ["OUT"], group, title });
@@ -51,7 +59,15 @@ export const BOXES: readonly BoxDef[] = [
 	{ type: "RS", kind: "fb", inputs: ["S", "R1"], outputs: ["Q1"], group: "Flanke/Speicher", title: "Rücksetzen dominant" },
 ];
 const BOX = new Map(BOXES.map((b) => [b.type, b]));
-export const boxDef = (type: string): BoxDef | undefined => BOX.get(type);
+/** The standard boxes. */
+export const boxDef: BoxCatalog = (type) => BOX.get(type.toUpperCase());
+
+/** The standard boxes and `extra` (the project's FBs and functions, the FCU library; a standard box wins). */
+export function catalog(extra?: readonly BoxDef[]): BoxCatalog {
+	if (!extra?.length) return boxDef;
+	const m = new Map(extra.map((b) => [b.type.toUpperCase(), b]));
+	return (type) => BOX.get(type.toUpperCase()) ?? m.get(type.toUpperCase());
+}
 
 // ---- pin types (for the colours of the editor) --------------------------------------------------------
 /** The pins with a fixed type; every other pin of a box is generic, and the generic pins of one box
@@ -69,8 +85,9 @@ const FIXED: Record<string, Record<string, string>> = {
 };
 
 /** The type a box declares for a pin; null: generic. */
-export function declaredPinType(boxType: string, pin: string): string | null {
-	return FIXED[boxType]?.[pin] ?? null;
+export function declaredPinType(def: BoxDef | undefined, pin: string): string | null {
+	if (!def) return null;
+	return def.types?.[pin] ?? FIXED[def.type]?.[pin] ?? null;
 }
 
 /** The colour classes of the editor: BOOL, integers (and bit strings), REAL/LREAL, times and dates,
@@ -125,7 +142,7 @@ export const pinKey = (node: string, side: "in" | "out", pin: string) => `${node
 /** The type class of every pin of a network: fixed pins of the boxes, variables (`varType`: a name ->
  *  its elementary type, or null) and constants; then generic pins take the type over their wires and
  *  within their box, until nothing changes. */
-export function networkTypes(net: FbdNetwork, varType: (name: string) => string | null): NetworkTypes {
+export function networkTypes(net: FbdNetwork, varType: (name: string) => string | null, cat: BoxCatalog = boxDef): NetworkTypes {
 	const pins = new Map<string, TypeClass>();
 	const flexible = new Set<string>();  // may still get a type
 	const groups: string[][] = [];  // the generic pins of a box
@@ -141,12 +158,13 @@ export function networkTypes(net: FbdNetwork, varType: (name: string) => string 
 			pins.set(k, t);
 			if (t === "any") flexible.add(k);
 		} else {
-			const p = pinsOf(n);
+			const p = pinsOf(n, cat);
+			const def = cat(n.type);
 			const group: string[] = [];
 			for (const [side, list] of [["in", p.inputs], ["out", p.outputs]] as const) {
 				for (const pin of list) {
 					const k = pinKey(n.id, side, pin);
-					const fixed = declaredPinType(n.type, pin);
+					const fixed = declaredPinType(def, pin);
 					pins.set(k, fixed ? typeClass(fixed) : "any");
 					if (!fixed) {
 						flexible.add(k);
@@ -216,13 +234,15 @@ export interface FbdPou {
 	/** "PROGRAM <name>" and the VAR sections of the user's variables (the instances are added). */
 	decl: string;
 	networks: FbdNetwork[];
+	/** Boxes beyond the standard ones: the project's FBs and functions, the FCU library. */
+	extra?: readonly BoxDef[];
 }
 
 /** The pins of a node: inputs on the left, outputs on the right. */
-export function pinsOf(n: FbdNode): { inputs: string[]; outputs: string[] } {
+export function pinsOf(n: FbdNode, cat: BoxCatalog = boxDef): { inputs: string[]; outputs: string[] } {
 	if (n.kind === "input") return { inputs: [], outputs: ["OUT"] };
 	if (n.kind === "output") return { inputs: ["IN"], outputs: [] };
-	const d = boxDef(n.type);
+	const d = cat(n.type);
 	return { inputs: d?.inputs ?? [], outputs: d?.outputs ?? [] };
 }
 
@@ -245,6 +265,7 @@ export interface FbdLowered {
  *  their consumers. An input pin without a wire is an error (except a counter's or timer's optional
  *  ones: R, LD, PV, PT get FALSE / 0 / T#0s - the editor shows them unconnected). */
 export function lowerFbd(pou: FbdPou): FbdLowered {
+	const boxDef = catalog(pou.extra);
 	const problems: FbdProblem[] = [];
 	const instances: string[] = [];
 	const lines: string[] = [];
@@ -327,7 +348,8 @@ export function lowerFbd(pou: FbdPou): FbdLowered {
 			if (called.has(n.id)) return;
 			called.add(n.id);
 			const d = boxDef(n.type)!;
-			const args = d.inputs.map((p) => `${p} := ${exprOfPin(n, p)}`).join(", ");
+			const pins = d.omit ? d.inputs.filter((p) => into.has(`${n.id}.${p}`)) : d.inputs;
+			const args = pins.map((p) => `${p} := ${exprOfPin(n, p)}`).join(", ");
 			calls.push(`${instanceOf(n)}(${args});`);
 		};
 

@@ -6,9 +6,11 @@
 import { compile, projectHashOf, type CompileResult } from "../compiler/compiler.ts";
 import { Diagnostics, type Diagnostic } from "../compiler/diagnostics.ts";
 import { lex } from "../compiler/lexer.ts";
+import { parse } from "../compiler/parser.ts";
+import type * as A from "../compiler/ast.ts";
 import { FCU_LIB_FILE, fcuLibSource } from "./fcu-lib.ts";
 import { IO_FILE, ioBindings, ioMapHash, ioSource } from "./io-list.ts";
-import { exampleFbd, fbdSource, type FbdNetwork, type FbdProblem } from "./fbd.ts";
+import { exampleFbd, fbdSource, type BoxDef, type FbdNetwork, type FbdProblem } from "./fbd.ts";
 import { exampleSfc, SFC_FILE, SFC_STEP_SOURCE, sfcId, sfcSource, type SfcItem, type SfcProblem } from "./sfc.ts";
 
 export type ObjectKind = "PRG" | "FB" | "FUN" | "DUT" | "GVL";
@@ -205,18 +207,21 @@ export function renameObject(p: Project, id: string, to: string): Project {
 			name: x.id === id ? to : x.name,
 			decl: r(x.decl),
 			body: r(x.body),
-			...(x.networks ? { networks: x.networks.map((n) => renameInNetwork(n, r)) } : {}),
+			...(x.networks ? { networks: x.networks.map((n) => renameInNetwork(n, r, refs ? from : null, to)) } : {}),
 			...(x.chart ? { chart: renameInChart(x.chart, r) } : {}),
 		})),
 		tasks: p.tasks.map((t) => ({ ...t, programs: t.programs.map((n) => (n.toUpperCase() === up ? to : n)) })),
 	};
 }
 
-/** The ST texts of an FBD network (input expressions, output targets) through `r`. */
-function renameInNetwork(n: FbdNetwork, r: (t: string) => string): FbdNetwork {
+/** The ST texts of an FBD network (input expressions, output targets) through `r`; boxes of the type
+ *  `from` (a renamed FB or function) become `to`. */
+function renameInNetwork(n: FbdNetwork, r: (t: string) => string, from: string | null, to: string): FbdNetwork {
+	const up = from?.toUpperCase();
 	return {
 		...n,
-		nodes: n.nodes.map((x) => (x.kind === "input" ? { ...x, expr: r(x.expr) } : x.kind === "output" ? { ...x, target: r(x.target) } : x)),
+		nodes: n.nodes.map((x) => (x.kind === "input" ? { ...x, expr: r(x.expr) } : x.kind === "output" ? { ...x, target: r(x.target) }
+			: x.type.toUpperCase() === up ? { ...x, type: to } : x)),
 	};
 }
 
@@ -327,20 +332,57 @@ export function partLine(o: PlcObject, line: number): { part: "decl" | "body"; l
 	return hasBody(o.kind) && line > d ? { part: "body", line: line - d } : { part: "decl", line };
 }
 
-/** An object as ST (FBD/SFC: lowered; the problems of the lowering are in generate()). */
-export function sourceOf(o: PlcObject): string {
-	return generate(o).text;
+// ---- FBD boxes beyond the standard ones: the project's FBs and functions, the FCU library -------------
+/** The boxes of the function blocks and functions in an ST text (their interface: VAR_INPUT and
+ *  VAR_IN_OUT are inputs, VAR_OUTPUT outputs, a function's result is OUT). */
+function boxesOf(text: string, file: string, group: string, title: (kind: "FB" | "FUN") => string): BoxDef[] {
+	const typeOf = (t: A.TypeRef) => (t.kind === "named" ? t.name.toUpperCase() : t.kind === "string" ? "STRING" : "");
+	const out: BoxDef[] = [];
+	for (const u of parse(text, file, new Diagnostics())) {
+		if (u.kind !== "pou" || u.pouKind === "PROGRAM") continue;
+		const ins = u.vars.filter((v) => v.cls === "VAR_INPUT" || v.cls === "VAR_IN_OUT");
+		const outs = u.vars.filter((v) => v.cls === "VAR_OUTPUT");
+		const types: Record<string, string> = {};
+		for (const v of [...ins, ...outs]) types[v.name] = typeOf(v.type);
+		if (u.pouKind === "FUNCTION_BLOCK") {
+			out.push({ type: u.name, kind: "fb", inputs: ins.map((v) => v.name), outputs: outs.map((v) => v.name), group, title: title("FB"), types, omit: true });
+		} else {
+			if (u.returnType) types.OUT = typeOf(u.returnType);
+			out.push({ type: u.name, kind: "func", inputs: ins.map((v) => v.name), outputs: ["OUT"], group, title: title("FUN"), types });
+		}
+	}
+	return out;
 }
 
-export function generate(o: PlcObject): Generated {
-	if (o.lang === "FBD") return fbdSource({ name: o.name, decl: o.decl, networks: o.networks ?? [] }, END[o.kind]);
+let fcuBoxCache: BoxDef[] | null = null;
+function fcuBoxes(): BoxDef[] {
+	fcuBoxCache ??= boxesOf(fcuLibSource(), FCU_LIB_FILE, "FCU-Bibliothek", (k) => (k === "FB" ? "Funktionsbaustein der FCU-Bibliothek" : "Funktion der FCU-Bibliothek"));
+	return fcuBoxCache;
+}
+
+/** The boxes an FBD object can use beyond the standard ones: the project's other FBs and functions (from
+ *  their declarations; not itself - no recursion) and the FCU library. */
+export function boxesFor(p: Project, o: PlcObject): BoxDef[] {
+	const own = p.objects.filter((x) => x.id !== o.id && (x.kind === "FB" || x.kind === "FUN"))
+		.flatMap((x) => boxesOf(`${x.decl}\n${END[x.kind]}\n`, x.name, "Projekt", (k) => (k === "FB" ? "Funktionsbaustein des Projekts" : "Funktion des Projekts")));
+	return [...own, ...fcuBoxes()];
+}
+
+/** An object as ST (FBD/SFC: lowered; the problems of the lowering are in generate()). An FBD needs its
+ *  project for the project's FBs and functions as boxes. */
+export function sourceOf(o: PlcObject, p?: Project): string {
+	return generate(o, p).text;
+}
+
+export function generate(o: PlcObject, p?: Project): Generated {
+	if (o.lang === "FBD") return fbdSource({ name: o.name, decl: o.decl, networks: o.networks ?? [], extra: p ? boxesFor(p, o) : fcuBoxes() }, END[o.kind]);
 	if (o.lang === "SFC") return sfcSource({ name: o.name, decl: o.decl, chart: o.chart ?? [] }, END[o.kind]);
 	return { text: hasBody(o.kind) ? `${o.decl}\n${o.body}\n${END[o.kind]}\n` : `${o.decl}\n`, problems: [] };
 }
 
 /** The project's objects as source files. */
 export function objectSources(p: Project): { file: string; text: string }[] {
-	return p.objects.map((o) => ({ file: o.name, text: sourceOf(o) }));
+	return p.objects.map((o) => ({ file: o.name, text: sourceOf(o, p) }));
 }
 
 /** Sources for the FCU: the given ones, the I/O variables and the FCU library. */
@@ -359,7 +401,7 @@ export function projectHash(p: Project): number {
 export function build(p: Project, tasks = p.tasks): Build {
 	const generated = new Map<string, Generated>();
 	const sources = p.objects.map((o) => {
-		const g = generate(o);
+		const g = generate(o, p);
 		if (o.lang !== "ST") generated.set(o.id, g);
 		return { file: o.name, text: g.text };
 	});

@@ -9,6 +9,7 @@
 #include "device_ids.hh"
 #include "gitconstants.hh"
 #include "hardware.hpp"
+#include "plc.hpp"
 #include "rtos/sync/message_queue.hpp"
 #include "rtos/terminal/terminal.hpp"
 #include "system.hpp"
@@ -107,6 +108,13 @@ bool cmd_in(Args a, Out& o) {
     return found;
 }
 
+/// In IEC mode the outputs belong to the program (docs/plc-iec61131.md 6.2): say so instead of writing.
+bool plc_owns(std::uint16_t reg, Out& o) {
+    if (plc::external_write_allowed(reg)) return false;
+    o.line("holding %u is controlled by the IEC program (control source IEC; switch on the PLC page)", reg);
+    return true;
+}
+
 bool cmd_out(Args a, Out& o) {
     if (a.empty()) {
         for (const NamedOutput& out : outputs) {
@@ -120,6 +128,7 @@ bool cmd_out(Args a, Out& o) {
     const auto level = parse_level(a[1]);
     for (const NamedOutput& out : outputs) {
         if (out.exists && out.name == a[0] && level) {
+            if (plc_owns(out.holding, o)) return true;
             registers.set_holding(out.holding, *level ? 1 : 0);  // the I/O cycle drives the pin
             o.line("%s %s", out.name.data(), *level ? "on" : "off");
             return true;
@@ -131,8 +140,9 @@ bool cmd_out(Args a, Out& o) {
 bool cmd_pwm(Args a, Out& o) {
     const auto permille = a.size() == 2 ? number<unsigned>(a[1]) : std::nullopt;
     if (!permille || *permille > 1000 || (a[0] != "conveyor" && a[0] != "compressor")) return false;
-    registers.set_holding(a[0] == "conveyor" ? rm::holding::conveyor_pwm : rm::holding::compressor_pwm,
-                          static_cast<std::uint16_t>(*permille));
+    const std::uint16_t reg = a[0] == "conveyor" ? rm::holding::conveyor_pwm : rm::holding::compressor_pwm;
+    if (plc_owns(reg, o)) return true;
+    registers.set_holding(reg, static_cast<std::uint16_t>(*permille));
     o.line("%.*s %u.%u %%", static_cast<int>(a[0].size()), a[0].data(), *permille / 10, *permille % 10);
     return true;
 }
@@ -212,6 +222,7 @@ bool cmd_reg(Args a, Out& o) {
     if (a.size() == 3) {
         const auto value = number<int>(a[2]);
         if (!holding || !value || *value < -32768 || *value > 65535) return false;
+        if (plc_owns(static_cast<std::uint16_t>(*addr), o)) return true;
         registers.set_holding(static_cast<std::uint16_t>(*addr), static_cast<std::uint16_t>(*value));
     }
     const std::uint16_t v = holding ? registers.holding(static_cast<std::uint16_t>(*addr))
@@ -224,6 +235,7 @@ bool cmd_stepper(Args a, Out& o) {
     const auto n = a.size() == 2 ? number<unsigned>(a[0]) : std::nullopt;
     const auto target = a.size() == 2 ? number<std::int32_t>(a[1]) : std::nullopt;
     if (!n || (*n != 1 && *n != 2) || !target) return false;
+    if (plc_owns(*n == 1 ? rm::holding::stepper1_target : rm::holding::stepper2_target, o)) return true;
     rm::set_stepper_enable(registers, 1);
     if (*n == 1) {
         rm::set_stepper1_target(registers, *target);
@@ -254,8 +266,9 @@ bool cmd_led(Args a, Out& o) {
     const auto ch = a.size() == 2 ? number<unsigned>(a[0]) : std::nullopt;
     const auto pattern = a.size() == 2 ? number<unsigned>(a[1]) : std::nullopt;
     if (!ch || (*ch != 1 && *ch != 2) || !pattern || *pattern > 0xFFFF) return false;
-    registers.set_holding(*ch == 1 ? rm::holding::ws2812_ch1_pattern : rm::holding::ws2812_ch2_pattern,
-                          static_cast<std::uint16_t>(*pattern));
+    const std::uint16_t reg = *ch == 1 ? rm::holding::ws2812_ch1_pattern : rm::holding::ws2812_ch2_pattern;
+    if (plc_owns(reg, o)) return true;
+    registers.set_holding(reg, static_cast<std::uint16_t>(*pattern));
     o.line("WS2812 channel %u: pattern %u", *ch, *pattern);
     return true;
 }

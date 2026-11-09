@@ -6,6 +6,7 @@
 
 #include "boot.hpp"
 #include "io.hpp"
+#include "plc.hpp"
 #include "roarm/roarm.hpp"
 #include "task_monitor.hpp"
 #include "terminal.hpp"
@@ -62,10 +63,9 @@ void write_holding(SessionId id, const std::uint8_t* data, std::size_t len) {
     }
     ws::modbus::WriteHoldingResponse::Payload resp{};
     resp.requestId = req.requestId;
-    resp.success = req.address < register_map::holding_count;
-    if (resp.success) {
-        registers.set_holding(req.address, req.value);
-    }
+    // the protocol path: the write filter refuses the program's outputs in IEC mode (plc.hpp)
+    resp.success = req.address < register_map::holding_count &&
+                   registers.write(req.address, {&req.value, 1}) == rtos::modbus::Exception::None;
     std::array<std::uint8_t, ws::modbus::WriteHoldingResponse::WriteHoldingResponse_MAX_SIZE> buf{};
     send(id, buf.data(), ws::modbus::WriteHoldingResponse::Encode(resp, buf.data(), buf.size()));
 }
@@ -202,6 +202,9 @@ void on_message(void*, SessionId id, std::span<const std::byte> message, bool bi
             } else if (type == ws::modbus::WriteHoldingRequest::TYPE_ID) {
                 write_holding(id, data, len);
             }
+            break;
+        case ws::plc::NAMESPACE_ID:
+            plc::on_message(id, type, data, len);
             break;
         case ws::system::NAMESPACE_ID:
             if (type == ws::system::SystemInfoRequest::TYPE_ID) {

@@ -1,4 +1,5 @@
 // RoArm-M3 (see roarm.hpp).
+#include "plc.hpp"
 #include "roarm/roarm.hpp"
 
 #include <algorithm>
@@ -222,7 +223,7 @@ void handle(const Request& r) {
         case ws::StartTeachModeRequest::TYPE_ID: {
             ws::StartTeachModeRequest::Payload q{};
             if (!ws::StartTeachModeRequest::Decode(d, len, q)) return;
-            const bool ok = !running;
+            const bool ok = !running && !plc::iec_controls();  // IEC mode: the program moves the arm
             teach_mode = teach_mode || ok;
             send(r.session, ws::StartTeachModeResponse::Encode({.requestId = q.requestId, .success = ok}, reply.data(), reply.size()));
             return;
@@ -354,6 +355,10 @@ void setup() noexcept {
 }
 
 void cycle(std::uint32_t now) noexcept {
+    if (teach_mode && plc::iec_controls()) {
+        teach_mode = false;  // switched to IEC: jogging ends, the arm holds its position
+        RTOS_LOG_INFO("roarm: teach mode ended: the IEC program is the control source");
+    }
     for (int i = 0; i < 3; ++i) {
         const auto r = requests.try_receive();
         if (!r) break;

@@ -10,6 +10,7 @@
 #include "boot.hpp"
 #include "io.hpp"
 #include "network.hpp"
+#include "plc.hpp"
 #include "system.hpp"
 #include "task_monitor.hpp"
 
@@ -70,6 +71,7 @@ void io_main(void*) {
     rtos::Tick next = kernel.now();
     for (;;) {
         fcu::io::cycle(kernel.now());
+        fcu::plc::io_cycle_done();  // the inputs are fresh: one cycle of the IEC program
         next += fcu::io::cycle_ms;
         if (static_cast<std::int32_t>(kernel.now() - next) > static_cast<std::int32_t>(fcu::io::cycle_ms)) {
             next = kernel.now();  // overrun: no catching up
@@ -103,5 +105,6 @@ int main() {
     kernel.create_thread(io_tcb, {.name = "io", .entry = &io_main, .stack = io_stack, .priority = fcu::io_priority});
     fcu::task_monitor::add(io_tcb, io_stack);
     fcu::task_monitor::add(log_tcb, log_stack);
+    fcu::plc::create_thread();
     kernel.start();
 }

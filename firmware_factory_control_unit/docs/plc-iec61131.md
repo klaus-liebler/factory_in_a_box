@@ -684,17 +684,31 @@ Over the existing WebSocket (BestBinaryBuffers, new schema file
   after CONTINUE, as on a real PLC). The IDE warns before the first breakpoint in IEC mode
   ("outputs freeze, the I/O cycle keeps running").
 
-### 10.4 REST
+### 10.4 Device interface (WebSocket)
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/plc/status` | state, image info, control source |
-| `PUT /api/plc/image` | upload the image (binary); check, store, load (STOP first) |
-| `GET/PUT /api/plc/project` | project source on the device (SD card; without a card 503 with a message) |
-| `PUT /api/plc/config` | autostart, safe state on halt, task interval |
+The web UI talks to the firmware over binary WebSockets only (project decision: the SPA once, then
+`wss://<host>/ws` with BestBinaryBuffers); the PLC uses its own namespace `plc`
+(`schema/best_binary_buffers/plc.cs`) instead of the REST endpoints planned here before:
 
-Large uploads go through REST, not the WebSocket. To check in P2: request body size and streaming
-into the flash in the `Http::WebServer` (background work in bounded steps, rtoos network rule).
+| Message | Answered by | Purpose |
+|---|---|---|
+| `StatusRequest` | network thread | state, control source, autostart, cycles, instructions, image and its project hash, trap, why downloads are refused |
+| `ControlRequest` | PLC thread | RUN, STOP, warm/cold reset, control source IEC/fieldbus, autostart on/off (stored in the flash slot's journal) |
+| `UploadRequest` | PLC thread | a chunk of up to 1 KB of the image into the device's RAM (offset 0 starts; the PLC must not be in RUN) |
+| `CommitRequest` | PLC thread | CRC, VM verifier, I/O bindings against the register map, then the flash slot (A/B); answered when the flash is written |
+| `ReadRequest` | network thread | up to 1 KB of the data segment (online values) |
+| `WriteRequest` | PLC thread | up to 64 bytes into the data segment between two cycles (prepared values) |
+
+The chunks keep every message under the server's 1280 bytes; flash work runs in the PLC thread, so the
+network thread never waits for an erase (rtoos fairness rule). Project upload/download from the SD card
+(`GetProject`/`PutProject`) follows with the IDE's device mode.
+
+**Interim, until the register schema carries the register classes (E5):** the firmware and the IDE name
+the command registers (`StepperXStartHoming`, `RoArmMissionControl`) in a list; they are no I/O
+variables, and in IEC mode they stay writable from outside (the FCU library blocks that would own them
+do not exist yet). The image's `ioMapHash` is not checked by the firmware yet (it needs a constant from
+the register generator); instead every binding is checked against the register map (register range,
+width, outputs only in holding registers, never a command register).
 
 ## 11. Project format
 

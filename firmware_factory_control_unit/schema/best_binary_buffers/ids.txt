@@ -46,3 +46,16 @@ message terminal.LookupResponse 2
 message terminal.CommandRequest 3
 message terminal.CommandResponse 4
 namespace terminal 6
+message plc.StatusRequest 1
+message plc.StatusResponse 2
+message plc.ControlRequest 3
+message plc.ControlResponse 4
+message plc.UploadRequest 5
+message plc.UploadResponse 6
+message plc.CommitRequest 7
+message plc.CommitResponse 8
+message plc.ReadRequest 9
+message plc.ReadResponse 10
+message plc.WriteRequest 11
+message plc.WriteResponse 12
+namespace plc 7

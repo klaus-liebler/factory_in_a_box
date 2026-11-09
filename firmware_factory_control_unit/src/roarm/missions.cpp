@@ -120,7 +120,7 @@ void import_from_flash() noexcept {
     if (lfs.mount() != LFS_ERR_OK) {
         return;  // never formatted: nothing to import
     }
-    unsigned moved = 0, kept = 0;
+    unsigned moved = 0, kept = 0, left = 0;
     lfs_dir_t dir{};
     if (lfs_dir_open(lfs.get(), &dir, "/") == LFS_ERR_OK) {
         lfs_info info{};
@@ -135,12 +135,14 @@ void import_from_flash() noexcept {
                 ++kept;
             } else {
                 if (lfs.open(lfs_file, path.data(), LFS_O_RDONLY) != LFS_ERR_OK) {
+                    ++left;
                     continue;
                 }
                 const lfs_ssize_t got = lfs_file_read(lfs.get(), lfs_file.get(), scratch.data(), scratch.size());
                 lfs_file_close(lfs.get(), lfs_file.get());
                 if (got <= 0 || !store(static_cast<std::uint16_t>(index), {scratch.data(), static_cast<std::size_t>(got)})) {
                     RTOS_LOG_WARN("missions: mission %u not copied to the SD card, stays in the flash", index);
+                    ++left;
                     continue;
                 }
                 ++moved;
@@ -152,6 +154,13 @@ void import_from_flash() noexcept {
     (void)lfs.unmount();
     if (moved + kept > 0) {
         RTOS_LOG_INFO("missions: %u moved from the flash to the SD card, %u already there", moved, kept);
+    }
+    if (left == 0) {
+        // nothing of the old store is needed any more: erasing its superblocks (blocks 0 and 1)
+        // frees the area for the PLC's program slots (src/plc.cpp refuses to write while they exist)
+        if (flash.erase(0) && flash.erase(1)) {
+            RTOS_LOG_INFO("missions: the old mission store in the flash is removed; the area belongs to the PLC");
+        }
     }
 }
 #endif

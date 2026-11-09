@@ -5,6 +5,7 @@
 //             DHCP, SNTP (rtos::net::NetRuntime)
 //   io   10   boot sequence (supply voltage, USB-PD, power consumers), then the I/O cycle
 //             every 50 ms: sensors, actuators, steppers, RoArm, heartbeat
+//   plc  11   the IEC 61131-3 program (plc.hpp): one cycle after each I/O cycle
 //   log  14   console: writes the log journal to USART3
 //
 // The chip comes from the board package (board/chip.hpp): STM32H563 (Cortex-M33) on revisions
@@ -23,7 +24,7 @@
 namespace fcu {
 
 struct KernelConfig : rtos::DefaultConfig {
-    static constexpr std::size_t max_threads = 5;
+    static constexpr std::size_t max_threads = 6;
     static constexpr std::size_t notify_slots = 2;
 };
 
@@ -40,6 +41,7 @@ using Journal = rtos::log::Journal<48, 120, Kernel::Lock>;
 
 inline constexpr std::uint8_t net_priority = 8;
 inline constexpr std::uint8_t io_priority = 10;
+inline constexpr std::uint8_t plc_priority = 11;  ///< below io: the I/O cycle never waits for the program
 inline constexpr std::uint8_t log_priority = 14;
 
 /// NVIC priorities (0..15). 5 and above are kernel-aware (Kernel::Lock masks them); 0..4 are

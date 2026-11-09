@@ -1,0 +1,9 @@
+{
+  "bytes": 1224,
+  "crc": 2263553041,
+  "symbols": {
+    "PLC_PRG.n": 176,
+    "PLC_PRG.tick": 180,
+    "PLC_PRG.lamp": 208
+  }
+}

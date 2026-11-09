@@ -882,8 +882,23 @@ keep their values (no safe state), the forces stay, nothing continues by itself;
 and a download leave the halted cycle and clear the breakpoints; the terminal's `plc continue` runs on.
 The IDE warns before the first breakpoint on an FCU in IEC mode. Renode rev 3: halt at a breakpoint,
 the I/O cycle running on with the outputs kept, the lease against a second browser, step over,
-continue to the next cycle's halt, RUN refused, `plc continue`, STOP from HALTED. Open in P3: watch
-subscriptions (`PlcWatch`, instead of polling) - postponed (2026-11-09) in favour of the editors.
+continue to the next cycle's halt, RUN refused, `plc continue`, STOP from HALTED.
+
+Watch subscriptions (the `PlcWatch`/`PlcWatchValues` of 10.3; on the wire `WatchRequest` 25 /
+`WatchResponse` 26 / `WatchValues` 27): the browser subscribes the ranges of the data segment the IDE
+showed since its last status poll (`watchRanges`: sorted, variables less than 8 bytes apart merged,
+at most 128 ranges and 1024 bytes), with a generation number, anew only when the set changes; empty
+ends it. The PLC thread keeps one subscription per WebSocket session and, after a cycle (in every
+state at the I/O rate), sends each due one its values - read between two cycles, so all from the same
+cycle end - at most every 100 ms, with the generation, the cycle counter and the state; the browser
+takes only values of its current generation. A closed WebSocket ends its subscription (an atomic mask
+the PLC thread applies before installing or sending: session ids are reused). The browser subscribes
+anew after 2 s without values (a new connection) and falls back to reading the data segment by
+polling when the firmware does not answer `WatchRequest` (an older one). Status stays polled (400 ms).
+Tested in Renode on the STM32H743: values arrive, at most every 2 cycles, generation and state echoed,
+`n` and the device's cycle counter differ by the same amount in every push (consistent), more than
+1024 bytes refused, an empty list ends the pushes, a session opened after a closed subscriber gets
+none; vitest: the range merging and limits.
 
 **P4 state (2026-11-09, browser only).** The project holds any number of PRG/FB/FUN/DUT/GVL objects
 (`ide/project.ts`), each its own source file for the compiler (file name = object name), so

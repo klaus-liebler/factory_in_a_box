@@ -71,3 +71,6 @@ message plc.BreakpointsRequest 21
 message plc.BreakpointsResponse 22
 message plc.HaltRequest 23
 message plc.HaltResponse 24
+message plc.WatchRequest 25
+message plc.WatchResponse 26
+message plc.WatchValues 27

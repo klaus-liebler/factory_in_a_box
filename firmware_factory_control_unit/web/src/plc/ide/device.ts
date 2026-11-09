@@ -6,7 +6,8 @@ import type { CompileResult, DebugInfo } from "../compiler/compiler.ts";
 import { TRAP_NAMES } from "../generated/isa.ts";
 import { Hdr, crc32 } from "../image.ts";
 import { plc } from "../../../generated/ws-protocol.ts";
-import { wsRequest } from "../../ws-client.ts";
+import { registerWsProtocolListener, wsRequest } from "../../ws-client.ts";
+import type { Symbol } from "../compiler/compiler.ts";
 import type { LogLine, PlcError, PlcState } from "./simulator.ts";
 import { sizeOf } from "../compiler/types.ts";
 import { readValue, writeValue, type Value } from "./values.ts";
@@ -54,6 +55,8 @@ export interface PlcDevice extends EventTarget {
 	reset(kind: "warm" | "cold"): void | Promise<void>;
 	singleCycle(): void;
 	read(path: string): { value: Value | null; symbol: ReturnType<DebugInfo["resolve"]> };
+	/** A variable's value (the FCU: its bytes are watched from now on). */
+	value(s: Symbol): Value | null;
 	write(path: string, v: Value): boolean | Promise<boolean>;
 	force(path: string, v: Value | null): void;
 	unforceAll(): void;
@@ -79,6 +82,33 @@ export interface PlcDevice extends EventTarget {
 	storeProject?(json: string): Promise<boolean>;
 	/** The stored project source; null: none (the log says why). */
 	loadProject?(): Promise<string | null>;
+}
+
+/** Watch subscriptions (docs/plc-iec61131.md 10.3): what the device accepts per browser. */
+export const WATCH_MAX_RANGES = 128;
+export const WATCH_MAX_BYTES = 1024;
+/** Variables closer than this many bytes share a range (fewer ranges, a few bytes more). */
+const WATCH_GAP = 8;
+
+/** The watched variables (address -> size) as few ranges: sorted, overlapping or close ones merged,
+ *  cut at the device's limits (what does not fit is not watched; null: nothing). */
+export function watchRanges(vars: ReadonlyMap<number, number>): { addresses: number[]; lengths: number[]; key: string } | null {
+	const sorted = [...vars].filter(([, n]) => n > 0).sort((a, b) => a[0] - b[0]);
+	const merged: [number, number][] = [];  // [start, end)
+	for (const [a, n] of sorted) {
+		const last = merged[merged.length - 1];
+		if (last && a <= last[1] + WATCH_GAP && Math.max(last[1], a + n) - last[0] <= WATCH_MAX_BYTES) last[1] = Math.max(last[1], a + n);
+		else merged.push([a, a + n]);
+	}
+	const addresses: number[] = [], lengths: number[] = [];
+	let total = 0;
+	for (const [a, e] of merged) {
+		if (addresses.length === WATCH_MAX_RANGES || total + (e - a) > WATCH_MAX_BYTES) break;
+		addresses.push(a);
+		lengths.push(e - a);
+		total += e - a;
+	}
+	return addresses.length ? { addresses, lengths, key: addresses.map((a, i) => `${a}:${lengths[i]}`).join(",") } : null;
 }
 
 const STATE: Record<number, PlcState> = { 0: "NO_PROGRAM", 1: "STOP", 2: "RUN", 3: "ERROR", 4: "HALTED" };
@@ -177,6 +207,15 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	private builds: { hash: number; bytes: number; debug: DebugInfo }[] = [];
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private busy = false;
+	// ---- watch subscription: the variables the IDE showed since the last poll are subscribed; the FCU
+	// pushes their values (WatchValues) after its cycles, at most 10 Hz. "poll": the firmware does not
+	// know WatchRequest (older) - read the data segment as before.
+	private watchMode: "push" | "poll" = "push";
+	private touched = new Map<number, number>();
+	private watched: { addresses: number[]; lengths: number[]; key: string } | null = null;
+	private generation = Math.floor(Math.random() * 0xffff);
+	private lastValues = 0;
+	private unlisten: (() => void) | null = null;
 
 	private emit(): void {
 		this.dispatchEvent(new Event("update"));
@@ -204,12 +243,75 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	}
 
 	activate(): void {
+		if (!this.unlisten) {
+			try {
+				this.unlisten = registerWsProtocolListener(plc.NAMESPACE_ID, { onWsMessage: (type, view) => this.onPush(type, view) });
+			} catch {
+				this.unlisten = null;  // another listener (not expected): values by polling
+				this.watchMode = "poll";
+			}
+		}
 		if (this.timer === null) void this.poll();
 	}
 
 	deactivate(): void {
 		if (this.timer !== null) clearTimeout(this.timer);
 		this.timer = null;
+		this.unlisten?.();
+		this.unlisten = null;
+		if (this.watched) void this.subscribe(null);  // the page is hidden: nothing to send any more
+	}
+
+	/** WatchValues of the current subscription: the bytes of its ranges into the data image. */
+	private onPush(type: number, view: DataView): void {
+		if (type !== plc.WatchValues.TYPE_ID) return;
+		const m = plc.WatchValues.decode(view, 0);
+		const w = this.watched;
+		if (!w || m.generation !== this.generation) return;  // an earlier list's values
+		this.lastValues = Date.now();
+		this.cycles = m.cycles;
+		if (m.data.length) {
+			let at = 0;
+			w.addresses.forEach((a, i) => {
+				this.data.set(m.data.slice(at, at + w.lengths[i]), a);
+				at += w.lengths[i];
+			});
+		}
+		this.emit();
+	}
+
+	/** Replaces the subscription (null: ends it). false: the firmware does not answer it (older one). */
+	private async subscribe(w: { addresses: number[]; lengths: number[]; key: string } | null): Promise<boolean> {
+		this.generation = (this.generation + 1) & 0xffff;
+		this.watched = w;
+		this.lastValues = Date.now();
+		try {
+			const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.WatchRequest.encode({ requestId, generation: this.generation,
+				addresses: w?.addresses ?? [], lengths: w?.lengths ?? [] }), plc.WatchResponse);
+			if (!r.ok) this.note("warn", `watch: ${r.message}`);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/** Once per poll: subscribe what the IDE showed since the last one (if it changed), or poll it. */
+	private async refreshWatch(): Promise<void> {
+		const wanted = this.debug ? watchRanges(this.touched) : null;
+		this.touched = new Map();
+		if (this.watchMode === "poll") {
+			if (this.debug) await this.readData();
+			return;
+		}
+		// no values for 2 s although subscribed: the connection was new (the device forgot us) - again
+		const silent = this.watched !== null && Date.now() - this.lastValues > 2000;
+		if ((wanted?.key ?? null) === (this.watched?.key ?? null) && !silent) return;
+		if (!(await this.subscribe(wanted))) {
+			this.watchMode = "poll";
+			this.watched = null;
+			this.note("info", "the firmware has no watch subscriptions: values by polling");
+			if (this.debug) await this.readData();
+		}
 	}
 
 	private async poll(): Promise<void> {
@@ -239,7 +341,8 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 			this.error = this.state === "ERROR" ? this.errorAt(s.trap, s.trapCode, s.trapPc) : null;
 			if (this.state === "HALTED") await this.readHalt();
 			else this.halt = null;
-			if (this.debug && (this.state === "RUN" || this.state === "STOP" || this.state === "ERROR" || this.state === "HALTED")) await this.readData();
+			if (this.state !== "NO_PROGRAM") await this.refreshWatch();
+			else if (this.watched) await this.subscribe(null);
 		} catch {
 			if (this.connected) this.note("warn", "the FCU does not answer");
 			this.connected = false;
@@ -333,7 +436,12 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 
 	read(path: string): { value: Value | null; symbol: ReturnType<DebugInfo["resolve"]> } {
 		const s = this.debug?.resolve(path) ?? null;
-		return { value: s ? readValue(this.data, s) : null, symbol: s };
+		return { value: s ? this.value(s) : null, symbol: s };
+	}
+
+	value(s: Symbol): Value | null {
+		this.touched.set(s.addr, Math.max(this.touched.get(s.addr) ?? 0, sizeOf(s.type)));
+		return readValue(this.data, s);
 	}
 
 	async write(path: string, v: Value): Promise<boolean> {

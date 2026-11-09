@@ -246,6 +246,28 @@ def halt_info(ws):
     return bool(halted), reason, pc, list(struct.unpack_from(f"<{n}I", r, 8))
 
 
+def watch(ws, generation, ranges):
+    """WatchRequest (25/26): generation, the addresses, the lengths."""
+    body = struct.pack(f"<HH{len(ranges)}IH{len(ranges)}H", generation, len(ranges), *(a for a, _ in ranges), len(ranges), *(n for _, n in ranges))
+    return ok_message(ws.call(PLC, 25, body, 26))
+
+
+def watch_frames(ws, seconds):
+    """The WatchValues events (27) arriving within `seconds`: (generation, cycles, state, data)."""
+    out = []
+    end = time.monotonic() + seconds
+    ws.tls.settimeout(0.2)
+    while time.monotonic() < end:
+        try:
+            opcode, p = ws.reader.frame()
+        except (TimeoutError, socket.timeout, ssl.SSLError):
+            continue
+        if opcode == 2 and len(p) >= 13 and struct.unpack_from("<HH", p) == (PLC, 27):
+            generation, cycles, state, count = struct.unpack_from("<HIBH", p, 4)
+            out.append((generation, cycles, state, p[13:13 + count]))
+    return out
+
+
 def ok_message(r):
     msg, _ = cstr(r, 1)
     return r[0] == 1, msg
@@ -423,6 +445,37 @@ try:
     t1 = read_var(ws, "PLC_PRG.tick", "<H")
     timer_tick = mb.read(0x04, 10, 1)[0]
     check("input TimerTick reaches the program", t1 is not None and t1 != 0, f"tick {t1}, register {timer_tick}")
+
+    # watch subscriptions (docs/plc-iec61131.md 10.3): pushed after cycles, at most 10 Hz, consistent
+    n_addr = meta["symbols"]["PLC_PRG.n"]
+    ok, msg = watch(ws, 0x1234, [(n_addr, 4)])
+    check("watch: subscription accepted", ok, msg)
+    frames = watch_frames(ws, 2.0)
+    gens = {f[0] for f in frames}
+    pairs = [(f[1], struct.unpack_from("<i", f[3])[0]) for f in frames if len(f[3]) == 4]
+    gaps = [b[1] - a[1] for a, b in zip(frames, frames[1:])]
+    check("watch: values pushed, never faster than every 100 ms (2 cycles of 50 ms, by the device's counter)",
+          len(frames) >= 10 and min(gaps, default=0) >= 2, f"{len(frames)} in 2 s, cycle gaps {sorted(set(gaps))}")
+    check("watch: the generation is echoed, the state is RUN", gens == {0x1234} and all(f[2] == 2 for f in frames), f"{gens}")
+    check("watch: n grows from push to push", all(b[1] > a[1] for a, b in zip(pairs, pairs[1:])), str(pairs[:5]))
+    check("watch: consistent - n and the device's cycle counter from the same cycle end",
+          len({c - n for c, n in pairs}) == 1, str({c - n for c, n in pairs}))
+    ok, msg = watch(ws, 0x1235, [(n_addr, 1024), (n_addr, 4)])
+    check("watch: more than 1024 bytes refused", not ok and "1024" in msg, msg)
+    ok, msg = watch(ws, 0x1236, [])
+    check("watch: an empty list ends the subscription", ok and not watch_frames(ws, 0.6), msg)
+    # a closed session's subscription ends with it - a new session that reuses its id gets nothing
+    ws2 = Ws()
+    ok, msg = watch(ws2, 7, [(n_addr, 4)])
+    got2 = len(watch_frames(ws2, 0.6))
+    ws2.close()
+    time.sleep(0.5)
+    ws3 = Ws()
+    status(ws3)
+    leaked = watch_frames(ws3, 1.0)
+    ws3.close()
+    check("watch: a closed session's subscription does not reach the next session", ok and got2 > 0 and not leaked,
+          f"{got2} frames before close, {len(leaked)} after")
     lamps = set()
     until(lambda: lamps.add(holding(mb, VALVE3)[0]) or lamps == {0, 1}, step=0.1)
     check("the TON blinks Valve3", lamps == {0, 1}, str(lamps))

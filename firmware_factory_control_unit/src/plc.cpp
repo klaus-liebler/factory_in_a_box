@@ -349,7 +349,7 @@ const char* persist() noexcept {
 }
 
 // ---- requests from the network thread -------------------------------------------------------------------
-enum class Kind : std::uint8_t { control, upload, commit, write, force, unforce, breakpoints };
+enum class Kind : std::uint8_t { control, upload, commit, write, force, unforce, breakpoints, watch };
 
 struct Request {
     SessionId session{};
@@ -374,6 +374,85 @@ void reply(SessionId session, std::span<const std::uint8_t> message) noexcept {
 }
 
 const char* debug_continue(vm::StepKind kind) noexcept;  // below, with the cycle
+
+// ---- watch subscriptions (docs/plc-iec61131.md 10.3) -------------------------------------------------------
+/// One browser's subscription: ranges of the data segment, pushed as WatchValues after a cycle, at most
+/// every watch_period_ms. Owned by the PLC thread; a closed WebSocket only sets its bit in watch_closed
+/// (session ids are reused: a new session must never get the old one's values).
+constexpr std::size_t watch_ranges = 128, watch_bytes = 1024;
+constexpr std::uint32_t watch_period_ms = 100;
+struct Watch {
+    bool active = false;
+    std::uint16_t generation = 0;
+    std::uint16_t count = 0;
+    std::uint16_t total = 0;
+    std::uint32_t last_ms = 0;
+    std::array<std::uint32_t, watch_ranges> address{};
+    std::array<std::uint16_t, watch_ranges> length{};
+};
+std::array<Watch, net::max_https_sessions> watches{};
+std::atomic<std::uint32_t> watch_closed{0};
+std::array<std::uint8_t, watch_bytes> watch_data{};
+std::array<std::uint8_t, ws::WatchValues::WatchValues_MAX_SIZE> watch_message{};
+
+/// Ends the subscriptions of the sessions closed since the last call.
+void watch_drop_closed() noexcept {
+    const std::uint32_t closed = watch_closed.exchange(0);
+    for (std::size_t i = 0; i < watches.size(); ++i) {
+        if ((closed & (1u << i)) != 0) watches[i].active = false;
+    }
+}
+
+/// A WatchRequest (the ranges in r.bytes: count little-endian u32 addresses, then count u16 lengths).
+const char* watch(const Request& r) noexcept {
+    watch_drop_closed();  // a closed session's id may be this one's: drop the old subscription first
+    if (r.session >= watches.size()) return "no such session";
+    Watch& w = watches[r.session];
+    const std::uint16_t count = r.length;
+    if (count > watch_ranges) return "too many ranges (at most 128)";
+    std::uint32_t total = 0;
+    for (std::uint16_t i = 0; i < count; ++i) {
+        std::memcpy(&w.address[i], &r.bytes[i * 4u], 4);
+        std::memcpy(&w.length[i], &r.bytes[count * 4u + i * 2u], 2);
+        total += w.length[i];
+    }
+    if (total > watch_bytes) {
+        w.active = false;
+        return "too many bytes (at most 1024)";
+    }
+    w.generation = static_cast<std::uint16_t>(r.address);
+    w.count = count;
+    w.total = static_cast<std::uint16_t>(total);
+    w.active = count != 0;
+    w.last_ms = kernel.now() - watch_period_ms;  // the first values with the next cycle
+    return nullptr;
+}
+
+/// After a cycle (and in every state at the I/O rate): the values of each due subscription, all read
+/// here between two cycles, so they belong to the same cycle. A range outside the data segment (another
+/// program was loaded) sends no data: the browser subscribes anew for the new program.
+void watch_publish() noexcept {
+    watch_drop_closed();
+    const std::uint32_t now = kernel.now();
+    const std::size_t size = machine.loaded() ? machine.data_size() : 0;
+    for (std::size_t i = 0; i < watches.size(); ++i) {
+        Watch& w = watches[i];
+        if (!w.active || static_cast<std::int32_t>(now - w.last_ms) < static_cast<std::int32_t>(watch_period_ms)) continue;
+        w.last_ms = now;
+        std::size_t n = 0;
+        bool fits = true;
+        for (std::uint16_t k = 0; k < w.count && fits; ++k) {
+            fits = std::uint64_t{w.address[k]} + w.length[k] <= size;
+            if (fits) {
+                std::memcpy(&watch_data[n], &data[w.address[k]], w.length[k]);
+                n += w.length[k];
+            }
+        }
+        const ws::WatchValues::Payload p{.generation = w.generation, .cycles = cycles.load(), .state = state.load(),
+                                         .dataData = watch_data.data(), .dataCount = fits ? static_cast<std::uint32_t>(n) : 0u};
+        reply(static_cast<SessionId>(i), std::span(watch_message).first(ws::WatchValues::Encode(p, watch_message.data(), watch_message.size())));
+    }
+}
 
 const char* control(ws::PlcCommand c) noexcept {
     using C = ws::PlcCommand;
@@ -567,6 +646,11 @@ void handle(const Request& r) noexcept {
             out(ws::BreakpointsResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
             break;
         }
+        case Kind::watch: {  // watching needs no lease: every browser may watch
+            const char* e = watch(r);
+            out(ws::WatchResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            break;
+        }
     }
 }
 
@@ -635,7 +719,10 @@ void plc_main(void*) {
         const auto bits = kernel.notify_wait(notify_slot);
         if (!bits) continue;
         while (const auto r = requests.try_receive()) handle(*r);
-        if ((*bits & bit_cycle) != 0 && state.load() == ws::PlcState::Run) run_cycle();
+        if ((*bits & bit_cycle) != 0) {
+            if (state.load() == ws::PlcState::Run) run_cycle();
+            watch_publish();
+        }
     }
 }
 
@@ -671,6 +758,7 @@ Status status() noexcept {
 }
 
 void session_closed(SessionId id) noexcept {
+    if (id < 32) watch_closed.fetch_or(1u << id);  // its subscription ends (the PLC thread drops it)
     SessionId holder = id;
     if (lease.compare_exchange_strong(holder, no_session)) {
         RTOS_LOG_INFO("plc: the debug lease of client %u ended (its %u forced value(s) stay)", static_cast<unsigned>(id),
@@ -744,6 +832,14 @@ void on_message(SessionId id, std::uint16_t type, const std::uint8_t* d, std::si
         ws::UnforceRequest::Payload q{};
         if (!ws::UnforceRequest::Decode(d, len, q)) return;
         post({.session = id, .request_id = q.requestId, .kind = Kind::unforce, .address = q.address});
+    } else if (type == ws::WatchRequest::TYPE_ID) {
+        ws::WatchRequest::Payload q{};
+        if (!ws::WatchRequest::Decode(d, len, q) || q.addressesCount != q.lengthsCount || q.addressesCount > 128) return;
+        Request r{.session = id, .request_id = q.requestId, .kind = Kind::watch, .address = q.generation,
+                  .length = static_cast<std::uint16_t>(q.addressesCount)};
+        std::memcpy(r.bytes.data(), q.addressesData, q.addressesCount * 4);  // little-endian, as the wire
+        std::memcpy(r.bytes.data() + q.addressesCount * 4, q.lengthsData, q.lengthsCount * 2);
+        post(r);
     } else if (type == ws::BreakpointsRequest::TYPE_ID) {
         ws::BreakpointsRequest::Payload q{};
         if (!ws::BreakpointsRequest::Decode(d, len, q) || q.offsetsCount > 64) return;

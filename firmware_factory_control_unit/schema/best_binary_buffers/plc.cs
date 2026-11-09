@@ -266,3 +266,34 @@ public class HaltResponse
 	/// 0xFFFFFFFF): the IDE turns them into the call stack.</summary>
 	[BinaryMaxItemCount(32)] public uint[] returnPcs = System.Array.Empty<uint>();
 }
+
+/// <summary>Watch subscription (docs/plc-iec61131.md 10.3): ranges of the program's data segment the
+/// browser shows, replacing its earlier list; empty ends it. The PLC thread then sends WatchValues to
+/// this session after a cycle, at most every 100 ms (in STOP/HALTED/ERROR as well, at the same rate).
+/// `generation` is echoed, so the browser knows which list the values belong to. At most 128 ranges and
+/// 1024 bytes in all; the session's subscription ends when its WebSocket closes.</summary>
+[BinaryMessage(MessageKind.Request)]
+public class WatchRequest
+{
+	public ushort generation;
+	[BinaryMaxItemCount(128)] public uint[] addresses = System.Array.Empty<uint>();
+	[BinaryMaxItemCount(128)] public ushort[] lengths = System.Array.Empty<ushort>();
+}
+
+[BinaryMessage(MessageKind.Response)]
+public class WatchResponse
+{
+	public bool ok;
+	[BinaryMaxEncodedByteLength(120)] public string message = "";
+}
+
+/// <summary>The values of a subscription: the bytes of its ranges one after the other, read by the PLC
+/// thread between two cycles (consistent: all from the end of the same cycle).</summary>
+[BinaryMessage(MessageKind.Event)]
+public class WatchValues
+{
+	public ushort generation;
+	public uint cycles;
+	public PlcState state;
+	[BinaryMaxItemCount(1024)] public byte[] data = System.Array.Empty<byte>();
+}

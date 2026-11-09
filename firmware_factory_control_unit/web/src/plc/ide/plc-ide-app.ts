@@ -486,7 +486,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	private varValue(name: string): { text: string; type: Type } | null {
 		const s = this.resolve(name);
 		if (!s || elemOf(s.type) === null) return null;
-		return { text: formatValue(s.type, readValue(this.dev.data, s)), type: s.type };
+		return { text: formatValue(s.type, this.dev.value(s)), type: s.type };
 	}
 
 	/** Inline values: the variables of each line, as "name = value". */

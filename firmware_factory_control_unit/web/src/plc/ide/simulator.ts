@@ -1,7 +1,7 @@
 // The simulated device: the program runs in the TypeScript VM in the browser, cycle by cycle on a
 // timer, with the plant model for its inputs. Same states as the device (docs/plc-iec61131.md 4.2),
 // so the IDE works the same against the simulator and (from P2) the FCU.
-import type { CompileResult, DebugInfo } from "../compiler/compiler.ts";
+import type { CompileResult, DebugInfo, Symbol } from "../compiler/compiler.ts";
 import { TRAP_NAMES } from "../generated/isa.ts";
 import { Vm, type RunResult } from "../vm.ts";
 import { Debugger, type StepKind } from "./debugger.ts";
@@ -255,6 +255,10 @@ export class Simulator extends EventTarget implements PlcDevice {
 	read(path: string): { value: Value | null; symbol: ReturnType<DebugInfo["resolve"]> } {
 		const s = this.debug?.resolve(path) ?? null;
 		return { value: s ? readValue(this.data, s) : null, symbol: s };
+	}
+
+	value(s: Symbol): Value | null {
+		return readValue(this.data, s);
 	}
 
 	write(path: string, v: Value): boolean {

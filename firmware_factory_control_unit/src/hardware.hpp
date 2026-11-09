@@ -18,6 +18,10 @@
 //   SDMMC1      SD card: the RoArm missions (FAT, FileX)
 #pragma once
 
+#include <array>
+#include <cstddef>
+#include <utility>
+
 #include "board/chip.hpp"
 #include "board/fcu.hpp"
 #include "rtos/devices/hx711.hpp"
@@ -25,6 +29,7 @@
 #include "rtos/devices/tcs34725.hpp"
 #include "rtos/devices/vl53l0x.hpp"
 #include "rtos/devices/ws2812.hpp"
+#include "rtos/distinct.hpp"
 #include "rtos/motion/timer_stepper.hpp"
 #if RTOS_FCU_REVISION == 3
 #include "rtos/port/stm32h7/adc.hpp"
@@ -208,5 +213,73 @@ using Ucpd = chip::Ucpd<{.kernel_hz = clocks.ucpd_hz()}>;  // GPDMA channels 0 (
 #endif
 using Stepper1 = rtos::motion::TimerStepper<Stepper1Timer, 1, Stepper1Dma, stepper_ramp>;
 using Stepper2 = rtos::motion::TimerStepper<Stepper2Timer, 1, Stepper2Dma, stepper_ramp>;
+
+// ---- resources: nothing used twice (rtos/distinct.hpp, rtoos docs/integration.md) ----------------
+// Every pin, EXTI line, timer, DMA channel, U(S)ART, I2C bus and I2C address of the firmware, the
+// board package's included; one owner each. What a revision does not have is left out (Barrier3:
+// revision 1; DIAG: revisions 2/3; UCPD with its clock and DMA channels: revision 1).
+namespace resources {
+template <class T, std::size_t A, std::size_t B>
+consteval std::array<T, A + B> join(const std::array<T, A>& a, const std::array<T, B>& b) {
+    std::array<T, A + B> r{};
+    for (std::size_t i = 0; i < A; ++i) r[i] = a[i];
+    for (std::size_t i = 0; i < B; ++i) r[A + i] = b[i];
+    return r;
+}
+
+inline constexpr auto exti_lines = [] {
+    constexpr std::array common{ScaleReady::line, SupplyAlert::line, Barrier1::line, Barrier2::line};
+    constexpr auto barrier3 = [] {
+        if constexpr (pins::light_barrier3.has_value()) return std::array{Barrier3::line};
+        else return std::array<unsigned, 0>{};
+    }();
+    constexpr auto diag = [] {
+        if constexpr (pins::stepper_diag) return std::array{Diag1::line, Diag2::line};
+        else return std::array<unsigned, 0>{};
+    }();
+    return join(join(common, barrier3), diag);
+}();
+static_assert(rtos::distinct(exti_lines), "two EXTI interrupts on one line (one pin per line number)");
+
+inline constexpr auto timers = [] {
+    constexpr std::array common{MotorPwm::base, Stepper1Timer::base, Stepper2Timer::base, LedTimer::base};
+#if RTOS_FCU_REVISION != 3
+    if constexpr (board::has_ucpd) return join(common, std::array{PdClock::base});
+    else return common;
+#else
+    return common;
+#endif
+}();
+static_assert(rtos::distinct(timers), "a timer used twice");
+
+inline constexpr auto dma_channels = [] {
+    constexpr std::array common{LedStripDma::id, LedSingleDma::id, Stepper1Dma::id, Stepper2Dma::id};
+#if RTOS_FCU_REVISION != 3
+    if constexpr (board::has_ucpd) return join(common, std::array{Ucpd::rx_dma::id, Ucpd::tx_dma::id});
+    else return common;
+#else
+    return common;
+#endif
+}();
+static_assert(rtos::distinct(dma_channels), "a DMA channel used twice");
+
+static_assert(rtos::distinct(std::array{board::Console::base, ServoUart::base, StepperUart::base}), "a U(S)ART used twice");
+static_assert(rtos::distinct(std::array{I2c1::base, I2cTof2::base, I2cSupply::base}), "an I2C bus used twice");
+
+using BusAddress = std::pair<std::uintptr_t, std::uint8_t>;
+template <class Device>
+inline constexpr BusAddress at{Device::bus::base, Device::address};
+static_assert(rtos::distinct(std::array{at<Supply>, at<Tof1>, at<Tof2>, at<Tof3>, at<Color>}), "two I2C devices at one address");
+
+#if RTOS_FCU_REVISION == 3
+static_assert(chip::gpio::pins_distinct(board::pins::base, board::pins::ethernet, board::pins::sdcard, board::pins::usb,
+                                        pins::supply_pins, pins::io_pins),
+              "a pin configured twice");
+#else
+static_assert(chip::gpio::pins_distinct(board::pins::base, board::pins::ethernet, board::pins::sdcard, pins::supply_pins,
+                                        pins::io_pins),
+              "a pin configured twice");
+#endif
+}  // namespace resources
 
 }  // namespace fcu::hw

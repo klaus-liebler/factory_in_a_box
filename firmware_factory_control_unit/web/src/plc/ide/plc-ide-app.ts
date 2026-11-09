@@ -7,6 +7,9 @@ import { customElement, query, state } from "lit/decorators.js";
 import "../../styles.css";
 import "./plc-ide.css";
 import "./st-editor.ts";
+import "./fbd-editor.ts";
+import "./sfc-editor.ts";
+import { compile, type CompileResult } from "../compiler/compiler.ts";
 import { parse } from "../compiler/parser.ts";
 import { Diagnostics } from "../compiler/diagnostics.ts";
 import { STDLIB_FILE, STDLIB_SOURCE } from "../compiler/stdlib.ts";
@@ -15,15 +18,48 @@ import { elemOf, typeName, type Type } from "../compiler/types.ts";
 import type { Symbol } from "../compiler/compiler.ts";
 import type * as A from "../compiler/ast.ts";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
-import { IO_VARS, ioSource } from "./io-list.ts";
-import { build, exampleProject, loadProject, parseProject, projectHash, saveProject, type Build, type Located, type Project } from "./project.ts";
+import { IO_VARS, ioBindings, ioMapHash, ioSource } from "./io-list.ts";
+import { build, deviceSources, exampleProject, loadProject, parseProject, projectHash, saveProject, type Build, type Located, type Project } from "./project.ts";
+import { exampleFbd, fbdSource, type FbdPou, type FbdProblem } from "./fbd.ts";
+import { exampleSfc, sfcSource, type SfcPou, type SfcProblem } from "./sfc.ts";
 import { Simulator } from "./simulator.ts";
 import { FcuDevice, type PlcDevice } from "./device.ts";
 import { formatValue, parseValue, readValue, type Value } from "./values.ts";
 import { addRow, deleteRow, freeName, parseRows, updateRow, VAR_CLASSES, type DeclRow } from "./decl-table.ts";
 import type { LineMarker, StEditor } from "./st-editor.ts";
 
-type View = "prg" | "io" | "lib";
+type View = "prg" | "io" | "lib" | "fbd" | "sfc";
+
+const FBD_KEY = "fcu.plc.preview.fbd";
+const SFC_KEY = "fcu.plc.preview.sfc";
+
+function loadJson<T>(key: string, fallback: () => T): T {
+	try {
+		const raw = localStorage.getItem(key);
+		if (raw) return JSON.parse(raw) as T;
+	} catch {
+		// broken or private mode: the example
+	}
+	return fallback();
+}
+
+function saveJson(key: string, value: unknown): void {
+	try {
+		localStorage.setItem(key, JSON.stringify(value));
+	} catch {
+		// not persistent then
+	}
+}
+
+/** A graphical POU as ST, compiled with the I/O list and the libraries (cached per text). */
+interface GfxBuild {
+	text: string;
+	result: CompileResult;
+}
+function buildGfx(name: string, text: string, last: GfxBuild | null): GfxBuild {
+	if (last && last.text === text) return last;
+	return { text, result: compile(deviceSources(name, text), [{ name: "MainTask", intervalCycles: 1, programs: [name] }], { io: ioBindings(), ioMapHash: ioMapHash() }) };
+}
 type Panel = "messages" | "watch" | "log" | "plant" | "stack";
 
 const WATCH_KEY = "fcu.plc.watch";
@@ -59,6 +95,11 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	@state() private prepared = new Map<string, string>();
 	@state() private tick = 0;
 	@state() private notice: string | null = null;
+	/** Previews of P5/P6: an FBD and an SFC program of their own (POUs in the project come with P4). */
+	@state() private fbd: FbdPou = loadJson(FBD_KEY, exampleFbd);
+	@state() private sfc: SfcPou = loadJson(SFC_KEY, exampleSfc);
+	private fbdBuild: GfxBuild | null = null;
+	private sfcBuild: GfxBuild | null = null;
 	@query("#body-editor") private bodyEditor?: StEditor;
 	@query("#decl-editor") private declEditor?: StEditor;
 
@@ -81,6 +122,9 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		this.fcu.addEventListener("update", () => this.tick++);
 		this.lastBuild = build(this.project);
 		this.fcu.attach(this.lastBuild.result);
+		// a link to a view: /plc?view=fbd
+		const view = new URLSearchParams(window.location.search).get("view");
+		if (view === "prg" || view === "io" || view === "lib" || view === "fbd" || view === "sfc") this.view = view;
 	}
 
 	protected createRenderRoot() {
@@ -438,7 +482,8 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<div class="ide-main">
 					${this.renderTree()}
 					<section class="ide-center">
-						${this.view === "prg" ? this.renderPrg() : this.view === "io" ? this.renderIo() : this.renderLib()}
+						${this.view === "prg" ? this.renderPrg() : this.view === "io" ? this.renderIo() : this.view === "fbd" ? this.renderFbd()
+							: this.view === "sfc" ? this.renderSfc() : this.renderLib()}
 					</section>
 				</div>
 				${this.renderPanel()}
@@ -492,6 +537,103 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			</div>`;
 	}
 
+	// ---- graphical editors (previews of P5/P6) -------------------------------------------------------
+	/** Online: the graphical program runs in the simulator (its build is the simulator's program). */
+	private gfxOnline(b: GfxBuild | null): boolean {
+		return !!b?.result.ok && this.dev.kind === "simulator" && this.dev.debug === b.result.debug && this.dev.state !== "NO_PROGRAM";
+	}
+
+	/** The value of a variable path or expression for the diagram: program-local first, then global. */
+	private gfxValue(pou: string, expr: string): string | null {
+		const e = expr.trim();
+		if (!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(e)) return null;
+		for (const path of [`${pou}.${e}`, e]) {
+			const r = this.dev.read(path);
+			if (r.symbol && r.value !== null) return formatValue(r.symbol.type, r.value);
+		}
+		return null;
+	}
+
+	/** Load the graphical program into the simulator and start it. */
+	private async runGfx(b: GfxBuild): Promise<void> {
+		if (!b.result.ok) return;
+		this.selectDevice("sim");
+		if (await this.dev.download(b.result)) await this.dev.start();
+	}
+
+	private renderGfx(kind: "fbd" | "sfc", name: string, decl: string, setDecl: (d: string) => void, problems: (FbdProblem | SfcProblem)[],
+		b: GfxBuild, editor: unknown) {
+		const errors = b.result.diagnostics.filter((d) => d.severity === "error");
+		const online = this.gfxOnline(b);
+		return html`
+			<div class="gfx-view">
+				<p class="gfx-intro">${kind === "fbd"
+					? "Funktionsbausteinsprache (FBD): Bausteine aus der Palette, Verbindungen vom Ausgang zum Eingang ziehen, Eigenschaften rechts."
+					: "Ablaufsprache (SFC): Schritte mit Aktionen, Transitionen mit Bedingungen, Alternativ- und Parallelzweige, Sprünge."}
+					Vorschau (P5/P6): ein eigenes Programm, das zu ST übersetzt wird; als POU im Projekt mit P4.</p>
+				<div class="ide-part">
+					<div class="ide-part-head"><span>Deklaration</span></div>
+					<plc-st-editor .value=${decl} .minLines=${3} @change=${(e: CustomEvent<string>) => setDecl(e.detail)}></plc-st-editor>
+				</div>
+				${editor}
+				<div class="gfx-actions">
+					<button class="ide-primary" ?disabled=${!b.result.ok} @click=${() => this.runGfx(b)}
+						title="Übersetzen, in den Simulator laden und starten">⇩▶ Im Simulator ausführen</button>
+					${online ? html`<button @click=${() => this.dev.stop()} ?disabled=${this.dev.state !== "RUN"}>■ Stop</button>
+						<span class="gfx-status-ok">online: läuft im Simulator (${this.dev.state})</span>` : nothing}
+					${problems.length || errors.length
+						? html`<span class="gfx-status-bad">${problems.length + errors.length} Fehler - siehe unten und im generierten ST</span>`
+						: html`<span class="gfx-status-ok">übersetzt: ${b.result.image?.length ?? 0} Byte</span>`}
+				</div>
+				<details class="gfx-st" ?open=${errors.length > 0}>
+					<summary>Generiertes ST (${name})</summary>
+					${errors.length ? html`<ul class="fbd-problems">${errors.map((d) => html`<li>Zeile ${d.span.start.line}: ${d.message}</li>`)}</ul>` : nothing}
+					<plc-st-editor readonly .value=${b.text} .minLines=${6}
+						.markers=${errors.filter((d) => d.span.start.file === name).map((d) => ({ line: d.span.start.line, severity: "error", message: d.message }))}></plc-st-editor>
+				</details>
+			</div>`;
+	}
+
+	private renderFbd() {
+		const src = fbdSource(this.fbd);
+		this.fbdBuild = buildGfx(this.fbd.name, src.text, this.fbdBuild);
+		const b = this.fbdBuild;
+		const online = this.gfxOnline(b);
+		const set = (p: FbdPou) => {
+			this.fbd = p;
+			saveJson(FBD_KEY, p);
+		};
+		return this.renderGfx("fbd", this.fbd.name, this.fbd.decl, (d) => set({ ...this.fbd, decl: d }), src.problems, b, html`
+			<plc-fbd-editor .pou=${this.fbd} .problems=${src.problems}
+				.lookup=${online ? (e: string) => this.gfxValue(this.fbd.name, e) : null}
+				@change=${(e: CustomEvent<FbdPou>) => set(e.detail)}></plc-fbd-editor>`);
+	}
+
+	private renderSfc() {
+		const src = sfcSource(this.sfc);
+		this.sfcBuild = buildGfx(this.sfc.name, src.text, this.sfcBuild);
+		const b = this.sfcBuild;
+		let active: Map<string, string> | null = null;
+		if (this.gfxOnline(b)) {
+			active = new Map();
+			const debug = b.result.debug!;
+			for (const s of debug.statements.length ? [...src.text.matchAll(/^ {4}(\w+) : SFC_STEP;$/gm)].map((m) => m[1]) : []) {
+				const x = this.dev.read(`${this.sfc.name}.${s}.X`);
+				if (x.value === true) {
+					const t = this.dev.read(`${this.sfc.name}.${s}.T`);
+					active.set(s.toUpperCase(), t.symbol && t.value !== null ? formatValue(t.symbol.type, t.value) : "");
+				}
+			}
+		}
+		const set = (p: SfcPou) => {
+			this.sfc = p;
+			saveJson(SFC_KEY, p);
+		};
+		return this.renderGfx("sfc", this.sfc.name, this.sfc.decl, (d) => set({ ...this.sfc, decl: d }), src.problems, b, html`
+			<plc-sfc-editor .pou=${this.sfc} .problems=${src.problems} .active=${active}
+				@change=${(e: CustomEvent<SfcPou>) => set(e.detail)}></plc-sfc-editor>`);
+	}
+
 	private renderTree() {
 		const node = (view: View, icon: string, label: string, sub = "") => html`
 			<button class="ide-node ${this.view === view ? "ide-node-active" : ""}" @click=${() => (this.view = view)}>
@@ -512,6 +654,9 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				${node("prg", "📄", this.prg.name, "PRG · ST")}
 				<div class="ide-node ide-node-static" title="Ein zyklischer Task; mehrere Tasks: P7"><span class="ide-node-icon">⏱</span><span>MainTask</span><span class="ide-node-sub">${this.dev.cycleMs} ms</span></div>
 				<button class="ide-node ide-add" disabled title=${P4}>＋ Objekt hinzufügen…</button>
+				<div class="ide-tree-group" title="Grafische Editoren als Vorschau (P5/P6): je ein eigenes Programm, als POU im Projekt mit P4">Vorschau</div>
+				${node("fbd", "🔲", this.fbd.name, "PRG · FBD")}
+				${node("sfc", "⛓", this.sfc.name, "PRG · SFC")}
 				<div class="ide-tree-group">Gerät</div>
 				${node("io", "🔌", "I/O-Abbild", `${IO_VARS.length} Variablen`)}
 				<div class="ide-tree-group">Bibliotheken</div>

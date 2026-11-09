@@ -888,3 +888,472 @@ plc-st-editor {
 .ide-pad {
 	padding: 10px 12px;
 }
+
+/* ---- graphical editors: shared ------------------------------------------------------------------- */
+.gfx-view {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 12px 14px;
+	min-width: 0;
+	min-height: 0;
+	flex: 1;
+	overflow: auto;
+}
+.gfx-intro {
+	margin: 0;
+	color: #475569;
+	font-size: 13px;
+}
+.gfx-actions {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.gfx-status-ok {
+	color: var(--ide-ok);
+	font-size: 13px;
+}
+.gfx-status-bad {
+	color: var(--ide-error);
+	font-size: 13px;
+}
+.gfx-st summary {
+	cursor: pointer;
+	font-size: 13px;
+	color: #334155;
+	padding: 4px 0;
+}
+.fbd-problems {
+	margin: 0;
+	padding: 6px 24px;
+	color: var(--ide-error);
+	font-size: 12px;
+}
+
+/* ---- FBD (SVG) ---------------------------------------------------------------------------------- */
+.fbd {
+	outline: none;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.fbd-toolbar {
+	display: flex;
+	gap: 8px;
+}
+.fbd-body {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+}
+.fbd-nets {
+	flex: 1;
+	min-width: 0;
+	overflow: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.fbd-net {
+	border: 1px solid var(--ui-color-border);
+	border-radius: 6px;
+	background: #fff;
+}
+.fbd-net-head {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--ui-color-border);
+	background: #f8fafc;
+	border-radius: 6px 6px 0 0;
+}
+.fbd-net-no {
+	font-weight: 600;
+	color: #64748b;
+	min-width: 1.5em;
+}
+.fbd-net-title {
+	flex: 1;
+	border: none;
+	background: transparent;
+	font-style: italic;
+	color: #334155;
+}
+.fbd-svg {
+	display: block;
+	user-select: none;
+	touch-action: none;
+	background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+	background-size: 10px 10px;
+}
+.fbd-node {
+	cursor: move;
+}
+.fbd-node rect {
+	fill: #fff;
+	stroke: #334155;
+	stroke-width: 1.5;
+}
+.fbd-input rect,
+.fbd-output rect {
+	fill: #f1f5f9;
+	stroke: #64748b;
+}
+.fbd-sel rect {
+	stroke: var(--ide-accent);
+	stroke-width: 2.5;
+}
+.fbd-bad rect {
+	stroke: var(--ide-error);
+	stroke-dasharray: 4 2;
+}
+.fbd-head {
+	stroke: #cbd5e1;
+}
+.fbd-type {
+	font: 600 12px var(--ide-mono);
+	fill: #0f172a;
+}
+.fbd-instance {
+	font: 12px var(--ide-mono);
+	fill: #1d4ed8;
+}
+.fbd-pin-name {
+	font: 11px var(--ide-mono);
+	fill: #475569;
+	pointer-events: none;
+}
+.fbd-var-text {
+	font: 12px var(--ide-mono);
+	fill: #0f172a;
+	pointer-events: none;
+}
+.fbd-pin {
+	fill: #fff;
+	stroke: #334155;
+	stroke-width: 1.5;
+}
+.fbd-pin-out {
+	fill: #334155;
+	cursor: crosshair;
+}
+.fbd-pin:hover {
+	fill: var(--ide-accent);
+	stroke: var(--ide-accent);
+}
+.fbd-wire-line {
+	fill: none;
+	stroke: #334155;
+	stroke-width: 1.6;
+}
+.fbd-wire-hit {
+	fill: none;
+	stroke: transparent;
+	stroke-width: 10;
+	cursor: pointer;
+}
+.fbd-wire.fbd-on .fbd-wire-line {
+	stroke: #16a34a;
+	stroke-width: 2.4;
+}
+.fbd-wire.fbd-sel .fbd-wire-line {
+	stroke: var(--ide-accent);
+	stroke-width: 2.6;
+}
+.fbd-rubber {
+	fill: none;
+	stroke: var(--ide-accent);
+	stroke-dasharray: 4 3;
+	stroke-width: 1.6;
+	pointer-events: none;
+}
+.fbd-value {
+	font: 11px var(--ide-mono);
+	fill: var(--ide-value-fg);
+	pointer-events: none;
+}
+.fbd-props {
+	width: 240px;
+	flex-shrink: 0;
+	border: 1px solid var(--ui-color-border);
+	border-radius: 6px;
+	padding: 10px;
+	position: sticky;
+	top: 0;
+	font-size: 13px;
+}
+.fbd-props h4 {
+	margin: 0 0 6px;
+}
+.fbd-field {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	margin-bottom: 8px;
+	font-size: 12px;
+}
+.fbd-field input {
+	font-family: var(--ide-mono);
+}
+.fbd-hint {
+	color: #64748b;
+	font-size: 12px;
+}
+
+/* ---- SFC (HTML layout: every row a symmetric grid around the column's centre line) -------------- */
+.sfc {
+	--sfc-line: #334155;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.sfc-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.sfc-canvas {
+	overflow: auto;
+	padding: 18px 24px 28px;
+	border: 1px solid var(--ui-color-border);
+	border-radius: 6px;
+	background: #fff;
+}
+.sfc-seq {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+.sfc-row {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+	width: max-content; /* never squeezed: a squeezed grid is no longer symmetric */
+}
+.sfc-row > :nth-child(2) {
+	justify-self: center;
+}
+/* the step: a box with the link above and below */
+.sfc-step {
+	position: relative;
+	margin: 16px 0;
+	border: 2px solid var(--sfc-line);
+	background: #fff;
+	padding: 3px 8px;
+	min-width: 84px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	cursor: pointer;
+}
+.sfc-step::before,
+.sfc-step::after {
+	content: "";
+	position: absolute;
+	left: calc(50% - 1px);
+	width: 2px;
+	height: 16px;
+	background: var(--sfc-line);
+}
+.sfc-step::before {
+	top: -18px;
+}
+.sfc-step::after {
+	bottom: -18px;
+}
+.sfc-canvas > .sfc-seq > .sfc-row:first-child .sfc-step::before {
+	display: none;
+}
+.sfc-initial {
+	border: 6px double var(--sfc-line);
+	padding: 1px 6px;
+}
+.sfc-initial::before {
+	top: -22px;
+}
+.sfc-initial::after {
+	bottom: -22px;
+}
+.sfc .sfc-name {
+	border: none;
+	padding: 0;
+	box-shadow: none;
+	background: transparent;
+	text-align: center;
+	font: 600 13px var(--ide-mono);
+	color: #0f172a;
+}
+.sfc-active {
+	background: #dcfce7;
+	border-color: #16a34a;
+}
+.sfc-active .sfc-name {
+	color: #166534;
+}
+.sfc-time {
+	font: 11px var(--ide-mono);
+	color: #15803d;
+}
+/* the action block, joined to the step by a short line */
+.sfc-actions-cell {
+	display: flex;
+	align-items: center;
+}
+.sfc-actions {
+	position: relative;
+	margin-left: 16px;
+	border-collapse: collapse;
+	border: 1.5px solid var(--sfc-line);
+	background: #fff;
+}
+.sfc-actions::before {
+	content: "";
+	position: absolute;
+	left: -17px;
+	top: calc(50% - 1px);
+	width: 16px;
+	height: 2px;
+	background: var(--sfc-line);
+}
+.sfc-actions td {
+	border: 1px solid #cbd5e1;
+	padding: 1px 3px;
+}
+.sfc .sfc-actions select,
+.sfc .sfc-actions input {
+	border: none;
+	box-shadow: none;
+	background: transparent;
+	font: 12px var(--ide-mono);
+}
+.sfc-add-action {
+	font-size: 12px;
+}
+/* the transition: the line through, a bar across, the condition on the right */
+.sfc-trans {
+	position: relative;
+	width: 2px;
+	height: 36px;
+	background: var(--sfc-line);
+	cursor: pointer;
+}
+.sfc-tick {
+	position: absolute;
+	top: calc(50% - 2px);
+	left: -13px;
+	width: 28px;
+	height: 4px;
+	background: var(--sfc-line);
+}
+.sfc-cond-cell {
+	display: flex;
+	align-items: center;
+	padding-left: 18px;
+}
+.sfc .sfc-cond,
+.sfc .sfc-jump-target {
+	border: 1px solid transparent;
+	box-shadow: none;
+	background: transparent;
+	padding: 1px 3px;
+	font: 12px var(--ide-mono);
+	color: #1e3a8a;
+}
+.sfc .sfc-cond:hover,
+.sfc .sfc-cond:focus {
+	border-color: var(--ui-color-border-input);
+	background: #fff;
+}
+.sfc-jump {
+	font-size: 22px;
+	line-height: 1;
+	color: var(--sfc-line);
+	cursor: pointer;
+}
+/* branches: a row of columns between two bars, each column's share of the bar drawn by itself */
+.sfc-branch {
+	position: relative;
+	padding: 16px 0;
+	cursor: default;
+}
+.sfc-branch::before,
+.sfc-branch::after {
+	content: "";
+	position: absolute;
+	left: calc(50% - 1px);
+	width: 2px;
+	height: 16px;
+	background: var(--sfc-line);
+}
+.sfc-branch::before {
+	top: 0;
+}
+.sfc-branch::after {
+	bottom: 0;
+}
+.sfc-cols {
+	display: flex;
+	align-items: stretch;
+	width: max-content;
+}
+.sfc-col {
+	flex: 0 0 auto;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 0 20px;
+}
+.sfc-col::before,
+.sfc-col::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	border-top: 2px solid var(--sfc-line);
+}
+.sfc-col::before {
+	top: 0;
+}
+.sfc-col::after {
+	bottom: 0;
+}
+.sfc-col:first-child::before,
+.sfc-col:first-child::after {
+	left: 50%;
+}
+.sfc-col:last-child::before,
+.sfc-col:last-child::after {
+	right: 50%;
+}
+.sfc-par > .sfc-cols > .sfc-col::before,
+.sfc-par > .sfc-cols > .sfc-col::after {
+	border-top: 6px double var(--sfc-line);
+}
+.sfc-par > .sfc-cols > .sfc-col::before {
+	top: -2px;
+}
+.sfc-par > .sfc-cols > .sfc-col::after {
+	bottom: -4px;
+}
+.sfc-fill {
+	flex: 1;
+	width: 2px;
+	min-height: 4px;
+	background: var(--sfc-line);
+}
+.sfc-sel {
+	outline: 2px solid var(--ide-accent);
+	outline-offset: 3px;
+}
+.sfc-branch.sfc-sel {
+	outline-style: dashed;
+}
+.sfc-bad {
+	border-color: var(--ide-error);
+	outline: 2px dashed var(--ide-error);
+	outline-offset: 3px;
+}

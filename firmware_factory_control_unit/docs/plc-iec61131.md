@@ -883,7 +883,33 @@ and a download leave the halted cycle and clear the breakpoints; the terminal's 
 The IDE warns before the first breakpoint on an FCU in IEC mode. Renode rev 3: halt at a breakpoint,
 the I/O cycle running on with the outputs kept, the lease against a second browser, step over,
 continue to the next cycle's halt, RUN refused, `plc continue`, STOP from HALTED. Open in P3: watch
-subscriptions (`PlcWatch`, instead of polling).
+subscriptions (`PlcWatch`, instead of polling) - postponed (2026-11-09) in favour of the editors.
+
+**P5/P6 preview (2026-11-09).** The graphical editors exist as previews: one FBD and one SFC program of
+their own in the project tree ("Vorschau"; as POUs of the project with P4), each translated to ST,
+compiled with the I/O list and the libraries, runnable in the simulator.
+
+- FBD (`ide/fbd.ts`, `ide/fbd-editor.ts`, SVG): networks of boxes (logic, comparison, arithmetic,
+  SEL/MIN/MAX/LIMIT/MOVE, TON/TOF/TP, CTU/CTD, R_TRIG/F_TRIG, SR/RS), input variables (any ST
+  expression) and output variables, wires from an output pin to an input pin (one per input), drawn
+  orthogonally with a lane per input. Lowering: function blocks become calls of their instances in
+  dependency order, operators and functions inline expressions, output variables assignments; a
+  feedback through an instance reads the last cycle's value, a loop of operators is an error, an open
+  input too (a timer's or counter's optional inputs get a default). Online: values at the variables and
+  instance outputs, TRUE wires in green.
+- SFC (`ide/sfc.ts`, `ide/sfc-editor.ts`, HTML/CSS): the chart is a tree (sequence, alternative and
+  parallel branches, jumps) and the layout follows it - every row a symmetric grid around the column's
+  centre line, the bars of a branch drawn by its columns. Lowering: a graph of transitions (sources ->
+  targets), steps as `SFC_STEP` (`.X`, `.T` from a TON per step), the transitions evaluated on the old
+  state (the leftmost alternative wins), fired together (leave, then enter), then the actions (N with a
+  variable: OR over its steps; S, R; P once on entering via R_TRIG); the end of the chain goes back to
+  the initial step. Structure errors are reported at the element. Online: the active steps with their
+  time.
+
+Tested: both lowerings compile and run in the VM (the FBD sorting example counts and stops at 10; the
+SFC example through both alternatives, the parallel split and join, N/S/R/P and the jump). Open: FBD/SFC
+as POUs of the project (P4), their own debug mapping (breakpoints on boxes and steps, P5/P6), live wire
+values for operator outputs.
 
 ## 14. Decisions from the review and postponed points
 

@@ -7,6 +7,7 @@
 #include "boot.hpp"
 #include "io.hpp"
 #include "plc.hpp"
+#include "plc_project.hpp"
 #include "roarm/roarm.hpp"
 #include "task_monitor.hpp"
 #include "terminal.hpp"
@@ -185,7 +186,16 @@ std::uint32_t LogMirror::next_deadline() const noexcept { return next_log_poll; 
 LogMirror& log_mirror() noexcept { return mirror; }
 
 void on_opened(void*, SessionId id) noexcept { RTOS_LOG_INFO("ws: client %u connected", static_cast<unsigned>(id)); }
-void on_closed(void*, SessionId id) noexcept { RTOS_LOG_INFO("ws: client %u closed", static_cast<unsigned>(id)); }
+void on_closed(void*, SessionId id) noexcept {
+    // a session the server reset because its TLS failed (e.g. MEMORY_E from the static pool) says so
+    static std::uint32_t tls_failures = 0;
+    if (const std::uint32_t f = net::server.tls_failures(); f != tls_failures) {
+        tls_failures = f;
+        RTOS_LOG_WARN("ws: client %u closed: TLS failed (wolfSSL error %d)", static_cast<unsigned>(id), net::server.last_tls_error());
+        return;
+    }
+    RTOS_LOG_INFO("ws: client %u closed", static_cast<unsigned>(id));
+}
 
 void on_message(void*, SessionId id, std::span<const std::byte> message, bool binary) noexcept {
     if (!binary || message.size() < 4) {
@@ -204,7 +214,7 @@ void on_message(void*, SessionId id, std::span<const std::byte> message, bool bi
             }
             break;
         case ws::plc::NAMESPACE_ID:
-            plc::on_message(id, type, data, len);
+            if (!plc::project::post(id, type, data, len)) plc::on_message(id, type, data, len);  // the project: the I/O thread
             break;
         case ws::system::NAMESPACE_ID:
             if (type == ws::system::SystemInfoRequest::TYPE_ID) {

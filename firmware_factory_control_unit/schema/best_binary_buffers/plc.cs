@@ -147,3 +147,40 @@ public class WriteResponse
 {
 	public bool ok;
 }
+
+/// <summary>A chunk of the project source (the IDE's project JSON) for the SD card,
+/// /PLC/project.fcuplc.json (docs/plc-iec61131.md 4.5). Offset 0 starts, chunks come in order; the last
+/// one replaces the stored project - written as /PLC/project.tmp and renamed once complete, so a power
+/// loss keeps the old project or the new one. Answered by the I/O thread, which owns the card.</summary>
+[BinaryMessage(MessageKind.Request)]
+public class PutProjectRequest
+{
+	public uint totalBytes;
+	public uint offset;
+	[BinaryMaxItemCount(1024)] public byte[] data = System.Array.Empty<byte>();
+}
+
+[BinaryMessage(MessageKind.Response)]
+public class PutProjectResponse
+{
+	public bool ok;
+	[BinaryMaxEncodedByteLength(120)] public string message = "";
+}
+
+/// <summary>A chunk of the stored project source from `offset` ("Upload from device").</summary>
+[BinaryMessage(MessageKind.Request)]
+public class GetProjectRequest
+{
+	public uint offset;
+}
+
+[BinaryMessage(MessageKind.Response)]
+public class GetProjectResponse
+{
+	/// <summary>false: no card, no stored project, or a read error (message).</summary>
+	public bool ok;
+	public uint totalBytes;
+	public uint offset;
+	[BinaryMaxItemCount(1024)] public byte[] data = System.Array.Empty<byte>();
+	[BinaryMaxEncodedByteLength(120)] public string message = "";
+}

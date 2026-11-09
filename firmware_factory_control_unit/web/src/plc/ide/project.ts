@@ -74,6 +74,13 @@ export function loadProject(): Project {
 	return exampleProject();
 }
 
+/** A project file's text (export, the device's SD card) as a project; throws why not. */
+export function parseProject(text: string): Project {
+	const p = JSON.parse(text) as Project;
+	if (p.format !== 1 || !Array.isArray(p.objects) || p.objects.length !== 1) throw new Error("kein FCU-SPS-Projekt (Format 1, eine POU)");
+	return p;
+}
+
 export function saveProject(p: Project): void {
 	try {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(p));

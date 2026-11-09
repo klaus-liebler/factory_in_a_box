@@ -717,8 +717,17 @@ The web UI talks to the firmware over binary WebSockets only (project decision: 
 | `WriteRequest` | PLC thread | up to 64 bytes into the data segment between two cycles (prepared values) |
 
 The chunks keep every message under the server's 1280 bytes; flash work runs in the PLC thread, so the
-network thread never waits for an erase (rtoos fairness rule). Project upload/download from the SD card
-(`GetProject`/`PutProject`) follows with the IDE's device mode.
+network thread never waits for an erase (rtoos fairness rule).
+
+| Message | Answered by | Content |
+|---|---|---|
+| `PutProjectRequest` | I/O thread (owns the SD card) | a chunk of up to 1 KB of the project JSON; offset 0 starts, the last chunk replaces `/PLC/project.fcuplc.json` (written as `/PLC/project.tmp`, renamed when complete: a power loss keeps the old or the new project); at most 512 KB |
+| `GetProjectRequest` | I/O thread | a chunk of the stored project from `offset`, with its total size; "no SD card", "no project stored" as message |
+
+The IDE stores the project after every successful download ("Laden"; a missing card is only a warning:
+the program runs without it) and loads it with "Vom Gerät", saying whether it is the state of the
+program on the device (project hash). Card handling (mount, retry every 5 s, a lost card) is shared
+with the RoArm missions (`src/sd_card.hpp`).
 
 **I/O check at the commit:** the image's `ioMapHash` must equal `register_map::map_hash`, a CRC-32 the
 register generator computes over the map's layout (bank, address, width, name, signedness, bool, class
@@ -810,8 +819,11 @@ emulator: Error 3). The terminal command `plc`: without arguments the state (rea
 stop | reset warm|cold | source fieldbus|iec | autostart on|off` go to the PLC thread as a request -
 they may write the flash journal, the I/O thread that runs the terminal does not wait for that - and the
 PLC thread logs the result (Renode: state, refused arguments, source and autostart through the log).
-Still open in P2: the project source on the SD card ("upload from device"), the other FCU blocks (`FCU_StepperMoveAbsolute`, `FCU_Ws2812`, `FCU_Log`), and
-the hardware test on the boards.
+The project source on the SD card ("Vom Gerät", [§10.4](#104-device-interface-websocket)), Renode-tested on both
+revisions with a FAT16 card image: none at first, stored in chunks, read back the same, a chunk out of
+order refused, still there after a reset. This test exposed a TCP bug in rtoos (a segment held by the
+TX DMA used up all retransmissions within 100 ms; fixed in rtoos f2c5d57). Still open in P2: the other
+FCU blocks (`FCU_StepperMoveAbsolute`, `FCU_Ws2812`, `FCU_Log`) and the hardware test on the boards.
 
 ## 14. Decisions from the review and postponed points
 

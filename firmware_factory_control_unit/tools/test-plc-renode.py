@@ -16,6 +16,8 @@ TAP adapter "rtoos-tap" (rtoos/emulation/renode/setup-tap.ps1); over wss:// (WsP
   - autostart: after a software reset the program runs again by itself - no browser, no download
   - STOP: safe state; control source fieldbus: Modbus writes the outputs again
   - the terminal command `plc`: the state; `plc source fieldbus`, `plc autostart off` through the PLC thread
+  - the project source on the SD card (a FAT16 image): none at first, stored in chunks, read back the
+    same, a chunk out of order refused, still there after the reset
 
   cmake --build --preset Release-Rev3 && python tools/test-plc-renode.py
   cmake --build --preset Release      && python tools/test-plc-renode.py --revision 2
@@ -32,6 +34,7 @@ import ssl
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import zlib
@@ -60,6 +63,36 @@ assert zlib.crc32(image) == meta["crc"], "test.img and test.json do not match: n
 ids = (ROOT / "generated/device_ids.hh").read_text(encoding="utf-8")
 uid = [int(re.search(rf"DEVICE_CHIP_UID_W{i} = 0x([0-9A-Fa-f]+)", ids).group(1), 16) for i in range(3)]
 
+
+
+def fat16_image(path, total_sectors=65536):
+    """An empty FAT16 file system without a partition table (FileX mounts sector 0 as the boot
+    sector): 512-byte sectors, 4 per cluster, 2 FATs, 512 root entries - 32 MB."""
+    spc, reserved, fats, root_entries = 4, 1, 2, 512
+    root_sectors = root_entries * 32 // 512
+    fat_sectors = 64  # (65536 - 1 - 32) / 4 clusters, 2 bytes each: 63.96 sectors
+    boot = bytearray(512)
+    boot[0:3] = b"\xEB\x3C\x90"
+    boot[3:11] = b"RTOOSFAT"
+    struct.pack_into("<HBHBHHBHHHII", boot, 11, 512, spc, reserved, fats, root_entries,
+                     0 if total_sectors > 0xFFFF else total_sectors, 0xF8, fat_sectors, 63, 255, 0,
+                     total_sectors if total_sectors > 0xFFFF else 0)
+    struct.pack_into("<BBBI11s8s", boot, 36, 0x80, 0, 0x29, 0x1234ABCD, b"NO NAME    ", b"FAT16   ")
+    boot[510:512] = b"\x55\xAA"
+    fat = bytearray(fat_sectors * 512)
+    struct.pack_into("<HH", fat, 0, 0xFFF8, 0xFFFF)
+    with open(path, "wb") as f:
+        f.truncate(total_sectors * 512)
+        f.write(boot)
+        f.seek(reserved * 512)
+        f.write(fat * fats)
+    assert reserved + fats * fat_sectors + root_sectors < total_sectors
+
+
+card_dir = tempfile.TemporaryDirectory()
+card = Path(card_dir.name) / "card.img"
+fat16_image(card)
+
 with socket.socket() as s:
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
@@ -72,6 +105,7 @@ cmds = "; ".join([
     # the old mission store: a littlefs superblock ("littlefs" at offset 8 of block 0)
     *([f"sysbus WriteDoubleWord {0x081C0008 + 4 * i:#x} {struct.unpack('<I', b'littlefs'[4 * i:4 * i + 4])[0]:#x}"
        for i in range(2)] if args.old_mission_store else []),
+    f"sysbus.sdmmc1 InsertCard @{card.as_posix()} true",
     f'emulation CreateServerSocketTerminal {port} "console" false',
     "connector Connect sysbus.usart3 console",
     "start",
@@ -203,6 +237,41 @@ def term(ws, line):
     return r[0] == 1, out
 
 
+def put_project(ws, data, chunks=None):
+    """PutProjectRequest 13 -> 14 in 1 KB chunks (or the given (offset, length) chunks); the last answer."""
+    for offset, length in chunks or [(o, min(1024, len(data) - o)) for o in range(0, len(data), 1024)]:
+        chunk = data[offset:offset + length]
+        ok, msg = ok_message(ws.call(PLC, 13, struct.pack("<IIH", len(data), offset, len(chunk)) + chunk, 14))
+        if not ok:
+            return False, f"offset {offset}: {msg}"
+    return True, ""
+
+
+def get_project(ws):
+    """GetProjectRequest 15 -> 16 until complete: (bytes or None, message)."""
+    out = b""
+    total = 1
+    while len(out) < total:
+        r = ws.call(PLC, 15, struct.pack("<I", len(out)), 16)
+        ok, total, offset, count = struct.unpack_from("<BIIH", r, 0)
+        data = r[11:11 + count]
+        msg, _ = cstr(r, 11 + count)
+        if not ok:
+            return None, msg
+        if offset != len(out) or (count == 0 and len(out) < total):
+            return None, f"chunk at {offset}, {count} bytes, {len(out)} of {total}"
+        out += data
+    return out, ""
+
+
+PROJECT = json.dumps({"format": 1, "name": "Renode",
+                      "objects": [{"id": "plc_prg", "name": "PLC_PRG", "kind": "PRG", "lang": "ST",
+                                   "decl": "PROGRAM PLC_PRG\nVAR\n" + "".join(f"    v{i} : INT; (* \u00e4 *)\n" for i in range(80)) + "END_VAR",
+                                   "body": "v0 := v0 + 1;\n"}],
+                      "tasks": [{"name": "MainTask", "intervalCycles": 1, "programs": ["PLC_PRG"]}]},
+                     ensure_ascii=False).encode()
+
+
 def read_var(ws, name, fmt):
     addr = meta["symbols"][name]
     r = ws.call(PLC, 9, struct.pack("<IH", addr, struct.calcsize(fmt)), 10)
@@ -287,6 +356,18 @@ try:
     check("an image built for another register map is refused", not ok and "register map" in msg, msg)
     check("... and nothing is loaded", status(ws)["image"] == 0)
 
+    # the project source on the SD card (docs/plc-iec61131.md 4.5)
+    data, msg = get_project(ws)
+    check("project: none on a new card", data is None and "no project stored" in msg, msg)
+    ok, msg = put_project(ws, PROJECT)
+    check(f"project: stored on the SD card ({len(PROJECT)} bytes, {(len(PROJECT) + 1023) // 1024} chunks)", ok, msg)
+    data, msg = get_project(ws)
+    check("project: read back the same", data == PROJECT, msg or f"{len(data or b'')} bytes")
+    ok, msg = put_project(ws, PROJECT, [(0, 1024), (2048, 100)])
+    check("project: a chunk out of order is refused", not ok and "out of order" in msg, msg)
+    data, msg = get_project(ws)
+    check("project: the refused upload left the stored one", data == PROJECT, msg)
+
     ok, msg = download(ws)
     check("download and commit into the flash slot", ok, msg)
     check("log: program stored", wait_log("plc: program stored", 10))
@@ -353,6 +434,8 @@ try:
     st = status(ws)
     check("status after the reset: RUN, IEC, autostart", st["state"] == "RUN" and st["iec"] and st["autostart"], str(st))
     check("outputs again from the program", holding(mb, CONVEYOR) == [123])
+    data, msg = get_project(ws)
+    check("project: still on the SD card after the reset", data == PROJECT, msg)
 
     ok, msg = control(ws, "stop")
     check("STOP", ok, msg)
@@ -380,9 +463,11 @@ finally:
     stop.set()
     proc.kill()
     proc.wait()
-print("--- firmware log (plc):")
-for line in log:
-    if "plc" in line or "ERR" in line:
-        print("  " + line)
+    card_dir.cleanup()
+    # also when the test ended with an exception: the firmware's side of it
+    print("--- firmware log (plc, sd, errors):" if sys.exc_info()[0] is None else "--- firmware log (the test ended early):")
+    for line in log if sys.exc_info()[0] is None else log[-60:]:
+        if sys.exc_info()[0] is not None or "plc" in line or "sd:" in line or "ERR" in line:
+            print("  " + line)
 print("RESULT:", "PASS" if failures == 0 else f"FAIL ({failures})")
 sys.exit(1 if failures else 0)

@@ -9,6 +9,7 @@
 #include "hardware.hpp"
 #include "network.hpp"
 #include "rtos/devices/tmc2209.hpp"
+#include "plc_project.hpp"
 #include "roarm/roarm.hpp"
 #include "system.hpp"
 #include "terminal.hpp"
@@ -500,6 +501,7 @@ void cycle(std::uint32_t now) noexcept {
     boot::poll_pd_events();
     steppers(now);
     roarm::cycle(now);
+    plc::project::cycle();
     terminal::cycle();
     leds();
     outputs();

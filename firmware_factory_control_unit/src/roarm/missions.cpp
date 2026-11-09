@@ -6,10 +6,8 @@
 #include <cstring>
 
 #include "board/fcu.hpp"
-#include "hardware.hpp"
 #include "rtos/log/log.hpp"
-#include "rtos/storage/filex_media.hpp"
-#include "rtos/storage/sd_card.hpp"
+#include "sd_card.hpp"
 #include "system.hpp"
 #include "ws_protocol.hh"
 #if RTOS_FCU_REVISION != 3
@@ -20,25 +18,13 @@
 namespace fcu::roarm::missions {
 namespace {
 
-using rtos::storage::SdStatus;
-using Card = rtos::storage::SdCard<hw::SdHost>;
+using sd::fx;
 
-hw::SdHost sd_host;
-Card card{sd_host};
-/// The FileX sector cache and bounce sector: where SDMMC1's IDMA reaches (STM32H743: the
-/// non-cacheable AXI SRAM window).
-RTOS_SDMMC_BUFFER rtos::storage::FileXMedia<Card> volume{card};
-bool mounted = false;
-bool board_ready = false;
-rtos::Tick last_attempt = 0;
-bool attempted = false;
-constexpr rtos::Tick retry_ms = 5'000;  ///< a missing card is looked for again at most this often
+std::uint32_t prepared = 0;  ///< the card (sd::generation()) the directory was set up on
 constexpr const char* directory = "/MISSIONS";
 
 std::array<std::uint8_t, max_mission_bytes> scratch;  // encoded mission (save, import)
 std::array<CHAR, FX_MAX_LONG_NAME_LEN + 1> entry_name;
-
-CHAR* fx(const char* s) noexcept { return const_cast<CHAR*>(s); }
 
 std::array<char, 16> filename(std::uint16_t index, const char* extension = "msn") noexcept {
     std::array<char, 16> f{};
@@ -61,16 +47,10 @@ bool parse_index(const char* name, unsigned& index) noexcept {
 }
 
 /// A file error: the card may be gone - mount again on the next request.
-void lost() noexcept {
-    if (mounted) {
-        RTOS_LOG_WARN("missions: SD card error, card removed?");
-        (void)volume.close();
-        mounted = false;
-    }
-}
+void lost() noexcept { sd::lost("missions"); }
 
 bool write_file(const char* path, std::span<const std::uint8_t> data) noexcept {
-    FX_MEDIA* m = volume.media();
+    FX_MEDIA* m = sd::media();
     (void)fx_file_delete(m, fx(path));
     FX_FILE f{};
     if (fx_file_create(m, fx(path)) != FX_SUCCESS || fx_file_open(m, &f, fx(path), FX_OPEN_FOR_WRITE) != FX_SUCCESS) {
@@ -85,18 +65,18 @@ bool write_file(const char* path, std::span<const std::uint8_t> data) noexcept {
 bool store(std::uint16_t index, std::span<const std::uint8_t> data) noexcept {
     const auto tmp = filename(index, "tmp");
     const auto path = filename(index);
-    FX_MEDIA* m = volume.media();
+    FX_MEDIA* m = sd::media();
     if (!write_file(tmp.data(), data)) {
         return false;
     }
     (void)fx_file_delete(m, fx(path.data()));
-    return fx_file_rename(m, fx(tmp.data()), fx(path.data())) == FX_SUCCESS && volume.flush() == FX_SUCCESS;
+    return fx_file_rename(m, fx(tmp.data()), fx(path.data())) == FX_SUCCESS && sd::flush();
 }
 
 #if RTOS_FCU_REVISION != 3
 bool exists(std::uint16_t index) noexcept {
     FX_FILE f{};
-    if (fx_file_open(volume.media(), &f, fx(filename(index).data()), FX_OPEN_FOR_READ) != FX_SUCCESS) {
+    if (fx_file_open(sd::media(), &f, fx(filename(index).data()), FX_OPEN_FOR_READ) != FX_SUCCESS) {
         return false;
     }
     (void)fx_file_close(&f);
@@ -165,42 +145,27 @@ void import_from_flash() noexcept {
 }
 #endif
 
-/// Mounts the card when it is not: at the first request, then at most every retry_ms.
+/// The card mounted (sd::mount()) and, once per card, the mission directory set up: it becomes the
+/// default directory, the mission files are relative names in it (other users of the card take
+/// absolute paths).
 bool ensure_mounted() noexcept {
-    if (mounted) {
+    if (!sd::mount()) {
+        return false;
+    }
+    if (prepared == sd::generation()) {
         return true;
     }
-    const rtos::Tick now = kernel.now();
-    if (attempted && now - last_attempt < retry_ms) {
+    if (!sd::ensure_directory(directory)) {
+        RTOS_LOG_ERROR("missions: %s not created on the SD card", directory);
+        lost();
         return false;
     }
-    attempted = true;
-    last_attempt = now;
-    if (!board_ready) {
-        board::init_sdcard();
-        board_ready = true;
-    }
-    if (const SdStatus s = card.init(); s != SdStatus::Ok) {
-        RTOS_LOG_WARN("missions: no SD card (%s)", s == SdStatus::NoCard ? "none inserted" : "does not answer");
+    if (fx_directory_default_set(sd::media(), fx(directory)) != FX_SUCCESS || !sd::flush()) {
+        lost();
         return false;
     }
-    if (const UINT s = volume.open(); s != FX_SUCCESS) {
-        RTOS_LOG_ERROR("missions: SD card has no FAT file system (error 0x%02X; exFAT cards need FAT32)", s);
-        return false;
-    }
-    FX_MEDIA* m = volume.media();
-    if (const UINT s = fx_directory_create(m, fx(directory)); s != FX_SUCCESS && s != FX_ALREADY_CREATED) {
-        RTOS_LOG_ERROR("missions: %s not created on the SD card (error 0x%02X)", directory, s);
-        (void)volume.close();
-        return false;
-    }
-    if (fx_directory_default_set(m, fx(directory)) != FX_SUCCESS || volume.flush() != FX_SUCCESS) {
-        (void)volume.close();
-        return false;
-    }
-    mounted = true;
-    RTOS_LOG_INFO("missions: SD card mounted, %lu MB, missions in %s", static_cast<unsigned long>(card.blocks() / 2048),
-                  directory);
+    prepared = sd::generation();
+    RTOS_LOG_INFO("missions: in %s on the SD card", directory);
 #if RTOS_FCU_REVISION != 3
     import_from_flash();
 #endif
@@ -216,7 +181,7 @@ std::size_t list(std::span<MissionSummary> out) noexcept {
         return 0;
     }
     // first the indices (opening files during the directory search would disturb it), then the names
-    FX_MEDIA* m = volume.media();
+    FX_MEDIA* m = sd::media();
     std::size_t found = 0;
     UINT attributes = 0, year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
     ULONG size = 0;
@@ -254,7 +219,7 @@ std::size_t load(std::uint16_t index, std::span<std::uint8_t> out) noexcept {
         return 0;
     }
     FX_FILE f{};
-    const UINT s = fx_file_open(volume.media(), &f, fx(filename(index).data()), FX_OPEN_FOR_READ);
+    const UINT s = fx_file_open(sd::media(), &f, fx(filename(index).data()), FX_OPEN_FOR_READ);
     if (s != FX_SUCCESS) {
         if (s != FX_NOT_FOUND) {
             lost();
@@ -301,9 +266,9 @@ bool remove(std::uint16_t index) noexcept {
     if (!ensure_mounted()) {
         return false;
     }
-    const UINT s = fx_file_delete(volume.media(), fx(filename(index).data()));
+    const UINT s = fx_file_delete(sd::media(), fx(filename(index).data()));
     if (s == FX_SUCCESS) {
-        return volume.flush() == FX_SUCCESS;
+        return sd::flush();
     }
     if (s != FX_NOT_FOUND) {
         lost();

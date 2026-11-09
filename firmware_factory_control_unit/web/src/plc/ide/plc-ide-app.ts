@@ -16,7 +16,7 @@ import type { Symbol } from "../compiler/compiler.ts";
 import type * as A from "../compiler/ast.ts";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
 import { IO_VARS, ioSource } from "./io-list.ts";
-import { build, exampleProject, loadProject, projectHash, saveProject, type Build, type Located, type Project } from "./project.ts";
+import { build, exampleProject, loadProject, parseProject, projectHash, saveProject, type Build, type Located, type Project } from "./project.ts";
 import { Simulator } from "./simulator.ts";
 import { FcuDevice, type PlcDevice } from "./device.ts";
 import { formatValue, parseValue, readValue, type Value } from "./values.ts";
@@ -167,6 +167,8 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			if (start && dev.iec && !confirm("Das Programm übernimmt die Ausgänge des FCU (Steuerquelle IEC 61131): Ventile, Motoren und Achsen können sich bewegen. Laden und starten?")) return;
 		}
 		if (await dev.download(b.result)) {
+			// the source next to the program, for "from the device" in another browser (a missing card: a warning only)
+			if (dev.storeProject) await dev.storeProject(JSON.stringify(this.project));
 			if (start) await dev.start();
 		} else {
 			this.panel = "log";
@@ -190,8 +192,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			const f = input.files?.[0];
 			if (!f) return;
 			try {
-				const p = JSON.parse(await f.text()) as Project;
-				if (p.format !== 1 || !Array.isArray(p.objects) || p.objects.length !== 1) throw new Error("kein FCU-SPS-Projekt (Format 1, eine POU)");
+				const p = parseProject(await f.text());
 				this.project = p;
 				saveProject(p);
 				this.doBuild(true);
@@ -200,6 +201,32 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			}
 		};
 		input.click();
+	}
+
+	/** "Upload from device": the project source stored next to the program (SD card). */
+	private async projectFromDevice(): Promise<void> {
+		const dev = this.dev;
+		if (!dev.loadProject || !dev.connected) {
+			this.flash("Das Gerät antwortet nicht");
+			return;
+		}
+		if (!confirm("Das Projekt vom Gerät laden? Das aktuelle Projekt im Browser wird ersetzt.")) return;
+		const text = await dev.loadProject();
+		if (text === null) {
+			this.panel = "log";
+			return;
+		}
+		try {
+			const p = parseProject(text);
+			this.project = p;
+			saveProject(p);
+			this.doBuild(true);
+			const same = dev.projectHash !== 0 && dev.projectHash === projectHash(p);
+			this.flash(same ? "Projekt vom Gerät geladen - es passt zum Programm auf dem Gerät"
+				: "Projekt vom Gerät geladen - ACHTUNG: es ist nicht der Stand des Programms auf dem Gerät");
+		} catch (e) {
+			this.flash(`Projekt vom Gerät unbrauchbar: ${(e as Error).message}`);
+		}
 	}
 
 	private resetToExample(): void {
@@ -430,6 +457,8 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<div class="ide-tree-actions">
 					<button @click=${() => this.exportProject()} title="Projekt als Datei speichern">Export</button>
 					<button @click=${() => this.importProject()} title="Projektdatei laden">Import</button>
+					${this.dev.loadProject ? html`<button @click=${() => this.projectFromDevice()} ?disabled=${!this.dev.connected}
+						title="Das beim letzten Laden auf dem Gerät (SD-Karte) gespeicherte Projekt holen">Vom Gerät</button>` : ""}
 					<button @click=${() => this.resetToExample()} title="Beispielprojekt laden">Beispiel</button>
 				</div>
 			</nav>`;

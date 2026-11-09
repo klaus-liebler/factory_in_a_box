@@ -59,3 +59,7 @@ message plc.ReadResponse 10
 message plc.WriteRequest 11
 message plc.WriteResponse 12
 namespace plc 7
+message plc.PutProjectRequest 13
+message plc.PutProjectResponse 14
+message plc.GetProjectRequest 15
+message plc.GetProjectResponse 16

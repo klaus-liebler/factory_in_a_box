@@ -54,6 +54,11 @@ export interface PlcDevice extends EventTarget {
 	/** The PLC page is visible (poll) or not. */
 	activate(): void;
 	deactivate(): void;
+	/** The project source on the device (the FCU: its SD card, docs/plc-iec61131.md 4.5); absent: the
+	 *  device keeps none. */
+	storeProject?(json: string): Promise<boolean>;
+	/** The stored project source; null: none (the log says why). */
+	loadProject?(): Promise<string | null>;
 }
 
 const STATE: Record<number, PlcState> = { 0: "NO_PROGRAM", 1: "STOP", 2: "RUN", 3: "ERROR" };
@@ -251,6 +256,51 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 		} catch (e) {
 			this.note("error", `write ${path}: ${(e as Error).message}`);
 			return false;
+		}
+	}
+
+	/** The project source onto the SD card, in chunks; the device replaces the stored one only when all arrived. */
+	async storeProject(json: string): Promise<boolean> {
+		const bytes = new TextEncoder().encode(json);
+		try {
+			for (let offset = 0; offset < bytes.length; offset += CHUNK) {
+				const data = Array.from(bytes.subarray(offset, offset + CHUNK));
+				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.PutProjectRequest.encode({ requestId, totalBytes: bytes.length, offset, data }), plc.PutProjectResponse);
+				if (!r.ok) {
+					this.note("warn", `project source not stored on the device: ${r.message}`);
+					return false;
+				}
+			}
+			this.note("info", `project source stored on the device's SD card (${bytes.length} bytes)`);
+			return true;
+		} catch (e) {
+			this.note("warn", `project source not stored on the device: ${(e as Error).message}`);
+			return false;
+		}
+	}
+
+	async loadProject(): Promise<string | null> {
+		try {
+			const parts: number[] = [];
+			let total = 1;
+			while (parts.length < total) {
+				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.GetProjectRequest.encode({ requestId, offset: parts.length }), plc.GetProjectResponse);
+				if (!r.ok) {
+					this.note("warn", `no project from the device: ${r.message}`);
+					return null;
+				}
+				total = r.totalBytes;
+				if (r.offset !== parts.length || (r.data.length === 0 && parts.length < total)) {
+					this.note("error", "project from the device: chunks out of order");
+					return null;
+				}
+				parts.push(...r.data);
+			}
+			this.note("info", `project source read from the device (${total} bytes)`);
+			return new TextDecoder().decode(new Uint8Array(parts));
+		} catch (e) {
+			this.note("error", `project from the device: ${(e as Error).message}`);
+			return null;
 		}
 	}
 

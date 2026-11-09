@@ -1,6 +1,6 @@
 # IEC 61131-3 programming and runtime environment (specification)
 
-Status: **draft, review rounds 1+2 incorporated** (2026-11-08). No code yet. This file is the reference:
+Status: **review rounds 1+2 incorporated** (2026-11-08); **P1 implemented** (2026-11-09, see [§13](#13-phases)). This file is the reference:
 decisions are made here first and the code follows. Questions decided in the review and points
 deliberately postponed are under [§14](#14-decisions-from-the-review-and-postponed-points).
 
@@ -331,12 +331,25 @@ The list is not final; it grows with the register schema.
 
 | Parameter | Value |
 |---|---|
-| Identifier length | 64 characters, case-insensitive |
-| STRING default/maximum length | 80 / 254 bytes (Latin-1) |
-| Array dimensions / elements per dimension | 3 / 65 535 |
-| Call depth | 32 (VM error beyond that) |
-| Division by zero, array index out of bounds, overflow in `*_TO_*` | runtime error → ERROR with location (no silent result) |
+| Identifiers | case-insensitive, any length; two underscores in a row are reserved for the libraries (`__PLC_TIME`) |
+| STRING | not implemented yet (P7); planned: default/maximum length 80 / 254 bytes (Latin-1) |
+| Arrays | any number of dimensions, constant DINT bounds; the size is limited by the data segment (32 KB) |
+| TIME | 32-bit signed milliseconds (±24d20h31m23s647ms), resolution 1 ms; LTIME/DATE/TOD/DT: P7 |
+| Untyped literals | take the type of the context (other operand, assignment target, parameter) and must fit it; without context DINT (LINT, ULINT if larger) or LREAL |
+| Implicit conversions | only the widening ones of Ed. 3 table 11 (e.g. INT → DINT/REAL, BYTE → WORD); everything else needs `X_TO_Y` |
+| Integer ↔ integer conversions | range checked: a value that does not fit is a runtime error |
+| Bit string ↔ integer conversions | bit pattern transfer (`WORD_TO_INT(16#FFFF)` = -1), never an error; bit string ↔ REAL is not supported |
+| REAL → integer | rounds half away from zero (`REAL_TO_INT(2.5)` = 3, `(-2.5)` = -3); `TRUNC` truncates and gives DINT; NaN or out of range is a runtime error |
+| Arithmetic on bit strings (BYTE … LWORD) | not allowed (they are not numbers): AND, OR, XOR, NOT, SHL, SHR, ROL, ROR only |
+| Enumerations | base type INT unless given; the first element is the initial value; compared with `=` and `<>` only |
+| Function calls | non-formal: all inputs in order; formal (`name := value`): omitted inputs get their initial value. Function block calls are formal only |
+| Global variables | visible in every POU; `VAR_EXTERNAL` is optional and checked against the global declaration |
+| Recursion | a compile error; the compiler computes each task's frame area from the call graph |
+| Call depth | 32 (runtime error beyond that) |
+| Division by zero (also REAL/LREAL), array index out of bounds, subrange violation, `MUX` selector out of range, overflow in `*_TO_*` | runtime error → ERROR with location (no silent result) |
 | Integer overflow in arithmetic | wraps around (two's complement), no error |
+| Endless loop | the instruction budget per cycle (default 2 000 000) stops it: runtime error |
+| `F_TRIG` | no edge at the first call when CLK is FALSE (its memory starts as TRUE) |
 | SFC evolution | one evolution step per cycle (E4) |
 
 This table is the compliance statement the standard requires; it lives in the IDE help too.
@@ -528,9 +541,10 @@ Pipeline:
 3. **Semantics**: name resolution (scopes, VAR_EXTERNAL ↔ VAR_GLOBAL), types and overloads
    (ANY_NUM …), constant evaluation, checks (assignment to CONSTANT/inputs, uninitialized
    VAR_IN_OUT, unreachable code warning, SFC net checks).
-4. **IR**: typed, linear three-address/stack IR per POU; optimizations kept small and safe
-   (constant folding, dead code); no transform that destroys the source mapping in debug
-   builds.
+4. **IR**: the type checker produces a typed expression tree with every implicit conversion
+   explicit; the back end emits bytecode from it through an assembler with labels (P1). A
+   separate linear IR comes only when a back end needs it (native code, P8). Optimizations stay
+   small and safe; none may destroy the source mapping of the debugger.
 5. **Back end**: layout (data segment, instances, alignment), bytecode, image, debug info.
 6. **Incremental**: re-analysis per POU on typing (diagnostics while typing,
    < 100 ms for 5 000 lines); full image build < 1 s.
@@ -737,6 +751,15 @@ Each phase ends with something usable and tested; hardware verification where ha
 | **P8** (optional) | native Thumb-2 back end from the same IR, only if P2–P6 measurements show the VM is too slow | |
 
 P1 can be developed entirely without hardware (host + browser).
+
+**P1 result (2026-11-09).** Instruction set: `rtoos/tools/plc_isa.py` (155 opcodes), documented with the image format and
+the verifier in `rtoos/docs/plc.md`. C++ VM: `rtoos/src/plc/vm.cpp` (~13.5 KB on the Cortex-M33/M7). TypeScript:
+`web/src/plc/` (compiler in `compiler/`, VM `vm.ts`, image writer `image.ts`). Tests: 29 C++ and 26 TypeScript VM tests
+with the same cases, 37 compiler tests, and the differential corpus of 66 programs (26 written by hand in
+`web/src/plc/corpus/`, 40 from a seeded random generator) whose traces the C++ VM reproduces byte for byte
+(`npm run plc:corpus` regenerates `rtoos/tests/plc_corpus/`). A deliberately broken rounding in the C++ VM makes the
+corpus fail, so it does detect differences. Open from P1: the compiler's symbol tables have no namespaces yet
+(needed for libraries, P7); STRING is not implemented (P7).
 
 ## 14. Decisions from the review and postponed points
 

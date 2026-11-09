@@ -1,0 +1,149 @@
+// SPDX-License-Identifier: MIT
+// The IEC 61131-3 standard function blocks (Ed. 3, 6.6.3.5), written in ST and compiled with every
+// project; only the blocks a project uses end up in the image. __PLC_TIME() is the cycle's start
+// time (native TIME_MS); names with "__" are reserved for the libraries. DOM-free.
+
+export const STDLIB_FILE = "<stdlib>";
+
+export const STDLIB_SOURCE = `
+FUNCTION_BLOCK R_TRIG
+VAR_INPUT CLK : BOOL; END_VAR
+VAR_OUTPUT Q : BOOL; END_VAR
+VAR M : BOOL; END_VAR
+Q := CLK AND NOT M;
+M := CLK;
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK F_TRIG
+VAR_INPUT CLK : BOOL; END_VAR
+VAR_OUTPUT Q : BOOL; END_VAR
+VAR M : BOOL := TRUE; END_VAR
+Q := NOT CLK AND NOT M;
+M := NOT CLK;
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK SR
+VAR_INPUT S1 : BOOL; R : BOOL; END_VAR
+VAR_OUTPUT Q1 : BOOL; END_VAR
+Q1 := S1 OR (NOT R AND Q1);
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK RS
+VAR_INPUT S : BOOL; R1 : BOOL; END_VAR
+VAR_OUTPUT Q1 : BOOL; END_VAR
+Q1 := NOT R1 AND (S OR Q1);
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK CTU
+VAR_INPUT CU : BOOL; R : BOOL; PV : INT; END_VAR
+VAR_OUTPUT Q : BOOL; CV : INT; END_VAR
+VAR CU_T : R_TRIG; END_VAR
+CU_T(CLK := CU);
+IF R THEN
+    CV := 0;
+ELSIF CU_T.Q AND (CV < 32767) THEN
+    CV := CV + 1;
+END_IF;
+Q := CV >= PV;
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK CTD
+VAR_INPUT CD : BOOL; LD : BOOL; PV : INT; END_VAR
+VAR_OUTPUT Q : BOOL; CV : INT; END_VAR
+VAR CD_T : R_TRIG; END_VAR
+CD_T(CLK := CD);
+IF LD THEN
+    CV := PV;
+ELSIF CD_T.Q AND (CV > -32768) THEN
+    CV := CV - 1;
+END_IF;
+Q := CV <= 0;
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK CTUD
+VAR_INPUT CU : BOOL; CD : BOOL; R : BOOL; LD : BOOL; PV : INT; END_VAR
+VAR_OUTPUT QU : BOOL; QD : BOOL; CV : INT; END_VAR
+VAR CU_T : R_TRIG; CD_T : R_TRIG; END_VAR
+CU_T(CLK := CU);
+CD_T(CLK := CD);
+IF R THEN
+    CV := 0;
+ELSIF LD THEN
+    CV := PV;
+ELSIF NOT (CU_T.Q AND CD_T.Q) THEN
+    IF CU_T.Q AND (CV < 32767) THEN
+        CV := CV + 1;
+    ELSIF CD_T.Q AND (CV > -32768) THEN
+        CV := CV - 1;
+    END_IF;
+END_IF;
+QU := CV >= PV;
+QD := CV <= 0;
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK TP
+VAR_INPUT IN : BOOL; PT : TIME; END_VAR
+VAR_OUTPUT Q : BOOL; ET : TIME; END_VAR
+VAR START : TIME; M : BOOL; END_VAR
+IF NOT Q THEN
+    IF NOT IN THEN
+        ET := T#0s;
+    ELSIF NOT M AND ET = T#0s THEN
+        START := __PLC_TIME();
+        Q := TRUE;
+    END_IF;
+END_IF;
+IF Q THEN
+    ET := __PLC_TIME() - START;
+    IF ET >= PT THEN
+        ET := PT;
+        Q := FALSE;
+    END_IF;
+END_IF;
+M := IN;
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK TON
+VAR_INPUT IN : BOOL; PT : TIME; END_VAR
+VAR_OUTPUT Q : BOOL; ET : TIME; END_VAR
+VAR START : TIME; M : BOOL; END_VAR
+IF IN THEN
+    IF NOT M THEN
+        START := __PLC_TIME();
+        M := TRUE;
+    END_IF;
+    IF NOT Q THEN
+        ET := __PLC_TIME() - START;
+        IF ET >= PT THEN
+            ET := PT;
+            Q := TRUE;
+        END_IF;
+    END_IF;
+ELSE
+    Q := FALSE;
+    ET := T#0s;
+    M := FALSE;
+END_IF;
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK TOF
+VAR_INPUT IN : BOOL; PT : TIME; END_VAR
+VAR_OUTPUT Q : BOOL; ET : TIME; END_VAR
+VAR START : TIME; M : BOOL; END_VAR
+IF IN THEN
+    Q := TRUE;
+    ET := T#0s;
+    M := FALSE;
+ELSIF Q THEN
+    IF NOT M THEN
+        START := __PLC_TIME();
+        M := TRUE;
+    END_IF;
+    ET := __PLC_TIME() - START;
+    IF ET >= PT THEN
+        ET := PT;
+        Q := FALSE;
+    END_IF;
+END_IF;
+END_FUNCTION_BLOCK
+`;

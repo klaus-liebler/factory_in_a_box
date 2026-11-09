@@ -9,7 +9,9 @@
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "plc:corpus": "node tools/plc-corpus.mjs",
+    "typecheck:plc": "tsc --noEmit -p src/plc"
   },
   "dependencies": {
     "lit": "^3.3.2",

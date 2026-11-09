@@ -1,12 +1,15 @@
 // The PLC project (docs/plc-iec61131.md sections 5.8 and 11): from P4 any number of objects - programs,
 // function blocks, functions, data types, global variable lists - each its own source file for the
 // compiler (the file name is the object's name). Declaration and implementation are edited
-// separately; for the compiler they are one text.
+// separately; for the compiler they are one text. The implementation is ST, or an FBD or SFC that is
+// lowered to ST (P5/P6); the declaration is always ST.
 import { compile, projectHashOf, type CompileResult } from "../compiler/compiler.ts";
 import { Diagnostics, type Diagnostic } from "../compiler/diagnostics.ts";
 import { lex } from "../compiler/lexer.ts";
 import { FCU_LIB_FILE, fcuLibSource } from "./fcu-lib.ts";
 import { IO_FILE, ioBindings, ioMapHash, ioSource } from "./io-list.ts";
+import { exampleFbd, fbdSource, type FbdNetwork, type FbdProblem } from "./fbd.ts";
+import { exampleSfc, SFC_FILE, SFC_STEP_SOURCE, sfcId, sfcSource, type SfcItem, type SfcProblem } from "./sfc.ts";
 
 export type ObjectKind = "PRG" | "FB" | "FUN" | "DUT" | "GVL";
 export const OBJECT_KINDS: readonly ObjectKind[] = ["PRG", "FB", "FUN", "DUT", "GVL"];
@@ -14,16 +17,26 @@ export const KIND_NAMES: Record<ObjectKind, string> = {
 	PRG: "Programm", FB: "Funktionsbaustein", FUN: "Funktion", DUT: "Datentyp", GVL: "Globale Variablenliste",
 };
 
+export type Lang = "ST" | "FBD" | "SFC";
+/** The implementation languages of each kind (DUT and GVL: a declaration only). */
+export const LANGS_OF: Record<ObjectKind, readonly Lang[]> = { PRG: ["ST", "FBD", "SFC"], FB: ["ST", "FBD", "SFC"], FUN: ["ST", "FBD"], DUT: ["ST"], GVL: ["ST"] };
+export const LANG_NAMES: Record<Lang, string> = { ST: "Strukturierter Text", FBD: "Funktionsbausteinsprache", SFC: "Ablaufsprache" };
+
 export interface PlcObject {
 	id: string;
 	name: string;
 	kind: ObjectKind;
-	lang: "ST";
+	/** The implementation's language, chosen when the object is created. */
+	lang: Lang;
 	/** PRG/FB/FUN: the header ("PROGRAM PLC_PRG") and the VAR sections; DUT: the whole TYPE ... END_TYPE;
 	 *  GVL: the VAR_GLOBAL sections. */
 	decl: string;
-	/** PRG/FB/FUN: the statements (without END_...); DUT/GVL: empty. */
+	/** ST: the statements (without END_...); otherwise empty. */
 	body: string;
+	/** FBD: the networks. */
+	networks?: FbdNetwork[];
+	/** SFC: the chart (its first step is the initial step). */
+	chart?: SfcItem[];
 }
 
 export interface Project {
@@ -98,6 +111,10 @@ export function exampleProject(): Project {
 			{ id: "gvl", name: "GVL", kind: "GVL", lang: "ST", decl: EXAMPLE_GVL, body: "" },
 			{ id: "fb_ejector", name: "FB_Ejector", kind: "FB", lang: "ST", decl: EXAMPLE_FB_DECL, body: EXAMPLE_FB_BODY },
 			{ id: "plc_prg", name: "PLC_PRG", kind: "PRG", lang: "ST", decl: EXAMPLE_DECL, body: EXAMPLE_BODY },
+			// the same conveyor in FBD and a sequence in SFC: not in MainTask (they would fight PLC_PRG for the
+			// outputs); the task configuration or "allein ausführen" runs them
+			{ id: "fbd_prg", name: "FBD_PRG", kind: "PRG", lang: "FBD", decl: "PROGRAM FBD_PRG\nVAR\nEND_VAR", body: "", networks: exampleFbd().networks },
+			{ id: "sfc_prg", name: "SFC_PRG", kind: "PRG", lang: "SFC", ...(({ decl, chart }) => ({ decl, chart }))(exampleSfc()), body: "" },
 		],
 		tasks: [{ name: "MainTask", intervalCycles: 1, programs: ["PLC_PRG"] }],
 	};
@@ -107,7 +124,19 @@ export function exampleProject(): Project {
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** A new object's declaration and implementation. */
-export function template(kind: ObjectKind, name: string, returnType = "INT"): { decl: string; body: string } {
+export function template(kind: ObjectKind, name: string, returnType = "INT", lang: Lang = "ST"): Pick<PlcObject, "decl" | "body" | "networks" | "chart"> {
+	const st = templateSt(kind, name, returnType);
+	if (lang === "FBD") return { decl: st.decl, body: "", networks: [{ id: "n1", title: "", nodes: [], wires: [] }] };
+	if (lang === "SFC") {
+		return {
+			decl: st.decl, body: "",
+			chart: [{ kind: "step", id: sfcId(), name: "Init", actions: [] }, { kind: "trans", id: sfcId(), condition: "FALSE" }],
+		};
+	}
+	return st;
+}
+
+function templateSt(kind: ObjectKind, name: string, returnType: string): { decl: string; body: string } {
 	switch (kind) {
 		case "PRG": return { decl: `PROGRAM ${name}\nVAR\nEND_VAR`, body: "" };
 		case "FB": return { decl: `FUNCTION_BLOCK ${name}\nVAR_INPUT\nEND_VAR\nVAR_OUTPUT\nEND_VAR\nVAR\nEND_VAR`, body: "" };
@@ -124,10 +153,11 @@ export function nameProblem(p: Project, name: string, except?: string): string |
 	return null;
 }
 
-export function addObject(p: Project, kind: ObjectKind, name: string, returnType?: string): { project: Project; object: PlcObject } {
+export function addObject(p: Project, kind: ObjectKind, name: string, returnType?: string, lang: Lang = "ST"): { project: Project; object: PlcObject } {
 	let id = name.toLowerCase();
 	for (let i = 2; p.objects.some((o) => o.id === id); i++) id = `${name.toLowerCase()}_${i}`;
-	const object: PlcObject = { id, name, kind, lang: "ST", ...template(kind, name, returnType) };
+	const l = LANGS_OF[kind].includes(lang) ? lang : "ST";
+	const object: PlcObject = { id, name, kind, lang: l, ...template(kind, name, returnType, l) };
 	const tasks = kind === "PRG" ? p.tasks.map((t, i) => (i === 0 ? { ...t, programs: [...t.programs, name] } : t)) : p.tasks;
 	return { project: { ...p, objects: [...p.objects, object], tasks }, object };
 }
@@ -167,16 +197,37 @@ export function renameObject(p: Project, id: string, to: string): Project {
 	const from = o.name;
 	const up = from.toUpperCase();
 	const refs = o.kind !== "GVL";  // a GVL's name is no identifier of the program
+	const r = (t: string) => (refs ? renameIn(t, from, to) : t);
 	return {
 		...p,
 		objects: p.objects.map((x) => ({
 			...x,
 			name: x.id === id ? to : x.name,
-			decl: refs ? renameIn(x.decl, from, to) : x.decl,
-			body: refs ? renameIn(x.body, from, to) : x.body,
+			decl: r(x.decl),
+			body: r(x.body),
+			...(x.networks ? { networks: x.networks.map((n) => renameInNetwork(n, r)) } : {}),
+			...(x.chart ? { chart: renameInChart(x.chart, r) } : {}),
 		})),
 		tasks: p.tasks.map((t) => ({ ...t, programs: t.programs.map((n) => (n.toUpperCase() === up ? to : n)) })),
 	};
+}
+
+/** The ST texts of an FBD network (input expressions, output targets) through `r`. */
+function renameInNetwork(n: FbdNetwork, r: (t: string) => string): FbdNetwork {
+	return {
+		...n,
+		nodes: n.nodes.map((x) => (x.kind === "input" ? { ...x, expr: r(x.expr) } : x.kind === "output" ? { ...x, target: r(x.target) } : x)),
+	};
+}
+
+/** The ST texts of an SFC chart (conditions, action bodies) through `r`. */
+function renameInChart(chart: SfcItem[], r: (t: string) => string): SfcItem[] {
+	return chart.map((it): SfcItem => {
+		if (it.kind === "trans") return { ...it, condition: r(it.condition) };
+		if (it.kind === "step") return { ...it, actions: it.actions.map((a) => ({ ...a, body: r(a.body) })) };
+		if (it.kind === "branch") return { ...it, branches: it.branches.map((b) => renameInChart(b, r)) };
+		return it;
+	});
 }
 
 /** The name in an object's header (PROGRAM x / FUNCTION_BLOCK x / FUNCTION x / TYPE x); null: none. */
@@ -195,6 +246,10 @@ function projectProblem(p: Project): string | null {
 	const names = new Set<string>();
 	for (const o of p.objects) {
 		if (!OBJECT_KINDS.includes(o.kind) || typeof o.decl !== "string" || typeof o.name !== "string" || !IDENT.test(o.name)) return `Objekt '${o.name}' ungültig`;
+		const lang = o.lang ?? "ST";
+		if (!LANGS_OF[o.kind].includes(lang)) return `Objekt '${o.name}': Sprache ${lang} geht für ${o.kind} nicht`;
+		if (lang === "FBD" && !Array.isArray(o.networks)) return `Objekt '${o.name}': FBD ohne Netzwerke`;
+		if (lang === "SFC" && !Array.isArray(o.chart)) return `Objekt '${o.name}': SFC ohne Ablauf`;
 		if (names.has(o.name.toUpperCase())) return `Objektname '${o.name}' doppelt`;
 		names.add(o.name.toUpperCase());
 	}
@@ -203,7 +258,7 @@ function projectProblem(p: Project): string | null {
 }
 
 function normalize(p: Project): Project {
-	return { ...p, objects: p.objects.map((o, i) => ({ ...o, id: o.id || `obj${i}`, lang: "ST", body: o.body ?? "" })) };
+	return { ...p, objects: p.objects.map((o, i) => ({ ...o, id: o.id || `obj${i}`, lang: o.lang ?? "ST", body: o.body ?? "" })) };
 }
 
 export function loadProject(): Project {
@@ -246,9 +301,19 @@ export interface Located {
 	diagnostic: Diagnostic;
 }
 
+/** A graphical object's lowering: its ST and what the lowering could not take. */
+export interface Generated {
+	text: string;
+	problems: (FbdProblem | SfcProblem)[];
+}
+
 export interface Build {
 	result: CompileResult;
 	located: Located[];
+	/** The ST of the FBD/SFC objects (by id). */
+	generated: Map<string, Generated>;
+	/** Compiled, and no graphical object has a problem. */
+	ok: boolean;
 }
 
 /** Line n of an object's compiled text is line n - declLines(o) of its implementation. */
@@ -262,8 +327,15 @@ export function partLine(o: PlcObject, line: number): { part: "decl" | "body"; l
 	return hasBody(o.kind) && line > d ? { part: "body", line: line - d } : { part: "decl", line };
 }
 
+/** An object as ST (FBD/SFC: lowered; the problems of the lowering are in generate()). */
 export function sourceOf(o: PlcObject): string {
-	return hasBody(o.kind) ? `${o.decl}\n${o.body}\n${END[o.kind]}\n` : `${o.decl}\n`;
+	return generate(o).text;
+}
+
+export function generate(o: PlcObject): Generated {
+	if (o.lang === "FBD") return fbdSource({ name: o.name, decl: o.decl, networks: o.networks ?? [] }, END[o.kind]);
+	if (o.lang === "SFC") return sfcSource({ name: o.name, decl: o.decl, chart: o.chart ?? [] }, END[o.kind]);
+	return { text: hasBody(o.kind) ? `${o.decl}\n${o.body}\n${END[o.kind]}\n` : `${o.decl}\n`, problems: [] };
 }
 
 /** The project's objects as source files. */
@@ -276,7 +348,7 @@ export function deviceSources(file: string, text: string): { file: string; text:
 export function deviceSources(sources: { file: string; text: string }[]): { file: string; text: string }[];
 export function deviceSources(a: string | { file: string; text: string }[], text?: string): { file: string; text: string }[] {
 	const own = typeof a === "string" ? [{ file: a, text: text! }] : a;
-	return [...own, { file: IO_FILE, text: ioSource() }, { file: FCU_LIB_FILE, text: fcuLibSource() }];
+	return [...own, { file: IO_FILE, text: ioSource() }, { file: FCU_LIB_FILE, text: fcuLibSource() }, { file: SFC_FILE, text: SFC_STEP_SOURCE }];
 }
 
 /** The project hash an image of the project's current state has (also while it does not compile). */
@@ -284,8 +356,14 @@ export function projectHash(p: Project): number {
 	return projectHashOf(deviceSources(objectSources(p)));
 }
 
-export function build(p: Project): Build {
-	const result = compile(deviceSources(objectSources(p)), p.tasks, { io: ioBindings(), ioMapHash: ioMapHash() });
+export function build(p: Project, tasks = p.tasks): Build {
+	const generated = new Map<string, Generated>();
+	const sources = p.objects.map((o) => {
+		const g = generate(o);
+		if (o.lang !== "ST") generated.set(o.id, g);
+		return { file: o.name, text: g.text };
+	});
+	const result = compile(deviceSources(sources), tasks, { io: ioBindings(), ioMapHash: ioMapHash() });
 	const byFile = new Map(p.objects.map((o) => [o.name, o]));
 	const located = result.diagnostics.map((d): Located => {
 		const s = d.span.start;
@@ -294,5 +372,6 @@ export function build(p: Project): Build {
 		if (!o) return { object: null, part: "other", line: s.line, col: s.col, diagnostic: d };
 		return { object: o.id, ...partLine(o, s.line), col: s.col, diagnostic: d };
 	});
-	return { result, located };
+	const ok = result.ok && [...generated.values()].every((g) => g.problems.length === 0);
+	return { result, located, generated, ok };
 }

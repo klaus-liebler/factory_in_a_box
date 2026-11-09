@@ -96,7 +96,9 @@ describe("PLC IDE", () => {
 describe("PLC IDE: several POUs (P4)", () => {
 	it("the example is split into GVL, FB and PRG; the FB's instance is visible online", () => {
 		const p = exampleProject();
-		expect(p.objects.map((o) => [o.name, o.kind])).toEqual([["GVL", "GVL"], ["FB_Ejector", "FB"], ["PLC_PRG", "PRG"]]);
+		expect(p.objects.map((o) => [o.name, o.kind, o.lang])).toEqual([["GVL", "GVL", "ST"], ["FB_Ejector", "FB", "ST"], ["PLC_PRG", "PRG", "ST"],
+			["FBD_PRG", "PRG", "FBD"], ["SFC_PRG", "PRG", "SFC"]]);
+		expect(p.tasks[0].programs).toEqual(["PLC_PRG"]);  // the graphical ones would fight PLC_PRG for the outputs
 		const sim = new Simulator();
 		expect(sim.download(build(p).result)).toBe(true);
 		sim.state = "RUN";
@@ -137,6 +139,94 @@ describe("PLC IDE: several POUs (P4)", () => {
 	it("renaming leaves comments, strings and fields of the same name alone; enum literals follow", () => {
 		const t = "x : Mode := Mode#Auto; (* Mode *) s := 'Mode'; y := a.Mode; z := MODE;";
 		expect(renameIn(t, "Mode", "E_Mode")).toBe("x : E_Mode := E_Mode#Auto; (* Mode *) s := 'Mode'; y := a.Mode; z := E_Mode;");
+	});
+});
+
+describe("PLC IDE: FBD and SFC objects of the project (P5/P6)", () => {
+	/** A function block in FBD: Q := A AND NOT B. */
+	function withFbdBlock(p: Project): Project {
+		const added = addObject(p, "FB", "FB_Gate", undefined, "FBD");
+		const fb = added.project.objects.find((o) => o.id === added.object.id)!;
+		fb.decl = "FUNCTION_BLOCK FB_Gate\nVAR_INPUT\n    A : BOOL;\n    B : BOOL;\nEND_VAR\nVAR_OUTPUT\n    Q : BOOL;\nEND_VAR";
+		fb.networks = [{
+			id: "n1", title: "", wires: [
+				{ from: { node: "a", pin: "OUT" }, to: { node: "and", pin: "IN1" } },
+				{ from: { node: "b", pin: "OUT" }, to: { node: "not", pin: "IN" } },
+				{ from: { node: "not", pin: "OUT" }, to: { node: "and", pin: "IN2" } },
+				{ from: { node: "and", pin: "OUT" }, to: { node: "q", pin: "IN" } },
+			],
+			nodes: [
+				{ kind: "input", id: "a", x: 0, y: 0, expr: "A" },
+				{ kind: "input", id: "b", x: 0, y: 40, expr: "B" },
+				{ kind: "box", id: "not", x: 100, y: 40, type: "NOT" },
+				{ kind: "box", id: "and", x: 200, y: 0, type: "AND" },
+				{ kind: "output", id: "q", x: 300, y: 0, target: "Q" },
+			],
+		}];
+		return added.project;
+	}
+
+	it("a function block in FBD, called by an ST program, ends with END_FUNCTION_BLOCK and runs", () => {
+		const p = withFbdBlock(exampleProject());
+		const prg = prgOf(p);
+		prg.decl = prg.decl.replace("END_VAR", "    Gate : FB_Gate;\n    GateQ : BOOL;\nEND_VAR");
+		prg.body += "Gate(A := Lightbarrier1, B := Lightbarrier2);\nGateQ := Gate.Q;\n";
+		const b = build(p);
+		expect(b.located.map((l) => l.diagnostic.message)).toEqual([]);
+		expect(b.ok).toBe(true);
+		expect(b.generated.get("fb_gate")!.text).toMatch(/END_FUNCTION_BLOCK\n$/);
+		const sim = new Simulator();
+		sim.plantEnabled = false;
+		expect(sim.download(b.result)).toBe(true);
+		sim.state = "RUN";
+		sim.force("Lightbarrier1", true);
+		cycles(sim, 1);
+		expect(sim.read("PLC_PRG.GateQ").value).toBe(true);
+		sim.force("Lightbarrier2", true);
+		cycles(sim, 1);
+		expect(sim.read("PLC_PRG.GateQ").value).toBe(false);
+	});
+
+	it("two SFCs in one project share the step type; a graphical program runs alone with a task of its own", () => {
+		let p = exampleProject();
+		p = addObject(p, "PRG", "SFC_Two", undefined, "SFC").project;
+		const b = build(p);
+		expect(b.located.map((l) => l.diagnostic.message)).toEqual([]);
+		expect(b.ok).toBe(true);
+		const alone = build(p, [{ name: "MainTask", intervalCycles: 1, programs: ["SFC_PRG"] }]);
+		const sim = new Simulator();
+		expect(sim.download(alone.result)).toBe(true);
+		sim.state = "RUN";
+		cycles(sim, 2);
+		expect(sim.read("SFC_PRG.Start.X").value).toBe(true);
+		expect(sim.read("ConveyorPwm").value).toBe(600);
+	});
+
+	it("a structure problem of a chart blocks the build; diagnostics of the generated ST map to the object", () => {
+		const p = exampleProject();
+		const sfc = p.objects.find((o) => o.name === "SFC_PRG")!;
+		sfc.chart = [{ kind: "step", id: "a", name: "A", actions: [] }, { kind: "step", id: "b", name: "B", actions: [] }];
+		const fbd = p.objects.find((o) => o.name === "FBD_PRG")!;
+		fbd.networks![0].nodes.push({ kind: "output", id: "zz", x: 0, y: 300, target: "Nowhere" });
+		fbd.networks![0].wires.push({ from: { node: "i1", pin: "OUT" }, to: { node: "zz", pin: "IN" } });
+		const b = build(p);
+		expect(b.ok).toBe(false);
+		expect(b.generated.get("sfc_prg")!.problems.length).toBeGreaterThan(0);
+		expect(b.located.map((l) => [l.object, l.part])).toEqual([["fbd_prg", "body"]]);
+	});
+
+	it("renaming a function changes its calls in FBD expressions and SFC conditions and actions", () => {
+		let p = addObject(exampleProject(), "FUN", "FUN_Ok", "BOOL").project;
+		const fun = p.objects.find((o) => o.name === "FUN_Ok")!;
+		fun.body = "FUN_Ok := TRUE;\n";
+		const fbd = p.objects.find((o) => o.name === "FBD_PRG")!;
+		(fbd.networks![0].nodes.find((n) => n.id === "i2") as { expr: string }).expr = "Enable AND FUN_Ok()";
+		const sfc = p.objects.find((o) => o.name === "SFC_PRG")!;
+		(sfc.chart![1] as { condition: string }).condition = "Lightbarrier1 AND FUN_Ok()";
+		expect(build(p).ok).toBe(true);
+		p = renameObject(p, fun.id, "FUN_Ready");
+		expect(JSON.stringify(p)).not.toContain("FUN_Ok");
+		expect(build(p).ok).toBe(true);
 	});
 });
 

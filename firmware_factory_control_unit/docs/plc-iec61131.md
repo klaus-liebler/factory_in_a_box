@@ -899,11 +899,26 @@ information, nested ones too), a function none. A halt brings the halted object 
 Tested: the split example sorts in the simulator, diagnostics per object, add/rename/remove with
 references, renaming leaves comments/strings/fields alone, a breakpoint in the FB halts with the
 caller in the stack and step out returns to it. Open in P4: declaration table for GVLs, folders,
-cross references; FBD/SFC as languages of project objects (P5/P6).
+cross references.
 
-**P5/P6 preview (2026-11-09).** The graphical editors exist as previews: one FBD and one SFC program of
-their own in the project tree ("Vorschau"; as POUs of the project with P4), each translated to ST,
-compiled with the I/O list and the libraries, runnable in the simulator.
+**P5/P6 state (2026-11-09, browser only).** FBD and SFC are implementation languages of project
+objects (`lang`, chosen in "Objekt hinzufügen": PRG and FB in ST/FBD/SFC, FUN in ST/FBD; the object
+keeps `networks` or `chart` in the project file). The declaration stays ST (table or text); the
+graphic is lowered to ST on every build (`generate()`, ending with the kind's `END_...`), the
+declaration first and unchanged, so diagnostics in it map to declaration lines and those of the
+generated part to lines of the generated ST (shown read-only below the editor, with the halted line).
+A structure problem of a graphic blocks loading like a compiler error. The step type `SFC_STEP` is a
+source of its own (`<sfc>`, with the I/O list and the FCU library), so several SFCs share it.
+Renaming an object also changes FBD input expressions/output targets and SFC conditions/actions. The
+former previews are objects of the example (`FBD_PRG`, `SFC_PRG`), not in MainTask (they would fight
+`PLC_PRG` for the outputs). Task configuration (tree "MainTask"): which programs MainTask calls and in
+which order; a program it does not call is compiled and checked but does not run - "Allein im
+Simulator ausführen" runs one with a task of its own. Online values: as for ST (a program its
+instance, an FB the chosen instance; pin colours offline from the last build). Tested: an FB in FBD
+called by an ST program (ends with END_FUNCTION_BLOCK, runs), two SFCs in one project, a program
+alone, structure problems block the build and compiler errors map to the object, renaming reaches
+FBD expressions and SFC conditions/actions. Open: breakpoints on boxes and steps (debug mapping),
+the project's own FBs and functions (and the FCU library) as FBD boxes.
 
 - FBD (`ide/fbd.ts`, `ide/fbd-editor.ts`, SVG): networks of boxes (logic, comparison, arithmetic,
   SEL/MIN/MAX/LIMIT/MOVE, TON/TOF/TP, CTU/CTD, R_TRIG/F_TRIG, SR/RS), input variables (any ST
@@ -931,9 +946,8 @@ compiled with the I/O list and the libraries, runnable in the simulator.
   time.
 
 Tested: both lowerings compile and run in the VM (the FBD sorting example counts and stops at 10; the
-SFC example through both alternatives, the parallel split and join, N/S/R/P and the jump). Open: FBD/SFC
-as POUs of the project (P4), their own debug mapping (breakpoints on boxes and steps, P5/P6), live wire
-values for operator outputs.
+SFC example through both alternatives, the parallel split and join, N/S/R/P and the jump). Open: their
+own debug mapping (breakpoints on boxes and steps), live wire values for operator outputs.
 
 ## 14. Decisions from the review and postponed points
 

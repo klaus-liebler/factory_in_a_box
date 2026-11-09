@@ -352,10 +352,11 @@ export function lowerFbd(pou: FbdPou): FbdLowered {
 	return { instances: instances.length ? `VAR (* FBD-Instanzen *)\n${instances.join("\n")}\nEND_VAR` : "", body: lines.join("\n"), problems };
 }
 
-/** The whole POU as ST: the user's declaration, the instances, the networks, END_PROGRAM. */
-export function fbdSource(pou: FbdPou): { text: string; problems: FbdProblem[] } {
+/** The whole POU as ST: the user's declaration, the instances, the networks, the end keyword. */
+export function fbdSource(pou: FbdPou, end = "END_PROGRAM"): { text: string; problems: FbdProblem[] } {
 	const l = lowerFbd(pou);
-	return { text: `${pou.decl.trim()}\n${l.instances}\n${l.body}END_PROGRAM\n`, problems: l.problems };
+	// the declaration unchanged: line n of it is line n of the text (diagnostics map back to it)
+	return { text: `${pou.decl}\n${l.instances}\n${l.body}${end}\n`, problems: l.problems };
 }
 
 let counter = 0;

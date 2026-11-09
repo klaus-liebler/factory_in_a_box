@@ -1527,3 +1527,25 @@ plc-st-editor {
 .ide-stack-link:hover td {
 	background: var(--ui-btn-neutral-hover);
 }
+
+/* ---- P5/P6: FBD and SFC as implementations of project objects; task configuration ---------------- */
+.ide-impl > plc-fbd-editor,
+.ide-impl > plc-sfc-editor {
+	display: block;
+	padding: 6px 10px 0;
+}
+.ide-impl > .gfx-actions,
+.ide-impl > .gfx-st {
+	margin-left: 10px;
+	margin-right: 10px;
+}
+.ide-task {
+	padding: 10px 14px;
+	overflow: auto;
+}
+.ide-task .ide-table td {
+	vertical-align: middle;
+}
+.ide-task-off td {
+	color: var(--ui-color-text-muted);
+}

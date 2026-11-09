@@ -9,7 +9,6 @@ import "./plc-ide.css";
 import "./st-editor.ts";
 import "./fbd-editor.ts";
 import "./sfc-editor.ts";
-import { compile, type CompileResult } from "../compiler/compiler.ts";
 import { parse } from "../compiler/parser.ts";
 import { Diagnostics } from "../compiler/diagnostics.ts";
 import { STDLIB_FILE, STDLIB_SOURCE } from "../compiler/stdlib.ts";
@@ -18,51 +17,21 @@ import { elemOf, typeName, type Type } from "../compiler/types.ts";
 import type { Symbol } from "../compiler/compiler.ts";
 import type * as A from "../compiler/ast.ts";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
-import { IO_VARS, ioBindings, ioMapHash, ioSource } from "./io-list.ts";
+import { IO_VARS } from "./io-list.ts";
 import {
-	addObject, build, declLines, deviceSources, exampleProject, hasBody, headerName, KIND_NAMES, loadProject, nameProblem, OBJECT_KINDS,
+	addObject, build, declLines, LANG_NAMES, LANGS_OF, type Generated, type Lang, exampleProject, hasBody, headerName, KIND_NAMES, loadProject, nameProblem, OBJECT_KINDS,
 	parseProject, partLine, projectHash, removeObject, renameObject, saveProject, type Build, type Located, type ObjectKind, type PlcObject, type Project,
 } from "./project.ts";
-import { exampleFbd, fbdSource, type FbdPou, type FbdProblem } from "./fbd.ts";
-import { exampleSfc, sfcSource, type SfcPou, type SfcProblem } from "./sfc.ts";
+import type { FbdPou } from "./fbd.ts";
+import { sfcWalk, type SfcPou } from "./sfc.ts";
 import { Simulator } from "./simulator.ts";
 import { FcuDevice, type PlcDevice } from "./device.ts";
 import { formatValue, parseValue, readValue, type Value } from "./values.ts";
 import { addRow, deleteRow, freeName, parseRows, updateRow, VAR_CLASSES, type DeclRow } from "./decl-table.ts";
 import type { LineMarker, StEditor } from "./st-editor.ts";
 
-type View = "prg" | "io" | "lib" | "fbd" | "sfc";
+type View = "prg" | "io" | "lib" | "task";
 
-const FBD_KEY = "fcu.plc.preview.fbd";
-const SFC_KEY = "fcu.plc.preview.sfc";
-
-function loadJson<T>(key: string, fallback: () => T): T {
-	try {
-		const raw = localStorage.getItem(key);
-		if (raw) return JSON.parse(raw) as T;
-	} catch {
-		// broken or private mode: the example
-	}
-	return fallback();
-}
-
-function saveJson(key: string, value: unknown): void {
-	try {
-		localStorage.setItem(key, JSON.stringify(value));
-	} catch {
-		// not persistent then
-	}
-}
-
-/** A graphical POU as ST, compiled with the I/O list and the libraries (cached per text). */
-interface GfxBuild {
-	text: string;
-	result: CompileResult;
-}
-function buildGfx(name: string, text: string, last: GfxBuild | null): GfxBuild {
-	if (last && last.text === text) return last;
-	return { text, result: compile(deviceSources(name, text), [{ name: "MainTask", intervalCycles: 1, programs: [name] }], { io: ioBindings(), ioMapHash: ioMapHash() }) };
-}
 type Panel = "messages" | "watch" | "log" | "plant" | "stack";
 
 const WATCH_KEY = "fcu.plc.watch";
@@ -75,6 +44,7 @@ interface AddForm {
 	kind: ObjectKind;
 	name: string;
 	returnType: string;
+	lang: Lang;
 }
 
 interface StdBlock {
@@ -111,11 +81,6 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	@state() private prepared = new Map<string, string>();
 	@state() private tick = 0;
 	@state() private notice: string | null = null;
-	/** Previews of P5/P6: an FBD and an SFC program of their own (POUs in the project come with P4). */
-	@state() private fbd: FbdPou = loadJson(FBD_KEY, exampleFbd);
-	@state() private sfc: SfcPou = loadJson(SFC_KEY, exampleSfc);
-	private fbdBuild: GfxBuild | null = null;
-	private sfcBuild: GfxBuild | null = null;
 	@query("#body-editor") private bodyEditor?: StEditor;
 	@query("#decl-editor") private declEditor?: StEditor;
 
@@ -141,7 +106,11 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		this.fcu.attach(this.lastBuild.result);
 		// a link to a view: /plc?view=fbd
 		const view = new URLSearchParams(window.location.search).get("view");
-		if (view === "prg" || view === "io" || view === "lib" || view === "fbd" || view === "sfc") this.view = view;
+		if (view === "prg" || view === "io" || view === "lib" || view === "task") this.view = view;
+		// /plc?view=fbd|sfc: the first object in that language
+		const lang = view?.toUpperCase();
+		const first = this.project.objects.find((o) => o.lang === lang);
+		if (first) this.selectedId = first.id;
 	}
 
 	protected createRenderRoot() {
@@ -250,7 +219,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		this.lastBuild = b;
 		this.fcu.attach(b.result);
 		if (explicit) {
-			const errors = b.located.filter((l) => l.diagnostic.severity === "error").length;
+			const errors = b.located.filter((l) => l.diagnostic.severity === "error").length + this.problemCount(b);
 			const warnings = b.located.length - errors;
 			this.flash(errors ? `Übersetzen: ${errors} Fehler, ${warnings} Warnungen` : `Übersetzen erfolgreich${warnings ? `, ${warnings} Warnungen` : ""} - ${b.result.image?.length ?? 0} Byte`);
 			if (errors) this.panel = "messages";
@@ -266,7 +235,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	// ---- objects: add, rename, remove -------------------------------------------------------------------
 	private openAdd(): void {
 		const kind: ObjectKind = "FB";
-		this.adding = { kind, name: this.freeObjectName(kind), returnType: "INT" };
+		this.adding = { kind, name: this.freeObjectName(kind), returnType: "INT", lang: "ST" };
 	}
 
 	private freeObjectName(kind: ObjectKind): string {
@@ -284,7 +253,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			this.flash(`'${a.name}': ${problem}`);
 			return;
 		}
-		const { project, object } = addObject(this.project, a.kind, a.name.trim(), a.returnType.trim() || "INT");
+		const { project, object } = addObject(this.project, a.kind, a.name.trim(), a.returnType.trim() || "INT", a.lang);
 		this.setProject(project);
 		this.selectedId = object.id;
 		this.view = "prg";
@@ -325,7 +294,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 
 	private async download(start: boolean): Promise<void> {
 		const b = this.doBuild(true);
-		if (!b.result.ok) return;
+		if (!b.ok) return;
 		const dev = this.dev;
 		if (dev.kind === "fcu") {
 			if (!dev.connected) {
@@ -349,7 +318,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	private get breakableBody(): Set<number> | null {
 		const b = this.lastBuild;
 		const o = this.obj;
-		if (!this.dev.canDebug || !b?.result.debug || !hasBody(o.kind)) return null;
+		if (!this.dev.canDebug || !b?.result.debug || !hasBody(o.kind) || o.lang !== "ST") return null;
 		const d = declLines(o);
 		const out = new Set<number>();
 		for (const s of b.result.debug.statements) {
@@ -398,7 +367,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		if (!this.lastBuild || !this.dev.canDebug) return;
 		const next = new Map<string, Set<number>>();
 		for (const o of this.project.objects) {
-			if (!hasBody(o.kind)) continue;
+			if (!hasBody(o.kind) || o.lang !== "ST") continue;
 			const offset = declLines(o);
 			const set = this.dev.setBreakpoints(o.name, [...(this.breakpoints.get(o.id) ?? [])].map((l) => l + offset));
 			if (set.length) next.set(o.id, new Set(set.map((l) => l - offset)));  // lines without a statement drop out
@@ -481,8 +450,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	/** The instance paths of a function block in the program on the device (programs, their FBs, nested). */
-	private instancesOf(fb: PlcObject): string[] {
-		const d = this.dev.debug;
+	private instancesOf(fb: PlcObject, d = this.dev.debug): string[] {
 		if (!d) return [];
 		const key = fb.name.toUpperCase();
 		const out: string[] = [];
@@ -642,8 +610,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<div class="ide-main">
 					${this.renderTree()}
 					<section class="ide-center">
-						${this.view === "prg" ? this.renderPrg() : this.view === "io" ? this.renderIo() : this.view === "fbd" ? this.renderFbd()
-							: this.view === "sfc" ? this.renderSfc() : this.renderLib()}
+						${this.view === "prg" ? this.renderPrg() : this.view === "io" ? this.renderIo() : this.view === "task" ? this.renderTask() : this.renderLib()}
 					</section>
 				</div>
 				${this.renderPanel()}
@@ -654,7 +621,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 
 	private renderToolbar() {
 		const s = this.dev.state;
-		const ok = this.lastBuild?.result.ok ?? false;
+		const ok = this.lastBuild?.ok ?? false;
 		return html`
 			<div class="ide-toolbar" role="toolbar">
 				<div class="ide-tb-group">
@@ -697,31 +664,35 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			</div>`;
 	}
 
-	// ---- graphical editors (previews of P5/P6) -------------------------------------------------------
-	/** Online: the graphical program runs in the simulator (its build is the simulator's program). */
-	private gfxOnline(b: GfxBuild | null): boolean {
-		return !!b?.result.ok && this.dev.kind === "simulator" && this.dev.debug === b.result.debug && this.dev.state !== "NO_PROGRAM";
+	// ---- graphical implementations (FBD, SFC) ---------------------------------------------------------
+	private problemCount(b: Build | null): number {
+		let n = 0;
+		for (const g of b?.generated.values() ?? []) n += g.problems.length;
+		return n;
 	}
 
-	/** The value of a variable path or expression for the diagram: program-local first, then global. */
-	private gfxValue(pou: string, expr: string): string | null {
+	/** The value of a variable path or expression for the diagram: in the object's scope first, then global. */
+	private gfxValue(expr: string): string | null {
 		const e = expr.trim();
 		if (!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(e)) return null;
-		for (const path of [`${pou}.${e}`, e]) {
+		const scope = this.scope;
+		for (const path of scope ? [`${scope}.${e}`, e] : [e]) {
 			const r = this.dev.read(path);
 			if (r.symbol && r.value !== null) return formatValue(r.symbol.type, r.value);
 		}
 		return null;
 	}
 
-	/** The elementary type of a variable of a graphical program (pin colours): from the debug information
-	 *  of its build (program-local first), else from the I/O list; null: not a known variable. */
-	private gfxVarType(b: GfxBuild | null, pou: string, name: string): string | null {
+	/** The elementary type of a variable of the object in the editor (pin colours): from the last build's debug
+	 *  information (the program's instance, a function block's first instance), else from the I/O list. */
+	private gfxVarType(name: string): string | null {
 		const n = name.trim();
 		if (!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(n)) return null;
-		const debug = b?.result.debug;
+		const o = this.obj;
+		const debug = this.lastBuild?.result.debug;
 		if (debug) {
-			for (const path of [`${pou}.${n}`, n]) {
+			const scope = o.kind === "PRG" ? o.name : o.kind === "FB" ? this.instancesOf(o, debug)[0] : undefined;
+			for (const path of scope ? [`${scope}.${n}`, n] : [n]) {
 				const s = debug.resolve(path);
 				if (s) return elemOf(s.type);
 			}
@@ -729,85 +700,115 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		return IO_VARS.find((v) => v.name.toUpperCase() === n.toUpperCase())?.type ?? null;
 	}
 
-	/** Load the graphical program into the simulator and start it. */
-	private async runGfx(b: GfxBuild): Promise<void> {
-		if (!b.result.ok) return;
+	/** A program alone in the simulator (it need not be in the task): compile with a task of its own, load, start. */
+	private async runAlone(o: PlcObject): Promise<void> {
+		const b = build(this.project, [{ name: "MainTask", intervalCycles: 1, programs: [o.name] }]);
+		if (!b.ok) {
+			this.flash(`${o.name} übersetzt nicht`);
+			this.panel = "messages";
+			return;
+		}
 		this.selectDevice("sim");
 		if (await this.dev.download(b.result)) await this.dev.start();
+		this.flash(`${o.name} läuft allein im Simulator`);
 	}
 
-	private renderGfx(kind: "fbd" | "sfc", name: string, decl: string, setDecl: (d: string) => void, problems: (FbdProblem | SfcProblem)[],
-		b: GfxBuild, editor: unknown) {
-		const errors = b.result.diagnostics.filter((d) => d.severity === "error");
-		const online = this.gfxOnline(b);
-		return html`
-			<div class="gfx-view">
-				<p class="gfx-intro">${kind === "fbd"
-					? "Funktionsbausteinsprache (FBD): Bausteine aus der Palette, Verbindungen vom Ausgang zum Eingang ziehen, Eigenschaften rechts."
-					: "Ablaufsprache (SFC): Schritte mit Aktionen, Transitionen mit Bedingungen, Alternativ- und Parallelzweige, Sprünge."}
-					Vorschau (P5/P6): ein eigenes Programm, das zu ST übersetzt wird; als POU im Projekt mit P4.</p>
-				<div class="ide-part">
-					<div class="ide-part-head"><span>Deklaration</span></div>
-					<plc-st-editor .value=${decl} .minLines=${3} @change=${(e: CustomEvent<string>) => setDecl(e.detail)}></plc-st-editor>
-				</div>
-				${editor}
-				<div class="gfx-actions">
-					<button class="ide-primary" ?disabled=${!b.result.ok} @click=${() => this.runGfx(b)}
-						title="Übersetzen, in den Simulator laden und starten">⇩▶ Im Simulator ausführen</button>
-					${online ? html`<button @click=${() => this.dev.stop()} ?disabled=${this.dev.state !== "RUN"}>■ Stop</button>
-						<span class="gfx-status-ok">online: läuft im Simulator (${this.dev.state})</span>` : nothing}
-					${problems.length || errors.length
-						? html`<span class="gfx-status-bad">${problems.length + errors.length} Fehler - siehe unten und im generierten ST</span>`
-						: html`<span class="gfx-status-ok">übersetzt: ${b.result.image?.length ?? 0} Byte</span>`}
-				</div>
-				<details class="gfx-st" ?open=${errors.length > 0}>
-					<summary>Generiertes ST (${name})</summary>
-					${errors.length ? html`<ul class="fbd-problems">${errors.map((d) => html`<li>Zeile ${d.span.start.line}: ${d.message}</li>`)}</ul>` : nothing}
-					<plc-st-editor readonly .value=${b.text} .minLines=${6}
-						.markers=${errors.filter((d) => d.span.start.file === name).map((d) => ({ line: d.span.start.line, severity: "error", message: d.message }))}></plc-st-editor>
-				</details>
-			</div>`;
+	private editGraph(change: { networks: FbdPou["networks"] } | { chart: SfcPou["chart"] }): void {
+		const o = this.obj;
+		this.setProject({ ...this.project, objects: this.project.objects.map((x) => (x.id === o.id ? { ...x, ...change } : x)) });
+		if (this.buildTimer) clearTimeout(this.buildTimer);
+		this.buildTimer = setTimeout(() => this.doBuild(false), 300);
 	}
 
-	private renderFbd() {
-		const src = fbdSource(this.fbd);
-		this.fbdBuild = buildGfx(this.fbd.name, src.text, this.fbdBuild);
-		const b = this.fbdBuild;
-		const online = this.gfxOnline(b);
-		const set = (p: FbdPou) => {
-			this.fbd = p;
-			saveJson(FBD_KEY, p);
-		};
-		return this.renderGfx("fbd", this.fbd.name, this.fbd.decl, (d) => set({ ...this.fbd, decl: d }), src.problems, b, html`
-			<plc-fbd-editor .pou=${this.fbd} .problems=${src.problems}
-				.lookup=${online ? (e: string) => this.gfxValue(this.fbd.name, e) : null}
-				.varType=${(name: string) => this.gfxVarType(b, this.fbd.name, name)}
-				@change=${(e: CustomEvent<FbdPou>) => set(e.detail)}></plc-fbd-editor>`);
-	}
-
-	private renderSfc() {
-		const src = sfcSource(this.sfc);
-		this.sfcBuild = buildGfx(this.sfc.name, src.text, this.sfcBuild);
-		const b = this.sfcBuild;
-		let active: Map<string, string> | null = null;
-		if (this.gfxOnline(b)) {
-			active = new Map();
-			const debug = b.result.debug!;
-			for (const s of debug.statements.length ? [...src.text.matchAll(/^ {4}(\w+) : SFC_STEP;$/gm)].map((m) => m[1]) : []) {
-				const x = this.dev.read(`${this.sfc.name}.${s}.X`);
-				if (x.value === true) {
-					const t = this.dev.read(`${this.sfc.name}.${s}.T`);
-					active.set(s.toUpperCase(), t.symbol && t.value !== null ? formatValue(t.symbol.type, t.value) : "");
-				}
+	/** The SFC's active steps with their time (online). */
+	private activeSteps(o: PlcObject): Map<string, string> | null {
+		const scope = this.scope;
+		if (!this.online || !scope || !o.chart) return null;
+		const active = new Map<string, string>();
+		for (const { item } of sfcWalk(o.chart)) {
+			if (item.kind !== "step") continue;
+			if (this.dev.read(`${scope}.${item.name}.X`).value === true) {
+				const t = this.dev.read(`${scope}.${item.name}.T`);
+				active.set(item.name.toUpperCase(), t.symbol && t.value !== null ? formatValue(t.symbol.type, t.value) : "");
 			}
 		}
-		const set = (p: SfcPou) => {
-			this.sfc = p;
-			saveJson(SFC_KEY, p);
+		return active;
+	}
+
+	private renderGraphical(o: PlcObject, g: Generated | undefined) {
+		const online = this.online && this.scope !== null;
+		const decl = declLines(o);
+		const errors = (this.lastBuild?.located ?? []).filter((l) => l.object === o.id && l.part === "body");
+		const inTask = this.project.tasks.some((t) => t.programs.some((n) => n.toUpperCase() === o.name.toUpperCase()));
+		const top = this.dev.state === "HALTED" ? this.dev.halt?.frames[0] : undefined;
+		const pou = { name: o.name, decl: o.decl };
+		return html`
+			${o.lang === "FBD" ? html`
+				<plc-fbd-editor .pou=${{ ...pou, networks: o.networks ?? [] }} .problems=${g?.problems ?? []}
+					.lookup=${online ? (e: string) => this.gfxValue(e) : null}
+					.varType=${(name: string) => this.gfxVarType(name)}
+					@change=${(e: CustomEvent<FbdPou>) => this.editGraph({ networks: e.detail.networks })}></plc-fbd-editor>` : html`
+				<plc-sfc-editor .pou=${{ ...pou, chart: o.chart ?? [] }} .problems=${g?.problems ?? []} .active=${this.activeSteps(o)}
+					@change=${(e: CustomEvent<SfcPou>) => this.editGraph({ chart: e.detail.chart })}></plc-sfc-editor>`}
+			<div class="gfx-actions">
+				${o.kind === "PRG" && !inTask ? html`<button @click=${() => this.runAlone(o)}
+					title="Nur dieses Programm übersetzen, in den Simulator laden und starten (es steht nicht im MainTask)">⇩▶ Allein im Simulator ausführen</button>` : nothing}
+				${(g?.problems.length ?? 0) + errors.length
+					? html`<span class="gfx-status-bad">${(g?.problems.length ?? 0) + errors.length} Fehler - siehe Meldungen und das generierte ST</span>`
+					: html`<span class="gfx-status-ok">übersetzt zu ST</span>`}
+			</div>
+			<details class="gfx-st" ?open=${errors.length > 0 || top?.file === o.name}>
+				<summary>Generiertes ST (${o.name}) - nur lesbar, entsteht beim Übersetzen</summary>
+				<plc-st-editor readonly .value=${g?.text ?? ""} .minLines=${6}
+					.current=${top?.file === o.name ? top.line : 0}
+					.markers=${errors.map((l) => ({ line: l.line + decl, severity: l.diagnostic.severity, message: l.diagnostic.message }))}></plc-st-editor>
+			</details>`;
+	}
+
+	// ---- task configuration ----------------------------------------------------------------------------
+	private setTaskPrograms(programs: string[]): void {
+		this.setProject({ ...this.project, tasks: this.project.tasks.map((t, i) => (i === 0 ? { ...t, programs } : t)) });
+		this.doBuild(false);
+	}
+
+	private renderTask() {
+		const task = this.project.tasks[0];
+		const called = task.programs;
+		const prgs = this.project.objects.filter((o) => o.kind === "PRG");
+		const isIn = (o: PlcObject) => called.some((n) => n.toUpperCase() === o.name.toUpperCase());
+		const move = (i: number, d: number) => {
+			const next = [...called];
+			[next[i], next[i + d]] = [next[i + d], next[i]];
+			this.setTaskPrograms(next);
 		};
-		return this.renderGfx("sfc", this.sfc.name, this.sfc.decl, (d) => set({ ...this.sfc, decl: d }), src.problems, b, html`
-			<plc-sfc-editor .pou=${this.sfc} .problems=${src.problems} .active=${active}
-				@change=${(e: CustomEvent<SfcPou>) => set(e.detail)}></plc-sfc-editor>`);
+		return html`
+			<div class="ide-tabs"><span class="ide-tab ide-tab-active">⏱ ${task.name} <span class="ide-node-sub">Task-Konfiguration</span></span></div>
+			<div class="ide-task">
+				<p class="ide-hint">Ein zyklischer Task, Zykluszeit ${this.dev.cycleMs} ms (mehrere Tasks mit eigener Zykluszeit: P7). Er ruft die angehakten Programme in dieser Reihenfolge auf; ein Programm, das er nicht ruft, wird übersetzt und geprüft, läuft aber nicht.</p>
+				<table class="ide-table">
+					<thead><tr><th>Aufruf</th><th>Programm</th><th>Sprache</th><th>Reihenfolge</th></tr></thead>
+					<tbody>
+						${called.map((n, i) => {
+							const o = prgs.find((x) => x.name.toUpperCase() === n.toUpperCase());
+							return html`<tr>
+								<td><input type="checkbox" checked @change=${() => this.setTaskPrograms(called.filter((x) => x !== n))} /></td>
+								<td class="ide-mono">${i + 1}. ${n}</td>
+								<td>${o ? LANG_NAMES[o.lang] : html`<span class="ide-bad">fehlt im Projekt</span>`}</td>
+								<td>
+									<button class="ide-icon-btn" title="früher aufrufen" ?disabled=${i === 0} @click=${() => move(i, -1)}>▲</button>
+									<button class="ide-icon-btn" title="später aufrufen" ?disabled=${i === called.length - 1} @click=${() => move(i, 1)}>▼</button>
+								</td>
+							</tr>`;
+						})}
+						${prgs.filter((o) => !isIn(o)).map((o) => html`<tr class="ide-task-off">
+							<td><input type="checkbox" @change=${() => this.setTaskPrograms([...called, o.name])} /></td>
+							<td class="ide-mono">${o.name}</td>
+							<td>${LANG_NAMES[o.lang]}</td>
+							<td class="ide-node-sub">wird nicht aufgerufen</td>
+						</tr>`)}
+					</tbody>
+				</table>
+			</div>`;
 	}
 
 	private renderTree() {
@@ -833,13 +834,10 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 								this.selectedId = o.id;
 								this.view = "prg";
 							}}>
-							<span class="ide-node-icon">${KIND_ICONS[o.kind]}</span><span>${o.name}</span><span class="ide-node-sub">${hasBody(o.kind) ? `${o.kind} · ST` : o.kind}</span>
+							<span class="ide-node-icon">${KIND_ICONS[o.kind]}</span><span>${o.name}</span><span class="ide-node-sub">${hasBody(o.kind) ? `${o.kind} · ${o.lang}` : o.kind}</span>
 						</button>`)}
-					<div class="ide-node ide-node-static" title=${`Ein zyklischer Task (mehrere Tasks: P7); er ruft die Programme in dieser Reihenfolge: ${this.project.tasks[0]?.programs.join(", ")}`}><span class="ide-node-icon">⏱</span><span>MainTask</span><span class="ide-node-sub">${this.dev.cycleMs} ms</span></div>
+					${node("task", "⏱", this.project.tasks[0]?.name ?? "MainTask", `${this.dev.cycleMs} ms · ${this.project.tasks[0]?.programs.length ?? 0} PRG`)}
 					${this.adding ? this.renderAdd(this.adding) : html`<button class="ide-node ide-add" @click=${() => this.openAdd()}>＋ Objekt hinzufügen…</button>`}
-				<div class="ide-tree-group" title="Grafische Editoren als Vorschau (P5/P6): je ein eigenes Programm, als POU im Projekt mit P4">Vorschau</div>
-				${node("fbd", "🔲", this.fbd.name, "PRG · FBD")}
-				${node("sfc", "⛓", this.sfc.name, "PRG · SFC")}
 				<div class="ide-tree-group">Gerät</div>
 				${node("io", "🔌", "I/O-Abbild", `${IO_VARS.length} Variablen`)}
 				<div class="ide-tree-group">Bibliotheken</div>
@@ -865,7 +863,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<select @change=${(e: Event) => {
 						const kind = (e.target as HTMLSelectElement).value as ObjectKind;
 						const auto = a.name === this.freeObjectName(a.kind);
-						this.adding = { ...a, kind, name: auto ? this.freeObjectName(kind) : a.name };
+						this.adding = { ...a, kind, name: auto ? this.freeObjectName(kind) : a.name, lang: LANGS_OF[kind].includes(a.lang) ? a.lang : "ST" };
 					}}>
 						${OBJECT_KINDS.map((k) => html`<option value=${k} ?selected=${k === a.kind}>${KIND_NAMES[k]} (${k})</option>`)}
 					</select>
@@ -874,6 +872,11 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<input .value=${a.name} spellcheck="false" class=${problem ? "ide-bad-input" : ""} title=${problem ?? ""}
 						@input=${(e: Event) => (this.adding = { ...a, name: (e.target as HTMLInputElement).value })} />
 				</label>
+				${LANGS_OF[a.kind].length > 1 ? html`<label>Sprache
+					<select @change=${(e: Event) => (this.adding = { ...a, lang: (e.target as HTMLSelectElement).value as Lang })}>
+						${LANGS_OF[a.kind].map((l) => html`<option value=${l} ?selected=${l === a.lang}>${LANG_NAMES[l]} (${l})</option>`)}
+					</select>
+				</label>` : nothing}
 				${a.kind === "FUN" ? html`<label>Rückgabetyp
 					<input .value=${a.returnType} spellcheck="false" @input=${(e: Event) => (this.adding = { ...a, returnType: (e.target as HTMLInputElement).value })} />
 				</label>` : nothing}
@@ -921,7 +924,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				</div>
 				<div class="ide-impl">
 					<div class="ide-part-head">
-						<span>Implementierung (ST)</span>
+						<span>Implementierung (${o.lang})</span>
 						${instances.length ? html`<label class="ide-instance" title="Die Werte dieser Instanz anzeigen">Instanz
 							<select @change=${(e: Event) => (this.instances = new Map(this.instances).set(o.id, (e.target as HTMLSelectElement).value))}>
 								${instances.map((i) => html`<option ?selected=${i === this.scope}>${i}</option>`)}
@@ -930,10 +933,11 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 						${o.kind === "FUN" && this.online ? html`<span class="ide-node-sub">Funktionen: keine Online-Werte (lokale Variablen nur während des Aufrufs)</span>` : nothing}
 						${this.online && this.scope ? html`<span class="ide-online ${this.stale ? "ide-online-stale" : ""}">${this.stale ? "Werte des geladenen Programms - Projekt geändert" : "online: Werte"}</span>` : nothing}
 					</div>
+					${o.lang !== "ST" ? this.renderGraphical(o, this.lastBuild?.generated.get(o.id)) : html`
 					<plc-st-editor id="body-editor" .value=${o.body} .markers=${this.markers("body")} .inline=${this.inlineValues(o.body)} .stale=${this.stale} .minLines=${12}
 						.breakpoints=${this.breakpointLines} .breakable=${this.breakableBody} .current=${this.haltedBodyLine}
 						@toggle-breakpoint=${(e: CustomEvent<number>) => this.toggleBreakpoint(e.detail)}
-						@change=${(e: CustomEvent<string>) => this.edit({ body: e.detail })}></plc-st-editor>
+						@change=${(e: CustomEvent<string>) => this.edit({ body: e.detail })}></plc-st-editor>`}
 				</div>
 			</div>`}`;
 	}
@@ -1063,7 +1067,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		const tab = (p: Panel, label: string, badge = "") => html`
 			<button class="ide-ptab ${this.panel === p ? "on" : ""}" @click=${() => (this.panel = p)}>${label}${badge ? html` <span class="ide-badge">${badge}</span>` : nothing}</button>`;
 		const located = this.lastBuild?.located ?? [];
-		const errors = located.filter((l) => l.diagnostic.severity === "error").length + (this.dev.error ? 1 : 0);
+		const errors = located.filter((l) => l.diagnostic.severity === "error").length + (this.dev.error ? 1 : 0) + this.problemCount(this.lastBuild);
 		return html`
 			<section class="ide-panel">
 				<div class="ide-ptabs">
@@ -1083,12 +1087,14 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	private renderMessages(located: Located[]) {
 		const where = (l: Located) => {
 			const o = this.project.objects.find((x) => x.id === l.object);
-			return l.part === "decl" ? `${o?.name} · Deklaration` : l.part === "body" ? `${o?.name} · Implementierung` : l.part === "io" ? "I/O" : l.diagnostic.span.start.file;
+			if (l.part === "body" && o && o.lang !== "ST") return `${o.name} · generiertes ST ${l.line + declLines(o)}:${l.col}`;
+			return `${l.part === "decl" ? `${o?.name} · Deklaration` : l.part === "body" ? `${o?.name} · Implementierung` : l.part === "io" ? "I/O" : l.diagnostic.span.start.file} ${l.line}:${l.col}`;
 		};
+		const problems = [...(this.lastBuild?.generated ?? [])].flatMap(([id, g]) => g.problems.map((pr) => ({ o: this.project.objects.find((x) => x.id === id)!, pr })));
 		const err = this.dev.error;
 		const errObj = this.objectOfFile(err?.file);
 		const errAt = errObj && err?.line ? partLine(errObj, err.line) : null;
-		if (located.length === 0 && !err) return html`<div class="ide-empty">✔ Keine Meldungen. ${this.lastBuild?.result.ok ? `Image: ${this.lastBuild.result.image!.length} Byte, Daten: ${this.lastBuild.result.debug!.dataSize} Byte.` : ""}</div>`;
+		if (located.length === 0 && !err && problems.length === 0) return html`<div class="ide-empty">✔ Keine Meldungen. ${this.lastBuild?.result.ok ? `Image: ${this.lastBuild.result.image!.length} Byte, Daten: ${this.lastBuild.result.debug!.dataSize} Byte.` : ""}</div>`;
 		return html`<ul class="ide-messages">
 			${err ? html`<li class="ide-msg ide-msg-runtime" @click=${() => {
 				if (errObj && errAt) this.reveal({ object: errObj.id, part: errAt.part, line: errAt.line, col: 1 });
@@ -1096,8 +1102,17 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			${located.map((l) => html`
 				<li class="ide-msg ide-msg-${l.diagnostic.severity}" @click=${() => this.reveal(l)}>
 					<span class="ide-msg-icon">${l.diagnostic.severity === "error" ? "✖" : "⚠"}</span>
-					<span class="ide-msg-loc">${where(l)} ${l.line}:${l.col}</span>
+					<span class="ide-msg-loc">${where(l)}</span>
 					<span>${l.diagnostic.message}</span>
+				</li>`)}
+			${problems.map(({ o, pr }) => html`
+				<li class="ide-msg ide-msg-error" @click=${() => {
+					this.selectedId = o.id;
+					this.view = "prg";
+				}}>
+					<span class="ide-msg-icon">✖</span>
+					<span class="ide-msg-loc">${o.name} · ${o.lang}</span>
+					<span>${pr.message}</span>
 				</li>`)}
 		</ul>`;
 	}

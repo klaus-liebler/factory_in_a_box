@@ -8,6 +8,10 @@
 
 export type Qualifier = "N" | "S" | "R" | "P";
 
+/** The step type of every SFC (a source file of its own, with the I/O list and the FCU library). */
+export const SFC_FILE = "<sfc>";
+export const SFC_STEP_SOURCE = "TYPE SFC_STEP : STRUCT X : BOOL; T : TIME; END_STRUCT; END_TYPE\n";
+
 export interface SfcAction {
 	qualifier: Qualifier;
 	/** A BOOL variable (N: it is TRUE while the step is active; S/R: set/reset it) or ST statements. */
@@ -141,7 +145,7 @@ export function sfcGraph(pou: SfcPou): { steps: (SfcItem & { kind: "step" })[]; 
 }
 
 /** SFC -> ST: the step type, the POU with the user's declaration plus the steps, and the evolution. */
-export function sfcSource(pou: SfcPou): { text: string; problems: SfcProblem[] } {
+export function sfcSource(pou: SfcPou, end = "END_PROGRAM"): { text: string; problems: SfcProblem[] } {
 	const g = sfcGraph(pou);
 	const initial = g.steps[0]?.name ?? "";
 	const tn = (t: SfcTransition, i: number) => `Trans${i + 1}`;
@@ -191,8 +195,9 @@ export function sfcSource(pou: SfcPou): { text: string; problems: SfcProblem[] }
 	}
 	for (const [v, steps] of nVars) out.push(`${v} := ${steps.map((s) => `${s}.X`).join(" OR ")};`);
 
-	const decl = pou.decl.trim();
-	const text = `TYPE SFC_STEP : STRUCT X : BOOL; T : TIME; END_STRUCT; END_TYPE\n${decl}\nVAR (* SFC *)\n${vars.join("\n")}\nEND_VAR\n${out.join("\n")}\nEND_PROGRAM\n`;
+	// the declaration unchanged: line n of it is line n of the text (diagnostics map back to it); the step
+	// type SFC_STEP comes with the device sources (SFC_STEP_SOURCE), once for every SFC of the project
+	const text = `${pou.decl}\nVAR (* SFC *)\n${vars.join("\n")}\nEND_VAR\n${out.join("\n")}\n${end}\n`;
 	return { text, problems: g.problems };
 }
 

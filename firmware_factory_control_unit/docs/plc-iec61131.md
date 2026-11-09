@@ -775,6 +775,17 @@ with the same cases, 37 compiler tests, and the differential corpus of 66 progra
 corpus fail, so it does detect differences. Open from P1: the compiler's symbol tables have no namespaces yet
 (needed for libraries, P7); STRING is not implemented (P7).
 
+**P2 state (2026-11-09, without hardware).** Done and tested in Renode on revision 3 (STM32H743) and 2
+(STM32H563), `tools/test-plc-renode.py`: PLC thread coupled to the I/O cycle, I/O bindings in the image,
+A/B flash slots with configuration journal (power loss tested on the host for both geometries, the slots in
+the emulated flash of both chips), control source with write filter (Modbus 0x02, OPC UA Bad_NotWritable, web
+UI, terminal, RoArm teach), safe state, autostart after a reset without a browser, the refusal while the old
+mission store occupies the area. The IDE has the FCU as a second device (download, RUN/STOP, control source,
+autostart, online values); `tools/run-renode-fcu.py` runs the firmware in Renode to try it.
+Still open in P2: register classes in the register schema (E5; until then a list of the command registers),
+the firmware's check of `ioMapHash`, the FCU library blocks for the command registers, the terminal command
+`plc`, the project source on the SD card ("upload from device"), and the hardware test on the boards.
+
 ## 14. Decisions from the review and postponed points
 
 Review round 1 (2026-11-08):

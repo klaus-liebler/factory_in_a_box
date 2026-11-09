@@ -186,9 +186,10 @@ export class Vm {
 		const taskCount = r32(Hdr.taskCount);
 		const ioCount = r32(Hdr.ioCount);
 		const nativeCount = r32(Hdr.nativeCount);
+		const statementCount = r32(Hdr.statementCount);
 		if (!section(Hdr.codeOffset, codeSize) || !section(Hdr.initOffset, initSize) ||
 			!section(Hdr.taskOffset, taskCount * TASK_RECORD_SIZE) || !section(Hdr.ioOffset, ioCount * IO_RECORD_SIZE) ||
-			!section(Hdr.nativeOffset, nativeCount * NATIVE_RECORD_SIZE)) {
+			!section(Hdr.nativeOffset, nativeCount * NATIVE_RECORD_SIZE) || !section(Hdr.statementOffset, statementCount * 4)) {
 			return "section";
 		}
 		if (dataSize > this.data.length) return "data_too_large";
@@ -314,8 +315,24 @@ export class Vm {
 			}
 		}
 		for (const t of this.tasks_) for (const p of t.programs) if (!isEnter(p.entry)) return "call_target";
+		// statement starts: instruction starts, strictly ascending
+		const at = this.img.getUint32(Hdr.statementOffset, true);
+		const n = this.img.getUint32(Hdr.statementCount, true);
+		const statements: number[] = [];
+		for (let i = 0; i < n; i++) {
+			const s = this.img.getUint32(at + i * 4, true);
+			if (s >= size || starts[s] !== 1 || (i > 0 && s <= statements[i - 1])) return "statement_range";
+			statements.push(s);
+		}
+		this.statements_ = statements;
 		return "none";
 	}
+
+	/** The image's statement starts (ascending code offsets): where a single step halts. */
+	get statements(): readonly number[] {
+		return this.statements_;
+	}
+	private statements_: number[] = [];
 
 	// ---- execution ----------------------------------------------------------------------------------
 	/** Debugging: halts the cycle before an instruction (breakpoints, single step); null: never. */

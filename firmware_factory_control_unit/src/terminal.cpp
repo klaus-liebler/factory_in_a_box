@@ -305,6 +305,7 @@ bool cmd_plc(Args a, Out& o) {
     else if (action == "autostart" && option == "on") c = C::AutostartOn;
     else if (action == "autostart" && option == "off") c = C::AutostartOff;
     else if (action == "unforce" && option.empty()) c = C::UnforceAll;
+    else if (action == "continue" && option.empty()) c = C::Continue;
     if (!c) return false;
     if (!plc::command(*c)) {
         o.line("the PLC is busy (request queue full), try again");

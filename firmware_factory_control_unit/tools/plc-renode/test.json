@@ -1,6 +1,6 @@
 {
-  "bytes": 2168,
-  "crc": 3386426207,
+  "bytes": 2580,
+  "crc": 482120836,
   "symbols": {
     "PLC_PRG.n": 184,
     "PLC_PRG.tick": 188,
@@ -14,5 +14,9 @@
     "PLC_PRG.move.ErrorID": 262,
     "ConveyorPwm": 148,
     "TimerTick": 8
+  },
+  "statements": {
+    "n": 5,
+    "tick": 14
   }
 }

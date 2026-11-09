@@ -200,6 +200,7 @@ const char* state_name(ws::PlcState s) noexcept {
         case ws::PlcState::Stop: return "STOP";
         case ws::PlcState::Run: return "RUN";
         case ws::PlcState::Error: return "ERROR";
+        case ws::PlcState::Halted: return "HALTED";
     }
     return "?";
 }
@@ -227,19 +228,48 @@ void apply_forces() noexcept {
     }
 }
 
+// ---- breakpoints and single step (docs/plc-iec61131.md 10.3, rtoos docs/plc.md "Debugging") -----------
+std::array<std::uint32_t, 64> breakpoints{};  // sorted; the PLC thread only
+std::size_t breakpoint_count = 0;
+vm::StepKind step = vm::StepKind::none;
+std::uint32_t step_depth = 0;
+std::atomic<std::uint8_t> halt_reason{0};  ///< 1 breakpoint, 2 step (while HALTED)
+
+void apply_debug() noexcept {
+    machine.set_debug({.breakpoints = std::span(breakpoints).first(breakpoint_count), .step = step, .step_depth = step_depth});
+}
+
+/// Nobody debugs any more (no force, no breakpoint): the lease ends.
+void lease_check() noexcept {
+    if (force_count.load() == 0 && breakpoint_count == 0) lease = no_session;
+}
+
 void release_forces(const char* why) noexcept {
     if (const unsigned n = force_count.load(); n != 0) RTOS_LOG_INFO("plc: %u forced value(s) released (%s)", n, why);
     forces = {};
     force_count = 0;
-    lease = no_session;
+    lease_check();
+}
+
+void clear_breakpoints(const char* why) noexcept {
+    if (breakpoint_count != 0) RTOS_LOG_INFO("plc: %u breakpoint(s) cleared (%s)", static_cast<unsigned>(breakpoint_count), why);
+    breakpoint_count = 0;
+    step = vm::StepKind::none;
+    apply_debug();
+    lease_check();
 }
 
 void enter(ws::PlcState s) noexcept {
     const ws::PlcState old = state.exchange(s);
     if (old == s) return;
-    if (s != ws::PlcState::Run) release_forces(state_name(s));
-    if (s != ws::PlcState::Run && iec.load()) safe_state();
-    if (s == ws::PlcState::Run) max_instructions = 0;
+    // HALTED keeps everything as it is: the outputs keep their values, the forces stay
+    if (s != ws::PlcState::Run && s != ws::PlcState::Halted) {
+        if (old == ws::PlcState::Halted) machine.abandon(0);  // the halted cycle stays unfinished
+        release_forces(state_name(s));
+        clear_breakpoints(state_name(s));
+        if (iec.load()) safe_state();
+    }
+    if (s == ws::PlcState::Run && old != ws::PlcState::Halted) max_instructions = 0;
     RTOS_LOG_INFO("plc: %s", state_name(s));
 }
 
@@ -319,7 +349,7 @@ const char* persist() noexcept {
 }
 
 // ---- requests from the network thread -------------------------------------------------------------------
-enum class Kind : std::uint8_t { control, upload, commit, write, force, unforce };
+enum class Kind : std::uint8_t { control, upload, commit, write, force, unforce, breakpoints };
 
 struct Request {
     SessionId session{};
@@ -343,18 +373,25 @@ void reply(SessionId session, std::span<const std::uint8_t> message) noexcept {
     if (!message.empty()) (void)net::outbox.send(session, std::as_bytes(message));
 }
 
+const char* debug_continue(vm::StepKind kind) noexcept;  // below, with the cycle
+
 const char* control(ws::PlcCommand c) noexcept {
     using C = ws::PlcCommand;
     const ws::PlcState s = state.load();
     switch (c) {
         case C::Run:
             if (s == ws::PlcState::Run) return nullptr;
+            if (s == ws::PlcState::Halted) return "the program is halted: continue or step";
             if (s != ws::PlcState::Stop) return s == ws::PlcState::Error ? "the PLC is in ERROR: reset first" : "no program loaded";
             enter(ws::PlcState::Run);
             return nullptr;
         case C::Stop:
-            if (s == ws::PlcState::Run) enter(ws::PlcState::Stop);
+            if (s == ws::PlcState::Run || s == ws::PlcState::Halted) enter(ws::PlcState::Stop);
             return nullptr;
+        case C::Continue: return debug_continue(vm::StepKind::none);
+        case C::StepInto: return debug_continue(vm::StepKind::into);
+        case C::StepOver: return debug_continue(vm::StepKind::over);
+        case C::StepOut: return debug_continue(vm::StepKind::out);
         case C::ResetWarm:
         case C::ResetCold:  // the same until RETAIN exists
             return load_ram_image();
@@ -415,13 +452,28 @@ const char* unforce(const Request& r) noexcept {
             RTOS_LOG_INFO("plc: force at %lu released", static_cast<unsigned long>(r.address));
         }
     }
-    if (force_count.load() == 0) lease = no_session;
+    lease_check();
+    return nullptr;
+}
+
+/// The breakpoints (code offsets, r.length of them in r.bytes): replace the earlier ones. The VM checks
+/// nothing about them - an offset that is no instruction start never matches.
+const char* set_breakpoints(const Request& r) noexcept {
+    if (!machine.loaded()) return "no program loaded";
+    if (r.length > breakpoints.size()) return "too many breakpoints (64)";
+    breakpoint_count = r.length;
+    std::memcpy(breakpoints.data(), r.bytes.data(), r.length * 4u);
+    std::sort(breakpoints.begin(), breakpoints.begin() + static_cast<std::ptrdiff_t>(breakpoint_count));
+    if (breakpoint_count != 0) lease = r.session;
+    apply_debug();
+    lease_check();
+    RTOS_LOG_INFO("plc: %u breakpoint(s) (client %u)", static_cast<unsigned>(breakpoint_count), static_cast<unsigned>(r.session));
     return nullptr;
 }
 
 const char* upload(const Request& r) noexcept {
     if (r.offset == 0) {
-        if (state.load() == ws::PlcState::Run) return "stop the PLC first";
+        if (state.load() == ws::PlcState::Run || state.load() == ws::PlcState::Halted) return "stop the PLC first";
         if (r.total == 0 || r.total > image_ram.size()) return "the image does not fit";
         machine.unload();  // image_ram becomes the download buffer
         enter(ws::PlcState::NoProgram);
@@ -470,7 +522,7 @@ void handle(const Request& r) noexcept {
     // the debug lease: another browser that forces may be watched, not overruled (the terminal may)
     const SessionId holder = lease.load();
     const char* leased = !r.terminal && holder != no_session && holder != r.session
-                             ? "another browser is debugging this PLC (forced values): release them there or with 'plc unforce'"
+                             ? "another browser is debugging this PLC (forces, breakpoints): release them there, or 'plc unforce' / STOP"
                              : nullptr;
     switch (r.kind) {
         case Kind::control: {
@@ -510,17 +562,29 @@ void handle(const Request& r) noexcept {
             out(ws::UnforceResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
             break;
         }
+        case Kind::breakpoints: {
+            const char* e = leased ? leased : set_breakpoints(r);
+            out(ws::BreakpointsResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            break;
+        }
     }
 }
 
 // ---- the thread -------------------------------------------------------------------------------------------
-void run_cycle() noexcept {
-    copy_inputs();
-    apply_forces();  // forced inputs beat the input image
-    const vm::RunResult r = machine.run_cycle(0, kernel.now());
+/// The end of a cycle or of a piece of it (after a halt): halted again, a trap, or the outputs.
+void finish(const vm::RunResult& r, bool fresh) noexcept {
+    last_instructions = fresh ? r.instructions : last_instructions.load() + r.instructions;
+    if (r.state == vm::RunState::halted) {
+        // HALTED: the I/O cycle runs on, the outputs keep their values, nothing continues by itself
+        halt_reason = step != vm::StepKind::none ? 2 : 1;
+        if (state.load() != ws::PlcState::Halted) {
+            RTOS_LOG_INFO("plc: halted at pc %lu (%s)", static_cast<unsigned long>(r.pc), halt_reason == 1 ? "breakpoint" : "step");
+        }
+        enter(ws::PlcState::Halted);
+        return;
+    }
     cycles.fetch_add(1, std::memory_order_relaxed);
-    last_instructions = r.instructions;
-    if (r.instructions > max_instructions) max_instructions = r.instructions;
+    if (last_instructions > max_instructions) max_instructions = last_instructions.load();
     if (r.state == vm::RunState::trapped) {
         trap = static_cast<std::uint8_t>(r.trap);
         trap_code = r.trap_code;
@@ -532,6 +596,28 @@ void run_cycle() noexcept {
     }
     apply_forces();  // forced outputs beat the program
     copy_outputs();
+    if (state.load() == ws::PlcState::Halted) enter(ws::PlcState::Run);
+    if (step != vm::StepKind::none) {
+        // a step past the end of the cycle halts at the first statement of the next one
+        step = vm::StepKind::into;
+        apply_debug();
+    }
+}
+
+void run_cycle() noexcept {
+    copy_inputs();
+    apply_forces();  // forced inputs beat the input image
+    finish(machine.run_cycle(0, kernel.now()), true);
+}
+
+/// HALTED: on to the next breakpoint (none) or one step; the rest of the cycle runs now.
+const char* debug_continue(vm::StepKind kind) noexcept {
+    if (state.load() != ws::PlcState::Halted || !machine.halted(0)) return "the program is not halted";
+    step = kind;
+    step_depth = machine.context(0).depth;
+    apply_debug();
+    finish(machine.resume(0), false);
+    return nullptr;
 }
 
 void plc_main(void*) {
@@ -658,6 +744,31 @@ void on_message(SessionId id, std::uint16_t type, const std::uint8_t* d, std::si
         ws::UnforceRequest::Payload q{};
         if (!ws::UnforceRequest::Decode(d, len, q)) return;
         post({.session = id, .request_id = q.requestId, .kind = Kind::unforce, .address = q.address});
+    } else if (type == ws::BreakpointsRequest::TYPE_ID) {
+        ws::BreakpointsRequest::Payload q{};
+        if (!ws::BreakpointsRequest::Decode(d, len, q) || q.offsetsCount > 64) return;
+        Request r{.session = id, .request_id = q.requestId, .kind = Kind::breakpoints, .length = static_cast<std::uint16_t>(q.offsetsCount)};
+        std::memcpy(r.bytes.data(), q.offsetsData, q.offsetsCount * 4);  // little-endian u32, as the VM's
+        post(r);
+    } else if (type == ws::HaltRequest::TYPE_ID) {
+        ws::HaltRequest::Payload q{};
+        if (!ws::HaltRequest::Decode(d, len, q)) return;
+        // while HALTED the PLC thread does not touch the context (it waits for continue or a step)
+        const bool halted = state.load() == ws::PlcState::Halted && machine.halted(0);
+        std::array<std::uint32_t, vm::call_depth> returns{};
+        std::uint32_t depth = 0;
+        std::uint32_t pc = 0;
+        if (halted) {
+            const vm::Context& c = machine.context(0);
+            depth = std::min<std::uint32_t>(c.depth, vm::call_depth);
+            for (std::uint32_t i = 0; i < depth; ++i) returns[i] = c.calls[i].return_pc;
+            pc = c.pc;
+        }
+        const ws::HaltResponse::Payload p{.requestId = q.requestId, .halted = halted, .reason = halted ? halt_reason.load() : std::uint8_t{0},
+                                          .pc = pc, .returnPcsData = reinterpret_cast<const std::uint8_t*>(returns.data()),
+                                          .returnPcsCount = depth};
+        std::array<std::uint8_t, ws::HaltResponse::HaltResponse_MAX_SIZE> buf{};
+        send(std::span(buf).first(ws::HaltResponse::Encode(p, buf.data(), buf.size())));
     }
 }
 

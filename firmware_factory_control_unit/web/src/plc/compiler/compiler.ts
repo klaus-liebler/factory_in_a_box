@@ -2052,6 +2052,7 @@ class Compiler {
 		const projectHash = projectHashOf(sources);
 		const contents: ImageContents = {
 			code, dataSize, init, tasks, io, natives: [...this.natives].sort((a, b) => a - b),
+			statements: this.statements.map((s) => s.pc),
 			ioMapHash: this.options.ioMapHash ?? 0, projectHash, compilerVersion: COMPILER_VERSION,
 		};
 		const image = writeImage(contents);

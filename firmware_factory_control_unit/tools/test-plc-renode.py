@@ -203,8 +203,9 @@ class Ws:
 
 
 PLC = 7
-STATES = {0: "NO_PROGRAM", 1: "STOP", 2: "RUN", 3: "ERROR"}
-CMD = {"run": 1, "stop": 2, "reset_warm": 3, "fieldbus": 5, "iec": 6, "autostart_on": 7, "autostart_off": 8}
+STATES = {0: "NO_PROGRAM", 1: "STOP", 2: "RUN", 3: "ERROR", 4: "HALTED"}
+CMD = {"run": 1, "stop": 2, "reset_warm": 3, "fieldbus": 5, "iec": 6, "autostart_on": 7, "autostart_off": 8,
+       "continue": 10, "step_into": 11, "step_over": 12, "step_out": 13}
 
 
 def cstr(b, pos):
@@ -231,6 +232,18 @@ def force(ws, name, value_bytes):
 def unforce(ws, name=None):
     """UnforceRequest 19 -> 20; without a name every force."""
     return ok_message(ws.call(PLC, 19, struct.pack("<I", meta["symbols"][name] if name else 0xFFFFFFFF), 20))
+
+
+def breakpoints(ws, offsets):
+    """BreakpointsRequest 21 -> 22: code offsets (test.json's statements)."""
+    return ok_message(ws.call(PLC, 21, struct.pack(f"<H{len(offsets)}I", len(offsets), *offsets), 22))
+
+
+def halt_info(ws):
+    """HaltRequest 23 -> 24: (halted, reason, pc, return pcs)."""
+    r = ws.call(PLC, 23, b"", 24)
+    halted, reason, pc, n = struct.unpack_from("<BBIH", r, 0)
+    return bool(halted), reason, pc, list(struct.unpack_from(f"<{n}I", r, 8))
 
 
 def ok_message(r):
@@ -460,6 +473,47 @@ try:
     ok, msg = term(ws, "plc unforce")
     check("terminal 'plc unforce' releases it", ok and until(lambda: status(ws)["forces"] == 0)
           and until(lambda: holding(mb, CONVEYOR) == [123]), msg)
+
+    # breakpoints and single step (docs/plc-iec61131.md 10.3): the C++ VM halts inside the cycle
+    at_n, at_tick = meta["statements"]["n"], meta["statements"]["tick"]
+    ok, msg = breakpoints(ws, [at_n])
+    check("breakpoint set", ok and until(lambda: status(ws)["state"] == "HALTED"), msg)
+    halted, reason, pc, returns = halt_info(ws)
+    check("HALTED at the breakpoint (pc, reason, the program's own call)",
+          halted and reason == 1 and pc == at_n and returns == [0xFFFFFFFF], f"{halted} {reason} {pc} {returns}")
+    cycles0, n0 = status(ws)["cycles"], read_var(ws, "PLC_PRG.n", "<i")
+    tick_reg = mb.read(0x04, 10, 1)[0]
+    time.sleep(1)
+    check("HALTED: no cycle, the I/O cycle runs on, the outputs keep their values",
+          status(ws)["cycles"] == cycles0 and mb.read(0x04, 10, 1)[0] != tick_reg and holding(mb, CONVEYOR) == [123])
+    ws2 = Ws()
+    ok, msg = control(ws2, "step_over")
+    check("HALTED: another browser may not step (lease)", not ok and "another browser" in msg, msg)
+    ws2.close()
+    ok, msg = control(ws, "step_over")
+    halted, reason, pc, _ = halt_info(ws)
+    check("step over: halted at the next statement, the one before ran",
+          ok and halted and reason == 2 and pc == at_tick and read_var(ws, "PLC_PRG.n", "<i") == n0 + 1, f"{msg} {pc}")
+    ok, msg = control(ws, "continue")
+    until(lambda: halt_info(ws)[0])  # the rest of the cycle ran; the next I/O cycle starts the next one
+    halted, reason, pc, _ = halt_info(ws)
+    check("continue: the cycle ends, the next one halts at the breakpoint again",
+          ok and halted and reason == 1 and pc == at_n and status(ws)["cycles"] == cycles0 + 1, f"{msg} {pc}")
+    ok, msg = control(ws, "run")
+    check("RUN while HALTED is refused", not ok and "halted" in msg, msg)
+    ok, msg = breakpoints(ws, [])
+    check("breakpoints cleared: still HALTED (it never goes on by itself)", ok and status(ws)["state"] == "HALTED", msg)
+    ok, msg = term(ws, "plc continue")
+    check("terminal 'plc continue': RUN again", ok and until(lambda: status(ws)["state"] == "RUN")
+          and until(lambda: status(ws)["cycles"] > cycles0 + 3), msg)
+    ok, msg = breakpoints(ws, [at_tick])
+    check("STOP from HALTED: breakpoint set", ok and until(lambda: status(ws)["state"] == "HALTED"), msg)
+    ok, msg = control(ws, "stop")
+    check("STOP from HALTED: STOP, the breakpoints gone", ok and status(ws)["state"] == "STOP"
+          and not halt_info(ws)[0], msg)
+    ok, msg = control(ws, "run")
+    check("RUN again: no halt (STOP cleared the breakpoints)", ok and until(lambda: status(ws)["cycles"] > 0)
+          and time.sleep(1) is None and status(ws)["state"] == "RUN", msg)
 
     ok, msg = control(ws, "autostart_on")
     check("autostart on (journal in the flash slot)", ok, msg)

@@ -15,6 +15,9 @@ public enum PlcState : byte
 	Stop = 1,
 	Run = 2,
 	Error = 3,
+	/// <summary>A breakpoint or a step stopped the program inside a cycle; the I/O cycle runs on, the
+	/// outputs keep their values; it continues only on Continue or a step (never by itself).</summary>
+	Halted = 4,
 }
 
 [BinaryType]
@@ -39,6 +42,12 @@ public enum PlcCommand : byte
 	AutostartOff = 8,
 	/// <summary>Release every forced value (and the debug lease); the terminal's `plc unforce`.</summary>
 	UnforceAll = 9,
+	/// <summary>HALTED: run on (only breakpoints stop); the terminal's `plc continue`.</summary>
+	Continue = 10,
+	/// <summary>HALTED: to the next statement - into calls, over them, out of the current POU.</summary>
+	StepInto = 11,
+	StepOver = 12,
+	StepOut = 13,
 }
 
 [BinaryMessage(MessageKind.Request)]
@@ -221,4 +230,39 @@ public class UnforceResponse
 {
 	public bool ok;
 	[BinaryMaxEncodedByteLength(120)] public string message = "";
+}
+
+/// <summary>The breakpoints: code offsets of statement starts (the IDE maps lines to them with its debug
+/// information), replacing the earlier ones. Non-empty takes the debug lease. STOP and a download
+/// clear them.</summary>
+[BinaryMessage(MessageKind.Request)]
+public class BreakpointsRequest
+{
+	[BinaryMaxItemCount(64)] public uint[] offsets = System.Array.Empty<uint>();
+}
+
+[BinaryMessage(MessageKind.Response)]
+public class BreakpointsResponse
+{
+	public bool ok;
+	[BinaryMaxEncodedByteLength(120)] public string message = "";
+}
+
+/// <summary>Where the program halted: the program counter and the call chain.</summary>
+[BinaryMessage(MessageKind.Request)]
+public class HaltRequest
+{
+}
+
+[BinaryMessage(MessageKind.Response)]
+public class HaltResponse
+{
+	/// <summary>false: not halted (the other fields are empty).</summary>
+	public bool halted;
+	/// <summary>1 breakpoint, 2 step.</summary>
+	public byte reason;
+	public uint pc;
+	/// <summary>The return offsets of the active calls, the program's own call first (its value is
+	/// 0xFFFFFFFF): the IDE turns them into the call stack.</summary>
+	[BinaryMaxItemCount(32)] public uint[] returnPcs = System.Array.Empty<uint>();
 }

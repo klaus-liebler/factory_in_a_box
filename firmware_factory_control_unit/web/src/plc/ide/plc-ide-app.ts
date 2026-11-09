@@ -213,7 +213,12 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 
 	private toggleBreakpoint(line: number): void {
 		const next = new Set(this.breakpointLines);
-		if (!next.delete(line)) next.add(line);
+		const adding = !next.delete(line);
+		if (adding && this.breakpointLines.size === 0 && this.dev.kind === "fcu" && this.dev.iec &&
+			!confirm("Haltepunkt auf dem FCU mit Steuerquelle IEC 61131: hält das Programm dort an, behalten die Ausgänge ihren Wert (Ventile, Motoren!), der E/A-Zyklus läuft weiter. Setzen?")) {
+			return;
+		}
+		if (adding) next.add(line);
 		this.breakpointLines = next;
 		this.sendBreakpoints();
 	}

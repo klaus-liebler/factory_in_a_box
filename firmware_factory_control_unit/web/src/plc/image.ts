@@ -4,7 +4,7 @@
 import { ISA_HASH, ISA_VERSION, NATIVES, type Native } from "./generated/isa.ts";
 
 export const IMAGE_MAGIC = [0x46, 0x43, 0x55, 0x50, 0x4c, 0x43, 0, 1] as const; // "FCUPLC\0\1"
-export const HEADER_SIZE = 80;
+export const HEADER_SIZE = 88;
 export const TASK_RECORD_SIZE = 32;
 export const PROGRAM_RECORD_SIZE = 8;
 export const IO_RECORD_SIZE = 12;
@@ -30,6 +30,8 @@ export const Hdr = {
 	ioCount: 68,
 	nativeOffset: 72,
 	nativeCount: 76,
+	statementOffset: 80,
+	statementCount: 84,
 } as const;
 
 /** Same names and order as rtos::plc::LoadError. */
@@ -37,7 +39,7 @@ export const LOAD_ERRORS = [
 	"none", "too_short", "magic", "header_size", "crc", "isa_version", "isa_hash", "section",
 	"code_too_large", "data_too_large", "init_range", "task_range", "program_range", "io_range",
 	"bad_opcode", "truncated", "jump_target", "call_target", "data_address", "native_unknown",
-	"native_signature", "native_not_listed",
+	"native_signature", "native_not_listed", "statement_range",
 ] as const;
 export type LoadError = (typeof LOAD_ERRORS)[number];
 
@@ -77,6 +79,8 @@ export interface ImageContents {
 	tasks: TaskInfo[];
 	io: IoBinding[];
 	natives: Native[];
+	/** Code offsets where a source statement begins (single step); sorted and unique by the writer. */
+	statements?: number[];
 	ioMapHash: number;
 	projectHash: number;
 	compilerVersion: number;
@@ -205,6 +209,11 @@ export function writeImage(c: ImageContents): Uint8Array {
 		w.u16(0);
 		w.u32(NATIVES[n].signature);
 	}
+
+	const statements = [...new Set(c.statements ?? [])].sort((a, b) => a - b);
+	w.put32(Hdr.statementOffset, w.length);
+	w.put32(Hdr.statementCount, statements.length);
+	for (const s of statements) w.u32(s);
 
 	const img = w.result();
 	const dv = new DataView(img.buffer);

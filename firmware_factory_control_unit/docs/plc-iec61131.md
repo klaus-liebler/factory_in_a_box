@@ -870,9 +870,20 @@ statement), a halt into the call stack (the halted statement, then each caller a
 simulator's state HALTED: the plant (time) runs on, the program waits for CONTINUE or a step - never by
 itself; STOP from HALTED abandons the cycle. IDE: a click on a line number sets a breakpoint (only
 lines where a statement begins), the halted line is marked, Weiter/F5, Prozedurschritt/F10,
-Einzelschritt/F11, Rücksprung/Shift+F11, the "Aufrufliste" tab. Open in P3: the same on the FCU (C++
-VM: halt/resume, offsets per message, the HALTED state across the I/O cycle), watch subscriptions
-(`PlcWatch`, instead of polling).
+Einzelschritt/F11, Rücksprung/Shift+F11, the "Aufrufliste" tab.
+
+On the FCU (rtoos ff2d7e7, tested on the STM32H743 only): the image carries a **statement table**
+(the code offsets where a statement begins, header 88 bytes, rtoos docs/plc.md), so the device steps by
+itself; the C++ VM halts and resumes like the TypeScript one (corpus: halting before every statement
+leaves every trace byte-identical). `BreakpointsRequest` (up to 64 offsets; takes the debug lease),
+`ControlRequest` Continue/StepInto/StepOver/StepOut, `HaltRequest` (pc and the call chain; the IDE builds
+the call stack from it with its debug information). State HALTED: the I/O cycle runs on, the outputs
+keep their values (no safe state), the forces stay, nothing continues by itself; RUN is refused, STOP
+and a download leave the halted cycle and clear the breakpoints; the terminal's `plc continue` runs on.
+The IDE warns before the first breakpoint on an FCU in IEC mode. Renode rev 3: halt at a breakpoint,
+the I/O cycle running on with the outputs kept, the lease against a second browser, step over,
+continue to the next cycle's halt, RUN refused, `plc continue`, STOP from HALTED. Open in P3: watch
+subscriptions (`PlcWatch`, instead of polling).
 
 ## 14. Decisions from the review and postponed points
 

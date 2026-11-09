@@ -10,7 +10,7 @@ import { wsRequest } from "../../ws-client.ts";
 import type { LogLine, PlcError, PlcState } from "./simulator.ts";
 import { sizeOf } from "../compiler/types.ts";
 import { readValue, writeValue, type Value } from "./values.ts";
-import type { Frame, StepKind } from "./debugger.ts";
+import { Debugger, type Frame, type StepKind } from "./debugger.ts";
 
 export interface HaltInfo {
 	frames: Frame[];
@@ -81,7 +81,10 @@ export interface PlcDevice extends EventTarget {
 	loadProject?(): Promise<string | null>;
 }
 
-const STATE: Record<number, PlcState> = { 0: "NO_PROGRAM", 1: "STOP", 2: "RUN", 3: "ERROR" };
+const STATE: Record<number, PlcState> = { 0: "NO_PROGRAM", 1: "STOP", 2: "RUN", 3: "ERROR", 4: "HALTED" };
+const STEP_COMMAND: Record<StepKind, plc.PlcCommand> = {
+	into: plc.PlcCommand.StepInto, over: plc.PlcCommand.StepOver, out: plc.PlcCommand.StepOut,
+};
 const CHUNK = 1024;
 const POLL_MS = 400;
 /** The flash commit can take seconds (an STM32H743 sector erase). */
@@ -92,14 +95,64 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	readonly kind = "fcu";
 	readonly label = "FCU";
 	readonly canForce = true;
-	/** Breakpoints on the FCU need the C++ VM's halt (next P3 step). */
-	readonly canDebug = false;
+	readonly canDebug = true;
 	halt: HaltInfo | null = null;
-	setBreakpoints(): number[] {
-		return [];
+	private dbg: Debugger | null = null;
+	private dbgFor: DebugInfo | null = null;
+	private readonly breakpointLines = new Map<string, number[]>();
+
+	/** The debugger for the program on the device (its debug information is known in this browser). */
+	private debugger(): Debugger | null {
+		if (!this.debug) return null;
+		if (this.dbgFor !== this.debug) {
+			this.dbg = new Debugger(this.debug);
+			for (const [file, lines] of this.breakpointLines) this.dbg.setBreakpoints(file, lines);
+			this.dbgFor = this.debug;
+		}
+		return this.dbg;
 	}
-	continueRun(): void {}
-	step(): void {}
+
+	/** Breakpoints: the lines become the statement offsets of the program on the device. */
+	setBreakpoints(file: string, lines: number[]): number[] {
+		this.breakpointLines.set(file, [...lines]);
+		const d = this.debugger();
+		if (!d) {
+			if (lines.length) this.note("warn", "breakpoints: the program on the device is not known in this browser - load it from here first");
+			return lines;
+		}
+		const set = d.setBreakpoints(file, lines);
+		const offsets = d.breakpointOffsets();
+		void (async () => {
+			try {
+				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.BreakpointsRequest.encode({ requestId, offsets }), plc.BreakpointsResponse);
+				if (!r.ok) this.note("error", `breakpoints: ${r.message}`);
+			} catch (e) {
+				this.note("error", `breakpoints: ${(e as Error).message}`);
+			}
+		})();
+		return set;
+	}
+
+	async continueRun(): Promise<void> {
+		await this.control(plc.PlcCommand.Continue, "continue");
+		void this.poll();
+	}
+
+	async step(kind: StepKind): Promise<void> {
+		await this.control(STEP_COMMAND[kind], `step ${kind}`);
+		void this.poll();
+	}
+
+	/** HALTED: where (the program counter and the call chain) -> the call stack. */
+	private async readHalt(): Promise<void> {
+		const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.HaltRequest.encode({ requestId }), plc.HaltResponse);
+		const d = this.debugger();
+		if (!r.halted || !d) {
+			this.halt = null;
+			return;
+		}
+		this.halt = { frames: d.frames(r.pc, r.returnPcs.map((returnPc) => ({ returnPc }))), reason: r.reason === 2 ? "step" : "breakpoint" };
+	}
 	readonly canSingleCycle = false;
 	readonly hasPlant = false;
 	readonly hasControlSource = true;
@@ -184,7 +237,9 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 			}
 			this.matchDebug();
 			this.error = this.state === "ERROR" ? this.errorAt(s.trap, s.trapCode, s.trapPc) : null;
-			if (this.debug && (this.state === "RUN" || this.state === "STOP" || this.state === "ERROR")) await this.readData();
+			if (this.state === "HALTED") await this.readHalt();
+			else this.halt = null;
+			if (this.debug && (this.state === "RUN" || this.state === "STOP" || this.state === "ERROR" || this.state === "HALTED")) await this.readData();
 		} catch {
 			if (this.connected) this.note("warn", "the FCU does not answer");
 			this.connected = false;
@@ -240,6 +295,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 				return false;
 			}
 			this.remember(r);
+			this.debug = r.debug;  // the device runs exactly this build now (breakpoints are sent right after)
 			this.note("info", "program stored in the flash and loaded (STOP)");
 			return true;
 		} catch (e) {

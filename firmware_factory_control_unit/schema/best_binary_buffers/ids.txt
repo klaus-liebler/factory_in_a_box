@@ -67,3 +67,7 @@ message plc.ForceRequest 17
 message plc.ForceResponse 18
 message plc.UnforceRequest 19
 message plc.UnforceResponse 20
+message plc.BreakpointsRequest 21
+message plc.BreakpointsResponse 22
+message plc.HaltRequest 23
+message plc.HaltResponse 24

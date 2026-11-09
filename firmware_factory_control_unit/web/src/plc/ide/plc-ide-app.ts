@@ -554,6 +554,21 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		return null;
 	}
 
+	/** The elementary type of a variable of a graphical program (pin colours): from the debug information
+	 *  of its build (program-local first), else from the I/O list; null: not a known variable. */
+	private gfxVarType(b: GfxBuild | null, pou: string, name: string): string | null {
+		const n = name.trim();
+		if (!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(n)) return null;
+		const debug = b?.result.debug;
+		if (debug) {
+			for (const path of [`${pou}.${n}`, n]) {
+				const s = debug.resolve(path);
+				if (s) return elemOf(s.type);
+			}
+		}
+		return IO_VARS.find((v) => v.name.toUpperCase() === n.toUpperCase())?.type ?? null;
+	}
+
 	/** Load the graphical program into the simulator and start it. */
 	private async runGfx(b: GfxBuild): Promise<void> {
 		if (!b.result.ok) return;
@@ -606,6 +621,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		return this.renderGfx("fbd", this.fbd.name, this.fbd.decl, (d) => set({ ...this.fbd, decl: d }), src.problems, b, html`
 			<plc-fbd-editor .pou=${this.fbd} .problems=${src.problems}
 				.lookup=${online ? (e: string) => this.gfxValue(this.fbd.name, e) : null}
+				.varType=${(name: string) => this.gfxVarType(b, this.fbd.name, name)}
 				@change=${(e: CustomEvent<FbdPou>) => set(e.detail)}></plc-fbd-editor>`);
 	}
 

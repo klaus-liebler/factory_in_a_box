@@ -53,6 +53,142 @@ export const BOXES: readonly BoxDef[] = [
 const BOX = new Map(BOXES.map((b) => [b.type, b]));
 export const boxDef = (type: string): BoxDef | undefined => BOX.get(type);
 
+// ---- pin types (for the colours of the editor) --------------------------------------------------------
+/** The pins with a fixed type; every other pin of a box is generic, and the generic pins of one box
+ *  share one type (ADD: IN1, IN2, OUT; SEL: IN0, IN1, OUT; GT: IN1, IN2 - OUT is BOOL). */
+const FIXED: Record<string, Record<string, string>> = {
+	GT: { OUT: "BOOL" }, GE: { OUT: "BOOL" }, EQ: { OUT: "BOOL" }, NE: { OUT: "BOOL" }, LE: { OUT: "BOOL" }, LT: { OUT: "BOOL" },
+	SEL: { G: "BOOL" },
+	TON: { IN: "BOOL", PT: "TIME", Q: "BOOL", ET: "TIME" },
+	TOF: { IN: "BOOL", PT: "TIME", Q: "BOOL", ET: "TIME" },
+	TP: { IN: "BOOL", PT: "TIME", Q: "BOOL", ET: "TIME" },
+	CTU: { CU: "BOOL", R: "BOOL", PV: "INT", Q: "BOOL", CV: "INT" },
+	CTD: { CD: "BOOL", LD: "BOOL", PV: "INT", Q: "BOOL", CV: "INT" },
+	R_TRIG: { CLK: "BOOL", Q: "BOOL" }, F_TRIG: { CLK: "BOOL", Q: "BOOL" },
+	SR: { S1: "BOOL", R: "BOOL", Q1: "BOOL" }, RS: { S: "BOOL", R1: "BOOL", Q1: "BOOL" },
+};
+
+/** The type a box declares for a pin; null: generic. */
+export function declaredPinType(boxType: string, pin: string): string | null {
+	return FIXED[boxType]?.[pin] ?? null;
+}
+
+/** The colour classes of the editor: BOOL, integers (and bit strings), REAL/LREAL, times and dates,
+ *  strings; any: not known (yet). IEC 61131-3 prescribes no colours - the palette is the FCU's. */
+export type TypeClass = "bool" | "int" | "real" | "time" | "string" | "any";
+
+export function typeClass(elem: string | null | undefined): TypeClass {
+	switch ((elem ?? "").toUpperCase()) {
+		case "BOOL": return "bool";
+		case "SINT": case "INT": case "DINT": case "LINT": case "USINT": case "UINT": case "UDINT": case "ULINT":
+		case "BYTE": case "WORD": case "DWORD": case "LWORD":
+			return "int";
+		case "REAL": case "LREAL": return "real";
+		case "TIME": case "LTIME": case "DATE": case "LDATE": case "TOD": case "TIME_OF_DAY": case "LTOD": case "DT": case "DATE_AND_TIME": case "LDT":
+			return "time";
+		case "STRING": case "WSTRING": return "string";
+		default: return "any";
+	}
+}
+
+/** The type of a constant or a simple expression of an input variable, as far as it shows; null: not known. */
+export function literalType(expr: string): string | null {
+	const e = expr.trim();
+	if (/^(TRUE|FALSE)$/i.test(e)) return "BOOL";
+	const typed = /^([A-Z_0-9]+)#/i.exec(e);
+	if (typed) {
+		const p = typed[1].toUpperCase();
+		if (p === "T" || p === "TIME" || p === "LT" || p === "LTIME") return "TIME";
+		if (p === "D" || p === "DATE") return "DATE";
+		if (p === "TOD" || p === "TIME_OF_DAY") return "TOD";
+		if (p === "DT" || p === "DATE_AND_TIME") return "DT";
+		if (/^\d+$/.test(p)) return "DINT";  // 16#FF, 2#1010
+		return p;  // INT#5, REAL#1.5, BOOL#1
+	}
+	if (/^[+-]?\d+(_\d+)*$/.test(e)) return "DINT";
+	if (/^[+-]?\d+(_\d+)*\.\d+([eE][+-]?\d+)?$/.test(e) || /^[+-]?\d+[eE][+-]?\d+$/.test(e)) return "LREAL";
+	if (/^'.*'$/.test(e)) return "STRING";
+	// an expression: a comparison or a Boolean operator gives BOOL
+	if (/<>|<=|>=|[=<>]/.test(e) || /\b(AND|OR|XOR|NOT)\b/i.test(e)) return "BOOL";
+	return null;
+}
+
+export interface NetworkTypes {
+	/** "node:in|out:pin" -> its type class. */
+	pins: Map<string, TypeClass>;
+	/** Indexes of wires that join two known, different types. */
+	mismatches: Set<number>;
+}
+
+export const pinKey = (node: string, side: "in" | "out", pin: string) => `${node}:${side}:${pin}`;
+
+/** The type class of every pin of a network: fixed pins of the boxes, variables (`varType`: a name ->
+ *  its elementary type, or null) and constants; then generic pins take the type over their wires and
+ *  within their box, until nothing changes. */
+export function networkTypes(net: FbdNetwork, varType: (name: string) => string | null): NetworkTypes {
+	const pins = new Map<string, TypeClass>();
+	const flexible = new Set<string>();  // may still get a type
+	const groups: string[][] = [];  // the generic pins of a box
+	for (const n of net.nodes) {
+		if (n.kind === "input") {
+			const k = pinKey(n.id, "out", "OUT");
+			const t = typeClass(varType(n.expr.trim()) ?? literalType(n.expr));
+			pins.set(k, t);
+			if (t === "any") flexible.add(k);
+		} else if (n.kind === "output") {
+			const k = pinKey(n.id, "in", "IN");
+			const t = typeClass(varType(n.target.trim()));
+			pins.set(k, t);
+			if (t === "any") flexible.add(k);
+		} else {
+			const p = pinsOf(n);
+			const group: string[] = [];
+			for (const [side, list] of [["in", p.inputs], ["out", p.outputs]] as const) {
+				for (const pin of list) {
+					const k = pinKey(n.id, side, pin);
+					const fixed = declaredPinType(n.type, pin);
+					pins.set(k, fixed ? typeClass(fixed) : "any");
+					if (!fixed) {
+						flexible.add(k);
+						group.push(k);
+					}
+				}
+			}
+			if (group.length > 1) groups.push(group);
+		}
+	}
+	const known = (k: string) => (pins.get(k) ?? "any") !== "any";
+	for (let round = 0, changed = true; changed && round < 32; round++) {
+		changed = false;
+		for (const w of net.wires) {
+			const a = pinKey(w.from.node, "out", w.from.pin), b = pinKey(w.to.node, "in", w.to.pin);
+			if (known(a) && !known(b) && flexible.has(b)) {
+				pins.set(b, pins.get(a)!);
+				changed = true;
+			} else if (known(b) && !known(a) && flexible.has(a)) {
+				pins.set(a, pins.get(b)!);
+				changed = true;
+			}
+		}
+		for (const g of groups) {
+			const t = g.map((k) => pins.get(k)).find((x) => x && x !== "any");
+			if (!t) continue;
+			for (const k of g) {
+				if (!known(k)) {
+					pins.set(k, t);
+					changed = true;
+				}
+			}
+		}
+	}
+	const mismatches = new Set<number>();
+	net.wires.forEach((w, i) => {
+		const a = pins.get(pinKey(w.from.node, "out", w.from.pin)) ?? "any", b = pins.get(pinKey(w.to.node, "in", w.to.pin)) ?? "any";
+		if (a !== "any" && b !== "any" && a !== b) mismatches.add(i);
+	});
+	return { pins, mismatches };
+}
+
 export type FbdNode =
 	| { kind: "box"; id: string; x: number; y: number; type: string; instance?: string }
 	| { kind: "input"; id: string; x: number; y: number; expr: string }

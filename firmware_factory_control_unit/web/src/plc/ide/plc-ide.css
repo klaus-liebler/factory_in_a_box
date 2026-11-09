@@ -1357,3 +1357,102 @@ plc-st-editor {
 	outline: 2px dashed var(--ide-error);
 	outline-offset: 3px;
 }
+
+/* ---- FBD: data types (IEC 61131-3 prescribes no colours: the FCU's palette), snapping, cursors ---- */
+.fbd {
+	--t-bool: #dc2626;
+	--t-int: #16a34a;
+	--t-real: #0ea5e9;
+	--t-time: #7c3aed;
+	--t-string: #ea580c;
+	--t-any: #94a3b8;
+}
+.fbd-pin.fbd-t-bool { --t: var(--t-bool); }
+.fbd-pin.fbd-t-int { --t: var(--t-int); }
+.fbd-pin.fbd-t-real { --t: var(--t-real); }
+.fbd-pin.fbd-t-time { --t: var(--t-time); }
+.fbd-pin.fbd-t-string { --t: var(--t-string); }
+.fbd-pin.fbd-t-any { --t: var(--t-any); }
+/* inputs: a ring in the type's colour, outputs: filled */
+.fbd-pin.fbd-pin-in {
+	fill: #fff;
+	stroke: var(--t);
+	stroke-width: 2.2;
+}
+.fbd-pin.fbd-pin-out {
+	fill: var(--t);
+	stroke: var(--t);
+	stroke-width: 1.5;
+}
+.fbd-pin:hover {
+	fill: var(--t);
+	stroke: var(--t);
+}
+.fbd-wire.fbd-t-bool { --t: var(--t-bool); }
+.fbd-wire.fbd-t-int { --t: var(--t-int); }
+.fbd-wire.fbd-t-real { --t: var(--t-real); }
+.fbd-wire.fbd-t-time { --t: var(--t-time); }
+.fbd-wire.fbd-t-string { --t: var(--t-string); }
+.fbd-wire.fbd-t-any { --t: #475569; }
+.fbd-wire .fbd-wire-line {
+	stroke: var(--t);
+	stroke-width: 1.7;
+}
+/* online: a TRUE BOOL wire thick */
+.fbd-wire.fbd-on .fbd-wire-line {
+	stroke: var(--t-bool);
+	stroke-width: 3.4;
+}
+.fbd-wire.fbd-mismatch .fbd-wire-line {
+	stroke: var(--ide-error);
+	stroke-dasharray: 6 3;
+	stroke-width: 2.2;
+}
+.fbd-wire.fbd-sel .fbd-wire-line {
+	stroke: var(--ide-accent);
+	stroke-width: 2.8;
+	stroke-dasharray: none;
+}
+/* the pin within reach: a ring; the cursor shows that a press starts or ends a wire */
+.fbd-pin-near {
+	fill: none;
+	stroke: var(--ide-accent);
+	stroke-width: 2;
+	pointer-events: none;
+}
+.fbd-svg.fbd-near,
+.fbd-svg.fbd-near * {
+	cursor: crosshair;
+}
+.fbd-svg.fbd-grabbing,
+.fbd-svg.fbd-grabbing * {
+	cursor: grabbing;
+}
+.fbd-legend {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	margin-left: auto;
+	font-size: 12px;
+	color: #475569;
+}
+.fbd-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+.fbd-chip::before {
+	content: "";
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: var(--c);
+}
+.fbd-chip-bool { --c: var(--t-bool); }
+.fbd-chip-int { --c: var(--t-int); }
+.fbd-chip-real { --c: var(--t-real); }
+.fbd-chip-time { --c: var(--t-time); }
+.fbd-chip-any { --c: var(--t-any); }
+.fbd-toolbar {
+	align-items: center;
+}

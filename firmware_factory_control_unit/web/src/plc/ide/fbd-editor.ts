@@ -5,7 +5,7 @@
 // Online: the values of the variables and instance outputs at the pins, a TRUE wire in green.
 import { LitElement, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { BOXES, boxDef, newId, pinsOf, type FbdNetwork, type FbdNode, type FbdPou, type FbdProblem, type PinRef } from "./fbd.ts";
+import { BOXES, boxDef, networkTypes, newId, pinKey, pinsOf, type FbdNetwork, type FbdNode, type FbdPou, type FbdProblem, type NetworkTypes, type PinRef, type TypeClass } from "./fbd.ts";
 
 const BOX_W = 112;
 const HEAD = 22;
@@ -14,6 +14,18 @@ const VAR_H = 24;
 const SNAP = 10;
 
 type Selection = { net: string; node: string } | { net: string; wire: number } | null;
+interface NearPin {
+	net: string;
+	node: string;
+	pin: string;
+	side: "in" | "out";
+}
+/** How close the pointer must come to a pin to catch it (px). */
+const PIN_REACH = 14;
+
+const TYPE_NAMES: Record<TypeClass, string> = {
+	bool: "BOOL", int: "Ganzzahl", real: "Gleitkomma", time: "Zeit/Datum", string: "Zeichenkette", any: "noch unbestimmt",
+};
 
 function varWidth(text: string): number {
 	return Math.max(60, text.length * 7.4 + 18);
@@ -56,9 +68,14 @@ export class FbdEditor extends LitElement {
 	@property({ attribute: false }) problems: FbdProblem[] = [];
 	/** Online values: a variable path or expression -> its formatted value (null: not a readable variable). */
 	@property({ attribute: false }) lookup: ((expr: string) => string | null) | null = null;
+	/** The elementary type of a variable (for the pin colours); null: not known. */
+	@property({ attribute: false }) varType: ((name: string) => string | null) | null = null;
 	@state() private sel: Selection = null;
 	@state() private drag: { net: string; node: string; dx: number; dy: number; moved: boolean } | null = null;
-	@state() private wiring: { net: string; from: PinRef; x: number; y: number } | null = null;
+	/** A wire being drawn: from an output pin (to an input) or from an input pin (to an output). */
+	@state() private wiring: { net: string; from: NearPin; x: number; y: number } | null = null;
+	/** The pin within reach of the pointer: the cursor changes, the pin shows a ring, a wire snaps to it. */
+	@state() private near: NearPin | null = null;
 
 	protected createRenderRoot() {
 		return this;
@@ -79,26 +96,64 @@ export class FbdEditor extends LitElement {
 		return { x: e.clientX - r.left, y: e.clientY - r.top };
 	}
 
-	// ---- pointer: drag nodes, draw wires ------------------------------------------------------------
+	// ---- pointer: drag nodes, draw wires, snap to pins -------------------------------------------------
+	/** The pin nearest to `p` within PIN_REACH (of one side, not on `exclude`). */
+	private nearestPin(netId: string, p: { x: number; y: number }, side?: "in" | "out", exclude?: string): NearPin | null {
+		let best: NearPin | null = null;
+		let bestD = PIN_REACH * PIN_REACH;
+		for (const n of this.net(netId).nodes) {
+			if (n.id === exclude) continue;
+			const pins = pinsOf(n);
+			for (const s of ["in", "out"] as const) {
+				if (side && side !== s) continue;
+				for (const pin of s === "in" ? pins.inputs : pins.outputs) {
+					const at = pinAt(n, pin, s);
+					const d = (at.x - p.x) ** 2 + (at.y - p.y) ** 2;
+					if (d < bestD) {
+						bestD = d;
+						best = { net: netId, node: n.id, pin, side: s };
+					}
+				}
+			}
+		}
+		return best;
+	}
+
+	private pinPos(w: NearPin): { x: number; y: number } {
+		const n = this.net(w.net).nodes.find((x) => x.id === w.node)!;
+		return pinAt(n, w.pin, w.side);
+	}
+
+	private startWire(e: PointerEvent, from: NearPin): void {
+		const p = this.svgPoint(e);
+		this.wiring = { net: from.net, from, x: p.x, y: p.y };
+		this.near = null;
+		(e.currentTarget as Element).closest("svg")!.setPointerCapture(e.pointerId);
+	}
+
+	/** On a node: a pin within reach starts a wire, elsewhere the node is selected and dragged. */
 	private down(e: PointerEvent, net: string, node: FbdNode): void {
 		if (e.button !== 0) return;
 		e.stopPropagation();
 		const p = this.svgPoint(e);
+		const pin = this.nearestPin(net, p);
+		if (pin) return this.startWire(e, pin);
 		this.sel = { net, node: node.id };
 		this.drag = { net, node: node.id, dx: p.x - node.x, dy: p.y - node.y, moved: false };
 		(e.currentTarget as Element).closest("svg")!.setPointerCapture(e.pointerId);
 	}
 
-	private pinDown(e: PointerEvent, net: string, node: FbdNode, pin: string): void {
-		e.stopPropagation();
-		const p = this.svgPoint(e);
-		this.wiring = { net, from: { node: node.id, pin }, x: p.x, y: p.y };
-		(e.currentTarget as Element).closest("svg")!.setPointerCapture(e.pointerId);
+	/** On the background: a pin within reach (its circle may stick out of the node) or deselect. */
+	private backgroundDown(e: PointerEvent, net: string): void {
+		if (e.button !== 0) return;
+		const pin = this.nearestPin(net, this.svgPoint(e));
+		if (pin) this.startWire(e, pin);
+		else this.sel = null;
 	}
 
-	private move(e: PointerEvent): void {
+	private move(e: PointerEvent, net: string): void {
+		const p = this.svgPoint(e);
 		if (this.drag) {
-			const p = this.svgPoint(e);
 			const n = this.net(this.drag.net).nodes.find((x) => x.id === this.drag!.node);
 			if (!n) return;
 			n.x = Math.max(0, Math.round((p.x - this.drag.dx) / SNAP) * SNAP);
@@ -106,28 +161,34 @@ export class FbdEditor extends LitElement {
 			this.drag.moved = true;
 			this.requestUpdate();
 		} else if (this.wiring) {
-			const p = this.svgPoint(e);
-			this.wiring = { ...this.wiring, x: p.x, y: p.y };
+			// the end snaps to the nearest pin of the other side
+			const w = this.wiring;
+			const target = this.nearestPin(w.net, p, w.from.side === "out" ? "in" : "out", w.from.node);
+			this.near = target;
+			const at = target ? this.pinPos(target) : p;
+			this.wiring = { ...w, x: at.x, y: at.y };
+		} else {
+			const pin = this.nearestPin(net, p);
+			if (pin?.node !== this.near?.node || pin?.pin !== this.near?.pin || pin?.side !== this.near?.side || pin?.net !== this.near?.net) this.near = pin;
 		}
 	}
 
-	private up(e: PointerEvent): void {
+	private up(): void {
 		if (this.drag) {
 			if (this.drag.moved) this.changed();
 			this.drag = null;
 		} else if (this.wiring) {
-			// the input pin under the pointer (the capture sends the event to the svg: look it up)
-			const target = document.elementsFromPoint(e.clientX, e.clientY).find((el) => el instanceof SVGElement && el.dataset.pin);
 			const w = this.wiring;
+			const target = this.near;
 			this.wiring = null;
-			if (target instanceof SVGElement && target.dataset.side === "in" && target.dataset.net === w.net) {
-				const to = { node: target.dataset.node!, pin: target.dataset.pin! };
-				if (to.node === w.from.node) return;
-				const net = this.net(w.net);
-				net.wires = net.wires.filter((x) => !(x.to.node === to.node && x.to.pin === to.pin));  // one source per input
-				net.wires.push({ from: w.from, to });
-				this.changed();
-			}
+			this.near = null;
+			if (!target || target.net !== w.net || target.side === w.from.side || target.node === w.from.node) return;
+			const out = w.from.side === "out" ? w.from : target;
+			const inp = w.from.side === "out" ? target : w.from;
+			const net = this.net(w.net);
+			net.wires = net.wires.filter((x) => !(x.to.node === inp.node && x.to.pin === inp.pin));  // one source per input
+			net.wires.push({ from: { node: out.node, pin: out.pin }, to: { node: inp.node, pin: inp.pin } });
+			this.changed();
 		}
 	}
 
@@ -190,17 +251,16 @@ export class FbdEditor extends LitElement {
 	}
 
 	// ---- rendering ----------------------------------------------------------------------------------
-	private renderNode(net: FbdNetwork, n: FbdNode) {
+	private renderNode(net: FbdNetwork, n: FbdNode, types: NetworkTypes) {
 		const { w, h } = size(n);
 		const selected = this.sel && "node" in this.sel && this.sel.net === net.id && this.sel.node === n.id;
 		const bad = this.problems.some((p) => p.network === net.id && p.node === n.id);
 		const cls = `fbd-node fbd-${n.kind} ${selected ? "fbd-sel" : ""} ${bad ? "fbd-bad" : ""}`;
 		const pin = (name: string, side: "in" | "out") => {
 			const at = pinAt(n, name, side);
-			return svg`<circle class="fbd-pin fbd-pin-${side}" cx=${at.x} cy=${at.y} r="5"
-				data-pin=${name} data-side=${side} data-node=${n.id} data-net=${net.id}
-				@pointerdown=${side === "out" ? (e: PointerEvent) => this.pinDown(e, net.id, n, name) : nothing}>
-				<title>${side === "out" ? `${name}: ziehen, um zu verbinden` : name}</title></circle>`;
+			const t = types.pins.get(pinKey(n.id, side, name)) ?? "any";
+			return svg`<circle class="fbd-pin fbd-pin-${side} fbd-t-${t}" cx=${at.x} cy=${at.y} r="5">
+				<title>${name}: ${TYPE_NAMES[t]} - ziehen, um zu verbinden</title></circle>`;
 		};
 		const value = (expr: string, x: number, y: number, anchor: "start" | "end") => {
 			const v = this.lookup?.(expr);
@@ -241,6 +301,9 @@ export class FbdEditor extends LitElement {
 
 	private renderNetwork(net: FbdNetwork, index: number) {
 		const byId = new Map(net.nodes.map((n) => [n.id, n]));
+		const types = networkTypes(net, this.varType ?? (() => null));
+		const near = this.near && this.near.net === net.id ? this.near : null;
+		const svgCls = this.drag?.net === net.id ? "fbd-grabbing" : near || this.wiring?.net === net.id ? "fbd-near" : "";
 		const width = Math.max(760, ...net.nodes.map((n) => n.x + size(n).w + 120));
 		const height = Math.max(120, ...net.nodes.map((n) => n.y + size(n).h + 50));
 		const problems = this.problems.filter((p) => p.network === net.id);
@@ -252,9 +315,10 @@ export class FbdEditor extends LitElement {
 						@change=${(e: Event) => { net.title = (e.target as HTMLInputElement).value; this.changed(); }} />
 					<button class="ide-icon-btn" title="Netzwerk löschen" @click=${() => this.removeNetwork(net.id)}>🗑</button>
 				</header>
-				<svg class="fbd-svg" width=${width} height=${height}
-					@pointermove=${(e: PointerEvent) => this.move(e)} @pointerup=${(e: PointerEvent) => this.up(e)}
-					@pointerdown=${() => { this.sel = null; }}>
+				<svg class="fbd-svg ${svgCls}" width=${width} height=${height}
+					@pointermove=${(e: PointerEvent) => this.move(e, net.id)} @pointerup=${() => this.up()}
+					@pointerleave=${() => { if (!this.wiring && !this.drag) this.near = null; }}
+					@pointerdown=${(e: PointerEvent) => this.backgroundDown(e, net.id)}>
 					${net.wires.map((w, i) => {
 						const a = byId.get(w.from.node), b = byId.get(w.to.node);
 						if (!a || !b) return nothing;
@@ -262,16 +326,31 @@ export class FbdEditor extends LitElement {
 						const v = src ? this.lookup?.(src) : null;
 						const on = v === "TRUE";
 						const selected = this.sel && "wire" in this.sel && this.sel.net === net.id && this.sel.wire === i;
+						const t = types.pins.get(pinKey(w.from.node, "out", w.from.pin)) ?? "any";
+						const mismatch = types.mismatches.has(i);
 						const ins = pinsOf(b).inputs;
 						const d = route(pinAt(a, w.from.pin, "out"), pinAt(b, w.to.pin, "in"), Math.max(0, ins.length - 1 - ins.indexOf(w.to.pin)));
-						return svg`<g class="fbd-wire ${on ? "fbd-on" : ""} ${selected ? "fbd-sel" : ""}"
-							@pointerdown=${(e: PointerEvent) => { e.stopPropagation(); this.sel = { net: net.id, wire: i }; }}>
+						return svg`<g class="fbd-wire fbd-t-${t} ${on ? "fbd-on" : ""} ${mismatch ? "fbd-mismatch" : ""} ${selected ? "fbd-sel" : ""}"
+							@pointerdown=${(e: PointerEvent) => {
+								e.stopPropagation();
+								const pin = this.nearestPin(net.id, this.svgPoint(e));
+								if (pin) this.startWire(e, pin);  // a pin under the wire's end wins
+								else this.sel = { net: net.id, wire: i };
+							}}>
+							<title>${mismatch ? "Typen passen nicht zusammen" : TYPE_NAMES[t]}</title>
 							<path class="fbd-wire-hit" d=${d} /><path class="fbd-wire-line" d=${d} /></g>`;
 					})}
-					${net.nodes.map((n) => this.renderNode(net, n))}
+					${net.nodes.map((n) => this.renderNode(net, n, types))}
 					${this.wiring && this.wiring.net === net.id ? (() => {
-						const from = byId.get(this.wiring.from.node);
-						return from ? svg`<path class="fbd-rubber" d=${route(pinAt(from, this.wiring.from.pin, "out"), { x: this.wiring.x, y: this.wiring.y })} />` : nothing;
+						const w = this.wiring;
+						const start = this.pinPos(w.from);
+						const end = { x: w.x, y: w.y };
+						const d = w.from.side === "out" ? route(start, end) : route(end, start);
+						return svg`<path class="fbd-rubber" d=${d} />`;
+					})() : nothing}
+					${near ? (() => {
+						const at = this.pinPos(near);
+						return svg`<circle class="fbd-pin-near" cx=${at.x} cy=${at.y} r="9" />`;
 					})() : nothing}
 				</svg>
 				${problems.length ? html`<ul class="fbd-problems">${problems.map((p) => html`<li>${p.message}</li>`)}</ul>` : nothing}
@@ -280,7 +359,7 @@ export class FbdEditor extends LitElement {
 
 	private renderProps() {
 		const s = this.sel;
-		if (!s) return html`<p class="fbd-hint">Auswählen: Klick. Verbinden: vom Ausgang (rechts, ●) zum Eingang ziehen. Löschen: Entf.</p>`;
+		if (!s) return html`<p class="fbd-hint">Auswählen: Klick. Verbinden: in der Nähe eines Anschlusses (Fadenkreuz) drücken und zum Gegenstück ziehen - die Linie rastet am nächsten passenden Anschluss ein. Löschen: Entf.</p>`;
 		const net = this.net(s.net);
 		if ("wire" in s) {
 			const w = net.wires[s.wire];
@@ -313,6 +392,9 @@ export class FbdEditor extends LitElement {
 						${groups.map((g) => html`<optgroup label=${g}>${BOXES.filter((b) => b.group === g).map((b) => html`<option value=${b.type}>${b.type} - ${b.title}</option>`)}</optgroup>`)}
 					</select>
 					<button @click=${() => this.addNetwork()}>＋ Netzwerk</button>
+					<span class="fbd-legend" title="Datentypen an den Anschlüssen und Verbindungen (IEC 61131-3 schreibt keine Farben vor)">
+						${(["bool", "int", "real", "time", "any"] as const).map((t) => html`<span class="fbd-chip fbd-chip-${t}">${TYPE_NAMES[t]}</span>`)}
+					</span>
 				</div>
 				<div class="fbd-body">
 					<div class="fbd-nets">${this.pou.networks.map((n, i) => this.renderNetwork(n, i))}</div>

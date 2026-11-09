@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compile, type CompileResult } from "../compiler/compiler.ts";
 import { formatDiagnostic } from "../compiler/diagnostics.ts";
 import { Vm } from "../vm.ts";
-import { exampleFbd, fbdSource, lowerFbd, type FbdPou } from "./fbd.ts";
+import { exampleFbd, fbdSource, literalType, lowerFbd, networkTypes, pinKey, typeClass, type FbdPou } from "./fbd.ts";
 import { ioBindings, ioMapHash } from "./io-list.ts";
 import { deviceSources } from "./project.ts";
 import { exampleSfc, sfcGraph, sfcSource, type SfcPou } from "./sfc.ts";
@@ -55,6 +55,38 @@ describe("FBD", () => {
 		}
 		expect(m.get("FBD_PRG.Pieces.CV")).toBe(10);
 		expect(m.get("ConveyorPwm")).toBe(0);
+	});
+
+	it("pin types: fixed pins, variables, constants, generic pins through wires and boxes; mismatches", () => {
+		const vars: Record<string, string> = { ENABLE: "BOOL", "PIECES.Q": "BOOL", CONVEYORPWM: "UINT" };
+		const varType = (n: string) => vars[n.toUpperCase()] ?? null;
+		const net2 = exampleFbd().networks[1];
+		const t = networkTypes(net2, varType);
+		expect(t.pins.get(pinKey("b2", "in", "IN1"))).toBe("bool");  // AND from Enable
+		expect(t.pins.get(pinKey("b2", "out", "OUT"))).toBe("bool");  // the AND's generic group
+		expect(t.pins.get(pinKey("b3", "in", "G"))).toBe("bool");  // fixed
+		expect(t.pins.get(pinKey("i3", "out", "OUT"))).toBe("int");  // the constant 0
+		expect(t.pins.get(pinKey("b3", "in", "IN1"))).toBe("int");  // over the wire from 600
+		expect(t.pins.get(pinKey("b3", "out", "OUT"))).toBe("int");  // SEL's generic group
+		expect(t.mismatches.size).toBe(0);
+
+		const net3 = networkTypes(exampleFbd().networks[2], varType);
+		expect(net3.pins.get(pinKey("i3", "out", "OUT"))).toBe("time");  // T#300ms
+		expect(net3.pins.get(pinKey("b3", "in", "PT"))).toBe("time");
+		expect(net3.pins.get(pinKey("i2", "out", "OUT"))).toBe("bool");  // a comparison
+
+		const bad: FbdPou["networks"][number] = { id: "n", title: "", nodes: [
+			{ kind: "input", id: "i", x: 0, y: 0, expr: "1.5" },
+			{ kind: "box", id: "c", x: 100, y: 0, type: "CTU", instance: "C" },
+		], wires: [{ from: { node: "i", pin: "OUT" }, to: { node: "c", pin: "PV" } }] };
+		const tb = networkTypes(bad, varType);
+		expect(tb.pins.get(pinKey("i", "out", "OUT"))).toBe("real");
+		expect([...tb.mismatches]).toEqual([0]);  // REAL into INT
+		expect(literalType("TIME#1s")).toBe("TIME");
+		expect(literalType("16#FF")).toBe("DINT");
+		expect(literalType("Valve1")).toBeNull();
+		expect(typeClass("LREAL")).toBe("real");
+		expect(typeClass("DT")).toBe("time");
 	});
 
 	it("reports an open input and an operator loop; a feedback through an instance is fine", () => {

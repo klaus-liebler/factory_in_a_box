@@ -896,7 +896,15 @@ compiled with the I/O list and the libraries, runnable in the simulator.
   dependency order, operators and functions inline expressions, output variables assignments; a
   feedback through an instance reads the last cycle's value, a loop of operators is an error, an open
   input too (a timer's or counter's optional inputs get a default). Online: values at the variables and
-  instance outputs, TRUE wires in green.
+  instance outputs, TRUE wires thick red.
+  Editing: a press within 14 px of a pin starts a wire (from an output or an input; the cursor becomes a
+  crosshair), the rubber band snaps to the nearest pin of the opposite kind (marked by a ring), release
+  connects. Data types: every pin gets a type class (BOOL, integer, REAL/LREAL, TIME/DATE/TOD/DT, STRING,
+  undetermined), from the box's fixed pins, the declared or I/O variables and typed literals,
+  propagated over the wires and within a generic box (`networkTypes`); colours: BOOL red, integer
+  green, floating point light blue, time/date violet, string orange, undetermined grey (IEC 61131-3
+  prescribes no colours; this is the FCU's palette). Inputs are rings, outputs filled; a wire takes its
+  source's colour, a wire between incompatible classes is dashed red.
 - SFC (`ide/sfc.ts`, `ide/sfc-editor.ts`, HTML/CSS): the chart is a tree (sequence, alternative and
   parallel branches, jumps) and the layout follows it - every row a symmetric grid around the column's
   centre line, the bars of a branch drawn by its columns. Lowering: a graph of transitions (sources ->

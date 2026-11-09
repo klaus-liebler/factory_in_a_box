@@ -1,6 +1,6 @@
 // The PLC project (docs/plc-iec61131.md section 11): Stage 1 has exactly one program PLC_PRG in
 // ST. Declaration and implementation are edited separately; for the compiler they are one text.
-import { compile, type CompileResult } from "../compiler/compiler.ts";
+import { compile, projectHashOf, type CompileResult } from "../compiler/compiler.ts";
 import type { Diagnostic } from "../compiler/diagnostics.ts";
 import { IO_FILE, ioBindings, ioMapHash, ioSource } from "./io-list.ts";
 
@@ -98,6 +98,12 @@ export interface Build {
 
 export function sourceOf(o: PlcObject): string {
 	return `${o.decl}\n${o.body}\nEND_PROGRAM\n`;
+}
+
+/** The project hash an image of the project's current state has (also while it does not compile). */
+export function projectHash(p: Project): number {
+	const o = p.objects[0];
+	return projectHashOf([{ file: o.name, text: sourceOf(o) }, { file: IO_FILE, text: ioSource() }]);
 }
 
 export function build(p: Project): Build {

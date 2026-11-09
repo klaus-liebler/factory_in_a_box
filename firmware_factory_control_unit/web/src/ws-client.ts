@@ -183,6 +183,7 @@ export async function wsRequest<TPayload>(
 	namespaceId: number,
 	encode: (requestId: number) => Uint8Array,
 	response: WsResponseType<TPayload>,
+	timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<TPayload> {
 	await waitForOpen(CONNECT_WAIT_TIMEOUT_MS);
 	return new Promise((resolve, reject) => {
@@ -195,7 +196,7 @@ export async function wsRequest<TPayload>(
 		const timer = window.setTimeout(() => {
 			pendingRequests.delete(requestId);
 			reject(new Error("Zeitüberschreitung bei WS-Anfrage"));
-		}, REQUEST_TIMEOUT_MS);
+		}, timeoutMs);
 		pendingRequests.set(requestId, {
 			namespaceId,
 			typeId: response.TYPE_ID,

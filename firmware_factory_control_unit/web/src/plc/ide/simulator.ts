@@ -6,12 +6,15 @@ import { TRAP_NAMES } from "../generated/isa.ts";
 import { Vm, type RunResult } from "../vm.ts";
 import { IO_VARS } from "./io-list.ts";
 import { Plant } from "./plant.ts";
+import type { PlcDevice } from "./device.ts";
 import { readValue, writeValue, type Value } from "./values.ts";
 
 export type PlcState = "NO_PROGRAM" | "STOP" | "RUN" | "ERROR";
 
 export interface PlcError {
 	trap: string;
+	/** TRAP's operand. */
+	code?: number;
 	pc: number;
 	/** Line in the compiled source of PLC_PRG (null: not found). */
 	line: number | null;
@@ -26,7 +29,25 @@ export interface LogLine {
 
 const DATA_CAPACITY = 32 * 1024;
 
-export class Simulator extends EventTarget {
+export class Simulator extends EventTarget implements PlcDevice {
+	readonly kind = "simulator";
+	readonly label = "Simulator";
+	readonly canForce = true;
+	readonly canSingleCycle = true;
+	readonly hasPlant = true;
+	readonly hasControlSource = false;
+	connected = true;
+	/** The simulator has no fieldbus: the program always switches the outputs. */
+	iec = true;
+	autostart = false;
+	storeProblem = "";
+	attach(): void {
+		// the simulator's debug information comes with its download
+	}
+	activate(): void {}
+	deactivate(): void {}
+	setSource(): void {}
+	setAutostart(): void {}
 	readonly data = new Uint8Array(DATA_CAPACITY);
 	private vm = new Vm(this.data);
 	private image: Uint8Array | null = null;

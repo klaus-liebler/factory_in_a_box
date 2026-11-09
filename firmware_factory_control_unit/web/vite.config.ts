@@ -67,6 +67,14 @@ export default defineConfig(({ mode }) => {
 					target: `https://${CONTROL_UNIT_HOST}`,
 					changeOrigin: true,
 					secure: false
+				},
+				// the WebSocket of the device (register panel, terminal, PLC page): e.g.
+				// CONTROL_UNIT_HOST=192.168.77.2 npm run dev against the firmware in Renode
+				"/ws": {
+					target: `wss://${CONTROL_UNIT_HOST}`,
+					ws: true,
+					changeOrigin: true,
+					secure: false
 				}
 			}
 		}

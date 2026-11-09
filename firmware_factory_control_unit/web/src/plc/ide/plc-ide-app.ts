@@ -16,8 +16,9 @@ import type { Symbol } from "../compiler/compiler.ts";
 import type * as A from "../compiler/ast.ts";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
 import { IO_VARS, ioSource } from "./io-list.ts";
-import { build, exampleProject, loadProject, saveProject, sourceOf, type Build, type Located, type Project } from "./project.ts";
+import { build, exampleProject, loadProject, projectHash, saveProject, type Build, type Located, type Project } from "./project.ts";
 import { Simulator } from "./simulator.ts";
+import { FcuDevice, type PlcDevice } from "./device.ts";
 import { formatValue, parseValue, readValue, type Value } from "./values.ts";
 import { addRow, deleteRow, freeName, parseRows, updateRow, VAR_CLASSES, type DeclRow } from "./decl-table.ts";
 import type { LineMarker, StEditor } from "./st-editor.ts";
@@ -56,12 +57,14 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	@state() private watch: string[] = [];
 	@state() private prepared = new Map<string, string>();
 	@state() private tick = 0;
-	@state() private downloadedSource: string | null = null;
 	@state() private notice: string | null = null;
 	@query("#body-editor") private bodyEditor?: StEditor;
 	@query("#decl-editor") private declEditor?: StEditor;
 
 	private sim = new Simulator();
+	private fcu = new FcuDevice();
+	@state() private dev: PlcDevice = this.sim;
+	private shown = false;
 	private readonly std = stdBlocks();
 	private buildTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -74,7 +77,9 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		}
 		if (this.watch.length === 0) this.watch = ["PLC_PRG.Pieces.CV", "PLC_PRG.Ejected", "ConveyorPwm", "Lightbarrier2"];
 		this.sim.addEventListener("update", () => this.tick++);
+		this.fcu.addEventListener("update", () => this.tick++);
 		this.lastBuild = build(this.project);
+		this.fcu.attach(this.lastBuild.result);
 	}
 
 	protected createRenderRoot() {
@@ -83,9 +88,22 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 
 	onShow(): void {
 		window.addEventListener("keydown", this.onKey);
+		this.shown = true;
+		this.dev.activate();
 	}
 	onHide(): void {
 		window.removeEventListener("keydown", this.onKey);
+		this.shown = false;
+		this.dev.deactivate();
+	}
+
+	private selectDevice(kind: string): void {
+		const next = kind === "fcu" ? this.fcu : this.sim;
+		if (next === this.dev) return;
+		this.dev.deactivate();
+		this.dev = next;
+		if (this.shown) this.dev.activate();
+		this.flash(next.kind === "fcu" ? "Gerät: FCU (über die WebSocket-Verbindung)" : "Gerät: Simulator im Browser");
 	}
 
 	private onKey = (e: KeyboardEvent) => {
@@ -122,6 +140,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	private doBuild(explicit: boolean): Build {
 		const b = build(this.project);
 		this.lastBuild = b;
+		this.fcu.attach(b.result);
 		if (explicit) {
 			const errors = b.located.filter((l) => l.diagnostic.severity === "error").length;
 			const warnings = b.located.length - errors;
@@ -131,20 +150,26 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		return b;
 	}
 
-	private currentSource(): string {
-		return sourceOf(this.prg) + ioSource();
-	}
-
+	/** The device runs another state of the project than the editor shows. */
 	private get stale(): boolean {
-		return this.downloadedSource !== null && this.downloadedSource !== this.currentSource();
+		return this.dev.projectHash !== 0 && this.dev.projectHash !== projectHash(this.project);
 	}
 
-	private download(start: boolean): void {
+	private async download(start: boolean): Promise<void> {
 		const b = this.doBuild(true);
 		if (!b.result.ok) return;
-		if (this.sim.download(b.result)) {
-			this.downloadedSource = this.currentSource();
-			if (start) this.sim.start();
+		const dev = this.dev;
+		if (dev.kind === "fcu") {
+			if (!dev.connected) {
+				this.flash("Das FCU antwortet nicht");
+				return;
+			}
+			if (start && dev.iec && !confirm("Das Programm übernimmt die Ausgänge des FCU (Steuerquelle IEC 61131): Ventile, Motoren und Achsen können sich bewegen. Laden und starten?")) return;
+		}
+		if (await dev.download(b.result)) {
+			if (start) await dev.start();
+		} else {
+			this.panel = "log";
 		}
 	}
 
@@ -186,11 +211,11 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 
 	// ---- online values ----------------------------------------------------------------------------
 	private get online(): boolean {
-		return this.sim.state !== "NO_PROGRAM" && this.sim.debug !== null;
+		return this.dev.state !== "NO_PROGRAM" && this.dev.debug !== null;
 	}
 
 	private resolve(name: string): Symbol | null {
-		const d = this.sim.debug;
+		const d = this.dev.debug;
 		if (!d) return null;
 		return d.resolve(`${this.prg.name}.${name}`) ?? d.resolve(name);
 	}
@@ -198,7 +223,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	private varValue(name: string): { text: string; type: Type } | null {
 		const s = this.resolve(name);
 		if (!s || elemOf(s.type) === null) return null;
-		return { text: formatValue(s.type, readValue(this.sim.data, s)), type: s.type };
+		return { text: formatValue(s.type, readValue(this.dev.data, s)), type: s.type };
 	}
 
 	/** Inline values: the variables of each line, as "name = value". */
@@ -244,7 +269,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		const ms: LineMarker[] = (this.lastBuild?.located ?? []).filter((l) => l.part === part).map((l) => ({
 			line: l.line, severity: l.diagnostic.severity, message: l.diagnostic.message,
 		}));
-		const err = this.sim.error;
+		const err = this.dev.error;
 		if (err?.line && this.lastBuild) {
 			const declLines = this.lastBuild.declLines;
 			const inBody = err.line > declLines;
@@ -271,7 +296,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	private watchPath(expr: string): string {
-		const d = this.sim.debug;
+		const d = this.dev.debug;
 		if (!d) return expr;
 		if (d.resolve(expr)) return expr;
 		return `${this.prg.name}.${expr}`;
@@ -281,15 +306,15 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		let n = 0;
 		for (const [expr, text] of this.prepared) {
 			const path = this.watchPath(expr);
-			const s = this.sim.debug?.resolve(path);
+			const s = this.dev.debug?.resolve(path);
 			if (!s) continue;
 			const v = parseValue(s.type, text);
 			if (v === null) {
 				this.flash(`'${text}' ist kein Wert für ${typeName(s.type)} (${expr})`);
 				return;
 			}
-			if (force) this.sim.force(path, v);
-			else this.sim.write(path, v);
+			if (force) this.dev.force(path, v);
+			else this.dev.write(path, v);
 			n++;
 		}
 		this.prepared = new Map();
@@ -297,7 +322,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	private knownPaths(): string[] {
-		const d = this.sim.debug ?? this.lastBuild?.result.debug;
+		const d = this.dev.debug ?? this.lastBuild?.result.debug;
 		if (!d) return [];
 		const out: string[] = [];
 		const walk = (prefix: string, t: Type, depth: number) => {
@@ -335,7 +360,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	private renderToolbar() {
-		const s = this.sim.state;
+		const s = this.dev.state;
 		const ok = this.lastBuild?.result.ok ?? false;
 		return html`
 			<div class="ide-toolbar" role="toolbar">
@@ -343,18 +368,18 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<button title="Übersetzen (Strg+Umschalt+B)" @click=${() => this.doBuild(true)}>⚙ Übersetzen</button>
 				</div>
 				<div class="ide-tb-group">
-					<select title="Gerät" class="ide-device">
-						<option selected>Simulator (im Browser)</option>
-						<option disabled>FCU - ${P2}</option>
+					<select title="Gerät" class="ide-device" @change=${(e: Event) => this.selectDevice((e.target as HTMLSelectElement).value)}>
+						<option value="sim" ?selected=${this.dev.kind === "simulator"}>Simulator (im Browser)</option>
+						<option value="fcu" ?selected=${this.dev.kind === "fcu"}>FCU (dieses Gerät)</option>
 					</select>
 					<button title="Projekt in den Simulator laden (SPS geht in STOP)" ?disabled=${!ok} @click=${() => this.download(false)}>⇩ Laden</button>
 					<button class="ide-primary" title="Übersetzen, laden und starten" ?disabled=${!ok} @click=${() => this.download(true)}>⇩▶ Laden &amp; Starten</button>
 				</div>
 				<div class="ide-tb-group">
-					<button title="Start (RUN)" ?disabled=${s !== "STOP"} @click=${() => this.sim.start()}>▶ Start</button>
-					<button title="Stop" ?disabled=${s !== "RUN"} @click=${() => this.sim.stop()}>■ Stop</button>
-					<button title="Ein Zyklus (in STOP)" ?disabled=${s !== "STOP"} @click=${() => this.sim.singleCycle()}>⏭ Zyklus</button>
-					<button title="Reset warm: Variablen auf Initialwerte" ?disabled=${s === "NO_PROGRAM"} @click=${() => this.sim.reset("warm")}>↺ Reset</button>
+					<button title="Start (RUN)" ?disabled=${s !== "STOP"} @click=${() => this.dev.start()}>▶ Start</button>
+					<button title="Stop" ?disabled=${s !== "RUN"} @click=${() => this.dev.stop()}>■ Stop</button>
+					<button title=${this.dev.canSingleCycle ? "Ein Zyklus (in STOP)" : "Einzelne Zyklen: nur im Simulator"} ?disabled=${s !== "STOP" || !this.dev.canSingleCycle} @click=${() => this.dev.singleCycle()}>⏭ Zyklus</button>
+					<button title="Reset warm: Variablen auf Initialwerte" ?disabled=${s === "NO_PROGRAM"} @click=${() => this.dev.reset("warm")}>↺ Reset</button>
 				</div>
 				<div class="ide-tb-group" title=${P3}>
 					<button disabled title="Haltepunkt (P3)">●</button>
@@ -362,8 +387,18 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<button disabled title="Einzelschritt (P3)">⤵</button>
 					<button disabled title="Ausführen bis Rücksprung (P3)">⤴</button>
 				</div>
+				${this.dev.hasControlSource ? html`
+				<div class="ide-tb-group" title="Wer schaltet die Ausgänge des FCU? Feldbus: Modbus, OPC UA, Web-UI. IEC 61131: das Programm (externe Schreibzugriffe werden abgewiesen).">
+					<span class="ide-tb-label">Ausgänge:</span>
+					<div class="ide-seg" role="group" aria-label="Steuerquelle">
+						<button class=${!this.dev.iec ? "on" : ""} ?disabled=${!this.dev.connected} @click=${() => this.dev.setSource(false)}>Feldbus</button>
+						<button class=${this.dev.iec ? "on" : ""} ?disabled=${!this.dev.connected} @click=${() => this.dev.setSource(true)}>IEC 61131</button>
+					</div>
+					<label class="ide-tb-check" title="Das Programm startet nach dem Einschalten von selbst"><input type="checkbox" .checked=${this.dev.autostart} ?disabled=${!this.dev.connected}
+						@change=${(e: Event) => this.dev.setAutostart((e.target as HTMLInputElement).checked)} /> Autostart</label>
+				</div>` : nothing}
 				<div class="ide-tb-group ide-tb-right">
-					<button title="Alle Force-Werte aufheben" ?disabled=${this.sim.forces.size === 0} @click=${() => this.sim.unforceAll()}>⊘ Forces (${this.sim.forces.size})</button>
+					<button title="Alle Force-Werte aufheben" ?disabled=${this.dev.forces.size === 0} @click=${() => this.dev.unforceAll()}>⊘ Forces (${this.dev.forces.size})</button>
 				</div>
 			</div>`;
 	}
@@ -373,7 +408,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			<button class="ide-node ${this.view === view ? "ide-node-active" : ""}" @click=${() => (this.view = view)}>
 				<span class="ide-node-icon">${icon}</span><span>${label}</span>${sub ? html`<span class="ide-node-sub">${sub}</span>` : nothing}
 			</button>`;
-		const s = this.sim.state;
+		const s = this.dev.state;
 		return html`
 			<nav class="ide-tree" aria-label="Projekt">
 				<div class="ide-tree-head">
@@ -383,10 +418,10 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 							saveProject(this.project);
 						}} />
 				</div>
-				<div class="ide-tree-device"><span class="ide-dot ide-dot-${s.toLowerCase()}"></span> Simulator <span class="ide-node-sub">${s}</span></div>
+				<div class="ide-tree-device"><span class="ide-dot ide-dot-${this.dev.connected ? s.toLowerCase() : "offline"}"></span> ${this.dev.label} <span class="ide-node-sub">${this.dev.connected ? s : "offline"}</span></div>
 				<div class="ide-tree-group">Applikation</div>
 				${node("prg", "📄", this.prg.name, "PRG · ST")}
-				<div class="ide-node ide-node-static" title="Ein zyklischer Task; mehrere Tasks: P7"><span class="ide-node-icon">⏱</span><span>MainTask</span><span class="ide-node-sub">${this.sim.cycleMs} ms</span></div>
+				<div class="ide-node ide-node-static" title="Ein zyklischer Task; mehrere Tasks: P7"><span class="ide-node-icon">⏱</span><span>MainTask</span><span class="ide-node-sub">${this.dev.cycleMs} ms</span></div>
 				<button class="ide-node ide-add" disabled title=${P4}>＋ Objekt hinzufügen…</button>
 				<div class="ide-tree-group">Gerät</div>
 				${node("io", "🔌", "I/O-Abbild", `${IO_VARS.length} Variablen`)}
@@ -473,7 +508,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				@change=${(e: Event) => {
 					const v = parseValue(type, (e.target as HTMLInputElement).value);
 					if (v === null) this.flash(`kein gültiger Wert für ${typeName(type)}`);
-					else this.sim.write(name, v);
+					else this.dev.write(name, v);
 				}} />`;
 		let region = "";
 		return html`
@@ -485,18 +520,18 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<tbody>
 						${IO_VARS.map((v) => {
 							const head = v.region !== region ? ((region = v.region), html`<tr class="ide-io-region"><td colspan="7">${v.region}</td></tr>`) : nothing;
-							const s = online ? this.sim.debug!.resolve(v.name) : null;
-							const value = s ? this.sim.read(v.name).value : null;
+							const s = online ? this.dev.debug!.resolve(v.name) : null;
+							const value = s ? this.dev.read(v.name).value : null;
 							const text = s ? formatValue(s.type, value) : "";
-							const forced = this.sim.forces.has(v.name.toUpperCase());
+							const forced = this.dev.forces.has(v.name.toUpperCase());
 							return html`${head}<tr class=${forced ? "ide-forced" : ""}>
 								<td class="ide-mono">${v.name}</td>
 								<td class="ide-mono">${v.address}</td>
 								<td class="ide-mono">${v.type}</td>
 								<td>${v.direction === "input" ? "Eingang" : "Ausgang"}</td>
 								<td class="ide-value">${online && v.direction === "input" && s ? input(v.name, s.type, text) : text}</td>
-								<td>${s ? html`<input type="checkbox" .checked=${forced} title="Wert festhalten (forcen)"
-									@change=${(e: Event) => this.sim.force(v.name, (e.target as HTMLInputElement).checked ? (value as Value) : null)} />` : nothing}</td>
+								<td>${s ? html`<input type="checkbox" .checked=${forced} ?disabled=${!this.dev.canForce} title=${this.dev.canForce ? "Wert festhalten (forcen)" : "Forcen auf dem FCU: P3"}
+									@change=${(e: Event) => this.dev.force(v.name, (e.target as HTMLInputElement).checked ? (value as Value) : null)} />` : nothing}</td>
 								<td class="ide-desc">${v.description}${v.unit ? html` <span class="ide-node-sub">[${v.unit}]</span>` : nothing}</td>
 							</tr>`;
 						})}
@@ -529,7 +564,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		const tab = (p: Panel, label: string, badge = "") => html`
 			<button class="ide-ptab ${this.panel === p ? "on" : ""}" @click=${() => (this.panel = p)}>${label}${badge ? html` <span class="ide-badge">${badge}</span>` : nothing}</button>`;
 		const located = this.lastBuild?.located ?? [];
-		const errors = located.filter((l) => l.diagnostic.severity === "error").length + (this.sim.error ? 1 : 0);
+		const errors = located.filter((l) => l.diagnostic.severity === "error").length + (this.dev.error ? 1 : 0);
 		return html`
 			<section class="ide-panel">
 				<div class="ide-ptabs">
@@ -546,7 +581,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 
 	private renderMessages(located: Located[]) {
 		const where = (l: Located) => (l.part === "decl" ? "Deklaration" : l.part === "body" ? "Implementierung" : l.part === "io" ? "I/O" : l.diagnostic.span.start.file);
-		const err = this.sim.error;
+		const err = this.dev.error;
 		if (located.length === 0 && !err) return html`<div class="ide-empty">✔ Keine Meldungen. ${this.lastBuild?.result.ok ? `Image: ${this.lastBuild.result.image!.length} Byte, Daten: ${this.lastBuild.result.debug!.dataSize} Byte.` : ""}</div>`;
 		return html`<ul class="ide-messages">
 			${err ? html`<li class="ide-msg ide-msg-runtime" @click=${() => {
@@ -580,9 +615,9 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<tbody>
 						${this.watch.map((expr) => {
 							const path = this.watchPath(expr);
-							const s = online ? this.sim.debug!.resolve(path) : null;
-							const value = s ? this.sim.read(path).value : null;
-							const forced = this.sim.forces.has(path.toUpperCase());
+							const s = online ? this.dev.debug!.resolve(path) : null;
+							const value = s ? this.dev.read(path).value : null;
+							const forced = this.dev.forces.has(path.toUpperCase());
 							return html`<tr class=${forced ? "ide-forced" : ""}>
 								<td class="ide-mono">${expr}</td>
 								<td class="ide-mono">${s ? typeName(s.type) : online ? html`<span class="ide-bad">unbekannt</span>` : ""}</td>
@@ -596,7 +631,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 										this.prepared = m;
 									}} /></td>
 								<td>
-									${forced ? html`<button class="ide-icon-btn" title="Force aufheben" @click=${() => this.sim.force(path, null)}>⊘</button>` : nothing}
+									${forced ? html`<button class="ide-icon-btn" title="Force aufheben" @click=${() => this.dev.force(path, null)}>⊘</button>` : nothing}
 									<button class="ide-icon-btn" title="Aus der Liste entfernen" @click=${() => {
 										this.watch = this.watch.filter((x) => x !== expr);
 										this.saveWatch();
@@ -610,15 +645,16 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<input list="ide-paths" placeholder="Variable hinzufügen, z.B. PLC_PRG.Eject.Q" @change=${add} />
 					<datalist id="ide-paths">${this.knownPaths().map((p) => html`<option value=${p}></option>`)}</datalist>
 					<button ?disabled=${!online || this.prepared.size === 0} @click=${() => this.applyPrepared(false)} title="Alle vorbereiteten Werte einmal schreiben (im selben Zyklus)">Werte schreiben</button>
-					<button ?disabled=${!online || this.prepared.size === 0} @click=${() => this.applyPrepared(true)} title="Alle vorbereiteten Werte festhalten">Werte forcen</button>
+					<button ?disabled=${!online || this.prepared.size === 0 || !this.dev.canForce} @click=${() => this.applyPrepared(true)} title=${this.dev.canForce ? "Alle vorbereiteten Werte festhalten" : "Forcen auf dem FCU: P3"}>Werte forcen</button>
 				</div>
 			</div>`;
 	}
 
 	private renderPlant() {
+		if (!this.dev.hasPlant) return html`<div class="ide-hint ide-pad">Das Anlagenmodell gehört zum Simulator. Auf dem FCU arbeitet das Programm mit der echten Anlage.</div>`;
 		const p = this.sim.plant;
 		const st = p.state;
-		const io = (n: string) => (this.online ? this.sim.read(n).value : null);
+		const io = (n: string) => (this.online ? this.dev.read(n).value : null);
 		const lb = [io("Lightbarrier1"), io("Lightbarrier2"), io("Lightbarrier3")].map(Boolean);
 		const valve = Boolean(io("Valve1"));
 		const pwm = Number(io("ConveyorPwm") ?? 0);
@@ -626,7 +662,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		return html`
 			<div class="ide-plant">
 				<svg viewBox="0 0 600 120" class="ide-plant-svg" role="img" aria-label="Förderband mit Lichtschranken">
-					<rect x="20" y="60" width="560" height="14" rx="7" class="belt ${pwm > 0 && this.sim.state === "RUN" ? "belt-on" : ""}" />
+					<rect x="20" y="60" width="560" height="14" rx="7" class="belt ${pwm > 0 && this.dev.state === "RUN" ? "belt-on" : ""}" />
 					${[30, 70, 96].map((pos, i) => svg`
 						<line x1=${x(pos)} y1="20" x2=${x(pos)} y2="58" class="beam ${lb[i] ? "beam-on" : ""}" />
 						<text x=${x(pos)} y="14" class="lbl">LS${i + 1}</text>`)}
@@ -646,7 +682,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	private renderLog() {
-		const lines = this.sim.log.slice(-200).reverse();
+		const lines = this.dev.log.slice(-200).reverse();
 		return html`<ul class="ide-log">
 			${lines.length === 0 ? html`<li class="ide-empty">Noch keine Einträge.</li>` : nothing}
 			${lines.map((l) => html`<li class="ide-log-${l.level}"><span class="ide-mono">${l.time.toLocaleTimeString()}</span> ${l.text}</li>`)}
@@ -654,17 +690,18 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	private renderStatus() {
-		const s = this.sim.state;
+		const s = this.dev.state;
 		return html`
 			<footer class="ide-status">
-				<span><span class="ide-dot ide-dot-${this.online ? "run" : "no_program"}"></span>${this.online ? "online" : "offline"} · Simulator</span>
+				<span><span class="ide-dot ide-dot-${this.online ? "run" : "no_program"}"></span>${this.online ? "online" : this.dev.connected ? "keine Werte" : "offline"} · ${this.dev.label}</span>
 				<span class="ide-state ide-state-${s.toLowerCase()}">${s}</span>
-				<span>Quelle der Ausgänge: <b>IEC 61131</b></span>
-				<span>Zyklus ${this.sim.cycleMs} ms · ${this.sim.cycles} Zyklen</span>
-				<span title="ausgeführte Befehle der VM pro Zyklus (Budget 2 000 000)">Befehle ${this.sim.lastInstructions} (max ${this.sim.maxInstructions})</span>
+				<span>Quelle der Ausgänge: <b>${this.dev.iec ? "IEC 61131" : "Feldbus"}</b></span>
+				${this.dev.storeProblem ? html`<span class="ide-warn" title=${this.dev.storeProblem}>⚠ Laden gesperrt</span>` : nothing}
+				<span>Zyklus ${this.dev.cycleMs} ms · ${this.dev.cycles} Zyklen</span>
+				<span title="ausgeführte Befehle der VM pro Zyklus (Budget 2 000 000)">Befehle ${this.dev.lastInstructions} (max ${this.dev.maxInstructions})</span>
 				${this.stale ? html`<span class="ide-warn">⚠ Projekt ≠ Gerät</span>` : nothing}
-				${this.sim.forces.size ? html`<span class="ide-warn">${this.sim.forces.size} geforct</span>` : nothing}
-				<span class="ide-status-right">Mockup · SPS-Laufzeit auf dem FCU: P2</span>
+				${this.dev.forces.size ? html`<span class="ide-warn">${this.dev.forces.size} geforct</span>` : nothing}
+				<span class="ide-status-right">${this.dev.kind === "fcu" && this.dev.connected && this.dev.projectHash !== 0 && !this.dev.debug ? "Programm auf dem FCU stammt nicht aus diesem Browser: keine Online-Werte" : ""}</span>
 			</footer>`;
 	}
 }

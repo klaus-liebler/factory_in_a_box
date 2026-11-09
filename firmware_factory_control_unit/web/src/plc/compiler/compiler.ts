@@ -2046,7 +2046,7 @@ class Compiler {
 			t.ioCount = io.length;
 		}
 		if (this.diag.hasErrors) return this.result(null, null);
-		const projectHash = crc32Text(sources.map((s) => `${s.file}\n${s.text}`).join("\n\0"));
+		const projectHash = projectHashOf(sources);
 		const contents: ImageContents = {
 			code, dataSize, init, tasks, io, natives: [...this.natives].sort((a, b) => a - b),
 			ioMapHash: this.options.ioMapHash ?? 0, projectHash, compilerVersion: COMPILER_VERSION,
@@ -2177,6 +2177,11 @@ function binaryOp(op: A.BinaryOp, e: ElemName): Op {
 		case "XOR": return by(Op.XOR_I32, Op.XOR_I64, null, null);
 		default: throw new Error(`internal: operator ${op}`);
 	}
+}
+
+/** The project hash in the image's header: CRC-32 over the sources (links the image to the IDE's project). */
+export function projectHashOf(sources: SourceUnit[]): number {
+	return crc32Text(sources.map((s) => `${s.file}\n${s.text}`).join("\n\0"));
 }
 
 function crc32Text(s: string): number {

@@ -823,3 +823,26 @@ plc-st-editor {
 		display: none;
 	}
 }
+
+/* ---- device (FCU): control source, autostart, offline --------------------------------------- */
+.ide-tb-label {
+	font-size: 12px;
+	color: var(--ui-color-text-muted);
+}
+.ide-tb-check {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 13px;
+	margin-left: 4px;
+}
+.ide-tb-group .ide-seg {
+	margin-left: 0;
+}
+.ide-dot-offline {
+	background: #9ca3af;
+	box-shadow: 0 0 0 2px #e5e7eb;
+}
+.ide-pad {
+	padding: 10px 12px;
+}

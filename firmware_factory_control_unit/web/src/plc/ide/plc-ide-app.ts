@@ -19,7 +19,10 @@ import type { Symbol } from "../compiler/compiler.ts";
 import type * as A from "../compiler/ast.ts";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
 import { IO_VARS, ioBindings, ioMapHash, ioSource } from "./io-list.ts";
-import { build, deviceSources, exampleProject, loadProject, parseProject, projectHash, saveProject, type Build, type Located, type Project } from "./project.ts";
+import {
+	addObject, build, declLines, deviceSources, exampleProject, hasBody, headerName, KIND_NAMES, loadProject, nameProblem, OBJECT_KINDS,
+	parseProject, partLine, projectHash, removeObject, renameObject, saveProject, type Build, type Located, type ObjectKind, type PlcObject, type Project,
+} from "./project.ts";
 import { exampleFbd, fbdSource, type FbdPou, type FbdProblem } from "./fbd.ts";
 import { exampleSfc, sfcSource, type SfcPou, type SfcProblem } from "./sfc.ts";
 import { Simulator } from "./simulator.ts";
@@ -64,7 +67,15 @@ type Panel = "messages" | "watch" | "log" | "plant" | "stack";
 
 const WATCH_KEY = "fcu.plc.watch";
 const P2 = "kommt mit P2 (Laufzeit auf dem FCU)";
-const P4 = "Weitere POUs (FB, FUN, DUT, GVL) kommen mit P4";
+const KIND_ICONS: Record<ObjectKind, string> = { PRG: "📄", FB: "🧩", FUN: "ƒ", DUT: "🧱", GVL: "🌐" };
+const NAME_PREFIX: Record<ObjectKind, string> = { PRG: "PRG_", FB: "FB_", FUN: "FUN_", DUT: "ST_", GVL: "GVL_" };
+
+/** The "add object" form. */
+interface AddForm {
+	kind: ObjectKind;
+	name: string;
+	returnType: string;
+}
 
 interface StdBlock {
 	name: string;
@@ -86,8 +97,13 @@ function stdBlocks(): StdBlock[] {
 export class PlcIdeApp extends LitElement implements DashboardApp {
 	@state() private project: Project = loadProject();
 	@state() private lastBuild: Build | null = null;
-	/** Breakpoints: lines of the implementation (body editor), sent to the device as compiled lines. */
-	@state() private breakpointLines = new Set<number>();
+	/** The object in the editor (its id). */
+	@state() private selectedId = "";
+	/** Breakpoints per object (id): lines of its implementation, sent to the device as compiled lines of its file. */
+	@state() private breakpoints = new Map<string, Set<number>>();
+	/** Online values of a function block: the instance shown, per FB (id). */
+	@state() private instances = new Map<string, string>();
+	@state() private adding: AddForm | null = null;
 	@state() private view: View = "prg";
 	@state() private declMode: "table" | "text" = "table";
 	@state() private panel: Panel = "messages";
@@ -120,6 +136,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		if (this.watch.length === 0) this.watch = ["PLC_PRG.Pieces.CV", "PLC_PRG.Ejected", "ConveyorPwm", "Lightbarrier2"];
 		this.sim.addEventListener("update", () => this.tick++);
 		this.fcu.addEventListener("update", () => this.tick++);
+		this.selectedId = this.firstProgram().id;
 		this.lastBuild = build(this.project);
 		this.fcu.attach(this.lastBuild.result);
 		// a link to a view: /plc?view=fbd
@@ -172,6 +189,14 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	protected willUpdate(): void {
 		const h = this.dev.state === "HALTED" ? this.dev.halt : null;
 		if (h && h !== this.lastHalt && this.lastHalt === null) this.panel = "stack";
+		if (h && h !== this.lastHalt) {
+			// the halted statement's object comes into the editor
+			const o = this.objectOfFile(h.frames[0]?.file);
+			if (o && hasBody(o.kind)) {
+				this.selectedId = o.id;
+				this.view = "prg";
+			}
+		}
 		this.lastHalt = h;
 	}
 
@@ -183,13 +208,38 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	// ---- project ------------------------------------------------------------------------------------
-	private get prg() {
-		return this.project.objects[0];
+	private firstProgram(): PlcObject {
+		return this.project.objects.find((o) => o.kind === "PRG") ?? this.project.objects[0];
+	}
+
+	/** The object in the editor. */
+	private get obj(): PlcObject {
+		return this.project.objects.find((o) => o.id === this.selectedId) ?? this.firstProgram();
+	}
+
+	private objectOfFile(file: string | null | undefined): PlcObject | undefined {
+		return file ? this.project.objects.find((o) => o.name === file) : undefined;
+	}
+
+	private setProject(p: Project): void {
+		this.project = p;
+		saveProject(p);
+		if (!p.objects.some((o) => o.id === this.selectedId)) this.selectedId = this.firstProgram().id;
 	}
 
 	private edit(change: Partial<{ decl: string; body: string }>): void {
-		this.project = { ...this.project, objects: [{ ...this.prg, ...change }] };
-		saveProject(this.project);
+		const o = this.obj;
+		let next: PlcObject = { ...o, ...change };
+		let tasks = this.project.tasks;
+		// a new name in the header renames the object (references stay: "Umbenennen" changes them too)
+		const h = change.decl !== undefined ? headerName(next) : null;
+		if (h && h !== o.name && nameProblem(this.project, h, o.id) === null) {
+			const up = o.name.toUpperCase();
+			tasks = tasks.map((t) => ({ ...t, programs: t.programs.map((n) => (n.toUpperCase() === up ? h : n)) }));
+			this.dev.setBreakpoints(o.name, []);
+			next = { ...next, name: h };
+		}
+		this.setProject({ ...this.project, objects: this.project.objects.map((x) => (x.id === o.id ? next : x)), tasks });
 		// diagnostics while typing (debounced)
 		if (this.buildTimer) clearTimeout(this.buildTimer);
 		this.buildTimer = setTimeout(() => this.doBuild(false), 300);
@@ -211,6 +261,66 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	/** The device runs another state of the project than the editor shows. */
 	private get stale(): boolean {
 		return this.dev.projectHash !== 0 && this.dev.projectHash !== projectHash(this.project);
+	}
+
+	// ---- objects: add, rename, remove -------------------------------------------------------------------
+	private openAdd(): void {
+		const kind: ObjectKind = "FB";
+		this.adding = { kind, name: this.freeObjectName(kind), returnType: "INT" };
+	}
+
+	private freeObjectName(kind: ObjectKind): string {
+		for (let i = 1; ; i++) {
+			const n = `${NAME_PREFIX[kind]}${i}`;
+			if (nameProblem(this.project, n) === null) return n;
+		}
+	}
+
+	private confirmAdd(): void {
+		const a = this.adding;
+		if (!a) return;
+		const problem = nameProblem(this.project, a.name.trim());
+		if (problem) {
+			this.flash(`'${a.name}': ${problem}`);
+			return;
+		}
+		const { project, object } = addObject(this.project, a.kind, a.name.trim(), a.returnType.trim() || "INT");
+		this.setProject(project);
+		this.selectedId = object.id;
+		this.view = "prg";
+		this.adding = null;
+		this.doBuild(false);
+	}
+
+	private renameSelected(): void {
+		const o = this.obj;
+		const to = prompt(`Neuer Name für ${KIND_NAMES[o.kind]} ${o.name} (alle Verweise im Projekt werden angepasst):`, o.name)?.trim();
+		if (!to || to === o.name) return;
+		const problem = nameProblem(this.project, to, o.id);
+		if (problem) {
+			this.flash(`'${to}': ${problem}`);
+			return;
+		}
+		this.dev.setBreakpoints(o.name, []);
+		this.setProject(renameObject(this.project, o.id, to));
+		this.doBuild(false);
+		this.sendBreakpoints();
+		this.flash(`${o.name} heißt jetzt ${to}`);
+	}
+
+	private removeSelected(): void {
+		const o = this.obj;
+		if (this.project.objects.length === 1) {
+			this.flash("Das letzte Objekt des Projekts bleibt");
+			return;
+		}
+		if (!confirm(`${KIND_NAMES[o.kind]} ${o.name} aus dem Projekt löschen?`)) return;
+		this.dev.setBreakpoints(o.name, []);
+		const bps = new Map(this.breakpoints);
+		bps.delete(o.id);
+		this.breakpoints = bps;
+		this.setProject(removeObject(this.project, o.id));
+		this.doBuild(false);
 	}
 
 	private async download(start: boolean): Promise<void> {
@@ -238,11 +348,12 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	/** Body lines that can take a breakpoint (a statement begins there), from the last build. */
 	private get breakableBody(): Set<number> | null {
 		const b = this.lastBuild;
-		if (!this.dev.canDebug || !b?.result.debug) return null;
-		const file = this.project.objects[0].name;
+		const o = this.obj;
+		if (!this.dev.canDebug || !b?.result.debug || !hasBody(o.kind)) return null;
+		const d = declLines(o);
 		const out = new Set<number>();
 		for (const s of b.result.debug.statements) {
-			if (s.span.start.file === file && s.span.start.line > b.declLines) out.add(s.span.start.line - b.declLines);
+			if (s.span.start.file === o.name && s.span.start.line > d) out.add(s.span.start.line - d);
 		}
 		return out;
 	}
@@ -250,34 +361,49 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	/** The body line the program halted on (0: not halted there). */
 	private get haltedBodyLine(): number {
 		const top = this.dev.state === "HALTED" ? this.dev.halt?.frames[0] : undefined;
-		const b = this.lastBuild;
-		if (!top || !b || top.file !== this.project.objects[0].name) return 0;
-		return top.line - b.declLines;
+		const o = this.obj;
+		if (!top || top.file !== o.name) return 0;
+		return top.line - declLines(o);
+	}
+
+	/** The breakpoints of the object in the editor. */
+	private get breakpointLines(): Set<number> {
+		return this.breakpoints.get(this.obj.id) ?? new Set();
+	}
+
+	private get breakpointCount(): number {
+		let n = 0;
+		for (const s of this.breakpoints.values()) n += s.size;
+		return n;
 	}
 
 	private toggleBreakpoint(line: number): void {
 		const next = new Set(this.breakpointLines);
 		const adding = !next.delete(line);
-		if (adding && this.breakpointLines.size === 0 && this.dev.kind === "fcu" && this.dev.iec &&
+		if (adding && this.breakpointCount === 0 && this.dev.kind === "fcu" && this.dev.iec &&
 			!confirm("Haltepunkt auf dem FCU mit Steuerquelle IEC 61131: hält das Programm dort an, behalten die Ausgänge ihren Wert (Ventile, Motoren!), der E/A-Zyklus läuft weiter. Setzen?")) {
 			return;
 		}
 		if (adding) next.add(line);
-		this.breakpointLines = next;
+		this.breakpoints = new Map(this.breakpoints).set(this.obj.id, next);
 		this.sendBreakpoints();
 	}
 
 	private clearBreakpoints(): void {
-		this.breakpointLines = new Set();
+		this.breakpoints = new Map();
 		this.sendBreakpoints();
 	}
 
 	private sendBreakpoints(): void {
-		const b = this.lastBuild;
-		if (!b || !this.dev.canDebug) return;
-		const offset = b.declLines;
-		const set = this.dev.setBreakpoints(this.project.objects[0].name, [...this.breakpointLines].map((l) => l + offset));
-		this.breakpointLines = new Set(set.map((l) => l - offset));  // lines without a statement drop out
+		if (!this.lastBuild || !this.dev.canDebug) return;
+		const next = new Map<string, Set<number>>();
+		for (const o of this.project.objects) {
+			if (!hasBody(o.kind)) continue;
+			const offset = declLines(o);
+			const set = this.dev.setBreakpoints(o.name, [...(this.breakpoints.get(o.id) ?? [])].map((l) => l + offset));
+			if (set.length) next.set(o.id, new Set(set.map((l) => l - offset)));  // lines without a statement drop out
+		}
+		this.breakpoints = next;
 	}
 
 	private exportProject(): void {
@@ -298,8 +424,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			if (!f) return;
 			try {
 				const p = parseProject(await f.text());
-				this.project = p;
-				saveProject(p);
+				this.setProject(p);
 				this.doBuild(true);
 			} catch (e) {
 				this.flash(`Import fehlgeschlagen: ${(e as Error).message}`);
@@ -323,8 +448,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		}
 		try {
 			const p = parseProject(text);
-			this.project = p;
-			saveProject(p);
+			this.setProject(p);
 			this.doBuild(true);
 			const same = dev.projectHash !== 0 && dev.projectHash === projectHash(p);
 			this.flash(same ? "Projekt vom Gerät geladen - es passt zum Programm auf dem Gerät"
@@ -336,8 +460,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 
 	private resetToExample(): void {
 		if (!confirm("Das Beispielprojekt laden? Das aktuelle Projekt im Browser wird ersetzt.")) return;
-		this.project = exampleProject();
-		saveProject(this.project);
+		this.setProject(exampleProject());
 		this.doBuild(true);
 	}
 
@@ -346,10 +469,46 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		return this.dev.state !== "NO_PROGRAM" && this.dev.debug !== null;
 	}
 
+	/** Where the variables of the object in the editor live: a program its instance, a function block the
+	 *  chosen instance; null: no instance (functions, types, global lists: globals only). */
+	private get scope(): string | null {
+		const o = this.obj;
+		if (o.kind === "PRG") return o.name;
+		if (o.kind !== "FB") return null;
+		const all = this.instancesOf(o);
+		const chosen = this.instances.get(o.id);
+		return chosen && all.includes(chosen) ? chosen : (all[0] ?? null);
+	}
+
+	/** The instance paths of a function block in the program on the device (programs, their FBs, nested). */
+	private instancesOf(fb: PlcObject): string[] {
+		const d = this.dev.debug;
+		if (!d) return [];
+		const key = fb.name.toUpperCase();
+		const out: string[] = [];
+		const walk = (prefix: string, t: Type, depth: number) => {
+			if (t.k !== "fb" || depth > 4) return;
+			for (const f of t.layout.fields) {
+				if (f.type.k !== "fb") continue;
+				const path = `${prefix}.${f.name}`;
+				if (f.type.layout.key === key) out.push(path);
+				walk(path, f.type, depth + 1);
+			}
+		};
+		for (const [k, s] of d.symbols) {
+			if (s.type.k !== "fb") continue;
+			const name = this.project.objects.find((o) => o.name.toUpperCase() === k)?.name ?? k;
+			if (s.type.layout.key === key) out.push(name);
+			walk(name, s.type, 0);
+		}
+		return out;
+	}
+
 	private resolve(name: string): Symbol | null {
 		const d = this.dev.debug;
 		if (!d) return null;
-		return d.resolve(`${this.prg.name}.${name}`) ?? d.resolve(name);
+		const scope = this.scope;
+		return (scope ? d.resolve(`${scope}.${name}`) : null) ?? d.resolve(name);
 	}
 
 	private varValue(name: string): { text: string; type: Type } | null {
@@ -398,20 +557,21 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	private markers(part: "decl" | "body"): LineMarker[] {
-		const ms: LineMarker[] = (this.lastBuild?.located ?? []).filter((l) => l.part === part).map((l) => ({
+		const o = this.obj;
+		const ms: LineMarker[] = (this.lastBuild?.located ?? []).filter((l) => l.object === o.id && l.part === part).map((l) => ({
 			line: l.line, severity: l.diagnostic.severity, message: l.diagnostic.message,
 		}));
 		const err = this.dev.error;
-		if (err?.line && this.lastBuild) {
-			const declLines = this.lastBuild.declLines;
-			const inBody = err.line > declLines;
-			if ((part === "body") === inBody) ms.push({ line: inBody ? err.line - declLines : err.line, severity: "runtime", message: `Laufzeitfehler ${err.trap}` });
+		if (err?.line && err.file === o.name) {
+			const at = partLine(o, err.line);
+			if (at.part === part) ms.push({ line: at.line, severity: "runtime", message: `Laufzeitfehler ${err.trap}` });
 		}
 		return ms;
 	}
 
-	private reveal(l: Located): void {
+	private reveal(l: Pick<Located, "object" | "part" | "line" | "col">): void {
 		if (l.part === "decl" || l.part === "body") {
+			if (l.object) this.selectedId = l.object;
 			this.view = "prg";
 			if (l.part === "decl") this.declMode = "text";
 			void this.updateComplete.then(() => (l.part === "decl" ? this.declEditor : this.bodyEditor)?.reveal(l.line, l.col));
@@ -431,7 +591,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		const d = this.dev.debug;
 		if (!d) return expr;
 		if (d.resolve(expr)) return expr;
-		return `${this.prg.name}.${expr}`;
+		return `${this.scope ?? this.firstProgram().name}.${expr}`;
 	}
 
 	private applyPrepared(force: boolean): void {
@@ -467,7 +627,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			for (const f of fields) walk(`${prefix}.${f.name}`, f.type, depth + 1);
 		};
 		for (const [k, s] of d.symbols) {
-			if (s.type.k === "fb") walk(this.prg.name.toUpperCase() === k ? this.prg.name : k, s.type, 0);
+			if (s.type.k === "fb") walk(this.project.objects.find((o) => o.name.toUpperCase() === k)?.name ?? k, s.type, 0);
 			else out.push(IO_VARS.find((v) => v.name.toUpperCase() === k)?.name ?? k);
 		}
 		return out;
@@ -519,7 +679,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<button title="Prozedurschritt (F10): die nächste Anweisung, Aufrufe laufen durch" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("over")}>⤼</button>
 					<button title="Einzelschritt (F11): in den Aufruf hinein" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("into")}>⤵</button>
 					<button title="Ausführen bis Rücksprung (Umschalt+F11)" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("out")}>⤴</button>
-					<button title="Alle Haltepunkte entfernen" ?disabled=${this.breakpointLines.size === 0} @click=${() => this.clearBreakpoints()}>○ Haltepunkte (${this.breakpointLines.size})</button>
+					<button title="Alle Haltepunkte entfernen" ?disabled=${this.breakpointCount === 0} @click=${() => this.clearBreakpoints()}>○ Haltepunkte (${this.breakpointCount})</button>
 				</div>
 				${this.dev.hasControlSource ? html`
 				<div class="ide-tb-group" title="Wer schaltet die Ausgänge des FCU? Feldbus: Modbus, OPC UA, Web-UI. IEC 61131: das Programm (externe Schreibzugriffe werden abgewiesen).">
@@ -667,9 +827,16 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				</div>
 				<div class="ide-tree-device"><span class="ide-dot ide-dot-${this.dev.connected ? s.toLowerCase() : "offline"}"></span> ${this.dev.label} <span class="ide-node-sub">${this.dev.connected ? s : "offline"}</span></div>
 				<div class="ide-tree-group">Applikation</div>
-				${node("prg", "📄", this.prg.name, "PRG · ST")}
-				<div class="ide-node ide-node-static" title="Ein zyklischer Task; mehrere Tasks: P7"><span class="ide-node-icon">⏱</span><span>MainTask</span><span class="ide-node-sub">${this.dev.cycleMs} ms</span></div>
-				<button class="ide-node ide-add" disabled title=${P4}>＋ Objekt hinzufügen…</button>
+					${this.project.objects.map((o) => html`
+						<button class="ide-node ${this.view === "prg" && o.id === this.obj.id ? "ide-node-active" : ""}" title=${KIND_NAMES[o.kind]}
+							@click=${() => {
+								this.selectedId = o.id;
+								this.view = "prg";
+							}}>
+							<span class="ide-node-icon">${KIND_ICONS[o.kind]}</span><span>${o.name}</span><span class="ide-node-sub">${hasBody(o.kind) ? `${o.kind} · ST` : o.kind}</span>
+						</button>`)}
+					<div class="ide-node ide-node-static" title=${`Ein zyklischer Task (mehrere Tasks: P7); er ruft die Programme in dieser Reihenfolge: ${this.project.tasks[0]?.programs.join(", ")}`}><span class="ide-node-icon">⏱</span><span>MainTask</span><span class="ide-node-sub">${this.dev.cycleMs} ms</span></div>
+					${this.adding ? this.renderAdd(this.adding) : html`<button class="ide-node ide-add" @click=${() => this.openAdd()}>＋ Objekt hinzufügen…</button>`}
 				<div class="ide-tree-group" title="Grafische Editoren als Vorschau (P5/P6): je ein eigenes Programm, als POU im Projekt mit P4">Vorschau</div>
 				${node("fbd", "🔲", this.fbd.name, "PRG · FBD")}
 				${node("sfc", "⛓", this.sfc.name, "PRG · SFC")}
@@ -687,10 +854,58 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			</nav>`;
 	}
 
-	private renderPrg() {
-		const o = this.prg;
+	private renderAdd(a: AddForm) {
+		const problem = nameProblem(this.project, a.name.trim());
 		return html`
-			<div class="ide-tabs"><span class="ide-tab ide-tab-active">${o.name}${this.stale ? html` <span class="ide-modified" title="geändert seit dem Laden">●</span>` : nothing}</span></div>
+			<form class="ide-add-form" @submit=${(e: Event) => {
+				e.preventDefault();
+				this.confirmAdd();
+			}}>
+				<label>Art
+					<select @change=${(e: Event) => {
+						const kind = (e.target as HTMLSelectElement).value as ObjectKind;
+						const auto = a.name === this.freeObjectName(a.kind);
+						this.adding = { ...a, kind, name: auto ? this.freeObjectName(kind) : a.name };
+					}}>
+						${OBJECT_KINDS.map((k) => html`<option value=${k} ?selected=${k === a.kind}>${KIND_NAMES[k]} (${k})</option>`)}
+					</select>
+				</label>
+				<label>Name
+					<input .value=${a.name} spellcheck="false" class=${problem ? "ide-bad-input" : ""} title=${problem ?? ""}
+						@input=${(e: Event) => (this.adding = { ...a, name: (e.target as HTMLInputElement).value })} />
+				</label>
+				${a.kind === "FUN" ? html`<label>Rückgabetyp
+					<input .value=${a.returnType} spellcheck="false" @input=${(e: Event) => (this.adding = { ...a, returnType: (e.target as HTMLInputElement).value })} />
+				</label>` : nothing}
+				${problem ? html`<span class="ide-bad">${problem}</span>` : nothing}
+				<div class="ide-add-actions">
+					<button type="submit" class="ide-primary" ?disabled=${problem !== null}>Hinzufügen</button>
+					<button type="button" @click=${() => (this.adding = null)}>Abbrechen</button>
+				</div>
+			</form>`;
+	}
+
+	private renderPrg() {
+		const o = this.obj;
+		const body = hasBody(o.kind);
+		const instances = o.kind === "FB" && this.online ? this.instancesOf(o) : [];
+		return html`
+			<div class="ide-tabs">
+				<span class="ide-tab ide-tab-active">${KIND_ICONS[o.kind]} ${o.name} <span class="ide-node-sub">${KIND_NAMES[o.kind]}</span>${this.stale ? html` <span class="ide-modified" title="geändert seit dem Laden">●</span>` : nothing}</span>
+				<span class="ide-tab-actions">
+					<button class="ide-icon-btn" title="Umbenennen (alle Verweise im Projekt werden angepasst)" @click=${() => this.renameSelected()}>✎ Umbenennen</button>
+					<button class="ide-icon-btn" title="Aus dem Projekt löschen" @click=${() => this.removeSelected()}>🗑 Löschen</button>
+				</span>
+			</div>
+			${body ? nothing : html`
+			<div class="ide-pou ide-pou-decl-only">
+				<div class="ide-decl">
+					<div class="ide-part-head"><span>${o.kind === "DUT" ? "Datentyp (TYPE … END_TYPE)" : "Globale Variablen (VAR_GLOBAL … END_VAR)"}</span></div>
+					<plc-st-editor id="decl-editor" .value=${o.decl} .markers=${this.markers("decl")} .minLines=${12}
+						@change=${(e: CustomEvent<string>) => this.edit({ decl: e.detail })}></plc-st-editor>
+				</div>
+			</div>`}
+			${!body ? nothing : html`
 			<div class="ide-pou">
 				<div class="ide-decl">
 					<div class="ide-part-head">
@@ -707,18 +922,24 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<div class="ide-impl">
 					<div class="ide-part-head">
 						<span>Implementierung (ST)</span>
-						${this.online ? html`<span class="ide-online ${this.stale ? "ide-online-stale" : ""}">${this.stale ? "Werte des geladenen Programms - Projekt geändert" : "online: Werte"}</span>` : nothing}
+						${instances.length ? html`<label class="ide-instance" title="Die Werte dieser Instanz anzeigen">Instanz
+							<select @change=${(e: Event) => (this.instances = new Map(this.instances).set(o.id, (e.target as HTMLSelectElement).value))}>
+								${instances.map((i) => html`<option ?selected=${i === this.scope}>${i}</option>`)}
+							</select></label>` : nothing}
+						${o.kind === "FB" && this.online && !instances.length ? html`<span class="ide-node-sub">keine Instanz im geladenen Programm</span>` : nothing}
+						${o.kind === "FUN" && this.online ? html`<span class="ide-node-sub">Funktionen: keine Online-Werte (lokale Variablen nur während des Aufrufs)</span>` : nothing}
+						${this.online && this.scope ? html`<span class="ide-online ${this.stale ? "ide-online-stale" : ""}">${this.stale ? "Werte des geladenen Programms - Projekt geändert" : "online: Werte"}</span>` : nothing}
 					</div>
 					<plc-st-editor id="body-editor" .value=${o.body} .markers=${this.markers("body")} .inline=${this.inlineValues(o.body)} .stale=${this.stale} .minLines=${12}
 						.breakpoints=${this.breakpointLines} .breakable=${this.breakableBody} .current=${this.haltedBodyLine}
 						@toggle-breakpoint=${(e: CustomEvent<number>) => this.toggleBreakpoint(e.detail)}
 						@change=${(e: CustomEvent<string>) => this.edit({ body: e.detail })}></plc-st-editor>
 				</div>
-			</div>`;
+			</div>`}`;
 	}
 
 	private renderDeclTable() {
-		const decl = this.prg.decl;
+		const decl = this.obj.decl;
 		const rows = parseRows(decl);
 		const errorsByLine = new Map<number, string>();
 		for (const m of this.markers("decl")) errorsByLine.set(m.line - 1, m.message);
@@ -733,7 +954,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<tbody>
 						${rows.map((r) => {
 							const err = errorsByLine.get(r.line);
-							const v = this.online ? this.varValue(r.name) : null;
+							const v = this.online && this.scope ? this.varValue(r.name) : null;
 							return html`
 							<tr class=${err ? "ide-row-error" : ""} title=${err ?? nothing}>
 								<td>
@@ -818,19 +1039,22 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	private renderStack() {
 		const h = this.dev.state === "HALTED" ? this.dev.halt : null;
 		if (!h) return html`<p class="ide-empty">Das Programm ist nicht angehalten. Haltepunkt: Klick auf eine Zeilennummer der Implementierung.</p>`;
-		const user = this.project.objects[0].name;
-		const decl = this.lastBuild?.declLines ?? 0;
 		return html`
 			<p class="ide-stack-why">Angehalten: ${h.reason === "breakpoint" ? "Haltepunkt" : "Einzelschritt"} - das Programm wartet auf „Weiter“ oder einen Schritt (es läuft nie von selbst weiter).</p>
 			<table class="ide-table">
 				<thead><tr><th></th><th>POU</th><th>Zeile</th><th>Quelle</th></tr></thead>
-				<tbody>${h.frames.map((f, i) => html`
-					<tr class=${i === 0 ? "ide-stack-top" : ""}>
+				<tbody>${h.frames.map((f, i) => {
+					const o = this.objectOfFile(f.file);
+					const at = o ? partLine(o, f.line) : null;
+					return html`
+					<tr class="${i === 0 ? "ide-stack-top" : ""} ${o ? "ide-stack-link" : ""}" title=${o ? "Im Editor zeigen" : ""}
+						@click=${() => o && at && this.reveal({ object: o.id, part: at.part, line: at.line, col: 1 })}>
 						<td>${i === 0 ? "▶" : ""}</td>
 						<td>${f.pou}</td>
-						<td>${f.file === user ? f.line - decl : f.line}</td>
-						<td>${f.file === user ? "Implementierung" : f.file === "<stdlib>" ? "Standardbibliothek" : f.file === "<fcu>" ? "FCU-Bibliothek" : f.file}</td>
-					</tr>`)}
+						<td>${at ? at.line : f.line}</td>
+						<td>${o ? `${o.name} · ${at!.part === "body" ? "Implementierung" : "Deklaration"}` : f.file === "<stdlib>" ? "Standardbibliothek" : f.file === "<fcu>" ? "FCU-Bibliothek" : f.file}</td>
+					</tr>`;
+				})}
 				</tbody>
 			</table>`;
 	}
@@ -857,18 +1081,22 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	private renderMessages(located: Located[]) {
-		const where = (l: Located) => (l.part === "decl" ? "Deklaration" : l.part === "body" ? "Implementierung" : l.part === "io" ? "I/O" : l.diagnostic.span.start.file);
+		const where = (l: Located) => {
+			const o = this.project.objects.find((x) => x.id === l.object);
+			return l.part === "decl" ? `${o?.name} · Deklaration` : l.part === "body" ? `${o?.name} · Implementierung` : l.part === "io" ? "I/O" : l.diagnostic.span.start.file;
+		};
 		const err = this.dev.error;
+		const errObj = this.objectOfFile(err?.file);
+		const errAt = errObj && err?.line ? partLine(errObj, err.line) : null;
 		if (located.length === 0 && !err) return html`<div class="ide-empty">✔ Keine Meldungen. ${this.lastBuild?.result.ok ? `Image: ${this.lastBuild.result.image!.length} Byte, Daten: ${this.lastBuild.result.debug!.dataSize} Byte.` : ""}</div>`;
 		return html`<ul class="ide-messages">
 			${err ? html`<li class="ide-msg ide-msg-runtime" @click=${() => {
-				const declLines = this.lastBuild?.declLines ?? 0;
-				if (err.line) this.reveal({ part: err.line > declLines ? "body" : "decl", line: err.line > declLines ? err.line - declLines : err.line, col: 1, diagnostic: { severity: "error", message: "", span: { start: { file: "", line: 0, col: 0, offset: 0 }, end: { file: "", line: 0, col: 0, offset: 0 } } } });
-			}}><span class="ide-msg-icon">⛔</span> Laufzeitfehler <b>${err.trap}</b> in ${err.pou}${err.line ? `, Zeile ${err.line - (this.lastBuild?.declLines ?? 0)} der Implementierung` : ""} - die SPS ist in ERROR. Reset setzt die Variablen zurück.</li>` : nothing}
+				if (errObj && errAt) this.reveal({ object: errObj.id, part: errAt.part, line: errAt.line, col: 1 });
+			}}><span class="ide-msg-icon">⛔</span> Laufzeitfehler <b>${err.trap}</b> in ${err.pou}${errAt ? `, Zeile ${errAt.line} der ${errAt.part === "body" ? "Implementierung" : "Deklaration"}` : ""} - die SPS ist in ERROR. Reset setzt die Variablen zurück.</li>` : nothing}
 			${located.map((l) => html`
 				<li class="ide-msg ide-msg-${l.diagnostic.severity}" @click=${() => this.reveal(l)}>
 					<span class="ide-msg-icon">${l.diagnostic.severity === "error" ? "✖" : "⚠"}</span>
-					<span class="ide-msg-loc">${this.prg.name} · ${where(l)} ${l.line}:${l.col}</span>
+					<span class="ide-msg-loc">${where(l)} ${l.line}:${l.col}</span>
 					<span>${l.diagnostic.message}</span>
 				</li>`)}
 		</ul>`;

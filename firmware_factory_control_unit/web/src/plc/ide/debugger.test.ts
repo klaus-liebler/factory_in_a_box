@@ -139,9 +139,9 @@ describe("PLC debugging", () => {
 		const { Simulator } = await import("./simulator.ts");
 		const { build, exampleProject, sourceOf } = await import("./project.ts");
 		const p = exampleProject();
-		const text = sourceOf(p.objects[0]);
+		const text = sourceOf(p.objects.find((o) => o.name === "PLC_PRG")!);
 		const at = (s: string) => text.split("\n").findIndex((l) => l.startsWith(s)) + 1;
-		const gate = at("AtGate(CLK"), ifLine = at("IF Enable AND");
+		const gate = at("Ejector(Arrive"), ifLine = at("Valve1 :=");
 		const sim = new Simulator();
 		const cycle = () => (sim as unknown as { cycle(): void }).cycle();
 		expect(sim.download(build(p).result)).toBe(true);
@@ -169,6 +169,24 @@ describe("PLC debugging", () => {
 		sim.setBreakpoints("PLC_PRG", []);
 		sim.singleCycle();
 		expect(sim.state).toBe("STOP");  // no breakpoint: the cycle runs through
+	});
+
+	it("the simulator: a breakpoint in a function block of the project halts with the caller in the stack (P4)", async () => {
+		const { Simulator } = await import("./simulator.ts");
+		const { build, exampleProject, sourceOf } = await import("./project.ts");
+		const p = exampleProject();
+		const fb = p.objects.find((o) => o.name === "FB_Ejector")!;
+		const prg = sourceOf(p.objects.find((o) => o.name === "PLC_PRG")!).split("\n");
+		const line = sourceOf(fb).split("\n").findIndex((l) => l.startsWith("Valve := Pulse.Q")) + 1;
+		const call = prg.findIndex((l) => l.startsWith("Ejector(Arrive")) + 1;
+		const sim = new Simulator();
+		expect(sim.download(build(p).result)).toBe(true);
+		expect(sim.setBreakpoints("FB_Ejector", [line])).toEqual([line]);
+		sim.singleCycle();
+		expect(sim.state).toBe("HALTED");
+		expect(sim.halt?.frames.map((f) => [f.file, f.line])).toEqual([["FB_Ejector", line], ["PLC_PRG", call]]);
+		sim.step("out");
+		expect(sim.halt?.frames.map((f) => f.file)).toEqual(["PLC_PRG"]);
 	});
 
 	it("without breakpoint or step the VM gets no predicate (full speed)", () => {

@@ -249,7 +249,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 
 	private errorAt(trap: number, code: number, pc: number): PlcError {
 		const st = this.debug ? [...this.debug.statements].filter((s) => s.pc <= pc).sort((a, b) => b.pc - a.pc)[0] : undefined;
-		return { trap: TRAP_NAMES[trap] ?? String(trap), pc, line: st ? st.span.start.line : null, pou: st?.pou ?? "?", code } as PlcError;
+		return { trap: TRAP_NAMES[trap] ?? String(trap), pc, line: st ? st.span.start.line : null, file: st ? st.span.start.file : null, pou: st?.pou ?? "?", code } as PlcError;
 	}
 
 	/** The variables (not the frame areas at the end): up to 4 KB per poll. */

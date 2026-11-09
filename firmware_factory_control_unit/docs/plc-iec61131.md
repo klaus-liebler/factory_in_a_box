@@ -885,6 +885,22 @@ the I/O cycle running on with the outputs kept, the lease against a second brows
 continue to the next cycle's halt, RUN refused, `plc continue`, STOP from HALTED. Open in P3: watch
 subscriptions (`PlcWatch`, instead of polling) - postponed (2026-11-09) in favour of the editors.
 
+**P4 state (2026-11-09, browser only).** The project holds any number of PRG/FB/FUN/DUT/GVL objects
+(`ide/project.ts`), each its own source file for the compiler (file name = object name), so
+diagnostics, breakpoints, runtime errors and call stack frames map to their object. The example is
+split into `GVL` + `FB_Ejector` + `PLC_PRG`. IDE: the tree lists the objects (click: editor), "Objekt
+hinzufügen" (kind, name, the return type of a function; templates per kind), "Umbenennen" changes
+every reference in the project (token-based: identifiers and enum literals `Name#Value`, not comments,
+strings or fields after a '.') and the task configuration, a new name in the header renames the
+object, "Löschen". DUT and GVL have a declaration only. A new PRG joins MainTask, which calls its
+programs in project order. Online: a program shows its instance's values, a function block those of
+the instance chosen in the implementation's head (all instances found in the program's debug
+information, nested ones too), a function none. A halt brings the halted object into the editor.
+Tested: the split example sorts in the simulator, diagnostics per object, add/rename/remove with
+references, renaming leaves comments/strings/fields alone, a breakpoint in the FB halts with the
+caller in the stack and step out returns to it. Open in P4: declaration table for GVLs, folders,
+cross references; FBD/SFC as languages of project objects (P5/P6).
+
 **P5/P6 preview (2026-11-09).** The graphical editors exist as previews: one FBD and one SFC program of
 their own in the project tree ("Vorschau"; as POUs of the project with P4), each translated to ST,
 compiled with the I/O list and the libraries, runnable in the simulator.

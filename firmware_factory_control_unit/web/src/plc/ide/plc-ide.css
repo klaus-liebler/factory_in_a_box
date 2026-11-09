@@ -1456,3 +1456,74 @@ plc-st-editor {
 .fbd-toolbar {
 	align-items: center;
 }
+
+/* ---- P4: several objects in the project ---------------------------------------------------------- */
+.ide-tabs {
+	align-items: flex-end;
+}
+.ide-tab-actions {
+	margin-left: auto;
+	display: flex;
+	gap: 4px;
+	padding-bottom: 4px;
+}
+.ide .ide-tab-actions .ide-icon-btn {
+	font-size: 12px;
+	width: auto;
+	padding: 2px 8px;
+}
+.ide-pou-decl-only .ide-decl {
+	max-height: none;
+	flex: 1;
+	border-bottom: none;
+}
+.ide-add-form {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: 4px 2px 6px;
+	padding: 8px;
+	border: 1px solid var(--ui-color-border);
+	border-radius: var(--ui-radius-md);
+	background: var(--ui-color-bg-surface);
+	font-size: 12px;
+}
+.ide-add-form label {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	color: var(--ui-color-text-muted);
+}
+.ide-add-form input,
+.ide-add-form select {
+	font-size: 13px;
+	padding: 3px 5px;
+}
+.ide-add-form input {
+	font-family: var(--ide-mono);
+}
+.ide-add-form .ide-bad-input {
+	border-color: var(--ide-error);
+}
+.ide-add-actions {
+	display: flex;
+	gap: 6px;
+}
+.ide-instance {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 400;
+	font-size: 12px;
+}
+.ide-instance select {
+	font-family: var(--ide-mono);
+	font-size: 12px;
+	padding: 1px 4px;
+}
+.ide-stack-link {
+	cursor: pointer;
+}
+.ide-stack-link:hover td {
+	background: var(--ui-btn-neutral-hover);
+}

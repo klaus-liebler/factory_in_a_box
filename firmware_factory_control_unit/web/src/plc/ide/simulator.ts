@@ -18,8 +18,10 @@ export interface PlcError {
 	/** TRAP's operand. */
 	code?: number;
 	pc: number;
-	/** Line in the compiled source of PLC_PRG (null: not found). */
+	/** Line in the compiled source of its file (null: not found). */
 	line: number | null;
+	/** The source file (the project object's name; null: not found). */
+	file: string | null;
 	pou: string;
 }
 
@@ -180,7 +182,7 @@ export class Simulator extends EventTarget implements PlcDevice {
 		this.maxInstructions = Math.max(this.maxInstructions, this.lastInstructions);
 		if (r.state === "trapped") {
 			const st = [...debug.statements].filter((s) => s.pc <= r.pc).sort((a, b) => b.pc - a.pc)[0];
-			this.error = { trap: TRAP_NAMES[r.trap] ?? String(r.trap), pc: r.pc, line: st ? st.span.start.line : null, pou: st?.pou ?? "?" };
+			this.error = { trap: TRAP_NAMES[r.trap] ?? String(r.trap), pc: r.pc, line: st ? st.span.start.line : null, file: st ? st.span.start.file : null, pou: st?.pou ?? "?" };
 			this.stop();
 			this.state = "ERROR";
 			this.note("error", `runtime error ${this.error.trap} in ${this.error.pou}${this.error.line ? ` line ${this.error.line}` : ""} (pc ${r.pc})`);

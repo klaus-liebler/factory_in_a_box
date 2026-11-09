@@ -20,7 +20,7 @@ TAP adapter "rtoos-tap" (rtoos/emulation/renode/setup-tap.ps1); over wss:// (WsP
     same, a chunk out of order refused, still there after the reset
 
   cmake --build --preset Release-Rev3 && python tools/test-plc-renode.py
-  cmake --build --preset Release      && python tools/test-plc-renode.py --revision 2
+  cmake --build --preset Release-Rev1 && python tools/test-plc-renode.py --revision 1
 
 The image comes from `npm run plc:corpus` (web/src/plc/renode-fixture.test.ts). Exit code 0 = pass.
 """
@@ -42,11 +42,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-ap.add_argument("--revision", type=int, choices=[2, 3], default=3)
-ap.add_argument("--elf", type=Path, help="default: build/Release-Rev3 (revision 3) or build/Release (2)")
+# revision 2 (STM32H563 with CH224K) was never built as hardware: not tested
+ap.add_argument("--revision", type=int, choices=[1, 3], default=3)
+ap.add_argument("--elf", type=Path, help="default: build/Release-Rev3 (revision 3), build/Release-Rev1 (1)")
 ap.add_argument("--renode", default="C:/opt/renode/renode.exe")
 args = ap.parse_args()
-elf = args.elf or ROOT / f"build/{'Release-Rev3' if args.revision == 3 else 'Release'}/firmware_factory_control_unit.elf"
+elf = args.elf or ROOT / f"build/{'Release-Rev3' if args.revision == 3 else 'Release-Rev1'}/firmware_factory_control_unit.elf"
 resc = "fcu_rev3-net.resc" if args.revision == 3 else "fcu-net.resc"
 uid_at = 0x1FF1E800 if args.revision == 3 else 0x08FFF800  # STM32H743 / STM32H563 unique ID
 rtoos = ROOT / "rtoos"
@@ -433,12 +434,17 @@ try:
     n_addr = meta["symbols"]["PLC_PRG.n"]
     ok, msg = watch(ws, 0x1234, [(n_addr, 4)])
     check("watch: subscription accepted", ok, msg)
-    frames = watch_frames(ws, 2.0)
+    # at least 10 pushes - the emulators run slower than real time (the H563 much slower): the rate is
+    # measured by the device's cycle counter, not by the wall clock
+    frames = []
+    end = time.monotonic() + 60
+    while len(frames) < 10 and time.monotonic() < end:
+        frames += watch_frames(ws, 1.0)
     gens = {f[0] for f in frames}
     pairs = [(f[1], struct.unpack_from("<i", f[3])[0]) for f in frames if len(f[3]) == 4]
     gaps = [b[1] - a[1] for a, b in zip(frames, frames[1:])]
     check("watch: values pushed, never faster than every 100 ms (2 cycles of 50 ms, by the device's counter)",
-          len(frames) >= 10 and min(gaps, default=0) >= 2, f"{len(frames)} in 2 s, cycle gaps {sorted(set(gaps))}")
+          len(frames) >= 10 and min(gaps, default=0) >= 2, f"{len(frames)} pushes, cycle gaps {sorted(set(gaps))}")
     check("watch: the generation is echoed, the state is RUN", gens == {0x1234} and all(f[2] == 2 for f in frames), f"{gens}")
     check("watch: n grows from push to push", all(b[1] > a[1] for a, b in zip(pairs, pairs[1:])), str(pairs[:5]))
     check("watch: consistent - n and the device's cycle counter from the same cycle end",
@@ -597,6 +603,74 @@ try:
     ok, out = term(ws, "plc autostart off")
     check("terminal plc autostart off: done (log)", ok and wait_log("autostart off)", 10, mark), out)
     check("autostart off (status)", not status(ws)["autostart"])
+
+    # ---- the stepper test bench (ws::stepper, page "Schrittmotoren"): no TMC2209 in the emulator,
+    # the steps themselves are real (TIM + DMA make the edges, the position counts them)
+    STP = 8
+
+    def stp_status(axis):
+        r = ws.call(STP, 11, struct.pack("<B", axis), 12)
+        tmc_ok, pos, moving, manual, homing, homed, result, by_diag, has_diag, enabled, drv, sg, tstep, pwm, gstat, uptime = \
+            struct.unpack_from("<BiBBBBBBBBIHIIBI", r, 0)
+        return {"tmc_ok": bool(tmc_ok), "position": pos, "moving": bool(moving), "manual": bool(manual), "homing": bool(homing),
+                "homed": bool(homed), "result": result, "has_diag": bool(has_diag), "enabled": bool(enabled)}
+
+    def stp_settings(axis, write, profile, microsteps=16):
+        settings = struct.pack("<BBBBBIBBHBIBBBBBB", 12, 4, 6, 20, 0, 0, 1, 1, microsteps, 100, 0, 0, 5, 2, 0, 0, 0)
+        r = ws.call(STP, 1, struct.pack("<BB", axis, 1 if write else 0) + settings + struct.pack("<IIIB", *profile), 2)
+        ok, msg = ok_message(r)
+        return ok, msg
+
+    def stp(type_id, body, answer):
+        return ok_message(ws.call(STP, type_id, body, answer))
+
+    st0 = stp_status(0)
+    check("steppers: status answers; no TMC2209 in the emulator", not st0["tmc_ok"] and st0["has_diag"] == (args.revision != 1), str(st0))
+    ok, msg = stp(5, struct.pack("<Bi", 0, 100), 6)
+    check("steppers: no move without manual control", not ok and "manual" in msg, msg)
+    ok, msg = stp_settings(0, True, (0, 1000, 1800, 1))
+    check("steppers: a profile the step timer cannot make is refused", not ok and "start rate" in msg, msg)
+    ok, msg = stp(3, struct.pack("<BB", 0, 1), 4)
+    check("steppers: manual control on (drivers enabled)", ok and stp_status(0)["manual"] and stp_status(0)["enabled"], msg)
+    # The moves: on the STM32H563 (revision 1) only - Renode has the timer-paced DMA there (rtoos'
+    # STM32H5_TIM/GPDMA models), not for the H743's DMA1 streams; the edge timing itself is tested
+    # tick-exactly on the host (rtoos timer_stepper_test).
+    moves = ((0, 1600), (1, -2400)) if args.revision != 3 else ()
+    if not moves:
+        print("  [--] steppers: moves not tested on revision 3 (no timer-paced DMA in Renode's STM32H743)")
+    for shape, steps in moves:  # linear forward, sigmoid back
+        ok, msg = stp_settings(0, True, (200, 4000, 20000, shape))
+        check(f"steppers: profile {'linear' if shape == 0 else 'sigmoid'} taken (the TMC2209 settings kept without the chip)",
+              ("does not answer" in msg) and not ok or ok, msg)
+        p0 = stp_status(0)["position"]
+        ok, msg = stp(5, struct.pack("<Bi", 0, steps), 6)
+        check(f"steppers: move {steps} micro steps started", ok, msg)
+        moving = stp_status(0)["moving"]
+        p1 = until(lambda: (lambda s: (s["position"],) if not s["moving"] else None)(stp_status(0)), 20)
+        p1 = p1[0] if p1 else None
+        check(f"steppers: {steps} steps done, the position counts every one", moving and p1 == p0 + steps, f"{p0} -> {p1}")
+    if moves:
+        ok, msg = stp_settings(0, True, (200, 2000, 2000, 1))
+        p0 = stp_status(0)["position"]
+        stp(5, struct.pack("<Bi", 0, 20000), 6)
+        until(lambda: stp_status(0)["position"] > p0 + 100, 20)
+        ok = ws.call(STP, 7, struct.pack("<B", 0), 8)[0] == 1  # StopResponse: ok only
+        s = stp_status(0)
+        time.sleep(0.5)
+        check("steppers: stop ends a move at once, the steps done count", ok and not s["moving"] and p0 < s["position"] < p0 + 20000
+              and stp_status(0)["position"] == s["position"], f"{p0} -> {s['position']}")
+    else:
+        ok = ws.call(STP, 7, struct.pack("<B", 0), 8)[0] == 1
+        check("steppers: stop answers", ok)
+    ok, msg = stp(9, struct.pack("<BhBH", 0, -200, 100, 2000), 10)
+    check("steppers: homing started", ok, msg)
+    r = until(lambda: (lambda s: s["result"] if not s["homing"] else None)(stp_status(0)), 20)
+    check("steppers: homing without a TMC2209 fails (result 3: error), not homed", r == 3 and not stp_status(0)["homed"], str(r))
+    pos = stp_status(0)["position"]
+    ok, msg = stp(3, struct.pack("<BB", 0, 0), 4)
+    check("steppers: manual control off; the register target is the position (no jump)",
+          ok and not stp_status(0)["manual"] and holding(mb, STEPPER1_TARGET, 2) == [(pos >> 16) & 0xFFFF, pos & 0xFFFF],
+          f"position {pos}, target {holding(mb, STEPPER1_TARGET, 2)}")
 finally:
     for c in (ws, mb):
         if c is not None:

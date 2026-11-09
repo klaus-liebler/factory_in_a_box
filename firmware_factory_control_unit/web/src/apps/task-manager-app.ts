@@ -159,6 +159,7 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 			<tr>
 				<td>${decodeName(pool.name)}</td>
 				<td>${pool.free}</td>
+				<td title="der geringste freie Stand seit dem Start (beim wolfSSL-Pool: seine Spitzenlast)">${pool.minFree}</td>
 				<td>${pool.capacity}</td>
 				<td><span class=${cssClass}>${percentText}</span></td>
 			</tr>
@@ -239,6 +240,7 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 											<tr>
 												<th>Pool</th>
 												<th>Frei</th>
+												<th>Min. frei</th>
 												<th>Kapazität</th>
 												<th>Auslastung</th>
 											</tr>

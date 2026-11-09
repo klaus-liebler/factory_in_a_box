@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <span>
 
+#include "network.hpp"
 #include "system.hpp"
 
 namespace fcu::io {
@@ -21,9 +22,10 @@ void setup(bool supply_up) noexcept;
 /// One cycle; `now` in ms.
 void cycle(std::uint32_t now) noexcept;
 
-/// Sensorless homing between the cycles: StallGuard over UART (the TMC2209's DIAG outputs are not
-/// wired). SG_RESULT changes about every full step (5 ms at the homing speed of 200 full steps/s);
-/// at the 50 ms of the cycle the motor would push about 10 full steps against the end stop.
+/// Sensorless homing between the cycles: StallGuard over UART, on every revision; revision 1 has
+/// no DIAG wires, so this is its only way (revisions 2/3: DIAG stops it at once, the poll stays as
+/// the fallback). SG_RESULT changes about every full step (5 ms at the homing speed of 200 full
+/// steps/s); at the 50 ms of the cycle the motor would push about 10 full steps against the end stop.
 inline constexpr std::uint32_t homing_poll_period_ms = 5;
 /// The period to call homing_poll() at, 0: no homing running.
 [[nodiscard]] std::uint32_t homing_poll_ms() noexcept;
@@ -37,6 +39,10 @@ inline constexpr std::uint32_t event_stall = 1u << 1;   ///< TMC2209 DIAG: a sta
 void set_event_thread(Kernel::Thread& thread) noexcept;
 /// Handle the event bits that woke the thread.
 void events(std::uint32_t bits) noexcept;
+
+/// A message of the stepper test bench (ws::stepper, network thread): handled in the next cycle,
+/// answered through the outbox.
+void stepper_post(net::Server::SessionId session, std::span<const std::uint8_t> message) noexcept;
 
 /// The boot scan of an I2C bus: 128 bits, bit n = a device answered at address n.
 /// The I2C buses by role (their numbers differ per revision: hw::i2c_tof2_bus, hw::i2c_supply_bus).

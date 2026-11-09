@@ -28,6 +28,8 @@ Sign, no AES encryption of ongoing traffic -- see the project's security-policy 
 Examples:
     python test_opcua.py --host factory-box-363836.local --server-cert path\\to\\factory-box-363836.pem.crt
     python test_opcua.py --host 192.168.1.50 --server-cert server.pem.crt
+    python test_opcua.py --host 192.168.77.2 --server-cert server.pem.crt --ca-cert rootCA.pem.crt --ca-key rootCA.pem.key
+        (the first run: the test client's certificate is issued by the CA the firmware trusts)
 """
 import argparse
 import datetime
@@ -36,6 +38,7 @@ import hmac
 import os
 import socket
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -55,33 +58,48 @@ SIGNING_KEY_SIZE = 32  # HMAC-SHA256
 CLIENT_IDENTITY_DIR = Path(__file__).parent / ".opcua-test-client"
 
 
+# The server trusts client certificates of one CA only (the firmware's build/assets/root_ca.der, the
+# CA that also issued the device certificates): a self-signed client is refused in OpenSecureChannel
+# with BadSecurityChecksFailed. So the test client's certificate is issued by that CA: this script
+# makes the key and a CSR and lets `openssl x509 -req` sign it - only openssl reads the CA's private
+# key, in place (--ca-cert/--ca-key); nothing of the CA is copied.
+CA_CERT: Path | None = None
+CA_KEY: Path | None = None
+
+
 def _load_or_create_client_identity():
     key_path = CLIENT_IDENTITY_DIR / "client_key.pem"
     cert_path = CLIENT_IDENTITY_DIR / "client_cert.der"
     if key_path.exists() and cert_path.exists():
         key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
         cert_der = cert_path.read_bytes()
-        return key, cert_der
+        cert = x509.load_der_x509_certificate(cert_der)
+        if cert.issuer.rfc4514_string() != cert.subject.rfc4514_string():
+            return key, cert_der
+        if CA_KEY is None:
+            raise DecodeError(f"the test client certificate in {CLIENT_IDENTITY_DIR} is self-signed: the server refuses it "
+                              "(BadSecurityChecksFailed). Pass --ca-cert and --ca-key once to have it issued by the CA "
+                              "the firmware trusts.")
+    elif CA_KEY is None or CA_CERT is None:
+        raise DecodeError("no test client certificate yet: pass --ca-cert and --ca-key once (the CA the firmware trusts)")
 
     CLIENT_IDENTITY_DIR.mkdir(parents=True, exist_ok=True)
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "opcua-test-client")])
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(subject)
-        .issuer_name(issuer)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(now - datetime.timedelta(days=1))
-        .not_valid_after(now + datetime.timedelta(days=3650))
-        .sign(key, hashes.SHA256())
-    )
-    cert_der = cert.public_bytes(serialization.Encoding.DER)
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "opcua-test-client")])
+    csr = x509.CertificateSigningRequestBuilder().subject_name(subject).sign(key, hashes.SHA256())
+    csr_path = CLIENT_IDENTITY_DIR / "client.csr"
+    pem_path = CLIENT_IDENTITY_DIR / "client_cert.pem"
+    csr_path.write_bytes(csr.public_bytes(serialization.Encoding.PEM))
+    r = subprocess.run(["openssl", "x509", "-req", "-in", str(csr_path), "-CA", str(CA_CERT), "-CAkey", str(CA_KEY),
+                        "-CAcreateserial", "-CAserial", str(CLIENT_IDENTITY_DIR / "ca.srl"), "-days", "825", "-sha256",
+                        "-out", str(pem_path)], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise DecodeError(f"openssl could not issue the test client certificate: {r.stderr.strip()[-300:]}")
+    cert_der = x509.load_pem_x509_certificate(pem_path.read_bytes()).public_bytes(serialization.Encoding.DER)
     key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
                                             serialization.NoEncryption()))
     cert_path.write_bytes(cert_der)
-    print(f"  Generated new test client identity in {CLIENT_IDENTITY_DIR}")
+    print(f"  New test client identity in {CLIENT_IDENTITY_DIR}, issued by {CA_CERT.name}")
     return key, cert_der
 
 
@@ -560,6 +578,12 @@ class OpcUaTestClient:
         self.sock.sendall(header_and_secheader + ciphertext)
 
         msg_type, resp = self._recv_message()
+        if msg_type == b"ERR" and len(resp) >= 4:
+            # ERR body: StatusCode, then the reason as an OPC UA String (Part 6, 7.1.2.5)
+            code = struct.unpack_from("<I", resp, 0)[0]
+            n = struct.unpack_from("<i", resp, 4)[0] if len(resp) >= 8 else -1
+            reason = resp[8:8 + n].decode(errors="replace") if n > 0 else ""
+            raise DecodeError(f"expected OPN response, got ERR 0x{code:08X} {reason!r}")
         if msg_type != b"OPN":
             raise DecodeError(f"expected OPN response, got {msg_type!r}")
         r = Reader(resp)
@@ -685,7 +709,7 @@ class OpcUaTestClient:
         session_id = r.node_id()
         self.auth_token = r.node_id()
         revised_timeout = r.double()
-        r.byte_string()  # ServerNonce
+        self.session_server_nonce = r.byte_string() or b""  # for the ClientSignature of ActivateSession
         r.byte_string()  # ServerCertificate
         n_endpoints = r.int32()
         for _ in range(max(n_endpoints, 0)):
@@ -714,7 +738,11 @@ class OpcUaTestClient:
     def activate_session(self):
         w = Writer()
         w.request_header(auth_token_ns=self.auth_token[0], auth_token_id=self.auth_token[1])
-        w.string(None); w.byte_string(None)  # ClientSignature: Algorithm, Signature
+        # ClientSignature (Part 4 5.6.3.2): the server's certificate (leaf) || the server nonce of
+        # CreateSession, signed with the client's key - proof that this client holds the key of the
+        # certificate the channel was opened with. The server refuses an activation without it.
+        w.string("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")
+        w.byte_string(_rsa_sha256_sign(self.client_key, self.server_cert_der + self.session_server_nonce))
         w.int32(-1)  # ClientSoftwareCertificates: null array
         w.int32(-1)  # LocaleIds: null array
         # UserIdentityToken: AnonymousIdentityToken (ns=0;i=321), body = {PolicyId: String}
@@ -984,7 +1012,12 @@ def main():
                         help="Path to the server's certificate (PEM or DER) -- this server offers "
                              "Basic256Sha256 only, so the client must already trust it out of band "
                              "(e.g. the board archive's factory-box-<id>.pem.crt).")
+    parser.add_argument("--ca-cert", type=Path, help="The CA the firmware trusts (PEM) - needed once, to issue the test "
+                                                     "client's certificate (kept in tools/.opcua-test-client)")
+    parser.add_argument("--ca-key", type=Path, help="That CA's private key (PEM); read by openssl only, in place")
     args = parser.parse_args()
+    global CA_CERT, CA_KEY
+    CA_CERT, CA_KEY = args.ca_cert, args.ca_key
 
     try:
         server_cert_der = _load_server_cert_der(args.server_cert)

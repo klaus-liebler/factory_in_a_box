@@ -5,7 +5,7 @@ address. DHCP, DNS and SNTP for the device come from this script (rtoos/emulatio
 TAP adapter "rtoos-tap" from rtoos/emulation/renode/setup-tap.ps1. Stop with Ctrl+C.
 
   cmake --build --preset Release-Rev3        (the firmware embeds web/dist: npm run build first)
-  python tools/run-renode-fcu.py [--revision 2] [--seconds N] [--quiet]
+  python tools/run-renode-fcu.py [--revision 1] [--seconds N] [--quiet]
 
 The flash of the emulated FCU (and with it the PLC program) lives as long as this script runs.
 """
@@ -20,7 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-ap.add_argument("--revision", type=int, choices=[2, 3], default=3)
+ap.add_argument("--revision", type=int, choices=[1, 3], default=3)  # revision 2 was never built as hardware
 ap.add_argument("--elf", type=Path)
 ap.add_argument("--renode", default="C:/opt/renode/renode.exe")
 ap.add_argument("--seconds", type=float, default=0, help="stop after this time (0: until Ctrl+C)")
@@ -30,7 +30,7 @@ rtoos = ROOT / "rtoos"
 sys.path.insert(0, str(rtoos / "emulation"))
 import net_test  # noqa: E402
 
-elf = args.elf or ROOT / f"build/{'Release-Rev3' if args.revision == 3 else 'Release'}/firmware_factory_control_unit.elf"
+elf = args.elf or ROOT / f"build/{'Release-Rev3' if args.revision == 3 else 'Release-Rev1'}/firmware_factory_control_unit.elf"
 resc = "fcu_rev3-net.resc" if args.revision == 3 else "fcu-net.resc"
 uid_at = 0x1FF1E800 if args.revision == 3 else 0x08FFF800
 ids = (ROOT / "generated/device_ids.hh").read_text(encoding="utf-8")

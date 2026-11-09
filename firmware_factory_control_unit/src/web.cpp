@@ -228,6 +228,9 @@ void on_message(void*, SessionId id, std::span<const std::byte> message, bool bi
         case ws::roarm::NAMESPACE_ID:
             roarm::post(id, {data, len});  // the I/O thread answers through the outbox
             break;
+        case ws::stepper::NAMESPACE_ID:
+            io::stepper_post(id, {data, len});  // the I/O thread owns the TMC2209 UART and the step timers
+            break;
         case ws::tasks::NAMESPACE_ID: {
             std::array<std::uint8_t, net::max_ws_message> reply{};
             const std::size_t n = task_monitor::handle_message(type, {data, len}, reply);

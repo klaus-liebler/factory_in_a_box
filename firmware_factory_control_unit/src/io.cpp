@@ -9,6 +9,7 @@
 #include "hardware.hpp"
 #include "network.hpp"
 #include "rtos/devices/tmc2209.hpp"
+#include "rtos/sync/message_queue.hpp"
 #include "plc_project.hpp"
 #include "roarm/roarm.hpp"
 #include "system.hpp"
@@ -184,6 +185,66 @@ bool homing_active[2] = {};
 bool homed[2] = {};  ///< the position is referenced: the last homing found the end stop
 std::atomic<bool> diag_stall[2] = {};  ///< DIAG rose (EXTI), taken by homing()
 
+// ---- the stepper test bench (web page "Schrittmotoren", ws::stepper) ---------------------------------
+// The firmware keeps the TMC2209 settings (most of these registers cannot be read back), the speed
+// profile of each axis, and whether the page controls it (manual: the register targets rest).
+namespace wst = WsProtocol::stepper;
+constexpr wst::TmcSettings default_settings{
+    .irun = 12, .ihold = 4, .iholdDelay = 6, .tpowerdown = 20, .spreadCycle = false, .tpwmThrs = 0, .pwmAutoscale = true,
+    .pwmAutograd = true, .microsteps = 16, .sgThrs = 100, .tcoolThrs = 0, .coolStep = false, .semin = 5, .semax = 2,
+    .seup = 0, .sedn = 0, .seimin = false};
+/// 100 -> 1000 micro steps/s, sigmoid (as the former fixed ramp: about 0.5 s)
+constexpr wst::Profile default_profile{.startHz = 100, .cruiseHz = 1000, .accel = 1800, .shape = wst::RampShape::Sigmoid};
+wst::TmcSettings tmc_settings[2] = {default_settings, default_settings};
+wst::Profile profiles[2] = {default_profile, default_profile};
+bool manual[2] = {};
+std::uint8_t homing_result[2] = {};  ///< the last homing: 0 none, 1 done, 2 timeout, 3 error
+dev::Tmc2209Homing home_params[2] = {};
+
+std::uint32_t coolconf_of(const wst::TmcSettings& s) noexcept {
+    if (!s.coolStep) return 0;  // semin 0: CoolStep off
+    return (s.semin & 0xFu) | ((s.seup & 3u) << 5) | ((s.semax & 0xFu) << 8) | ((s.sedn & 3u) << 13) | (s.seimin ? 1u << 15 : 0u);
+}
+
+/// CoolStep and TCOOLTHRS as set (a homing switches CoolStep off and TCOOLTHRS to 450).
+void apply_cool(std::size_t i) noexcept {
+    (void)tmc[i].write(dev::tmc2209::tcoolthrs, tmc_settings[i].tcoolThrs & 0xFFFFFu);
+    (void)tmc[i].write(dev::tmc2209::coolconf, coolconf_of(tmc_settings[i]));
+}
+
+/// All settings into the TMC2209 of axis i (kept also if it does not answer: written when it does).
+const char* apply_settings(std::size_t i, const wst::TmcSettings& s) noexcept {
+    const unsigned ms = s.microsteps;
+    if (ms == 0 || ms > 256 || (ms & (ms - 1)) != 0) return "micro steps: 1, 2, 4 ... 256";
+    if (s.irun > 31 || s.ihold > 31 || s.iholdDelay > 15 || s.semin > 15 || s.semax > 15 || s.seup > 3 || s.sedn > 3) {
+        return "a value is out of its range";
+    }
+    unsigned mres = 0;
+    while ((256u >> mres) != ms) ++mres;
+    tmc_settings[i] = s;
+    home_params[i].stall_threshold = s.sgThrs;
+    auto& t = tmc[i];
+    namespace tm = dev::tmc2209;
+    std::uint32_t pwm = t.read(tm::pwmconf).value_or(tm::pwmconf_reset);
+    pwm = s.pwmAutoscale ? pwm | tm::pwmconf_autoscale : pwm & ~tm::pwmconf_autoscale;
+    pwm = s.pwmAutograd ? pwm | tm::pwmconf_autograd : pwm & ~tm::pwmconf_autograd;
+    (void)t.set_current(s.ihold, s.irun, s.iholdDelay);
+    (void)t.write(tm::tpowerdown, s.tpowerdown);
+    (void)t.set_spreadcycle(s.spreadCycle);
+    (void)t.write(tm::tpwmthrs, s.tpwmThrs & 0xFFFFFu);
+    (void)t.write(tm::pwmconf, pwm);
+    (void)t.set_microsteps(static_cast<dev::Tmc2209Microsteps>(mres));
+    (void)t.write(tm::sgthrs, s.sgThrs);
+    apply_cool(i);
+    // the writes are not answered: one read shows whether the chip is there
+    return t.read(tm::gconf) ? nullptr : "the TMC2209 does not answer (the settings are kept)";
+}
+
+rtos::motion::StepProfile step_profile(const wst::Profile& p) noexcept {
+    return {.start_hz = p.startHz, .cruise_hz = p.cruiseHz, .accel = p.accel,
+            .shape = p.shape == wst::RampShape::Linear ? rtos::motion::RampShape::Linear : rtos::motion::RampShape::Sigmoid};
+}
+
 template <class Stepper>
 void move(Stepper& s, pins::Pin dir, std::int32_t steps) noexcept {
     write(dir, steps > 0);
@@ -205,9 +266,11 @@ void homing(std::size_t i, Stepper& stepper, std::uint16_t start_reg, SetTarget 
     if (!homing_active[i]) {
         if (registers.holding(start_reg) == 1 && !stepper.moving()) {
             diag_stall[i] = false;
-            homing_active[i] = tmc[i].start_homing({.speed = -200}, now);
+            homing_active[i] = tmc[i].start_homing(home_params[i], now);
             homed[i] = false;
+            homing_result[i] = 0;
             if (!homing_active[i]) {
+                homing_result[i] = 3;
                 registers.set_holding(start_reg, 3);
                 RTOS_LOG_WARN("stepper %u: homing not started (TMC2209 does not answer)", static_cast<unsigned>(i + 1));
             }
@@ -216,7 +279,11 @@ void homing(std::size_t i, Stepper& stepper, std::uint16_t start_reg, SetTarget 
     }
     using R = dev::Tmc2209<hw::StepperUart, KernelClock>::HomingResult;
     const unsigned n = static_cast<unsigned>(i + 1);
-    switch (tmc[i].tick_homing(now, diag_stall[i].exchange(false))) {
+    const R result = tmc[i].tick_homing(now, diag_stall[i].exchange(false));
+    if (result == R::InProgress) return;
+    homing_result[i] = result == R::Done ? 1 : result == R::Timeout ? 2 : 3;
+    apply_cool(i);  // the homing switched CoolStep off
+    switch (result) {
         case R::InProgress: return;
         case R::Done:
             stepper.set_position(0);
@@ -249,21 +316,169 @@ void homing_both(std::uint32_t now) noexcept {
 
 void steppers(std::uint32_t now) noexcept {
     homing_both(now);
-    const bool enabled = rm::stepper_enable(registers) != 0 || homing_active[0] || homing_active[1];
+    const bool enabled = rm::stepper_enable(registers) != 0 || homing_active[0] || homing_active[1] || manual[0] || manual[1];
     write(pins::stepper_enable, !enabled);  // active low
     const std::int32_t target[2] = {rm::stepper1_target(registers), rm::stepper2_target(registers)};
     // a new target starts when the current move is done (no change of plan mid-ramp); only on a
     // referenced axis: without homing the position means nothing, the target waits
-    if (enabled && homed[0] && !homing_active[0] && !stepper1.moving() && stepper1.position() != target[0]) {
+    if (enabled && homed[0] && !manual[0] && !homing_active[0] && !stepper1.moving() && stepper1.position() != target[0]) {
         move(stepper1, pins::stepper1_dir, target[0] - stepper1.position());
     }
-    if (enabled && homed[1] && !homing_active[1] && !stepper2.moving() && stepper2.position() != target[1]) {
+    if (enabled && homed[1] && !manual[1] && !homing_active[1] && !stepper2.moving() && stepper2.position() != target[1]) {
         move(stepper2, pins::stepper2_dir, target[1] - stepper2.position());
     }
     rm::set_stepper1_position(registers, stepper1.position());
     rm::set_stepper2_position(registers, stepper2.position());
     rm::set_stepper1_status(registers, stepper_status(0, enabled, stepper1, target[0], rm::holding::stepper1_start_homing));
     rm::set_stepper2_status(registers, stepper_status(1, enabled, stepper2, target[1], rm::holding::stepper2_start_homing));
+}
+
+// ---- the stepper test bench: WebSocket requests (queued by the network thread) ---------------------
+struct LabRequest {
+    net::Server::SessionId session = 0;
+    std::uint8_t size = 0;
+    std::array<std::uint8_t, 64> data{};
+};
+rtos::MessageQueue<Kernel, LabRequest, 4> lab_requests{kernel};
+
+/// `f(stepper, dir pin, start-homing register, set target)` for axis i.
+template <class F>
+auto with_axis(std::size_t i, F f) {
+    if (i == 0) return f(stepper1, pins::stepper1_dir, rm::holding::stepper1_start_homing, [](std::int32_t v) { rm::set_stepper1_target(registers, v); });
+    return f(stepper2, pins::stepper2_dir, rm::holding::stepper2_start_homing, [](std::int32_t v) { rm::set_stepper2_target(registers, v); });
+}
+
+/// `encode`: the generated Encode() of the response message (its namespace is no type).
+template <class Encode, class Payload>
+void lab_reply(net::Server::SessionId session, Encode encode, const Payload& p) noexcept {
+    std::array<std::uint8_t, 256> buf{};  // every response of ws::stepper is smaller
+    const std::size_t n = encode(p, buf.data(), buf.size());
+    if (n > 0) (void)net::outbox.send(session, std::as_bytes(std::span(buf).first(n)));
+}
+
+void lab_handle(const LabRequest& r) noexcept {
+    const std::uint8_t* d = r.data.data();
+    const std::size_t len = r.size;
+    const auto type = static_cast<std::uint16_t>(d[2] | (d[3] << 8));
+    namespace tm = dev::tmc2209;
+    switch (type) {
+        case wst::SettingsRequest::TYPE_ID: {
+            wst::SettingsRequest::Payload q{};
+            if (!wst::SettingsRequest::Decode(d, len, q) || q.axis > 1) return;
+            const std::size_t i = q.axis;
+            const char* e = nullptr;
+            if (q.write) {
+                e = with_axis(i, [&](auto& s, pins::Pin, std::uint16_t, auto) -> const char* {
+                    auto* m = s.motion();
+                    if (m == nullptr || homing_active[i]) return "the axis is moving";
+                    if (const char* pe = m->configure(step_profile(q.profile), hw::Stepper1Timer::tick_hz, std::remove_reference_t<decltype(s)>::max_ticks)) return pe;
+                    profiles[i] = q.profile;
+                    return apply_settings(i, q.settings);
+                });
+            }
+            lab_reply(r.session, wst::SettingsResponse::Encode, wst::SettingsResponse::Payload{.requestId = q.requestId, .ok = e == nullptr, .message = e ? e : "",
+                                                          .settings = tmc_settings[i], .profile = profiles[i]});
+            break;
+        }
+        case wst::ManualRequest::TYPE_ID: {
+            wst::ManualRequest::Payload q{};
+            if (!wst::ManualRequest::Decode(d, len, q) || q.axis > 1) return;
+            const std::size_t i = q.axis;
+            if (!q.on && manual[i]) {
+                // the register control again: from where the axis is (no jump back to an old target)
+                with_axis(i, [&](auto& s, pins::Pin, std::uint16_t, auto set_target) { set_target(s.position()); });
+            }
+            manual[i] = q.on;
+            RTOS_LOG_INFO("stepper %u: %s", static_cast<unsigned>(i + 1), q.on ? "manual control (web page)" : "register control again");
+            lab_reply(r.session, wst::ManualResponse::Encode, wst::ManualResponse::Payload{.requestId = q.requestId, .ok = true, .message = ""});
+            break;
+        }
+        case wst::MoveRequest::TYPE_ID: {
+            wst::MoveRequest::Payload q{};
+            if (!wst::MoveRequest::Decode(d, len, q) || q.axis > 1) return;
+            const std::size_t i = q.axis;
+            const char* e = with_axis(i, [&](auto& s, pins::Pin dir, std::uint16_t, auto) -> const char* {
+                if (!manual[i]) return "manual control is off";
+                if (s.moving() || homing_active[i]) return "the axis is moving";
+                if (q.steps == 0) return "0 steps";
+                move(s, dir, q.steps);
+                return nullptr;
+            });
+            lab_reply(r.session, wst::MoveResponse::Encode, wst::MoveResponse::Payload{.requestId = q.requestId, .ok = e == nullptr, .message = e ? e : ""});
+            break;
+        }
+        case wst::StopRequest::TYPE_ID: {
+            wst::StopRequest::Payload q{};
+            if (!wst::StopRequest::Decode(d, len, q) || q.axis > 1) return;
+            const std::size_t i = q.axis;
+            with_axis(i, [&](auto& s, pins::Pin, std::uint16_t start_reg, auto) {
+                s.stop();
+                if (homing_active[i]) {
+                    tmc[i].abort_homing();
+                    homing_active[i] = false;
+                    homing_result[i] = 3;
+                    registers.set_holding(start_reg, 3);
+                    apply_cool(i);
+                    RTOS_LOG_WARN("stepper %u: homing aborted (web page)", static_cast<unsigned>(i + 1));
+                }
+            });
+            lab_reply(r.session, wst::StopResponse::Encode, wst::StopResponse::Payload{.requestId = q.requestId, .ok = true});
+            break;
+        }
+        case wst::HomeRequest::TYPE_ID: {
+            wst::HomeRequest::Payload q{};
+            if (!wst::HomeRequest::Decode(d, len, q) || q.axis > 1) return;
+            const std::size_t i = q.axis;
+            const char* e = with_axis(i, [&](auto& s, pins::Pin, std::uint16_t start_reg, auto) -> const char* {
+                if (s.moving() || homing_active[i]) return "the axis is moving";
+                if (q.speed == 0) return "speed 0";
+                home_params[i] = {.speed = q.speed, .stall_threshold = q.sgThrs, .timeout_ms = q.timeoutMs};
+                homing_result[i] = 0;  // the result of this one, not of the last
+                registers.set_holding(start_reg, 1);  // homing() starts it, as a write by Modbus would
+                return nullptr;
+            });
+            lab_reply(r.session, wst::HomeResponse::Encode, wst::HomeResponse::Payload{.requestId = q.requestId, .ok = e == nullptr, .message = e ? e : ""});
+            break;
+        }
+        case wst::StatusRequest::TYPE_ID: {
+            wst::StatusRequest::Payload q{};
+            if (!wst::StatusRequest::Decode(d, len, q) || q.axis > 1) return;
+            const std::size_t i = q.axis;
+            auto& t = tmc[i];
+            const auto drv = t.read(tm::drv_status);
+            const auto sg = t.read(tm::sg_result);
+            const auto ts = t.read(tm::tstep);
+            const auto pwm = t.read(tm::pwm_scale);
+            const auto gs = t.read(tm::gstat);
+            wst::StatusResponse::Payload p{};
+            p.requestId = q.requestId;
+            p.tmcOk = drv && sg && ts && pwm && gs;
+            with_axis(i, [&](auto& s, pins::Pin, std::uint16_t, auto) {
+                p.position = s.position();
+                p.moving = s.moving();
+            });
+            p.manual = manual[i];
+            p.homing = homing_active[i];
+            p.homed = homed[i];
+            p.homingResult = homing_result[i];
+            p.stallByDiag = tmc[i].stall_by_signal();
+            p.hasDiag = pins::stepper_diag;
+            p.enabled = rm::stepper_enable(registers) != 0 || homing_active[0] || homing_active[1] || manual[0] || manual[1];
+            p.drvStatus = drv.value_or(0);
+            p.sgResult = static_cast<std::uint16_t>(sg.value_or(0) & 0x3FFu);
+            p.tstep = ts.value_or(0);
+            p.pwmScale = pwm.value_or(0);
+            p.gstat = static_cast<std::uint8_t>(gs.value_or(0));
+            p.uptimeMs = kernel.now();
+            lab_reply(r.session, wst::StatusResponse::Encode, p);
+            break;
+        }
+        default: break;
+    }
+}
+
+void stepper_lab(std::uint32_t) noexcept {
+    while (const auto r = lab_requests.try_receive()) lab_handle(*r);
 }
 
 // ---- WS2812: CH1 strip of 8 LEDs (patterns), CH2 one LED (palette) --------------------------------
@@ -439,7 +654,7 @@ void setup(bool supply_up) noexcept {
         if (!tmc_ok[i]) {
             RTOS_LOG_WARN("stepper %u: TMC2209 does not answer (steps still go out)", static_cast<unsigned>(i + 1));
         }
-        (void)tmc[i].set_current(4, 12, 6);
+        if (tmc_ok[i]) (void)apply_settings(i, tmc_settings[i]);
     }
     // Sensorless homing at the start, both at once: the I/O cycle runs it (homing()). Not without
     // the motor supply: StallGuard could then report an end stop that is not there. A stepper that
@@ -455,6 +670,8 @@ void setup(bool supply_up) noexcept {
     }
     stepper1.init();
     stepper2.init();
+    (void)stepper1.motion()->configure(step_profile(profiles[0]), hw::Stepper1Timer::tick_hz, hw::Stepper1::max_ticks);
+    (void)stepper2.motion()->configure(step_profile(profiles[1]), hw::Stepper2Timer::tick_hz, hw::Stepper2::max_ticks);
     for (const unsigned irq : {unsigned{hw::Stepper1Timer::irq}, unsigned{hw::Stepper2Timer::irq},
                                unsigned{hw::Stepper1Dma::irq}, unsigned{hw::Stepper2Dma::irq}}) {
         enable_irq(irq, irq_priority_motion);
@@ -499,6 +716,7 @@ void cycle(std::uint32_t now) noexcept {
     cpu_temperature();
     can();
     boot::poll_pd_events();
+    stepper_lab(now);
     steppers(now);
     roarm::cycle(now);
     plc::project::cycle();
@@ -508,6 +726,13 @@ void cycle(std::uint32_t now) noexcept {
     health(now);
     heartbeat(now);
     pneumatics_broadcast(now);
+}
+
+void stepper_post(net::Server::SessionId session, std::span<const std::uint8_t> message) noexcept {
+    if (message.size() < 4 || message.size() > LabRequest{}.data.size()) return;
+    LabRequest r{.session = session, .size = static_cast<std::uint8_t>(message.size())};
+    std::memcpy(r.data.data(), message.data(), message.size());
+    if (!lab_requests.try_send(r)) RTOS_LOG_WARN("steppers: request queue full, message dropped");
 }
 
 std::span<const std::uint8_t, 16> i2c_scan(I2cBus bus) noexcept { return scans[static_cast<std::size_t>(bus)]; }

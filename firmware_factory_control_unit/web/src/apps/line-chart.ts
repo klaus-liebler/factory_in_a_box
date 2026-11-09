@@ -14,6 +14,10 @@ export interface LineChartOptions {
 	color: string;
 	unit: string;
 	decimals?: number;
+	/** The x axis labels (default: t is a wall-clock time in ms, shown as a time of day). */
+	formatTime?: (t: number) => string;
+	/** The last value as a dot and a number at the top right (default true: a live series). */
+	showLast?: boolean;
 }
 
 const MUTED_INK = "#898781";
@@ -108,7 +112,7 @@ export function drawLineChart(canvas: HTMLCanvasElement, points: readonly LineCh
 	ctx.font = `11px ${FONT}`;
 	ctx.textBaseline = "top";
 	const labelY = axisY + 4;
-	const formatTime = (t: number) => new Date(t).toLocaleTimeString("de-DE");
+	const formatTime = opts.formatTime ?? ((t: number) => new Date(t).toLocaleTimeString("de-DE"));
 
 	ctx.textAlign = "left";
 	ctx.fillText(formatTime(t0), paddingLeft, labelY);
@@ -135,6 +139,10 @@ export function drawLineChart(canvas: HTMLCanvasElement, points: readonly LineCh
 	});
 	ctx.stroke();
 
+	if (opts.showLast === false) {
+		ctx.restore();
+		return;
+	}
 	const last = points[points.length - 1];
 	ctx.fillStyle = opts.color;
 	ctx.beginPath();

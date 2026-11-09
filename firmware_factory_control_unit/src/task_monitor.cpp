@@ -65,10 +65,12 @@ std::size_t pools(std::uint16_t request_id, std::span<std::uint8_t> reply) noexc
     fill(info[0].name, "Packets (buffers)");
     info[0].capacity = packets.capacity;
     info[0].free = packets.available;
+    info[0].minFree = packets.available;
     const rtos::net::TlsPoolStats& tls = rtos::net::tls_pool_stats();
     fill(info[1].name, "wolfSSL (bytes)");
     info[1].capacity = tls.total_bytes;
     info[1].free = tls.total_bytes - tls.used_bytes;
+    info[1].minFree = tls.total_bytes - tls.peak_bytes;  // sizes the pool: the peak of real use
     std::array<std::uint8_t, 2 * ws::PoolListMessagePools_ELEMENT_SIZE> data{};
     std::size_t pos = 0;
     for (const auto& i : info) {

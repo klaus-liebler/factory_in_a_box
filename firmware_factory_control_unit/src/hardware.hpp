@@ -211,8 +211,9 @@ inline void close_analog_switches() noexcept {}  // the STM32H563 has none
 using PdClock = chip::MicrosecondTimer<chip::TimerId::Tim5, clocks.timer1_hz()>;
 using Ucpd = chip::Ucpd<{.kernel_hz = clocks.ucpd_hz()}>;  // GPDMA channels 0 (RX), 1 (TX)
 #endif
-using Stepper1 = rtos::motion::TimerStepper<Stepper1Timer, 1, Stepper1Dma, stepper_ramp>;
-using Stepper2 = rtos::motion::TimerStepper<Stepper2Timer, 1, Stepper2Dma, stepper_ramp>;
+/// The speed profile is chosen at run time (the stepper test bench of the web UI, io.cpp).
+using Stepper1 = rtos::motion::ProfileTimerStepper<Stepper1Timer, 1, Stepper1Dma>;
+using Stepper2 = rtos::motion::ProfileTimerStepper<Stepper2Timer, 1, Stepper2Dma>;
 
 // ---- resources: nothing used twice (rtos/distinct.hpp, rtoos docs/integration.md) ----------------
 // Every pin, EXTI line, timer, DMA channel, U(S)ART, I2C bus and I2C address of the firmware, the

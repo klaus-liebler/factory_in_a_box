@@ -74,3 +74,16 @@ message plc.HaltResponse 24
 message plc.WatchRequest 25
 message plc.WatchResponse 26
 message plc.WatchValues 27
+message stepper.SettingsRequest 1
+message stepper.SettingsResponse 2
+message stepper.ManualRequest 3
+message stepper.ManualResponse 4
+message stepper.MoveRequest 5
+message stepper.MoveResponse 6
+message stepper.StopRequest 7
+message stepper.StopResponse 8
+message stepper.HomeRequest 9
+message stepper.HomeResponse 10
+message stepper.StatusRequest 11
+message stepper.StatusResponse 12
+namespace stepper 8

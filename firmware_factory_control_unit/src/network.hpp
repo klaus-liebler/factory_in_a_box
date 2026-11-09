@@ -31,7 +31,7 @@ struct StackConfig : rtos::net::DefaultStackConfig {
     static constexpr std::size_t tcp_bulk_connections = 2;
 };
 using Stack = rtos::net::Stack<Pool, StackConfig>;
-inline constexpr std::size_t max_https_sessions = 6;
+inline constexpr std::size_t max_https_sessions = 2;  // at most two browsers at once (each holds its WebSocket)
 /// WebSocket messages up to 1280 bytes: the largest of ws_protocol.hh is 1160 (ListMissionsResponse).
 inline constexpr std::size_t max_ws_message = 1280;
 using Server = rtos::net::HttpsServer<Stack, max_https_sessions, max_ws_message>;

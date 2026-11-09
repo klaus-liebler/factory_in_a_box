@@ -44,6 +44,7 @@ public struct PoolInfo
 	[BinaryCount(24)] public byte[] name;
 	public uint capacity;
 	public uint free;
+	public uint minFree; // the least free since the start (wolfSSL: its peak use); packets: = free (not tracked)
 }
 
 [BinaryMessage(MessageKind.Request)]

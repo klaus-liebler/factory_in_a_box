@@ -223,7 +223,22 @@ PLC has to start **without an SD card** too. So the storage is split:
 |---|---|---|
 | Image + device configuration (control source, autostart, safe state on halt) | **own internal flash area**, A/B slots | needed for the start; a missing or faulty card must not stop the PLC |
 | Project source (for "Upload from device") | SD card, `/PLC/project.fcuplc.json` | large, not needed for the start |
-| RETAIN variables (P7) | SD card, `/PLC/retain.a` / `retain.b` alternating, with CRC + sequence number | written often; flash sectors of 128 KB are not suited to that |
+| RETAIN variables | **postponed** (decision 2026-11-09), see below | written often |
+
+**RETAIN is postponed** (2026-11-09) and must never be written to the internal flash: a variable that
+changes every cycle would wear a sector (STM32H743: 10,000 erase cycles) out within hours. Until
+then the compiler accepts `RETAIN`/`PERSISTENT` with the warning "RETAIN is not supported yet: the
+variable starts with its initial value". Candidates when it comes back, to be decided then: the
+STM32H743's 4 KB backup SRAM (kept with VBAT, no wear; needs a battery or supercap on VBAT), writing
+only on power loss (POWER_GOOD/INA226 warning plus enough hold-up time), or the SD card with
+alternating files and a bounded write rate.
+
+**Flash writes as implemented** (no cyclic write anywhere): a download erases and programs the
+*inactive* slot (one 128 KB sector on the H743; A and B alternate, so each sector is erased on every
+second download); switching the control source or autostart appends one 32-byte record to the active
+slot's journal without an erase (128 records; only a full journal moves the program to the other
+slot, one erase). RUN, the I/O cycle and restarts write nothing. At 10,000 cycles per sector that is
+about 20,000 downloads or 2.5 million configuration changes.
 
 **Flash area.** The same address on both chips: `0x081C'0000`, 256 KB, at the end of bank 2. The
 firmware image (today ~500 KB) stays in bank 1, so erasing and programming never stall the
@@ -788,7 +803,7 @@ Each phase ends with something usable and tested; hardware verification where ha
 | **P4** | several POUs: PRG/FB/FUN/DUT/GVL in the project, "Add object" dialog, declaration table ↔ text, renaming with references, cross references, FB instance selection online | sorting example split into FB + PRG + GVL, debuggable |
 | **P5** | FBD: editor, lowering, live values | an FB of the example as FBD, debuggable |
 | **P6** | SFC: editor, lowering, action qualifiers, step display | sequence example (conveyor + valves + light barrier) as SFC on the HW |
-| **P7** | libraries (create, version, include, namespaces, standard/FCU library as libraries); several tasks with their own cycle time (thread pool of 3, fast I/O, `UpdateMs` in the schema); RETAIN (SD card); strings/date; FCU library complete; PLC variables → Modbus/OPC UA; PLCopen XML; rollback to the previous slot | as needed |
+| **P7** | libraries (create, version, include, namespaces, standard/FCU library as libraries); several tasks with their own cycle time (thread pool of 3, fast I/O, `UpdateMs` in the schema); RETAIN (postponed, never in the internal flash: [§4.5](#45-storage-decision-e3)); strings/date; FCU library complete; PLC variables → Modbus/OPC UA; PLCopen XML; rollback to the previous slot | as needed |
 | **P8** (optional) | native Thumb-2 back end from the same IR, only if P2–P6 measurements show the VM is too slow | |
 
 P1 can be developed entirely without hardware (host + browser).

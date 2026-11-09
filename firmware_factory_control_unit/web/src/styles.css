@@ -113,6 +113,71 @@ app-shell {
 	background: var(--ui-btn-neutral-hover);
 }
 
+/* Maximieren: Schalter rechts im Header; maximiert sind Header und Sidebar weg, ein kleiner
+   Griff oben in der Mitte (halbtransparent, ueber dem Inhalt) blendet sie wieder ein. */
+.shell-maximize {
+	margin-left: auto;
+	height: 34px;
+	width: 34px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--ui-color-border-input);
+	border-radius: var(--ui-radius-md);
+	background: var(--ui-btn-neutral-inactive);
+	color: var(--ui-color-text-primary);
+	font-size: 18px;
+	line-height: 1;
+	cursor: pointer;
+	padding: 0;
+}
+
+.shell-maximize:hover {
+	background: var(--ui-btn-neutral-hover);
+}
+
+/* Hoehe des Headers fuer Seiten mit fester Vollhoehe (SPS-IDE, Terminal: calc(100vh - ...)). */
+app-shell {
+	--shell-header-h: 105px;
+}
+
+app-shell.shell-maximized {
+	--shell-header-h: 0px;
+}
+
+app-shell.shell-maximized .shell-header,
+app-shell.shell-maximized .shell-nav,
+app-shell.shell-maximized .shell-nav-scrim {
+	display: none;
+}
+
+.shell-restore {
+	position: fixed;
+	top: 0;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 50;
+	width: 56px;
+	height: 10px;
+	padding: 0;
+	border: 1px solid var(--ui-color-border-input);
+	border-top: none;
+	border-radius: 0 0 8px 8px;
+	background: var(--ui-btn-neutral-inactive);
+	color: var(--ui-color-text-secondary);
+	font-size: 10px;
+	line-height: 1;
+	cursor: pointer;
+	opacity: 0.55;
+	overflow: hidden;
+}
+
+.shell-restore:hover {
+	opacity: 1;
+	height: 22px;
+	background: var(--ui-btn-neutral-hover);
+}
+
 .shell-body {
 	display: flex;
 	flex: 1 1 auto;

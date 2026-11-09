@@ -33,6 +33,32 @@ export class AppShell extends LitElement {
 
 	@state() private activePath = "";
 	@state() private menuOpen = false;
+	// Maximiert: Header und Sidebar ausgeblendet, nur der Inhaltsbereich; ein kleiner Griff oben
+	// in der Mitte blendet sie wieder ein. Pro Browser gemerkt (reine Ansichtssache).
+	@state() private maximized = AppShell.loadMaximized();
+
+	private static readonly MAXIMIZED_KEY = "fcu.shell.maximized";
+
+	private static loadMaximized(): boolean {
+		try {
+			return localStorage.getItem(AppShell.MAXIMIZED_KEY) === "1";
+		} catch {
+			return false;
+		}
+	}
+
+	private setMaximized(on: boolean): void {
+		this.maximized = on;
+		this.menuOpen = false;
+		try {
+			localStorage.setItem(AppShell.MAXIMIZED_KEY, on ? "1" : "0");
+		} catch {
+			/* ohne Speicher eben nur fuer diese Sitzung */
+		}
+		// Apps, die ihre Groesse nur bei window-resize neu berechnen (Power-Management-Diagramme),
+		// bekommen den geaenderten Inhaltsbereich mit.
+		this.updateComplete.then(() => window.dispatchEvent(new Event("resize")));
+	}
 
 	private entries: AppEntry[] = [];
 	private router?: Router;
@@ -91,6 +117,10 @@ export class AppShell extends LitElement {
 		this.router?.Navigate(path);
 	}
 
+	protected updated(): void {
+		this.classList.toggle("shell-maximized", this.maximized);
+	}
+
 	protected render() {
 		return html`
 			<header class="shell-header" style="background-image: url('${HEADER_BACKGROUND_URL}')">
@@ -101,7 +131,23 @@ export class AppShell extends LitElement {
 					@click=${() => (this.menuOpen = !this.menuOpen)}
 				>☰</button>
 				<span class="shell-logo">${unsafeHTML(logoSvg)}</span>
+				<button
+					class="shell-maximize"
+					type="button"
+					title="Header und Menü ausblenden (Arbeitsfläche maximieren)"
+					aria-label="Arbeitsfläche maximieren"
+					@click=${() => this.setMaximized(true)}
+				>⤢</button>
 			</header>
+			${this.maximized
+				? html`<button
+						class="shell-restore"
+						type="button"
+						title="Header und Menü wieder einblenden"
+						aria-label="Header und Menü einblenden"
+						@click=${() => this.setMaximized(false)}
+					>▾</button>`
+				: ""}
 			<div class="shell-body">
 				<nav class="shell-nav ${this.menuOpen ? "shell-nav-open" : ""}">
 					<ul>

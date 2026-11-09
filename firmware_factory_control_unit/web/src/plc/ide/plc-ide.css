@@ -21,7 +21,7 @@ plc-ide-app[hidden] {
 .ide {
 	display: grid;
 	grid-template-rows: auto minmax(0, 1fr) minmax(120px, 26%) auto;
-	height: calc(100vh - 128px);
+	height: calc(100vh - var(--shell-header-h, 105px) - 23px);
 	min-height: 560px;
 	border: 1px solid var(--ui-color-border);
 	border-radius: var(--ui-radius-lg);

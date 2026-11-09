@@ -806,8 +806,11 @@ the firmware's check of `ioMapHash` against the generated `register_map::map_has
 registers now belong to the program too (Modbus 0x02; the terminal's `home` refuses). Renode
 (`tools/test-plc-renode.py`, both revisions): an image for another register map is refused; the homing
 started by `FCU_StepperHome` reaches the firmware once, the block gets its answer (no TMC2209 in the
-emulator: Error 3). Still open in P2: the terminal command `plc`, the project source on the SD card
-("upload from device"), the other FCU blocks (`FCU_StepperMoveAbsolute`, `FCU_Ws2812`, `FCU_Log`), and
+emulator: Error 3). The terminal command `plc`: without arguments the state (read directly), `plc run |
+stop | reset warm|cold | source fieldbus|iec | autostart on|off` go to the PLC thread as a request -
+they may write the flash journal, the I/O thread that runs the terminal does not wait for that - and the
+PLC thread logs the result (Renode: state, refused arguments, source and autostart through the log).
+Still open in P2: the project source on the SD card ("upload from device"), the other FCU blocks (`FCU_StepperMoveAbsolute`, `FCU_Ws2812`, `FCU_Log`), and
 the hardware test on the boards.
 
 ## 14. Decisions from the review and postponed points

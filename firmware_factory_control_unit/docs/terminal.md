@@ -55,4 +55,4 @@ A new lookup: a member of `enum Lookup` in `commands.cs`, `[Lookup(Lookup.<name>
 
 ## Commands
 
-`info`, `in`, `out`, `pwm`, `gpio`, `adc`, `power`, `temp`, `sensors`, `i2c`, `reg`, `stepper`, `home`, `led`, `reset`; in the browser `help` and `clear`. `help` lists them with their usage; `help <command>` shows the parameters and their values.
+`info`, `in`, `out`, `pwm`, `gpio`, `adc`, `power`, `temp`, `sensors`, `i2c`, `reg`, `stepper`, `home`, `plc`, `led`, `reset`; in the browser `help` and `clear`. `help` lists them with their usage; `help <command>` shows the parameters and their values.

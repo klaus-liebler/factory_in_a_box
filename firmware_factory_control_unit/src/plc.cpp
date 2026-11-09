@@ -291,6 +291,7 @@ enum class Kind : std::uint8_t { control, upload, commit, write };
 
 struct Request {
     SessionId session{};
+    bool terminal = false;  ///< from the terminal: the result goes to the log, no response
     std::uint16_t request_id = 0;
     Kind kind = Kind::control;
     ws::PlcCommand command{};
@@ -391,6 +392,12 @@ void handle(const Request& r) noexcept {
     switch (r.kind) {
         case Kind::control: {
             const char* e = control(r.command);
+            if (r.terminal) {
+                if (e != nullptr) RTOS_LOG_WARN("plc: terminal command refused: %s", e);
+                else RTOS_LOG_INFO("plc: terminal command done (%s, control source %s, autostart %s)", state_name(state.load()),
+                                   iec.load() ? "IEC 61131" : "fieldbus", autostart ? "on" : "off");
+                break;
+            }
             out(ws::ControlResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
             break;
         }
@@ -451,12 +458,13 @@ void plc_main(void*) {
     }
 }
 
-void post(const Request& r) noexcept {
+bool post(const Request& r) noexcept {
     if (!requests.try_send(r)) {
         RTOS_LOG_WARN("plc: request queue full, request dropped");
-        return;
+        return false;
     }
     kernel.notify(plc_tcb, notify_slot, bit_request);
+    return true;
 }
 
 }  // namespace
@@ -471,6 +479,16 @@ void create_thread() noexcept {
 void io_cycle_done() noexcept { kernel.notify(plc_tcb, notify_slot, bit_cycle); }
 
 bool iec_controls() noexcept { return iec.load(std::memory_order_relaxed); }
+
+Status status() noexcept {
+    const bool loaded = machine.loaded();
+    return {.state = state_name(state.load()), .iec = iec.load(), .autostart = autostart,
+            .image_bytes = loaded ? image_bytes : 0, .max_image_bytes = static_cast<std::uint32_t>(image_ram.size()),
+            .cycles = cycles.load(), .last_instructions = last_instructions.load(), .max_instructions = max_instructions.load(),
+            .trap = trap.load(), .trap_code = trap_code.load(), .trap_pc = trap_pc.load(), .problem = store_problem};
+}
+
+bool command(ws::PlcCommand c) noexcept { return post({.terminal = true, .kind = Kind::control, .command = c}); }
 
 bool external_write_allowed(std::uint16_t reg) noexcept {
     return !iec_controls() || rm::holding_kind(reg) == RegisterKind::parameter;

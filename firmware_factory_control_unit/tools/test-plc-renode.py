@@ -15,6 +15,7 @@ TAP adapter "rtoos-tap" (rtoos/emulation/renode/setup-tap.ps1); over wss:// (WsP
     reads inputs, its variables are readable online
   - autostart: after a software reset the program runs again by itself - no browser, no download
   - STOP: safe state; control source fieldbus: Modbus writes the outputs again
+  - the terminal command `plc`: the state; `plc source fieldbus`, `plc autostart off` through the PLC thread
 
   cmake --build --preset Release-Rev3 && python tools/test-plc-renode.py
   cmake --build --preset Release      && python tools/test-plc-renode.py --revision 2
@@ -195,6 +196,13 @@ def control(ws, name):
     return ok_message(ws.call(PLC, 3, struct.pack("<B", CMD[name]), 4))
 
 
+def term(ws, line):
+    """A terminal command line (namespace terminal: CommandRequest 3 -> CommandResponse 4)."""
+    r = ws.call(6, 3, line.encode() + b"\0", 4)
+    out, _ = cstr(r, 1)
+    return r[0] == 1, out
+
+
 def read_var(ws, name, fmt):
     addr = meta["symbols"][name]
     r = ws.call(PLC, 9, struct.pack("<IH", addr, struct.calcsize(fmt)), 10)
@@ -350,11 +358,21 @@ try:
     check("STOP", ok, msg)
     check("STOP: outputs in the safe state", holding(mb, CONVEYOR) == [0] and holding(mb, VALVE2) == [0])
     check("STOP: the 32-bit stepper target keeps its value (no new target)", holding(mb, STEPPER1_TARGET, 2) == [1, 4464])
-    ok, msg = control(ws, "fieldbus")
-    check("control source fieldbus", ok, msg)
+    # the terminal command `plc`: the state directly, commands through the PLC thread (result in the log)
+    ok, out = term(ws, "plc")
+    check("terminal plc: the state", ok and "STOP, control source IEC 61131, autostart on" in out, out)
+    ok, out = term(ws, "plc reset")
+    check("terminal plc reset without warm|cold: refused as wrong arguments", not ok, out)
+    mark = len(log)
+    ok, out = term(ws, "plc source fieldbus")
+    check("terminal plc source fieldbus: sent", ok and "sent to the PLC thread" in out, out)
+    check("terminal plc source fieldbus: done (log)", wait_log("plc: terminal command done (STOP, control source fieldbus", 10, mark))
+    check("control source fieldbus (status)", not status(ws)["iec"])
     check("fieldbus again: Modbus writes the conveyor", modbus_write(mb, CONVEYOR, 250) is None and holding(mb, CONVEYOR) == [250])
-    ok, msg = control(ws, "autostart_off")
-    check("autostart off", ok, msg)
+    mark = len(log)
+    ok, out = term(ws, "plc autostart off")
+    check("terminal plc autostart off: done (log)", ok and wait_log("autostart off)", 10, mark), out)
+    check("autostart off (status)", not status(ws)["autostart"])
 finally:
     for c in (ws, mb):
         if c is not None:

@@ -275,6 +275,44 @@ bool cmd_led(Args a, Out& o) {
     return true;
 }
 
+/// The PLC (docs/plc-iec61131.md 6.2): its state, or a command for the PLC thread (result in the log).
+bool cmd_plc(Args a, Out& o) {
+    if (a.empty()) {
+        const plc::Status s = plc::status();
+        o.line("%s, control source %s, autostart %s", s.state, s.iec ? "IEC 61131" : "fieldbus", s.autostart ? "on" : "off");
+        o.line("program %lu of %lu bytes, %lu cycles, %lu instructions in the last (max %lu)",
+               static_cast<unsigned long>(s.image_bytes), static_cast<unsigned long>(s.max_image_bytes),
+               static_cast<unsigned long>(s.cycles), static_cast<unsigned long>(s.last_instructions),
+               static_cast<unsigned long>(s.max_instructions));
+        if (s.trap != 0) {
+            o.line("runtime error %u (code %u) at pc %lu", s.trap, s.trap_code, static_cast<unsigned long>(s.trap_pc));
+        }
+        if (*s.problem != '\0') o.line("refused: %s", s.problem);
+        return true;
+    }
+    using C = WsProtocol::plc::PlcCommand;
+    const std::string_view action = a[0];
+    const std::string_view option = a.size() > 1 ? a[1] : std::string_view{};
+    if (a.size() > 2) return false;
+    std::optional<C> c;
+    if (action == "run" && option.empty()) c = C::Run;
+    else if (action == "stop" && option.empty()) c = C::Stop;
+    else if (action == "reset" && option == "warm") c = C::ResetWarm;
+    else if (action == "reset" && option == "cold") c = C::ResetCold;
+    else if (action == "source" && option == "fieldbus") c = C::SourceFieldbus;
+    else if (action == "source" && option == "iec") c = C::SourceIec;
+    else if (action == "autostart" && option == "on") c = C::AutostartOn;
+    else if (action == "autostart" && option == "off") c = C::AutostartOff;
+    if (!c) return false;
+    if (!plc::command(*c)) {
+        o.line("the PLC is busy (request queue full), try again");
+        return true;
+    }
+    o.line("plc %.*s%s%.*s: sent to the PLC thread, the result follows in the log", static_cast<int>(action.size()),
+           action.data(), option.empty() ? "" : " ", static_cast<int>(option.size()), option.data());
+    return true;
+}
+
 bool cmd_reset(Args a, Out& o) {
     if (a.size() != 1 || a[0] != "now") return false;
     o.line("resetting");
@@ -290,7 +328,7 @@ constexpr std::array handlers{
     Handler{cat::Command::power, &cmd_power},     Handler{cat::Command::temp, &cmd_temp},
     Handler{cat::Command::sensors, &cmd_sensors}, Handler{cat::Command::i2c, &cmd_i2c},
     Handler{cat::Command::reg, &cmd_reg},         Handler{cat::Command::stepper, &cmd_stepper},
-    Handler{cat::Command::home, &cmd_home},
+    Handler{cat::Command::home, &cmd_home},       Handler{cat::Command::plc, &cmd_plc},
     Handler{cat::Command::led, &cmd_led},         Handler{cat::Command::reset, &cmd_reset},
 };
 

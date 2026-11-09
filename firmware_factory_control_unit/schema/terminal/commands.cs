@@ -148,6 +148,20 @@ public class led
 	public string pattern;
 }
 
+/// <summary>IEC 61131-3 PLC: without arguments its state; run, stop, reset, control source, autostart (the PLC
+/// thread runs the command and logs the result)</summary>
+[TerminalCommand]
+public class plc
+{
+	/// <summary>what to do</summary>
+	[Value("run", "start the program (STOP -> RUN)"), Value("stop", "stop it, outputs to the safe state"),
+	 Value("reset", "reload the program from the flash slot: warm | cold"),
+	 Value("source", "who controls the outputs: fieldbus | iec (stored)"),
+	 Value("autostart", "RUN after a restart: on | off (stored)")] public string? action;
+	/// <summary>reset: warm | cold; source: fieldbus | iec; autostart: on | off</summary>
+	[Value("warm"), Value("cold"), Value("fieldbus"), Value("iec"), Value("on"), Value("off")] public string? option;
+}
+
 /// <summary>restart the controller</summary>
 [TerminalCommand]
 public class reset

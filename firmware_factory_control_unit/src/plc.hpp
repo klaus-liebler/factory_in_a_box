@@ -16,6 +16,7 @@
 #include <cstdint>
 
 #include "network.hpp"
+#include "ws_protocol.hh"
 
 namespace fcu::plc {
 
@@ -30,6 +31,23 @@ void io_cycle_done() noexcept;
 
 /// May somebody other than the program (terminal, web UI, RoArm teach) write holding register `reg`?
 [[nodiscard]] bool external_write_allowed(std::uint16_t reg) noexcept;
+
+/// The PLC's state for the terminal (`plc`), read from any thread.
+struct Status {
+    const char* state;  ///< NO_PROGRAM, STOP, RUN, ERROR
+    bool iec;           ///< control source IEC 61131 (else fieldbus)
+    bool autostart;
+    std::uint32_t image_bytes, max_image_bytes, cycles, last_instructions, max_instructions;
+    std::uint8_t trap;  ///< 0: none
+    std::uint16_t trap_code;
+    std::uint32_t trap_pc;
+    const char* problem;  ///< why downloads and switching are refused ("": they are not)
+};
+[[nodiscard]] Status status() noexcept;
+
+/// Terminal (I/O thread): queue a command for the PLC thread - it may write the flash, the I/O thread
+/// does not wait for that. The PLC thread logs the result. false: the queue is full.
+bool command(WsProtocol::plc::PlcCommand c) noexcept;
 
 /// WebSocket messages of the namespace "plc" (network thread).
 void on_message(net::Server::SessionId id, std::uint16_t type, const std::uint8_t* data, std::size_t len) noexcept;

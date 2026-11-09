@@ -1,0 +1,92 @@
+// A small plant model for the simulator (mockup): a conveyor with workpieces passing two light
+// barriers, a compressor with a pressure tank and valves, two steppers that drive to their targets.
+// It reads the outputs of the program and writes its inputs once per cycle - so a program can be
+// tried without hardware. It is a toy, not a physical simulation of the Factory-in-a-Box.
+
+export interface PlantIo {
+	get(name: string): number | boolean | undefined;
+	set(name: string, v: number | boolean): void;
+}
+
+interface Piece {
+	pos: number; // 0..100 % of the belt
+}
+
+export class Plant {
+	private pieces: Piece[] = [];
+	private spawnIn = 0;
+	private pressure = 0; // raw 0..4095
+	private steppers = [0, 0];
+	private elapsed = 0;
+	/** Workpieces pushed off at light barrier 2 (valve 1) and those that reached the end. */
+	ejected = 0;
+	delivered = 0;
+
+	reset(): void {
+		this.pieces = [];
+		this.spawnIn = 0;
+		this.pressure = 0;
+		this.steppers = [0, 0];
+		this.elapsed = 0;
+		this.ejected = 0;
+		this.delivered = 0;
+	}
+
+	get state(): { pieces: number[]; pressure: number } {
+		return { pieces: this.pieces.map((p) => p.pos), pressure: this.pressure };
+	}
+
+	step(dtMs: number, io: PlantIo): void {
+		this.elapsed += dtMs;
+		const num = (n: string) => Number(io.get(n) ?? 0);
+		const bool = (n: string) => Boolean(io.get(n));
+
+		// conveyor: full speed (1000 per mille) = 25 % of the belt per second
+		const speed = (Math.min(Math.max(num("ConveyorPwm"), 0), 1000) / 1000) * 25;
+		if (speed > 0) {
+			this.spawnIn -= dtMs;
+			if (this.spawnIn <= 0 && (this.pieces.length === 0 || this.pieces[this.pieces.length - 1].pos > 22)) {
+				this.pieces.push({ pos: 0 });
+				this.spawnIn = 1800;
+			}
+		}
+		for (const p of this.pieces) p.pos += (speed * dtMs) / 1000;
+		// valve 1 pushes a piece off while it is at light barrier 2
+		if (bool("Valve1")) {
+			const before = this.pieces.length;
+			this.pieces = this.pieces.filter((p) => !(p.pos > 66 && p.pos < 76));
+			this.ejected += before - this.pieces.length;
+		}
+		const before = this.pieces.length;
+		this.pieces = this.pieces.filter((p) => p.pos < 100);
+		this.delivered += before - this.pieces.length;
+		const at = (lo: number, hi: number) => this.pieces.some((p) => p.pos >= lo && p.pos <= hi);
+		io.set("Lightbarrier1", at(28, 34));
+		io.set("Lightbarrier2", at(68, 74));
+		io.set("Lightbarrier3", at(94, 99));
+
+		// compressor and tank: the valves let air out
+		const inflow = (Math.min(Math.max(num("CompressorPwm"), 0), 1000) / 1000) * 900;
+		const open = Number(bool("Valve1")) + Number(bool("Valve2")) + Number(bool("Valve3"));
+		const outflow = (this.pressure * (0.05 + 0.6 * open)) / 1;
+		this.pressure = Math.min(4095, Math.max(0, this.pressure + ((inflow - outflow) * dtMs) / 1000));
+		io.set("PressureRaw", Math.round(this.pressure));
+
+		// steppers: 2000 steps/s toward the target while enabled
+		if (bool("StepperEnable")) {
+			const targets = [num("Stepper1Target"), num("Stepper2Target")];
+			for (let i = 0; i < 2; i++) {
+				const d = targets[i] - this.steppers[i];
+				const step = Math.sign(d) * Math.min(Math.abs(d), (2000 * dtMs) / 1000);
+				this.steppers[i] = Math.round(this.steppers[i] + step);
+			}
+		}
+		io.set("Stepper1Position", this.steppers[0]);
+		io.set("Stepper2Position", this.steppers[1]);
+
+		// a few signs of life
+		io.set("EthLinkStatus", true);
+		io.set("TimerTick", Math.floor(this.elapsed) % 65536);
+		io.set("CpuTemperatureC", 41);
+	}
+}

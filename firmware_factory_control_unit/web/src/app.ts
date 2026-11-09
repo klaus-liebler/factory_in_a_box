@@ -10,6 +10,7 @@ import "./apps/roarm-teach-app.js";
 import "./apps/task-manager-app.js";
 import "./apps/druckregelstrecke-app.js";
 import "./apps/terminal-app.js";
+import "./plc/ide/plc-ide-app.ts";
 import type { AppShell } from "./shell/app-shell.js";
 import { startWebSocketClient } from "./ws-client.js";
 import { startLogStore } from "./log-store.js";
@@ -23,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	shell.RegisterApp("/roarm-teach", "RoArm Teach", "🦾", document.createElement("roarm-teach-app"));
 	shell.RegisterApp("/tasks", "Task Manager", "📋", document.createElement("task-manager-app"));
 	shell.RegisterApp("/druckregelstrecke", "Druckregelstrecke", "🌬️", document.createElement("druckregelstrecke-app"));
+	shell.RegisterApp("/plc", "SPS (IEC 61131)", "🧩", document.createElement("plc-ide-app"));
 	shell.RegisterApp("/terminal", "Terminal", "⌨️", document.createElement("terminal-app"));
 
 	shell.Start();

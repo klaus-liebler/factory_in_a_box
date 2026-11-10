@@ -6,7 +6,9 @@
 // (.X active, .T time since activation), every cycle the transitions are evaluated on the old state,
 // the enabled ones fire together, then the actions of the active steps run. DOM-free.
 
-export type Qualifier = "N" | "S" | "R" | "P";
+/** The action qualifiers so far (IEC 61131-3 Ed. 3, table 75). Still to come: L, SD, DS, SL, P0, P1
+ *  (docs/plc-iec61131.md 5.4). */
+export type Qualifier = "N" | "S" | "R" | "P" | "D";
 
 /** The step type of every SFC (a source file of its own, with the I/O list and the FCU library). */
 export const SFC_FILE = "<sfc>";
@@ -16,6 +18,8 @@ export interface SfcAction {
 	qualifier: Qualifier;
 	/** A BOOL variable (N: it is TRUE while the step is active; S/R: set/reset it) or ST statements. */
 	body: string;
+	/** D (time delayed): the time after the step's activation, a TIME expression (T#2s, a variable). */
+	time?: string;
 }
 
 export type SfcItem =
@@ -141,6 +145,11 @@ export function sfcGraph(pou: SfcPou): { steps: (SfcItem & { kind: "step" })[]; 
 		for (const t of j.t) t.targets.push(j.target);
 	}
 	for (const t of transitions) if (!t.condition.trim()) problems.push({ item: t.id, message: "Transition ohne Bedingung" });
+	for (const s of steps) {
+		for (const a of s.actions) {
+			if (a.qualifier === "D" && !(a.time ?? "").trim()) problems.push({ item: s.id, message: `Aktion D in ${s.name} braucht eine Zeit (z.B. T#2s)` });
+		}
+	}
 	return { steps, transitions, problems };
 }
 
@@ -174,7 +183,9 @@ export function sfcSource(pou: SfcPou, end = "END_PROGRAM"): { text: string; pro
 		if (t.targets.length) out.push(`IF ${tn(t, i)} THEN ${t.targets.map((s) => `${s}.X := TRUE;`).join(" ")} END_IF;`);
 	});
 	out.push("(* actions *)");
-	const nVars = new Map<string, string[]>(); // N with a variable: TRUE while any of its steps is active
+	// N and D with a variable: TRUE while any of its conditions holds (N: the step is active; D: it has
+	// been active for the time)
+	const nVars = new Map<string, string[]>();
 	for (const s of g.steps) {
 		for (const a of s.actions) {
 			const body = a.body.trim();
@@ -182,9 +193,16 @@ export function sfcSource(pou: SfcPou, end = "END_PROGRAM"): { text: string; pro
 			const isVar = /^[A-Za-z_][A-Za-z0-9_.]*$/.test(body);
 			switch (a.qualifier) {
 				case "N":
-					if (isVar) nVars.set(body, [...(nVars.get(body) ?? []), s.name]);
+					if (isVar) nVars.set(body, [...(nVars.get(body) ?? []), `${s.name}.X`]);
 					else out.push(`IF ${s.name}.X THEN ${withSemicolon(body)} END_IF;`);
 					break;
+				case "D": {
+					// time delayed: from the time after the activation until the step is left
+					const cond = `(${s.name}.X AND ${s.name}.T >= (${(a.time ?? "").trim() || "T#0s"}))`;
+					if (isVar) nVars.set(body, [...(nVars.get(body) ?? []), cond]);
+					else out.push(`IF ${cond} THEN ${withSemicolon(body)} END_IF;`);
+					break;
+				}
 				case "S": out.push(`IF ${s.name}.X THEN ${isVar ? `${body} := TRUE;` : withSemicolon(body)} END_IF;`); break;
 				case "R": out.push(`IF ${s.name}.X THEN ${isVar ? `${body} := FALSE;` : withSemicolon(body)} END_IF;`); break;
 				case "P":
@@ -193,7 +211,7 @@ export function sfcSource(pou: SfcPou, end = "END_PROGRAM"): { text: string; pro
 			}
 		}
 	}
-	for (const [v, steps] of nVars) out.push(`${v} := ${steps.map((s) => `${s}.X`).join(" OR ")};`);
+	for (const [v, conds] of nVars) out.push(`${v} := ${conds.join(" OR ")};`);
 
 	// the declaration unchanged: line n of it is line n of the text (diagnostics map back to it); the step
 	// type SFC_STEP comes with the device sources (SFC_STEP_SOURCE), once for every SFC of the project

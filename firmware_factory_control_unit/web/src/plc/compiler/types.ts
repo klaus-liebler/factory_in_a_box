@@ -172,3 +172,13 @@ export const isBitLike = (e: ElemName) => ["bool", "bit"].includes(ELEM[e].categ
 export const isReal = (e: ElemName) => ELEM[e].category === "real";
 
 export const alignUp = (n: number, a: number) => Math.ceil(n / a) * a;
+
+/** Is X_TO_Y a conversion the compiler accepts? Not between bit strings and REAL/LREAL, not between
+ *  BOOL and REAL/LREAL (docs/plc-iec61131.md 5.7); every other pair of different elementary types. */
+export function conversionAllowed(from: ElemName, to: ElemName): boolean {
+	if (from === to) return false;
+	const f = ELEM[from].category, t = ELEM[to].category;
+	if ((f === "bit" && t === "real") || (f === "real" && t === "bit")) return false;
+	if ((f === "real" || t === "real") && (f === "bool" || t === "bool")) return false;
+	return true;
+}

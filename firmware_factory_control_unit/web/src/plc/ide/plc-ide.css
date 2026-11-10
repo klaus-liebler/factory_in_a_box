@@ -1830,3 +1830,9 @@ plc-st-editor {
 .ide .ide-node[draggable="true"] {
 	cursor: grab;
 }
+/* D: the delay next to the qualifier */
+.sfc .sfc-actions input.sfc-time-input {
+	border-left: 1px solid #cbd5e1;
+	margin-left: 2px;
+	padding-left: 3px;
+}

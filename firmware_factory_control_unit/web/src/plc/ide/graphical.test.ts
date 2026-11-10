@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compile, type CompileResult } from "../compiler/compiler.ts";
 import { formatDiagnostic } from "../compiler/diagnostics.ts";
 import { Vm } from "../vm.ts";
-import { exampleFbd, fbdSource, literalType, lowerFbd, networkTypes, pinKey, typeClass, type FbdPou } from "./fbd.ts";
+import { CONVERSIONS, exampleFbd, fbdSource, literalType, lowerFbd, networkTypes, pinKey, typeClass, type FbdPou } from "./fbd.ts";
 import { ioBindings, ioMapHash } from "./io-list.ts";
 import { deviceSources } from "./project.ts";
 import { exampleSfc, sfcGraph, sfcSource, type SfcPou } from "./sfc.ts";
@@ -187,5 +187,106 @@ describe("SFC", () => {
 		expect(msgs).toContain("Schritt A doppelt");
 		expect(msgs).toContain("Transition ohne Bedingung");
 		expect(msgs).toContain("Sprungziel Nowhere gibt es nicht");
+	});
+});
+
+describe("FBD: type conversion boxes", () => {
+	it("every conversion of the palette goes through the FBD lowering and the compiler", () => {
+		expect(CONVERSIONS.length).toBeGreaterThan(150);
+		expect(CONVERSIONS.some((b) => b.type === "BOOL_TO_INT")).toBe(true);
+		expect(CONVERSIONS.some((b) => b.type === "BOOL_TO_REAL" || b.type === "WORD_TO_REAL")).toBe(false);  // the compiler refuses them
+		for (const b of CONVERSIONS) {
+			const from = b.types?.IN ?? "REAL", to = b.types!.OUT;
+			const pou: FbdPou = {
+				name: "CONV_PRG",
+				decl: `PROGRAM CONV_PRG\nVAR\n    a : ${from};\n    b : ${to};\nEND_VAR`,
+				networks: [{
+					id: "n1", title: "",
+					nodes: [
+						{ kind: "input", id: "i", x: 0, y: 0, expr: "a" },
+						{ kind: "box", id: "c", x: 100, y: 0, type: b.type },
+						{ kind: "output", id: "o", x: 250, y: 0, target: "b" },
+					],
+					wires: [{ from: { node: "i", pin: "OUT" }, to: { node: "c", pin: "IN" } }, { from: { node: "c", pin: "OUT" }, to: { node: "o", pin: "IN" } }],
+				}],
+			};
+			const src = fbdSource(pou);
+			expect(src.problems, b.type).toEqual([]);
+			build(pou.name, src.text);
+		}
+	});
+
+	it("BOOL_TO_INT and TRUNC compute in the VM", () => {
+		const pou: FbdPou = {
+			name: "CONV_PRG",
+			decl: "PROGRAM CONV_PRG\nVAR\n    x : BOOL := TRUE;\n    n : INT;\n    r : REAL := -2.7;\n    d : DINT;\nEND_VAR",
+			networks: [{
+				id: "n1", title: "",
+				nodes: [
+					{ kind: "input", id: "i1", x: 0, y: 0, expr: "x" },
+					{ kind: "box", id: "c1", x: 100, y: 0, type: "BOOL_TO_INT" },
+					{ kind: "output", id: "o1", x: 250, y: 0, target: "n" },
+					{ kind: "input", id: "i2", x: 0, y: 80, expr: "r" },
+					{ kind: "box", id: "c2", x: 100, y: 80, type: "TRUNC" },
+					{ kind: "output", id: "o2", x: 250, y: 80, target: "d" },
+				],
+				wires: [
+					{ from: { node: "i1", pin: "OUT" }, to: { node: "c1", pin: "IN" } }, { from: { node: "c1", pin: "OUT" }, to: { node: "o1", pin: "IN" } },
+					{ from: { node: "i2", pin: "OUT" }, to: { node: "c2", pin: "IN" } }, { from: { node: "c2", pin: "OUT" }, to: { node: "o2", pin: "IN" } },
+				],
+			}],
+		};
+		const types = networkTypes(pou.networks[0], (name) => ({ x: "BOOL", n: "INT", r: "REAL", d: "DINT" })[name] ?? null);
+		expect(types.mismatches.size).toBe(0);
+		expect(types.pins.get(pinKey("c1", "out", "OUT"))).toBe("int");
+		const m = machine(build(pou.name, fbdSource(pou).text));
+		m.cycle();
+		expect([m.get("CONV_PRG.n"), m.get("CONV_PRG.d")]).toEqual([1, -2]);
+	});
+});
+
+describe("SFC: action qualifier D", () => {
+	const chart = (time: string): SfcPou => ({
+		name: "D_PRG",
+		decl: "PROGRAM D_PRG\nVAR\n    Lamp : BOOL;\n    Late : INT;\nEND_VAR",
+		chart: [
+			{ kind: "step", id: "s1", name: "Wait", actions: [
+				{ qualifier: "D", body: "Lamp", time },
+				{ qualifier: "D", body: "Late := Late + 1", time },
+			] },
+			{ kind: "trans", id: "t1", condition: "Wait.T >= T#1s" },
+			{ kind: "step", id: "s2", name: "Show", actions: [{ qualifier: "N", body: "Lamp" }] },
+			{ kind: "trans", id: "t2", condition: "Show.T >= T#200ms" },
+			{ kind: "step", id: "s3", name: "Off", actions: [] },
+			{ kind: "trans", id: "t3", condition: "FALSE" },
+		],
+	});
+
+	it("time delayed: from the time after the activation until the step is left; OR with N", () => {
+		const p = chart("T#300ms");
+		const m = machine(build(p.name, sfcSource(p).text));
+		const lamp: boolean[] = [];
+		const late: number[] = [];
+		for (let i = 0; i < 30; i++) {
+			m.cycle();
+			lamp.push(m.get("D_PRG.Lamp") as boolean);
+			late.push(m.get("D_PRG.Late") as number);
+		}
+		const firstOn = lamp.indexOf(true);
+		// Wait is active from cycle 1, its time grows 50 ms per cycle: on after 300 ms, not before
+		expect(firstOn).toBeGreaterThanOrEqual(6);
+		expect(firstOn).toBeLessThanOrEqual(8);
+		expect(late[firstOn - 1]).toBe(0);  // the statements: not before the time either
+		expect(late[firstOn]).toBe(1);
+		// Wait for 1 s, then Show (N on the same variable) for 200 ms: on throughout, then off in Off
+		const off = lamp.indexOf(false, firstOn);
+		expect(m.get("D_PRG.Off.X")).toBe(true);
+		expect(off).toBeGreaterThan(firstOn + 10);
+		expect(lamp.slice(off).every((v) => !v)).toBe(true);
+		expect(late.at(-1)).toBe(late[off]);  // the D statements stopped with the step
+	});
+
+	it("D without a time is a problem", () => {
+		expect(sfcSource(chart("")).problems.map((x) => x.message)).toContain("Aktion D in Wait braucht eine Zeit (z.B. T#2s)");
 	});
 });

@@ -308,7 +308,9 @@ implicit widening only where the standard allows it (otherwise explicit `*_TO_*`
 
 - Steps (one initial step), transitions (condition in ST as an expression or as an FBD network),
   alternative and simultaneous branches, jumps; actions in ST or FBD (or as a boolean variable).
-- Action qualifiers: N, R, S, P, P0, P1, L, D, SD, DS, SL (with time where needed); step flags
+- Action qualifiers: N, R, S, P, P0, P1, L, D, SD, DS, SL (with time where needed). Implemented: N, S, R, P,
+  D (2026-11-10: from the time after the activation until the step is left); still to come: SD, DS, SL
+  (asked for by the user), L, P0, P1; step flags
   `Step.X`, `Step.T`.
 - Evolution rule (E4): per cycle **one** evolution step (all transitions enabled at
   that moment fire simultaneously), no search for stable state within a cycle; this is

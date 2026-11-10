@@ -3,6 +3,8 @@
 // and output variables, joined by wires from an output pin to an input pin. The ST that comes out
 // is compiled like any other source, so an FBD POU runs and debugs on the same VM. DOM-free.
 
+import { ELEM, conversionAllowed, type ElemName } from "../compiler/types.ts";
+
 /** A box type: its pins and how it lowers. op: an infix operator over its inputs; func: a standard
  *  function with positional arguments; fb: a function block (an instance, called with its inputs). */
 export interface BoxDef {
@@ -58,7 +60,19 @@ export const BOXES: readonly BoxDef[] = [
 	{ type: "SR", kind: "fb", inputs: ["S1", "R"], outputs: ["Q1"], group: "Flanke/Speicher", title: "Setzen dominant" },
 	{ type: "RS", kind: "fb", inputs: ["S", "R1"], outputs: ["Q1"], group: "Flanke/Speicher", title: "Rücksetzen dominant" },
 ];
-const BOX = new Map(BOXES.map((b) => [b.type, b]));
+/** Type conversion (IEC 61131-3 Ed. 3, 6.6.2.5): every X_TO_Y the compiler accepts, and TRUNC. The
+ *  pins carry their types, so the wires show them; lowered as the function call X_TO_Y(IN). */
+export const CONVERSIONS: readonly BoxDef[] = [
+	...(Object.keys(ELEM) as ElemName[]).flatMap((from) => (Object.keys(ELEM) as ElemName[])
+		.filter((to) => conversionAllowed(from, to))
+		.map((to): BoxDef => ({
+			type: `${from}_TO_${to}`, kind: "func", inputs: ["IN"], outputs: ["OUT"], group: "Typumwandlung",
+			title: `${from} nach ${to}`, types: { IN: from, OUT: to },
+		}))),
+	{ type: "TRUNC", kind: "func", inputs: ["IN"], outputs: ["OUT"], group: "Typumwandlung", title: "REAL/LREAL nach DINT, abgeschnitten", types: { OUT: "DINT" } },
+];
+
+const BOX = new Map([...BOXES, ...CONVERSIONS].map((b) => [b.type, b]));
 /** The standard boxes. */
 export const boxDef: BoxCatalog = (type) => BOX.get(type.toUpperCase());
 

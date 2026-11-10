@@ -10,7 +10,7 @@ import { Emitter, type Label } from "./emitter.ts";
 import { parse } from "./parser.ts";
 import { STDLIB_FILE, STDLIB_SOURCE } from "./stdlib.ts";
 import {
-	ELEM, ERROR, T, alignOf, alignUp, assignable, elemOf, implicitElem, isBitLike, isElemName, isInteger, isNumeric,
+	ELEM, conversionAllowed, ERROR, T, alignOf, alignUp, assignable, elemOf, implicitElem, isBitLike, isElemName, isInteger, isNumeric,
 	isReal, sameType, sizeOf, typeName, type ElemName, type FbLayout, type Field, type Type,
 } from "./types.ts";
 
@@ -1541,7 +1541,7 @@ class Compiler {
 			const fc = ELEM[fromName].category;
 			const tc = ELEM[toName].category;
 			if ((fc === "bit" && tc === "real") || (fc === "real" && tc === "bit")) this.fatal(span, `${key}: conversions between bit strings and REAL are not supported`);
-			if ((fc === "real" || tc === "real") && (fc === "bool" || tc === "bool")) this.fatal(span, `${key} is not a valid conversion`);
+			if (!conversionAllowed(fromName, toName)) this.fatal(span, `${key} is not a valid conversion`);
 			return { k: "conv", type: T[toName], from: T[fromName], e: { ...x, type: T[fromName] }, checked: true };
 		}
 		if (key === "TRUNC") {

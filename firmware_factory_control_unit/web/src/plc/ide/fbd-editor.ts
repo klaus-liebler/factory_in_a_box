@@ -5,7 +5,7 @@
 // Online: the values of the variables and instance outputs at the pins, a TRUE wire in green.
 import { LitElement, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { BOXES, catalog, networkTypes, newId, pinKey, pinsOf, type FbdNetwork, type FbdNode, type BoxCatalog, type FbdPou, type FbdProblem, type NetworkTypes, type PinRef, type TypeClass } from "./fbd.ts";
+import { BOXES, CONVERSIONS, catalog, networkTypes, newId, pinKey, pinsOf, type FbdNetwork, type FbdNode, type BoxCatalog, type FbdPou, type FbdProblem, type NetworkTypes, type PinRef, type TypeClass } from "./fbd.ts";
 import { evalBox, parseLive } from "./fbd-live.ts";
 import { pathOf, routeWires, type Rect } from "./fbd-route.ts";
 import { IO_VARS, type IoVar } from "./io-list.ts";
@@ -331,7 +331,7 @@ export class FbdEditor extends LitElement {
 	// ---- the insert lists: [E]ingänge, [V]erarbeitung, [A]usgänge -----------------------------------------
 	private insertGroups(kind: InsertKind): { label: string; items: InsertItem[] }[] {
 		if (kind === "V") {
-			const all = [...BOXES, ...(this.pou.extra ?? [])];
+			const all = [...BOXES, ...CONVERSIONS, ...(this.pou.extra ?? [])];
 			return [...new Set(all.map((b) => b.group))].map((g) => ({
 				label: g, items: all.filter((b) => b.group === g).map((b) => ({ value: b.type, label: b.type, detail: b.title })),
 			}));

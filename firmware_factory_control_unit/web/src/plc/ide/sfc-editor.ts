@@ -13,6 +13,7 @@ const QUALIFIERS: { q: Qualifier; title: string }[] = [
 	{ q: "S", title: "S: setzen (bleibt gesetzt)" },
 	{ q: "R", title: "R: rücksetzen" },
 	{ q: "P", title: "P: einmal beim Aktivieren" },
+	{ q: "D", title: "D: zeitverzögert - nach der Zeit, solange der Schritt aktiv ist" },
 ];
 
 @customElement("plc-sfc-editor")
@@ -159,8 +160,13 @@ export class SfcEditor extends LitElement {
 						<table class="sfc-actions">
 							${it.actions.map((a, i) => html`<tr>
 								<td><select title=${QUALIFIERS.find((q) => q.q === a.qualifier)?.title ?? ""}
-									@change=${(e: Event) => { a.qualifier = (e.target as HTMLSelectElement).value as Qualifier; this.changed(); }}>
-									${QUALIFIERS.map((q) => html`<option ?selected=${q.q === a.qualifier} title=${q.title}>${q.q}</option>`)}</select></td>
+									@change=${(e: Event) => {
+										a.qualifier = (e.target as HTMLSelectElement).value as Qualifier;
+										if (a.qualifier === "D" && !a.time) a.time = "T#1s";
+										this.changed();
+									}}>
+									${QUALIFIERS.map((q) => html`<option ?selected=${q.q === a.qualifier} title=${q.title}>${q.q}</option>`)}</select>${a.qualifier === "D" ? html`<input class="sfc-time-input" .value=${a.time ?? ""} size=${Math.max(5, (a.time ?? "").length)} title="Verzögerung nach dem Aktivieren des Schritts (TIME, z.B. T#2s)" placeholder="T#1s"
+									@change=${(e: Event) => { a.time = (e.target as HTMLInputElement).value.trim(); this.changed(); }} />` : nothing}</td>
 								<td><input .value=${a.body} placeholder="Variable oder ST" size=${Math.max(10, a.body.length)}
 									@change=${(e: Event) => { a.body = (e.target as HTMLInputElement).value; this.changed(); }} /></td>
 								<td><button class="ide-icon-btn" title="Aktion löschen" @click=${() => { it.actions.splice(i, 1); this.changed(); }}>×</button></td>

@@ -14,6 +14,7 @@ import { createRoArm3DView, type RoArm3DHandles } from "./roarm-3d-view.js";
 import { MockRoArmBackend, type RoArmBackend, type MissionStep, VACUUM_GPIO_ID, FOLDED_REST_POSE_CENTIDEG } from "./roarm-backend.js";
 import { WsRoArmBackend } from "./roarm-ws-backend.js";
 import { JOINT_NAMES, JOINT_COUNT, JOINT_LIMITS_RAD, centiDegToRad, radToCentiDeg } from "./roarm-kinematics.js";
+import { kindOf, setAppStatus } from "../shell/status-bar.js";
 
 // import.meta.env.DEV ist Vites eingebautes Dev/Prod-Flag (true unter "npm run dev", false im
 // echten "vite build", der als index.html.br ins Firmware-Flash eincompiliert wird, s.
@@ -71,6 +72,11 @@ function stepSummary(step: MissionStep, gpioNames: readonly string[]): string {
 
 @customElement("roarm-teach-app")
 export class RoArmTeachApp extends LitElement implements DashboardApp {
+	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
+	protected willUpdate(): void {
+		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+	}
+
 	protected createRenderRoot() {
 		return this;
 	}
@@ -371,7 +377,6 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 			<div class="container roarm-container">
 				<section class="header-section app-panel">
 					<div class="panel-label">RoArm-M3 Teach</div>
-					${this.statusMessage ? html`<div class="status-text status-${this.statusVariant}">${this.statusMessage}</div>` : ""}
 				</section>
 
 				<div class="roarm-layout">

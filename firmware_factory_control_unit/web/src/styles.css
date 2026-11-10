@@ -136,13 +136,15 @@ app-shell {
 	background: var(--ui-btn-neutral-hover);
 }
 
-/* Hoehe des Headers fuer Seiten mit fester Vollhoehe (SPS-IDE, Terminal: calc(100vh - ...)). */
+/* Hoehe des Headers fuer Seiten mit fester Vollhoehe (SPS-IDE, Terminal: calc(100vh - ...)); die
+   Statusleiste (26px) zaehlt dazu - sie bleibt auch maximiert. */
 app-shell {
-	--shell-header-h: 105px;
+	--shell-status-h: 26px;
+	--shell-header-h: calc(105px + var(--shell-status-h));
 }
 
 app-shell.shell-maximized {
-	--shell-header-h: 29px;
+	--shell-header-h: calc(29px + var(--shell-status-h));
 }
 
 app-shell.shell-maximized .shell-logo,
@@ -1099,4 +1101,201 @@ roarm-teach-app {
 	width: 100%;
 	height: 220px;
 	display: block;
+}
+
+/* ==========================================================================
+   Statusleiste der ganzen Web-Applikation (shell/status-bar.ts): Verbindung,
+   Zustand der sichtbaren App, dann deren eigene Angaben (sb-chip, sb-warn,
+   sb-right). Bleibt auch bei maximierter Arbeitsflaeche.
+   ========================================================================== */
+.shell-status {
+	flex: 0 0 var(--shell-status-h);
+	height: var(--shell-status-h);
+	display: flex;
+	align-items: center;
+	gap: 4px 14px;
+	padding: 0 10px;
+	overflow: hidden;
+	white-space: nowrap;
+	font-size: 12px;
+	background: #1e293b;
+	color: #e2e8f0;
+}
+.shell-status .sb-ws {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 600;
+	min-width: 92px;
+}
+.shell-status .sb-dot {
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: #94a3b8;
+}
+.shell-status .sb-ws-open .sb-dot { background: #22c55e; }
+.shell-status .sb-ws-connecting .sb-dot { background: #f59e0b; }
+.shell-status .sb-ws-closed .sb-dot { background: #ef4444; }
+.shell-status .sb-ws-closed { color: #fecaca; }
+.shell-status .sb-mode {
+	padding: 1px 9px;
+	border-radius: 3px;
+	font-weight: 700;
+	background: #475569;
+	color: #fff;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 46vw;
+}
+.shell-status .sb-mode-ok { background: #15803d; }
+.shell-status .sb-mode-busy { background: #b45309; }
+.shell-status .sb-mode-warning { background: #b45309; }
+.shell-status .sb-mode-error { background: #b91c1c; }
+.shell-status .sb-mode-idle { background: #475569; }
+.shell-status .sb-chip {
+	opacity: 0.92;
+}
+.shell-status .sb-warn {
+	color: #fde68a;
+	font-weight: 600;
+}
+.shell-status .sb-right {
+	margin-left: auto;
+	opacity: 0.75;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   Modale Dialoge (shell/dialogs.ts), fuer alle Apps.
+   ========================================================================== */
+dialog.ui-dialog {
+	border: 1px solid var(--ui-color-border);
+	border-radius: var(--ui-radius-lg);
+	padding: 0;
+	min-width: min(420px, 92vw);
+	max-width: min(560px, 94vw);
+	box-shadow: 0 18px 50px rgba(15, 23, 42, 0.35);
+	font-family: "Segoe UI", Roboto, Arial, sans-serif;
+	color: var(--ui-color-text-primary);
+	background: var(--ui-color-bg-surface);
+}
+dialog.ui-dialog::backdrop {
+	background: rgba(15, 23, 42, 0.45);
+}
+.ui-dialog form {
+	padding: 18px 20px 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.ui-dialog h2 {
+	margin: 0;
+	font-size: 17px;
+}
+.ui-dialog p {
+	margin: 0;
+	font-size: var(--ui-font-size-md);
+	line-height: 1.45;
+	color: var(--ui-color-text-secondary);
+}
+.ui-dialog-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 13px;
+	color: var(--ui-color-text-muted);
+}
+.ui-dialog-field input {
+	height: 34px;
+	padding: 0 10px;
+	font-size: var(--ui-font-size-md);
+	border: 1px solid var(--ui-color-border-input);
+	border-radius: var(--ui-radius-md);
+}
+.ui-dialog-problem {
+	min-height: 16px;
+	font-size: 12px;
+	color: #b91c1c;
+}
+.ui-dialog-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 4px;
+}
+.ui-dialog-buttons button {
+	height: auto;
+	min-height: 34px;
+	padding: 6px 14px;
+}
+.ui-dialog-buttons button.ui-dialog-primary {
+	background: #2563eb;
+	border-color: #2563eb;
+	color: #fff;
+	font-weight: 600;
+}
+.ui-dialog-buttons button.ui-dialog-danger {
+	background: #dc2626;
+	border-color: #dc2626;
+	color: #fff;
+	font-weight: 600;
+}
+.ui-dialog-buttons button:disabled {
+	opacity: 0.45;
+}
+
+/* ==========================================================================
+   Dunkle Darstellung (Umschalter im Header, app-shell.ts): die ganze Seite wird
+   invertiert und im Farbton zurueckgedreht - so gilt sie fuer jede App und jedes
+   Diagramm, ohne dass jede Farbe zweimal gepflegt wird (Rot bleibt Rot, Gruen
+   bleibt Gruen). Was schon dunkel ist oder echte Farben zeigt (Statusleiste,
+   Logo, 3D-Ansicht, Terminal-Konsole), wird zurueckinvertiert. Dialoge liegen im
+   Top-Layer ausserhalb des Filters und bekommen ihn selbst.
+   ========================================================================== */
+.shell-theme {
+	margin-left: auto;
+	height: 34px;
+	width: 34px;
+	padding: 0;
+	font-size: 16px;
+	line-height: 1;
+}
+.shell-theme + .shell-maximize,
+.shell-theme + .shell-slim-title + .shell-restore {
+	margin-left: 0;
+}
+app-shell.shell-maximized .shell-theme {
+	order: 3;
+	height: 22px;
+	width: 28px;
+	font-size: 12px;
+	margin-left: 6px;
+}
+app-shell.shell-maximized .shell-slim-title {
+	order: 1;
+}
+app-shell.shell-maximized .shell-restore {
+	order: 2;
+	margin-left: auto;
+}
+html[data-theme="dark"] {
+	background: #fff;
+	filter: invert(0.93) hue-rotate(180deg);
+	color-scheme: light;
+}
+html[data-theme="dark"] .shell-status,
+html[data-theme="dark"] .ide-toast,
+html[data-theme="dark"] .terminal-page .term,
+html[data-theme="dark"] .roarm-3d-container,
+html[data-theme="dark"] img {
+	filter: invert(1) hue-rotate(180deg);
+}
+html[data-theme="dark"] dialog.ui-dialog {
+	filter: invert(0.93) hue-rotate(180deg);
+}
+html[data-theme="dark"] dialog.ui-dialog::backdrop {
+	background: rgba(0, 0, 0, 0.6);
 }

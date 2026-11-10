@@ -5,11 +5,17 @@ import "../register-panel.js";
 import { REGIONS } from "../../generated/register-map.js";
 import { fetchRegisters, writeHolding, type RegisterValues } from "../registers.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
+import { kindOf, setAppStatus } from "../shell/status-bar.js";
 
 const POLL_INTERVAL_MS = 1000;
 
 @customElement("modbus-register-app")
 export class ModbusRegisterApp extends LitElement implements DashboardApp {
+	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
+	protected willUpdate(): void {
+		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+	}
+
 	protected createRenderRoot() {
 		return this;
 	}
@@ -79,7 +85,6 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 			<div class="container">
 				<section class="header-section app-panel">
 					<div class="panel-label">Register-Konsole</div>
-					<div class="status-text status-${this.statusVariant}">${this.statusMessage}</div>
 				</section>
 
 				<div class="region-grid" @write-register=${this.handleWriteRegister}>

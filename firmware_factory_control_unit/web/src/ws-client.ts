@@ -53,6 +53,25 @@ function wsUrl(): string {
 
 let socket: WebSocket | null = null;
 let nextRequestId = 1;
+
+/** The connection for the status bar: connecting (also between two attempts), open, or closed
+ *  (it was open and was lost; the next attempt follows after RECONNECT_DELAY_MS). */
+export type WsState = "connecting" | "open" | "closed";
+let state: WsState = "connecting";
+const stateListeners = new Set<() => void>();
+function setState(s: WsState): void {
+	if (s === state) return;
+	state = s;
+	for (const l of stateListeners) l();
+}
+export function wsState(): WsState {
+	return state;
+}
+/** Called on every change of wsState(); returns the function that ends it. */
+export function onWsStateChange(listener: () => void): () => void {
+	stateListeners.add(listener);
+	return () => stateListeners.delete(listener);
+}
 // Auf das naechste "open" wartende wsRequest()-Aufrufe (s. waitForOpen()).
 let openWaiters: Array<() => void> = [];
 const listeners = new Map<number, WsProtocolListener>(); // key = namespaceId
@@ -136,6 +155,7 @@ function connect(): void {
 	socket = ws;
 
 	ws.addEventListener("open", () => {
+		setState("open");
 		const waiters = openWaiters;
 		openWaiters = [];
 		for (const w of waiters) w();
@@ -149,6 +169,7 @@ function connect(): void {
 
 	ws.addEventListener("close", () => {
 		if (socket === ws) socket = null;
+		setState("closed");
 		setTimeout(connect, RECONNECT_DELAY_MS);
 	});
 	ws.addEventListener("error", () => {

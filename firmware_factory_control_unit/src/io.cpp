@@ -11,6 +11,7 @@
 #include "rtos/devices/tmc2209.hpp"
 #include "rtos/sync/message_queue.hpp"
 #include "plc_project.hpp"
+#include "malibotti.hpp"
 #include "roarm/roarm.hpp"
 #include "system.hpp"
 #include "terminal.hpp"
@@ -173,6 +174,10 @@ void inputs() noexcept {
     rm::set_lightbarrier2(registers, !read(pins::light_barrier2) || barrier_interrupted[1].exchange(false) ? 1 : 0);
     if constexpr (pins::rev1) {
         rm::set_lightbarrier3(registers, !read(*pins::light_barrier3) || barrier_interrupted[2].exchange(false) ? 1 : 0);
+    }
+    if constexpr (pins::gpio1.has_value()) {
+        rm::set_gpio1(registers, read(*pins::gpio1) ? 1 : 0);  // active high
+        rm::set_gpio2(registers, read(*pins::gpio2) ? 1 : 0);
     }
     rm::set_pressure_raw(registers, hw::pressure_raw());  // continuous conversion
 }
@@ -688,6 +693,7 @@ void setup(bool supply_up) noexcept {
     hw::LedSingleDma::init();
 
     roarm::setup();
+    malibotti::setup();
 }
 
 void set_event_thread(Kernel::Thread& thread) noexcept { event_thread = &thread; }
@@ -719,6 +725,7 @@ void cycle(std::uint32_t now) noexcept {
     stepper_lab(now);
     steppers(now);
     roarm::cycle(now);
+    malibotti::cycle(now);
     plc::project::cycle();
     terminal::cycle();
     leds();

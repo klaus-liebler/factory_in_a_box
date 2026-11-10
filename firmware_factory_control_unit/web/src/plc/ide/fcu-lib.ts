@@ -80,6 +80,40 @@ ELSIF Busy THEN
 END_IF;
 END_FUNCTION_BLOCK
 
+FUNCTION_BLOCK FCU_MalibottiRunMission
+(* Runs a mission of the Malibotti robot (it keeps them itself), over MalibottiMissionControl
+   (hardware revision 3). Mission: its number (1..). A rising edge of Execute starts it; Busy while it
+   runs; then Done or Error with ErrorID 1 = robot does not answer, 2 = unknown mission, 3 = aborted,
+   4 = another mission is running, 5 = blocked, 6 = robot fault, 16#100 = invalid number.
+   Outputs stay while Execute is TRUE (else for one call). *)
+VAR_INPUT Mission : INT := 1; Execute : BOOL; END_VAR
+VAR_OUTPUT Done : BOOL; Busy : BOOL; Error : BOOL; ErrorID : UINT; END_VAR
+VAR Edge : R_TRIG; Active : INT; Seen : BOOL; Answer : INT; END_VAR
+IF NOT Execute AND NOT Busy THEN
+    Done := FALSE; Error := FALSE; ErrorID := 0;
+END_IF;
+Edge(CLK := Execute);
+IF Edge.Q AND NOT Busy THEN
+    Done := FALSE; Error := FALSE; ErrorID := 0; Seen := FALSE;
+    IF Mission > 0 THEN
+        __MalibottiMissionControl := Mission; Active := Mission; Busy := TRUE;
+    ELSE
+        Error := TRUE; ErrorID := 16#100;
+    END_IF;
+ELSIF Busy THEN
+    Answer := __MalibottiMissionControl;
+    IF Answer = Active THEN
+        Seen := TRUE;
+    ELSIF Answer < 0 THEN
+        Busy := FALSE; Error := TRUE; ErrorID := INT_TO_UINT(-Answer);
+    ELSIF Answer > 0 THEN
+        Busy := FALSE; Error := TRUE; ErrorID := 4;
+    ELSIF Seen THEN
+        Busy := FALSE; Done := TRUE;
+    END_IF;
+END_IF;
+END_FUNCTION_BLOCK
+
 FUNCTION_BLOCK FCU_StepperMoveAbsolute
 (* Moves a stepper to Position [steps], over StepperXTarget (and StepperXSpeed when Velocity > 0;
    0 keeps the speed). Axis: 1 or 2. A rising edge of Execute starts it; Busy until the axis stands

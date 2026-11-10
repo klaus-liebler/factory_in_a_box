@@ -39,7 +39,7 @@ export interface PlcObject {
 	networks?: FbdNetwork[];
 	/** SFC: the chart (its first step is the initial step). */
 	chart?: SfcItem[];
-	/** The folder in the project tree ("" or absent: top level); only for the overview. */
+	/** The folder path in the explorer tree ("A/B"; absent: the root); only for the overview. */
 	folder?: string;
 }
 
@@ -48,6 +48,8 @@ export interface Project {
 	name: string;
 	objects: PlcObject[];
 	tasks: { name: string; intervalCycles: number; programs: string[] }[];
+	/** The folders of the explorer tree (paths; also empty ones). Objects name theirs in `folder`. */
+	folders?: string[];
 }
 
 /** Objects with an implementation part. */
@@ -157,11 +159,11 @@ export function nameProblem(p: Project, name: string, except?: string): string |
 	return null;
 }
 
-export function addObject(p: Project, kind: ObjectKind, name: string, returnType?: string, lang: Lang = "ST"): { project: Project; object: PlcObject } {
+export function addObject(p: Project, kind: ObjectKind, name: string, returnType?: string, lang: Lang = "ST", folder = ""): { project: Project; object: PlcObject } {
 	let id = name.toLowerCase();
 	for (let i = 2; p.objects.some((o) => o.id === id); i++) id = `${name.toLowerCase()}_${i}`;
 	const l = LANGS_OF[kind].includes(lang) ? lang : "ST";
-	const object: PlcObject = { id, name, kind, lang: l, ...template(kind, name, returnType, l) };
+	const object: PlcObject = { id, name, kind, lang: l, ...template(kind, name, returnType, l), ...(folder ? { folder } : {}) };
 	const tasks = kind === "PRG" ? p.tasks.map((t, i) => (i === 0 ? { ...t, programs: [...t.programs, name] } : t)) : p.tasks;
 	return { project: { ...p, objects: [...p.objects, object], tasks }, object };
 }
@@ -244,22 +246,114 @@ export function headerName(o: PlcObject): string | null {
 	return m ? m[1] : null;
 }
 
-// ---- folders ----------------------------------------------------------------------------------------------
-/** A folder name as stored: trimmed, inner whitespace collapsed, no "/" (one level); "" = top level. */
-export function cleanFolder(name: string): string {
-	return name.replace(/\//g, " ").replace(/\s+/g, " ").trim();
+// ---- folders (the explorer tree of the IDE) -----------------------------------------------------------------
+// A folder is a path of names joined by "/" ("Sortierung/Bausteine"); "" is the root. An object says
+// where it is (`folder`); `Project.folders` lists the folders themselves, so an empty one exists too.
+// Folders are for the overview only: the compiler does not see them.
+
+/** One folder name as stored: trimmed, inner whitespace collapsed. */
+export function cleanFolderName(name: string): string {
+	return name.replace(/\s+/g, " ").trim();
 }
 
-export function setFolder(p: Project, id: string, folder: string): Project {
-	const f = cleanFolder(folder);
-	return { ...p, objects: p.objects.map((o) => (o.id === id ? { ...o, folder: f || undefined } : o)) };
+const parentOf = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
+const nameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+const join = (parent: string, name: string) => (parent ? `${parent}/${name}` : name);
+/** `path` is `folder` or inside it. */
+const within = (path: string, folder: string) => path === folder || path.startsWith(`${folder}/`);
+
+/** Every folder of the project (with all ancestors), sorted. */
+export function allFolders(p: Project): string[] {
+	const set = new Set<string>();
+	const add = (path: string | undefined) => {
+		for (let f = path ?? ""; f; f = parentOf(f)) set.add(f);
+	};
+	for (const f of p.folders ?? []) add(f);
+	for (const o of p.objects) add(o.folder);
+	return [...set].sort((a, b) => a.localeCompare(b, "de"));
 }
 
-/** The tree: the top-level objects first (project order), then the folders by name with their objects. */
-export function objectTree(p: Project): { folder: string; objects: PlcObject[] }[] {
-	const top = p.objects.filter((o) => !o.folder);
-	const names = [...new Set(p.objects.map((o) => o.folder).filter((f): f is string => !!f))].sort((a, b) => a.localeCompare(b, "de"));
-	return [{ folder: "", objects: top }, ...names.map((folder) => ({ folder, objects: p.objects.filter((o) => o.folder === folder) }))];
+/** Why `name` cannot be a folder in `parent` (null: it can); `except`: the folder being renamed. */
+export function folderNameProblem(p: Project, parent: string, name: string, except?: string): string | null {
+	const n = cleanFolderName(name);
+	if (!n) return "Name fehlt";
+	if (n.includes("/")) return "kein '/' im Namen";
+	const path = join(parent, n);
+	if (allFolders(p).some((f) => f !== except && f.toUpperCase() === path.toUpperCase())) return "Ordner gibt es schon";
+	return null;
+}
+
+export function addFolder(p: Project, parent: string, name: string): Project {
+	return { ...p, folders: [...(p.folders ?? []), join(parent, cleanFolderName(name))] };
+}
+
+/** Replaces the folder path prefix `from` by `to` in the folder list and in every object. */
+function repath(p: Project, from: string, to: string): Project {
+	const map = (f: string) => (within(f, from) ? to + f.slice(from.length) : f);
+	return {
+		...p,
+		folders: allFolders(p).map(map),
+		objects: p.objects.map((o) => (o.folder && within(o.folder, from) ? { ...o, folder: map(o.folder) } : o)),
+	};
+}
+
+export function renameFolder(p: Project, path: string, name: string): Project {
+	return repath(p, path, join(parentOf(path), cleanFolderName(name)));
+}
+
+/** Why the folder `path` cannot move into `parent` (null: it can). */
+export function moveFolderProblem(p: Project, path: string, parent: string): string | null {
+	if (within(parent, path)) return "ein Ordner kann nicht in sich selbst";
+	if (parentOf(path) === parent) return "liegt schon dort";
+	return folderNameProblem(p, parent, nameOf(path));
+}
+
+export function moveFolder(p: Project, path: string, parent: string): Project {
+	return repath(p, path, join(parent, nameOf(path)));
+}
+
+/** Objects in the folder and its subfolders. */
+export function objectsIn(p: Project, path: string): PlcObject[] {
+	return p.objects.filter((o) => o.folder && within(o.folder, path));
+}
+
+/** Deletes the folder with its subfolders. "delete": its objects go too (and leave the task);
+ *  "toRoot": its objects move to the root. */
+export function deleteFolder(p: Project, path: string, contents: "delete" | "toRoot"): Project {
+	let next = p;
+	if (contents === "delete") for (const o of objectsIn(p, path)) next = removeObject(next, o.id);
+	return {
+		...next,
+		folders: allFolders(next).filter((f) => !within(f, path)),
+		objects: next.objects.map((o) => (o.folder && within(o.folder, path) ? { ...o, folder: undefined } : o)),
+	};
+}
+
+/** Puts the object into `folder` ("": the root). */
+export function moveObject(p: Project, id: string, folder: string): Project {
+	const folders = folder && !allFolders(p).includes(folder) ? [...(p.folders ?? []), folder] : p.folders;
+	return { ...p, folders, objects: p.objects.map((o) => (o.id === id ? { ...o, folder: folder || undefined } : o)) };
+}
+
+export interface FolderNode {
+	/** "" for the root. */
+	path: string;
+	name: string;
+	folders: FolderNode[];
+	/** In project order. */
+	objects: PlcObject[];
+}
+
+/** The explorer tree: folders (by name) before objects (in project order), at every level. */
+export function objectTree(p: Project): FolderNode {
+	const nodes = new Map<string, FolderNode>([["", { path: "", name: "", folders: [], objects: [] }]]);
+	for (const path of allFolders(p)) {  // sorted: a parent comes before its children
+		const node: FolderNode = { path, name: nameOf(path), folders: [], objects: [] };
+		nodes.set(path, node);
+		nodes.get(parentOf(path))!.folders.push(node);
+	}
+	for (const o of p.objects) nodes.get(o.folder ?? "")!.objects.push(o);
+	return nodes.get("")!;
 }
 
 // ---- cross references -------------------------------------------------------------------------------------
@@ -352,6 +446,7 @@ function projectProblem(p: Project): string | null {
 		names.add(o.name.toUpperCase());
 	}
 	if (!Array.isArray(p.tasks) || p.tasks.length === 0) return "keine Task";
+	if (p.folders !== undefined && !(Array.isArray(p.folders) && p.folders.every((f) => typeof f === "string" && f.length > 0))) return "Ordnerliste ungültig";
 	return null;
 }
 

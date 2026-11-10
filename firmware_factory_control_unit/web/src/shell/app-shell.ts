@@ -13,6 +13,8 @@ import { customElement, state, query } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { Router, type RouteDef } from "./router.js";
 import { hasDashboardLifecycle } from "./dashboard-app.js";
+import { appStatusOf, onAppStatusChange } from "./status-bar.js";
+import { onWsStateChange, wsState } from "../ws-client.js";
 import logoSvg from "../assets/factory-control-unit-logo.svg?raw";
 import headerPatternSvg from "../assets/header-pattern.svg?raw";
 
@@ -51,6 +53,10 @@ export class AppShell extends LitElement {
 	private setMaximized(on: boolean): void {
 		this.maximized = on;
 		this.menuOpen = false;
+		// maximized also means full screen: the browser's tabs and address bar go too (it needs the click
+		// this call comes from; Esc leaves full screen, the working area stays maximized)
+		if (on && !document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => undefined);
+		if (!on && document.fullscreenElement) void document.exitFullscreen?.().catch(() => undefined);
 		try {
 			sessionStorage.setItem(AppShell.MAXIMIZED_KEY, on ? "1" : "0");
 		} catch {
@@ -59,6 +65,36 @@ export class AppShell extends LitElement {
 		// Apps, die ihre Groesse nur bei window-resize neu berechnen (Power-Management-Diagramme),
 		// bekommen den geaenderten Inhaltsbereich mit.
 		this.updateComplete.then(() => window.dispatchEvent(new Event("resize")));
+	}
+
+	// Dark mode: the user's choice (kept in the browser), else what the system prefers.
+	@state() private dark = AppShell.loadDark();
+	private static readonly THEME_KEY = "fcu.shell.theme";
+
+	private static loadDark(): boolean {
+		try {
+			const saved = localStorage.getItem(AppShell.THEME_KEY);
+			if (saved === "dark" || saved === "light") return saved === "dark";
+		} catch {
+			/* no storage: the system's preference */
+		}
+		return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+	}
+
+	private setDark(on: boolean): void {
+		this.dark = on;
+		try {
+			localStorage.setItem(AppShell.THEME_KEY, on ? "dark" : "light");
+		} catch {
+			/* for this page only then */
+		}
+		// canvases are drawn by script: let the apps draw again
+		this.updateComplete.then(() => window.dispatchEvent(new Event("resize")));
+	}
+
+	private renderThemeButton() {
+		return html`<button class="shell-theme" type="button" title=${this.dark ? "Helle Darstellung" : "Dunkle Darstellung"}
+			aria-label="Dunkle Darstellung umschalten" aria-pressed=${this.dark} @click=${() => this.setDark(!this.dark)}>${this.dark ? "☀" : "🌙"}</button>`;
 	}
 
 	private entries: AppEntry[] = [];
@@ -75,6 +111,9 @@ export class AppShell extends LitElement {
 	}
 
 	public Start(): void {
+		// the status bar follows the connection and the visible app's status
+		onWsStateChange(() => this.requestUpdate());
+		onAppStatusChange(() => this.requestUpdate());
 		this.router = new Router(this.entries.map(({ path, title, icon }) => ({ path, title, icon })));
 		this.router.addEventListener("change", () => this.sync());
 		// "entries" ist bewusst kein @state (RegisterApp() wird oft aufgerufen, ein Re-Render pro
@@ -120,6 +159,21 @@ export class AppShell extends LitElement {
 
 	protected updated(): void {
 		this.classList.toggle("shell-maximized", this.maximized);
+		document.documentElement.dataset.theme = this.dark ? "dark" : "light";
+	}
+
+	/** The status bar: the WebSocket connection, the visible app's state, then the app's own content. */
+	private renderStatusBar() {
+		const ws = wsState();
+		const wsText = ws === "open" ? "verbunden" : ws === "connecting" ? "verbinde …" : "getrennt";
+		const status = appStatusOf(this.activeElement);
+		return html`
+			<footer class="shell-status" role="status">
+				<span class="sb-ws sb-ws-${ws}" title="WebSocket-Verbindung zur Control Unit"><span class="sb-dot"></span>${wsText}</span>
+				${status && status.text ? html`<span class="sb-mode sb-mode-${status.kind}">${status.text}</span>` : ""}
+				${status?.extra ?? ""}
+			</footer>
+		`;
 	}
 
 	protected render() {
@@ -133,14 +187,14 @@ export class AppShell extends LitElement {
 				>☰</button>
 				<span class="shell-logo">${unsafeHTML(logoSvg)}</span>
 				${this.maximized
-					? html`<span class="shell-slim-title">Factory Control Unit · ${this.entries.find((e) => e.path === this.activePath)?.title ?? ""}</span>
+					? html`${this.renderThemeButton()}<span class="shell-slim-title">Factory Control Unit · ${this.entries.find((e) => e.path === this.activePath)?.title ?? ""}</span>
 						<button
 							class="shell-restore"
 							type="button"
 							title="Header und Menü wieder einblenden (Normalansicht)"
 							@click=${() => this.setMaximized(false)}
 						>☰ Menü einblenden</button>`
-					: html`<button
+					: html`${this.renderThemeButton()}<button
 						class="shell-maximize"
 						type="button"
 						title="Header und Menü ausblenden (Arbeitsfläche maximieren)"
@@ -170,6 +224,7 @@ export class AppShell extends LitElement {
 				${this.menuOpen ? html`<div class="shell-nav-scrim" @click=${() => (this.menuOpen = false)}></div>` : ""}
 				<main class="app-shell-content"></main>
 			</div>
+			${this.renderStatusBar()}
 		`;
 	}
 }

@@ -9,6 +9,20 @@ import { BOXES, catalog, networkTypes, newId, pinKey, pinsOf, type FbdNetwork, t
 import { evalBox, parseLive } from "./fbd-live.ts";
 import { pathOf, routeWires, type Rect } from "./fbd-route.ts";
 import { IO_VARS, type IoVar } from "./io-list.ts";
+import { confirmDialog } from "../../shell/dialogs.ts";
+
+/** What a network's insert buttons offer: [E]ingänge, [V]erarbeitung, [A]usgänge. */
+type InsertKind = "E" | "V" | "A";
+const INSERT_TITLES: Record<InsertKind, string> = {
+	E: "Eingang einfügen: Variable, Konstante oder ein Sensor des FCU",
+	V: "Verarbeitung einfügen: Operator, Funktion oder Funktionsbaustein",
+	A: "Ausgang einfügen: Variable oder ein Aktor des FCU",
+};
+interface InsertItem {
+	value: string;
+	label: string;
+	detail: string;
+}
 
 // ---- the FCU's sensors and actuators (generated from the register map, io-list.ts) ---------------------
 const IO_BY_NAME = new Map(IO_VARS.map((v) => [v.name.toUpperCase(), v]));
@@ -116,6 +130,8 @@ export class FbdEditor extends LitElement {
 	@state() private wiring: { net: string; from: NearPin; x: number; y: number } | null = null;
 	/** The pin within reach of the pointer: the cursor changes, the pin shows a ring, a wire snaps to it. */
 	@state() private near: NearPin | null = null;
+	/** The open insert list of a network. */
+	@state() private menu: { net: string; kind: InsertKind; filter: string } | null = null;
 
 	protected createRenderRoot() {
 		return this;
@@ -244,6 +260,10 @@ export class FbdEditor extends LitElement {
 	}
 
 	private key(e: KeyboardEvent): void {
+		if (e.key === "Escape" && this.menu) {
+			this.menu = null;
+			return;
+		}
 		if ((e.key !== "Delete" && e.key !== "Backspace") || !this.sel || (e.target as HTMLElement).tagName === "INPUT") return;
 		e.preventDefault();
 		this.deleteSelected();
@@ -264,14 +284,10 @@ export class FbdEditor extends LitElement {
 	}
 
 	// ---- palette and networks -----------------------------------------------------------------------
-	private targetNet(): FbdNetwork {
-		return (this.sel && this.net(this.sel.net)) || this.pou.networks[this.pou.networks.length - 1];
-	}
-
-	private add(kind: string): void {
-		if (!kind) return;
-		if (!this.pou.networks.length) this.addNetwork();
-		const net = this.targetNet();
+	/** A new node in the network: inputs at the left, processing in the middle, outputs at the right. */
+	private add(netId: string, kind: string): void {
+		const net = this.net(netId);
+		if (!kind || !net) return;
 		const bottom = Math.max(10, ...net.nodes.map((n) => n.y + size(n, this.cat).h + 20));
 		const id = newId(net);
 		let node: FbdNode;
@@ -289,18 +305,82 @@ export class FbdEditor extends LitElement {
 		this.changed();
 	}
 
-	private addNetwork(): void {
+	/** A new, empty network after the network `afterId` (null: as the first). */
+	private addNetwork(afterId: string | null): void {
 		const id = `net${Date.now().toString(36)}`;
-		this.pou.networks.push({ id, title: `Netzwerk ${this.pou.networks.length + 1}`, nodes: [], wires: [] });
+		const at = afterId === null ? 0 : this.pou.networks.findIndex((n) => n.id === afterId) + 1;
+		this.pou.networks.splice(at, 0, { id, title: "", nodes: [], wires: [] });
 		this.sel = null;
+		this.menu = null;
 		this.changed();
 	}
 
-	private removeNetwork(id: string): void {
-		if (!confirm("Das Netzwerk löschen?")) return;
+	private async removeNetwork(id: string): Promise<void> {
+		const net = this.net(id);
+		// an empty network goes without a question
+		if (net.nodes.length > 0 && !(await confirmDialog({
+			title: "Netzwerk löschen", message: `Das Netzwerk „${net.title || "ohne Titel"}“ mit ${net.nodes.length} Element(en) löschen?`,
+			confirm: "Löschen", danger: true,
+		}))) return;
 		this.pou.networks = this.pou.networks.filter((n) => n.id !== id);
 		this.sel = null;
+		this.menu = null;
 		this.changed();
+	}
+
+	// ---- the insert lists: [E]ingänge, [V]erarbeitung, [A]usgänge -----------------------------------------
+	private insertGroups(kind: InsertKind): { label: string; items: InsertItem[] }[] {
+		if (kind === "V") {
+			const all = [...BOXES, ...(this.pou.extra ?? [])];
+			return [...new Set(all.map((b) => b.group))].map((g) => ({
+				label: g, items: all.filter((b) => b.group === g).map((b) => ({ value: b.type, label: b.type, detail: b.title })),
+			}));
+		}
+		const out = kind === "A";
+		return [
+			{ label: "Frei", items: [out
+				? { value: "@output", label: "Ausgangsvariable", detail: "eine Variable des Programms oder des Projekts" }
+				: { value: "@input", label: "Eingangsvariable oder Konstante", detail: "Variable, Konstante (10, T#300ms) oder ST-Ausdruck" }] },
+			...ioGroups().filter((g) => g.out === out).map((g) => ({
+				label: g.label.replace(/^(Sensoren|Aktoren) · /, ""),
+				items: g.vars.map((v) => ({ value: `@${out ? "out" : "in"}:${v.name}`, label: `${v.name}${unitOf(v) ? ` [${unitOf(v)}]` : ""}`, detail: v.description })),
+			})),
+		];
+	}
+
+	private toggleMenu(net: string, kind: InsertKind): void {
+		this.menu = this.menu && this.menu.net === net && this.menu.kind === kind ? null : { net, kind, filter: "" };
+		if (this.menu) void this.updateComplete.then(() => (this.querySelector(".fbd-menu-filter") as HTMLInputElement | null)?.focus());
+	}
+
+	private renderMenu(net: FbdNetwork) {
+		const m = this.menu!;
+		const f = m.filter.trim().toUpperCase();
+		const groups = this.insertGroups(m.kind)
+			.map((g) => ({ ...g, items: g.items.filter((i) => !f || i.label.toUpperCase().includes(f) || i.detail.toUpperCase().includes(f)) }))
+			.filter((g) => g.items.length > 0);
+		const pick = (value: string) => {
+			this.add(net.id, value);
+			this.menu = null;
+		};
+		return html`
+			<div class="fbd-menu-backdrop" @pointerdown=${() => (this.menu = null)}></div>
+			<div class="fbd-menu fbd-menu-${m.kind}" @keydown=${(e: KeyboardEvent) => {
+				if (e.key === "Escape") this.menu = null;
+				if (e.key === "Enter" && groups.length) pick(groups[0].items[0].value);  // the first hit
+				e.stopPropagation();
+			}}>
+				<input class="fbd-menu-filter" placeholder="Suchen … (Enter: erster Treffer)" .value=${m.filter} spellcheck="false"
+					@input=${(e: Event) => (this.menu = { ...m, filter: (e.target as HTMLInputElement).value })} />
+				<div class="fbd-menu-list">
+					${groups.length === 0 ? html`<p class="fbd-hint">nichts gefunden</p>` : nothing}
+					${groups.map((g) => html`
+						<details ?open=${f !== "" || groups.length <= 2 || g.label === "Frei"}>
+							<summary>${g.label} <span class="fbd-menu-count">${g.items.length}</span></summary>
+							${g.items.map((i) => html`<button class="fbd-menu-item" title=${i.detail} @click=${() => pick(i.value)}><b>${i.label}</b><span>${i.detail}</span></button>`)}
+						</details>`)}
+				</div>
+			</div>`;
 	}
 
 	// ---- rendering ----------------------------------------------------------------------------------
@@ -394,7 +474,12 @@ export class FbdEditor extends LitElement {
 					<span class="fbd-net-no">${index + 1}</span>
 					<input class="fbd-net-title" .value=${net.title} placeholder="Netzwerk-Kommentar"
 						@change=${(e: Event) => { net.title = (e.target as HTMLInputElement).value; this.changed(); }} />
+					<span class="fbd-insert" role="group" aria-label="Einfügen">
+						${(["E", "V", "A"] as const).map((k) => html`<button class="fbd-insert-btn fbd-insert-${k} ${this.menu?.net === net.id && this.menu.kind === k ? "on" : ""}"
+							title=${INSERT_TITLES[k]} @click=${() => this.toggleMenu(net.id, k)}>${k}</button>`)}
+					</span>
 					<button class="ide-icon-btn" title="Netzwerk löschen" @click=${() => this.removeNetwork(net.id)}>🗑</button>
+					${this.menu?.net === net.id ? this.renderMenu(net) : nothing}
 				</header>
 				<svg class="fbd-svg ${svgCls}" width=${width} height=${height}
 					@pointermove=${(e: PointerEvent) => this.move(e, net.id)} @pointerup=${() => this.up()}
@@ -433,7 +518,8 @@ export class FbdEditor extends LitElement {
 					})() : nothing}
 				</svg>
 				${problems.length ? html`<ul class="fbd-problems">${problems.map((p) => html`<li>${p.message}</li>`)}</ul>` : nothing}
-			</section>`;
+			</section>
+			<button class="fbd-add-net" title="Ein neues Netzwerk hier einfügen" @click=${() => this.addNetwork(net.id)}>＋ Netzwerk</button>`;
 	}
 
 	private renderProps() {
@@ -460,26 +546,19 @@ export class FbdEditor extends LitElement {
 	}
 
 	render() {
-		const all = [...BOXES, ...(this.pou.extra ?? [])];
-		const groups = [...new Set(all.map((b) => b.group))];
 		return html`
 			<div class="fbd" tabindex="0" @keydown=${(e: KeyboardEvent) => this.key(e)}>
 				<div class="fbd-toolbar">
-					<select title="Baustein oder Variable einfügen (in das ausgewählte Netzwerk)"
-						@change=${(e: Event) => { const el = e.target as HTMLSelectElement; this.add(el.value); el.value = ""; }}>
-						<option value="">＋ Einfügen…</option>
-						<optgroup label="Variablen"><option value="@input">Eingangsvariable</option><option value="@output">Ausgangsvariable</option></optgroup>
-						${ioGroups().map((g) => html`<optgroup label=${g.label}>${g.vars.map((v) => html`<option value=${`@${g.out ? "out" : "in"}:${v.name}`}
-							title=${ioTitle(v)}>${v.name}${unitOf(v) ? ` [${unitOf(v)}]` : ""} - ${v.description.slice(0, 50)}</option>`)}</optgroup>`)}
-						${groups.map((g) => html`<optgroup label=${g}>${all.filter((b) => b.group === g).map((b) => html`<option value=${b.type}>${b.type} - ${b.title}</option>`)}</optgroup>`)}
-					</select>
-					<button @click=${() => this.addNetwork()}>＋ Netzwerk</button>
+					<span class="fbd-hint">In jedem Netzwerk: <b>E</b> Eingang, <b>V</b> Verarbeitung, <b>A</b> Ausgang einfügen. Neues Netzwerk: „＋ Netzwerk“ darunter.</span>
 					<span class="fbd-legend" title="Datentypen an den Anschlüssen und Verbindungen (IEC 61131-3 schreibt keine Farben vor)">
 						${(["bool", "int", "real", "time", "any"] as const).map((t) => html`<span class="fbd-chip fbd-chip-${t}">${TYPE_NAMES[t]}</span>`)}
 					</span>
 				</div>
 				<div class="fbd-body">
-					<div class="fbd-nets">${this.pou.networks.map((n, i) => this.renderNetwork(n, i))}</div>
+					<div class="fbd-nets">
+						${this.pou.networks.length === 0 ? html`<button class="fbd-add-net" @click=${() => this.addNetwork(null)}>＋ Netzwerk</button>` : nothing}
+						${this.pou.networks.map((n, i) => this.renderNetwork(n, i))}
+					</div>
 					<aside class="fbd-props">${this.renderProps()}</aside>
 				</div>
 			</div>`;

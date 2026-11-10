@@ -5,6 +5,7 @@ import * as WsProtocol from "../../generated/ws-protocol.js";
 import { registerWsProtocolListener, sendBinary, type WsProtocolListener } from "../ws-client.js";
 import { drawSparkline } from "./sparkline.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
+import { kindOf, setAppStatus } from "../shell/status-bar.js";
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -36,6 +37,11 @@ function formatBytes(bytes: number): string {
 
 @customElement("task-manager-app")
 export class TaskManagerApp extends LitElement implements DashboardApp, WsProtocolListener {
+	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
+	protected willUpdate(): void {
+		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+	}
+
 	protected createRenderRoot() {
 		return this;
 	}
@@ -185,7 +191,6 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 			<div class="container">
 				<section class="header-section app-panel">
 					<div class="panel-label">Task Manager</div>
-					<div class="status-text status-${this.statusVariant}">${this.statusMessage}</div>
 				</section>
 
 				<div class="panel-section">

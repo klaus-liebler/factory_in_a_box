@@ -84,8 +84,15 @@ inline constexpr Pin ethercat_reset{GpioPort::A, 6};  ///< LAN9253 held in reset
 /// UEXT connector (J15) SPI chip select, active low. The SPI itself (SPI4, PE12-PE14) is unused
 /// so far: only the select is driven, inactive.
 inline constexpr std::optional<Pin> uext_cs = Pin{GpioPort::E, 0};
-// Not configured (reset state: analog): USART6 "MALIBOTTI" PC6/PC7, GPIO1/2 PE2/PE3, the
-// LAN9253's QUADSPI (PB2, PC11, PE7-PE10), CAT_IRQ PC14, CAT_SYNC0/1 PB0/PB1.
+/// Malibotti robot (J16): USART6, 3.3 V levels, no series resistors on the board.
+inline constexpr Pin malibotti_tx{GpioPort::C, 6};  ///< J16 pin 2 (MALIBOTTI_TX: to the robot's RX)
+inline constexpr Pin malibotti_rx{GpioPort::C, 7};  ///< J16 pin 1 (MALIBOTTI_RX)
+/// GPIO 1/2 (J30, J31: +3V3, GND, signal), binary inputs, active high: the internal pull-down keeps
+/// an open input at 0. Direct to the MCU (no series resistor, no ESD protection on the board).
+inline constexpr std::optional<Pin> gpio1 = Pin{GpioPort::E, 2};
+inline constexpr std::optional<Pin> gpio2 = Pin{GpioPort::E, 3};
+// Not configured (reset state: analog): the LAN9253's QUADSPI (PB2, PC11, PE7-PE10), CAT_IRQ PC14,
+// CAT_SYNC0/1 PB0/PB1.
 
 /// I2C buses: the supply bus carries the INA226, ToF 3 and the CH224Q; the second ToF bus ToF 2.
 inline constexpr Pin i2c1_scl{GpioPort::B, 8}, i2c1_sda{GpioPort::B, 9};             ///< colour, ToF 1
@@ -115,6 +122,8 @@ inline constexpr auto io_pins = std::array{
     gpio::input(*stepper1_diag, gpio::Pull::Down), gpio::input(*stepper2_diag, gpio::Pull::Down),
     gpio::alternate(stepper_rx, S::UART5_RX, gpio::Speed::Low, gpio::Pull::Up), gpio::alternate(stepper_tx, S::UART5_TX, gpio::Speed::Low),
     gpio::alternate(robot_rx, S::USART1_RX, gpio::Speed::Low, gpio::Pull::Up), gpio::alternate(robot_tx, S::USART1_TX, gpio::Speed::Low),
+    gpio::alternate(malibotti_rx, S::USART6_RX, gpio::Speed::Low, gpio::Pull::Up), gpio::alternate(malibotti_tx, S::USART6_TX, gpio::Speed::Low),
+    gpio::input(*gpio1, gpio::Pull::Down), gpio::input(*gpio2, gpio::Pull::Down),
     gpio::alternate(i2c1_scl, S::I2C1_SCL, gpio::Speed::Low, gpio::Pull::None, true),
     gpio::alternate(i2c1_sda, S::I2C1_SDA, gpio::Speed::Low, gpio::Pull::None, true),
     gpio::alternate(i2c_tof2_scl, S::I2C4_SCL, gpio::Speed::Low, gpio::Pull::None, true),
@@ -187,6 +196,9 @@ inline constexpr Pin ethercat_reset = rev1 ? Pin{GpioPort::C, 14} : Pin{GpioPort
 /// UEXT connector (J15) SPI chip select, active low; revision 2 only (PB13, UCPD1_CC1 pin). The
 /// SPI itself (SPI4, PE12-PE14) is unused so far: only the select is driven, inactive.
 inline constexpr std::optional<Pin> uext_cs = rev1 ? std::nullopt : std::optional{Pin{GpioPort::B, 13}};
+/// GPIO 1/2 inputs: revision 3 only.
+inline constexpr std::optional<Pin> gpio1 = std::nullopt;
+inline constexpr std::optional<Pin> gpio2 = std::nullopt;
 
 /// Pins needed before the supply is up: the supply bus (I2C4, INA226); with UCPD the USB-PD CC
 /// lines, with the CH224K its PGOOD and (not supply, but as early as possible) the UEXT select

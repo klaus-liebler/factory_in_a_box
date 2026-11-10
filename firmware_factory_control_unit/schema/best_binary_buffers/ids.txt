@@ -87,3 +87,6 @@ message stepper.HomeResponse 10
 message stepper.StatusRequest 11
 message stepper.StatusResponse 12
 namespace stepper 8
+message malibotti.Command 1
+message malibotti.Status 2
+namespace malibotti 9

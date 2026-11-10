@@ -9,6 +9,7 @@ import "./stepper-lab.css";
 import { stepper } from "../../generated/ws-protocol.js";
 import { wsRequest } from "../ws-client.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
+import { setAppStatus } from "../shell/status-bar.js";
 import { drawLineChart } from "./line-chart.js";
 import {
 	currentShare, decodeDrvStatus, decodePwmScale, delayUnitMs, fullStepsPerSecond, moveCurve, profileProblem, tstepOf, type Shape,
@@ -56,6 +57,17 @@ export class StepperLabApp extends LitElement implements DashboardApp {
 
 	protected createRenderRoot() {
 		return this;
+	}
+
+	/** The state and the last result go to the application's status bar (shell/status-bar.ts). */
+	protected willUpdate(): void {
+		const s = this.status;
+		const name = `Stepper ${this.axis + 1}`;
+		setAppStatus(this, {
+			text: !s ? `${name}: keine Antwort` : s.homing ? `${name}: Referenzfahrt` : s.moving ? `${name}: fährt` : s.manual ? `${name}: Handbetrieb` : `${name}: Registerbetrieb`,
+			kind: !s ? "error" : s.homing || s.moving ? "busy" : s.tmcOk ? "ok" : "warning",
+			extra: this.message ? html`<span class="sb-chip">${this.message}</span>` : null,
+		});
 	}
 
 	onShow(): void {
@@ -213,8 +225,7 @@ export class StepperLabApp extends LitElement implements DashboardApp {
 						<span class="chip ${s.homed ? "chip-ok" : "chip-warn"}">${s.homed ? "referenziert" : "nicht referenziert"}</span>
 						${s.homing ? html`<span class="chip chip-warn">Referenzfahrt läuft</span>` : nothing}
 						${s.moving ? html`<span class="chip chip-warn">fährt</span>` : nothing}
-						<span class="chip" title="Stall-Erkennung: DIAG-Leitung (Interrupt, sofort) oder SG_RESULT über UART (alle 5 ms)">${s.hasDiag ? "DIAG verdrahtet" : "ohne DIAG: Stall über UART"}</span>` : html`<span class="chip chip-bad">keine Verbindung</span>`}
-					${this.message ? html`<span class="stepper-msg">${this.message}</span>` : nothing}
+						<span class="chip" title="Stall-Erkennung: DIAG-Leitung (Interrupt, sofort) oder SG_RESULT über UART (alle 5 ms)">${s.hasDiag ? "DIAG verdrahtet" : "ohne DIAG: Stall über UART"}</span>` : nothing}
 				</div>
 
 				<section class="panel-section stepper-live">

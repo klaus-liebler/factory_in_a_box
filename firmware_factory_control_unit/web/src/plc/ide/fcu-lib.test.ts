@@ -11,7 +11,7 @@ import { COMMAND_VARS, ioBindings, ioMapHash } from "./io-list.ts";
 import { deviceSources } from "./project.ts";
 import { readValue, writeValue, type Value } from "./values.ts";
 
-const HOMING1 = 69, MISSION = 110;
+const HOMING1 = 69, MISSION = 110, MALIBOTTI = 111;
 
 const PROGRAM = `PROGRAM PLC_PRG
 VAR
@@ -26,9 +26,13 @@ VAR
     moveAxis : UINT := 2;
     goal : DINT;
     speed : UINT;
+    bot : FCU_MalibottiRunMission;
+    goBot : BOOL;
+    botMission : INT := 1;
 END_VAR
 home(Axis := axis, Execute := goHome);
 mission(Index := index, Execute := goMission);
+bot(Mission := botMission, Execute := goBot);
 move(Axis := moveAxis, Execute := goMove, Position := goal, Velocity := speed);
 END_PROGRAM
 `;
@@ -111,9 +115,10 @@ class Device {
 describe("FCU library: command registers", () => {
 	it("binds the schema's command registers (kind command), and they are no I/O variables", () => {
 		expect(COMMAND_VARS.map((c) => [c.name, c.register, c.type])).toEqual([
-			["__Stepper1StartHoming", 69, "UINT"], ["__Stepper2StartHoming", 70, "UINT"], ["__RoArmMissionControl", 110, "INT"]]);
+			["__Stepper1StartHoming", 69, "UINT"], ["__Stepper2StartHoming", 70, "UINT"], ["__RoArmMissionControl", 110, "INT"],
+			["__MalibottiMissionControl", 111, "INT"]]);
 		const commands = ioBindings().filter((b) => b.kind === "command");
-		expect(commands.map((b) => b.register)).toEqual([69, 70, 110]);
+		expect(commands.map((b) => b.register)).toEqual([69, 70, 110, 111]);
 	});
 
 	it("FCU_StepperHome: the start reaches the register once, the answer 0 is Done", () => {
@@ -186,6 +191,27 @@ describe("FCU library: command registers", () => {
 		d.holding.set(MISSION, 0xffff); // roarm: -1, not found
 		d.cycle();
 		expect(d.outputs("mission")).toEqual({ done: false, busy: false, error: true, id: 1 });
+	});
+
+	it("FCU_MalibottiRunMission: runs, then Done; the robot's errors are the ErrorID", () => {
+		const d = new Device();
+		d.set("PLC_PRG.botMission", 3);
+		d.set("PLC_PRG.goBot", true);
+		d.cycle();
+		expect(d.reg(MALIBOTTI)).toBe(3);
+		d.cycle(3);
+		expect(d.outputs("bot")).toMatchObject({ busy: true, done: false });
+		d.holding.set(MALIBOTTI, 0); // malibotti: mission done
+		d.cycle();
+		expect(d.outputs("bot")).toEqual({ done: true, busy: false, error: false, id: 0 });
+
+		d.set("PLC_PRG.goBot", false);
+		d.cycle();
+		d.set("PLC_PRG.goBot", true);
+		d.cycle();
+		d.holding.set(MALIBOTTI, 0xfffe); // malibotti: -2, unknown mission
+		d.cycle();
+		expect(d.outputs("bot")).toEqual({ done: false, busy: false, error: true, id: 2 });
 	});
 });
 

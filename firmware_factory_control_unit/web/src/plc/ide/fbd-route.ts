@@ -2,7 +2,9 @@
 // output to the right and enters its input from the left. The router keeps wires out of boxes they do
 // not belong to and gives every vertical segment and every horizontal track its own line: wires from
 // different outputs never run on top of each other (wires from the same output may share, they carry
-// the same value). Shorter wires are routed first and get the direct ways. DOM-free.
+// the same value). The bend of a wire is close to its target; the wires into one box get their
+// verticals side by side in the order that keeps them from crossing each other (lanes). Shorter
+// wires are routed first and get the direct ways. DOM-free.
 
 export interface Pt {
 	x: number;
@@ -30,6 +32,8 @@ export interface WireEnds {
 /** Clearance around boxes; distance between parallel segments of different sources. */
 const CLEAR = 6;
 const PITCH = 7;
+/** Distance between the verticals of the wires into one box. */
+const LANE = 9;
 
 interface Seg {
 	src: string;
@@ -50,6 +54,18 @@ export function routeWires(boxes: ReadonlyMap<string, Rect>, wires: readonly Wir
 	const vUsed: Seg[] = [];
 	const hUsed: Seg[] = [];
 	const out: Pt[][] = new Array(wires.length);
+
+	// Lanes: the verticals of the wires into one box, counted from the box to the left. Wires coming from
+	// below: the lowest pin next to the box, each higher pin one lane further left - then no wire's
+	// last horizontal crosses another one's vertical. Wires coming from above: mirrored (the top pin
+	// next to the box).
+	const lane: number[] = new Array<number>(wires.length).fill(0);
+	const byTarget = new Map<string, number[]>();
+	wires.forEach((w, i) => byTarget.set(w.to, [...(byTarget.get(w.to) ?? []), i]));
+	for (const idx of byTarget.values()) {
+		idx.filter((i) => wires[i].a.y > wires[i].b.y).sort((i, j) => wires[j].b.y - wires[i].b.y).forEach((i, k) => (lane[i] = k));
+		idx.filter((i) => wires[i].a.y < wires[i].b.y).sort((i, j) => wires[i].b.y - wires[j].b.y).forEach((i, k) => (lane[i] = k));
+	}
 
 	const order = wires.map((w, i) => i).sort((i, j) => Math.abs(wires[i].b.x - wires[i].a.x) - Math.abs(wires[j].b.x - wires[j].a.x) ||
 		Math.abs(wires[i].b.y - wires[i].a.y) - Math.abs(wires[j].b.y - wires[j].a.y));
@@ -72,22 +88,14 @@ export function routeWires(boxes: ReadonlyMap<string, Rect>, wires: readonly Wir
 			out[i] = pts;
 		};
 		const { a, b } = w;
-		// 1. one vertical: out at a.y, down/up at x, in at b.y. Preferred: the middle of the free gap before
-		// the target (the right edge would block the way of wires that enter the target at the height this
-		// one leaves its source), then alternately around it.
+		// 1. one vertical: out at a.y, down/up at x, in at b.y. First choice: the wire's lane right before
+		// the target; then further left (away from the box), then the few places further right.
 		if (b.x - a.x >= 2 * CLEAR + 4) {
-			const [ylo, yhi] = span(a.y, b.y);
-			const wall = Math.max(a.x, ...obstacles.filter((r) => r.x + r.w < b.x && r.x + r.w > a.x && r.y < yhi + CLEAR && r.y + r.h > ylo - CLEAR)
-				.map((r) => r.x + r.w + CLEAR));
-			const mid = Math.round((wall + b.x) / 2);
-			const xs: number[] = [];
-			for (let k = 0; ; k++) {
-				const l = mid - k * PITCH, r = mid + k * PITCH;
-				const lOk = l >= a.x + 8, rOk = r <= b.x - 8;
-				if (!lOk && !rOk) break;
-				if (rOk) xs.push(r);
-				if (lOk && k > 0) xs.push(l);
-			}
+			const lo = a.x + 8, hi = b.x - 8;
+			const first = Math.min(hi, Math.max(lo, b.x - 14 - lane[i] * LANE));
+			const xs: number[] = [first];
+			for (let x = first - LANE; x >= lo; x -= LANE) xs.push(x);
+			for (let x = first + PITCH; x <= hi; x += PITCH) xs.push(x);
 			let done = false;
 			for (const x of xs) {
 				if (done) break;

@@ -28,6 +28,7 @@ import { registerWsProtocolListener, type WsProtocolListener } from "../ws-clien
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { createDruckregelstreckeView, type DruckregelstreckeViewHandles, type ValveIndex } from "./druckregelstrecke-view.js";
 import { drawTrendChart, drawCharacteristicChart, type TrendSample, type CharacteristicCurve } from "./druckregelstrecke-charts.js";
+import { kindOf, setAppStatus } from "../shell/status-bar.js";
 import {
 	PidController,
 	designController,
@@ -84,6 +85,11 @@ function valveComboLabel(key: string): string {
 
 @customElement("druckregelstrecke-app")
 export class DruckregelstreckeApp extends LitElement implements DashboardApp, WsProtocolListener {
+	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
+	protected willUpdate(): void {
+		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+	}
+
 	protected createRenderRoot() {
 		return this;
 	}
@@ -584,7 +590,6 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 			<div class="container druckregel-container">
 				<section class="header-section app-panel">
 					<div class="panel-label">Druckregelstrecke</div>
-					<div class="status-text status-${this.statusVariant}">${this.statusMessage}</div>
 				</section>
 
 				<div class="panel-section druckregel-view-card">

@@ -21,6 +21,7 @@ export class Plant {
 	/** Referenced axes: the device homes at its start when the motor supply is up. */
 	private homed = [true, true];
 	private missionMs = 0;
+	private botMs = 0;
 	private elapsed = 0;
 	/** Workpieces pushed off at light barrier 2 (valve 1) and those that reached the end. */
 	ejected = 0;
@@ -34,6 +35,7 @@ export class Plant {
 		this.homingMs = [0, 0];
 		this.homed = [true, true];
 		this.missionMs = 0;
+		this.botMs = 0;
 		this.elapsed = 0;
 		this.ejected = 0;
 		this.delivered = 0;
@@ -114,6 +116,17 @@ export class Plant {
 		} else if ((this.missionMs += dtMs) >= 2000) {
 			io.set("__RoArmMissionControl", 0);
 		}
+		// the Malibotti robot: a mission takes 3 s, number 99 it does not know (-2)
+		const bot = num("__MalibottiMissionControl");
+		if (bot <= 0) {
+			this.botMs = 0;
+		} else if (bot === 99) {
+			io.set("__MalibottiMissionControl", -2);
+		} else if ((this.botMs += dtMs) >= 3000) {
+			io.set("__MalibottiMissionControl", 0);
+		}
+		io.set("MalibottiStatus", 1 | (bot > 0 && bot !== 99 ? 2 : 0));  // connected, busy
+		io.set("MalibottiActiveMission", bot > 0 && bot !== 99 ? bot : 0);
 		// status: bit 0 enabled, 1 moving, 3 in position, 4 homing, 5 referenced (StepperStatus.cs)
 		for (let i = 0; i < 2; i++) {
 			const status = (enabled ? 1 : 0) | (moving[i] ? 2 : 0) | (!moving[i] && this.steppers[i] === targets[i] ? 8 : 0) |

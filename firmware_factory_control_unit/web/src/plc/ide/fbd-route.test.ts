@@ -36,6 +36,20 @@ function problems(boxes: Map<string, Rect>, wires: WireEnds[], routes: Pt[][]): 
 
 const box = (x: number, y: number, h = 60): Rect => ({ x, y, w: 120, h });
 
+/** Crossings of wires of different sources: a vertical segment of one through a horizontal of the other. */
+function crossings(wires: WireEnds[], routes: Pt[][]): string[] {
+	const out: string[] = [];
+	const segs = routes.flatMap((pts, i) => pts.slice(0, -1).map((p, k) => ({ i, p, q: pts[k + 1] })));
+	for (const v of segs.filter((s) => s.p.x === s.q.x && s.p.y !== s.q.y)) {
+		for (const h of segs.filter((s) => s.p.y === s.q.y && s.p.x !== s.q.x)) {
+			if (v.i === h.i || wires[v.i].source === wires[h.i].source) continue;
+			const [y0, y1] = [Math.min(v.p.y, v.q.y), Math.max(v.p.y, v.q.y)], [x0, x1] = [Math.min(h.p.x, h.q.x), Math.max(h.p.x, h.q.x)];
+			if (v.p.x > x0 && v.p.x < x1 && h.p.y > y0 && h.p.y < y1) out.push(`wire ${v.i} crosses wire ${h.i}`);
+		}
+	}
+	return out;
+}
+
 describe("FBD wire routing", () => {
 	it("a wire from a left box to a box far right goes around the box between them", () => {
 		const boxes = new Map([["L", box(20, 20)], ["M", box(220, 20)], ["R", box(420, 20)]]);
@@ -59,6 +73,45 @@ describe("FBD wire routing", () => {
 		];
 		const routes = routeWires(boxes, wires);
 		expect(problems(boxes, wires, routes)).toEqual([]);
+	});
+
+	it("the bend is close to the target, not in the middle; a straight wire has none", () => {
+		const boxes = new Map([["A", box(20, 20)], ["B", box(520, 100)]]);
+		const wires: WireEnds[] = [{ a: { x: 140, y: 52 }, b: { x: 520, y: 132 }, from: "A", to: "B", source: "A.Q" }];
+		const [r] = routeWires(boxes, wires);
+		expect(r).toHaveLength(4);
+		expect(r[1].x).toBe(r[2].x);
+		expect(520 - r[1].x).toBeLessThanOrEqual(20);
+		const [flat] = routeWires(boxes, [{ ...wires[0], b: { x: 520, y: 52 } }]);
+		expect(flat).toEqual([{ x: 140, y: 52 }, { x: 520, y: 52 }]);
+	});
+
+	// Regression: the example network "Förderband" - the constants 0 and 600 below the SEL box, wired to
+	// its pins IN0 and IN1. Their verticals were in the wrong order: the wire of 600 crossed the wire of
+	// 0 right before the box (and looked connected to it).
+	it("wires into one box from below do not cross each other (lanes): the constants at SEL", () => {
+		const boxes = new Map<string, Rect>([
+			["and", { x: 300, y: 20, w: 120, h: 68 }], ["zero", { x: 300, y: 110, w: 60, h: 24 }], ["six", { x: 300, y: 140, w: 60, h: 24 }],
+			["sel", { x: 450, y: 30, w: 120, h: 88 }],
+		]);
+		const wires: WireEnds[] = [
+			{ a: { x: 420, y: 54 }, b: { x: 450, y: 64 }, from: "and", to: "sel", source: "and.OUT" },
+			{ a: { x: 360, y: 122 }, b: { x: 450, y: 84 }, from: "zero", to: "sel", source: "zero.OUT" },
+			{ a: { x: 360, y: 152 }, b: { x: 450, y: 104 }, from: "six", to: "sel", source: "six.OUT" },
+		];
+		const routes = routeWires(boxes, wires);
+		expect(problems(boxes, wires, routes)).toEqual([]);
+		expect(crossings(wires, routes)).toEqual([]);
+		// the same from above: three sources above their pins
+		const above: WireEnds[] = [
+			{ a: { x: 200, y: 20 }, b: { x: 450, y: 64 }, from: "p", to: "sel", source: "p.OUT" },
+			{ a: { x: 200, y: 30 }, b: { x: 450, y: 84 }, from: "q", to: "sel", source: "q.OUT" },
+			{ a: { x: 200, y: 40 }, b: { x: 450, y: 104 }, from: "r", to: "sel", source: "r.OUT" },
+		];
+		const only = new Map<string, Rect>([["sel", boxes.get("sel")!]]);
+		const up = routeWires(only, above);
+		expect(problems(only, above, up)).toEqual([]);
+		expect(crossings(above, up)).toEqual([]);
 	});
 
 	it("a feedback (the input left of the output) goes around below, out of the boxes", () => {

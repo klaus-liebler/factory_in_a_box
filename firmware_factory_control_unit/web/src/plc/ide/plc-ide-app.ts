@@ -1,9 +1,12 @@
 // The PLC page of the web UI (docs/plc-iec61131.md section 10.2): an IEC 61131-3 programming
 // environment after CODESYS and the OpenPLC Editor - project tree, editors for declaration and
-// implementation, messages, watch lists, device log, status bar. Mockup state: the device is the
-// simulator in the browser (TypeScript VM + plant model); the FCU as a device comes with P2.
+// implementation, messages, watch lists, device log. The device is the FCU or the simulator in the
+// browser (TypeScript VM + plant model). Its state goes to the application's status bar.
 import { LitElement, html, nothing, svg } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
+import { repeat } from "lit/directives/repeat.js";
+import { choiceDialog, confirmDialog, messageDialog, promptDialog } from "../../shell/dialogs.ts";
+import { setAppStatus, type StatusKind } from "../../shell/status-bar.ts";
 import "../../styles.css";
 import "./plc-ide.css";
 import "./st-editor.ts";
@@ -19,7 +22,8 @@ import type * as A from "../compiler/ast.ts";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
 import { IO_VARS } from "./io-list.ts";
 import {
-	addObject, boxesFor, build, crossReferences, objectTree, setFolder, type CrossRef, declLines, LANG_NAMES, LANGS_OF, type Generated, type Lang, exampleProject, hasBody, headerName, KIND_NAMES, loadProject, nameProblem, OBJECT_KINDS,
+	addObject, boxesFor, build, crossReferences, objectTree, type CrossRef,
+	addFolder, allFolders, deleteFolder, folderNameProblem, moveFolder, moveFolderProblem, moveObject, objectsIn, renameFolder, type FolderNode, declLines, LANG_NAMES, LANGS_OF, type Generated, type Lang, exampleProject, hasBody, headerName, KIND_NAMES, loadProject, nameProblem, OBJECT_KINDS,
 	parseProject, partLine, projectHash, removeObject, renameObject, saveProject, type Build, type Located, type ObjectKind, type PlcObject, type Project,
 } from "./project.ts";
 import type { FbdPou } from "./fbd.ts";
@@ -41,7 +45,6 @@ type View = "prg" | "io" | "lib" | "task";
 type Panel = "messages" | "watch" | "log" | "plant" | "stack" | "xref";
 
 const WATCH_KEY = "fcu.plc.watch";
-const P2 = "kommt mit P2 (Laufzeit auf dem FCU)";
 const KIND_ICONS: Record<ObjectKind, string> = { PRG: "📄", FB: "🧩", FUN: "ƒ", DUT: "🧱", GVL: "🌐" };
 const NAME_PREFIX: Record<ObjectKind, string> = { PRG: "PRG_", FB: "FB_", FUN: "FUN_", DUT: "ST_", GVL: "GVL_" };
 
@@ -82,6 +85,12 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	@state() private adding: AddForm | null = null;
 	/** Folders of the tree that are collapsed. */
 	@state() private collapsed = new Set<string>();
+	/** The folder selected in the tree (null: an object or a page is; ""; the root). New objects and
+	 *  folders go there. */
+	@state() private selectedFolder: string | null = null;
+	/** Drag and drop in the tree: what is dragged, and the folder under the pointer. */
+	private dragging: { object?: string; folder?: string } | null = null;
+	@state() private dropTarget: string | null = null;
 	/** The name the cross references are shown for. */
 	@state() private xref = "";
 	@state() private view: View = "prg";
@@ -177,6 +186,31 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			}
 		}
 		this.lastHalt = h;
+		this.publishStatus();
+	}
+
+	/** The state of the PLC and of the project in the application's status bar (shell/status-bar.ts). */
+	private publishStatus(): void {
+		const dev = this.dev;
+		const s = dev.state;
+		const kind: StatusKind = !dev.connected ? "error" : s === "RUN" ? "ok" : s === "ERROR" ? "error" : s === "HALTED" ? "warning" : "idle";
+		const located = this.lastBuild?.located ?? [];
+		const errors = located.filter((l) => l.diagnostic.severity === "error").length + this.problemCount(this.lastBuild);
+		const foreign = dev.kind === "fcu" && dev.connected && dev.projectHash !== 0 && !dev.debug;
+		setAppStatus(this, {
+			text: dev.connected ? `${dev.label}: ${s}` : `${dev.label} antwortet nicht`,
+			kind,
+			extra: html`
+				<span class="sb-chip">${this.online ? "online: Werte" : "keine Werte"}</span>
+				<span class="sb-chip">Ausgänge: <b>${dev.iec ? "IEC 61131" : "Feldbus"}</b></span>
+				<span class="sb-chip">Zyklus ${dev.cycleMs} ms · ${dev.cycles}</span>
+				<span class="sb-chip" title="ausgeführte Befehle der VM pro Zyklus (Budget 2 000 000)">Befehle ${dev.lastInstructions} (max ${dev.maxInstructions})</span>
+				${errors ? html`<span class="sb-warn" title="siehe Meldungen">✖ ${errors} Fehler im Projekt</span>` : html`<span class="sb-chip">Projekt übersetzt</span>`}
+				${this.stale ? html`<span class="sb-warn">⚠ Projekt ≠ Gerät</span>` : nothing}
+				${dev.forcedOnDevice ? html`<span class="sb-warn" title="geforcte Werte auf dem Gerät (aller Browser); STOP, Umschalten oder 'plc unforce' im Terminal heben sie auf">${dev.forcedOnDevice} geforct</span>` : nothing}
+				${dev.leasedByOther ? html`<span class="sb-warn" title="Ein anderer Browser forct Werte (Debug-Lease): hier nur beobachten; Aufheben dort oder mit 'plc unforce' im Terminal">🔒 anderer Browser debuggt</span>` : nothing}
+				${foreign ? html`<span class="sb-right">Programm auf dem FCU stammt nicht aus diesem Browser: keine Online-Werte</span>` : nothing}`,
+		});
 	}
 
 	private flash(text: string): void {
@@ -267,7 +301,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			this.flash(`'${a.name}': ${problem}`);
 			return;
 		}
-		const { project, object } = addObject(this.project, a.kind, a.name.trim(), a.returnType.trim() || "INT", a.lang);
+		const { project, object } = addObject(this.project, a.kind, a.name.trim(), a.returnType.trim() || "INT", a.lang, this.targetFolder());
 		this.setProject(project);
 		this.selectedId = object.id;
 		this.view = "prg";
@@ -275,15 +309,13 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		this.doBuild(false);
 	}
 
-	private renameSelected(): void {
+	private async renameSelected(): Promise<void> {
 		const o = this.obj;
-		const to = prompt(`Neuer Name für ${KIND_NAMES[o.kind]} ${o.name} (alle Verweise im Projekt werden angepasst):`, o.name)?.trim();
+		const to = await promptDialog({
+			title: `${KIND_NAMES[o.kind]} umbenennen`, message: "Alle Verweise im Projekt werden angepasst.", label: "Neuer Name", value: o.name,
+			confirm: "Umbenennen", validate: (v) => (v === o.name ? null : nameProblem(this.project, v, o.id)),
+		});
 		if (!to || to === o.name) return;
-		const problem = nameProblem(this.project, to, o.id);
-		if (problem) {
-			this.flash(`'${to}': ${problem}`);
-			return;
-		}
 		this.dev.setBreakpoints(o.name, []);
 		this.setProject(renameObject(this.project, o.id, to));
 		this.doBuild(false);
@@ -291,13 +323,13 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		this.flash(`${o.name} heißt jetzt ${to}`);
 	}
 
-	private removeSelected(): void {
+	private async removeSelected(): Promise<void> {
 		const o = this.obj;
 		if (this.project.objects.length === 1) {
-			this.flash("Das letzte Objekt des Projekts bleibt");
+			await messageDialog({ title: "Löschen nicht möglich", message: "Das letzte Objekt des Projekts bleibt." });
 			return;
 		}
-		if (!confirm(`${KIND_NAMES[o.kind]} ${o.name} aus dem Projekt löschen?`)) return;
+		if (!(await confirmDialog({ title: `${KIND_NAMES[o.kind]} löschen`, message: `${o.name} aus dem Projekt löschen?`, confirm: "Löschen", danger: true }))) return;
 		this.dev.setBreakpoints(o.name, []);
 		const bps = new Map(this.breakpoints);
 		bps.delete(o.id);
@@ -315,7 +347,11 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				this.flash("Das FCU antwortet nicht");
 				return;
 			}
-			if (start && dev.iec && !confirm("Das Programm übernimmt die Ausgänge des FCU (Steuerquelle IEC 61131): Ventile, Motoren und Achsen können sich bewegen. Laden und starten?")) return;
+			if (start && dev.iec && !(await confirmDialog({
+				title: "Laden und starten",
+				message: ["Das Programm übernimmt die Ausgänge des FCU (Steuerquelle IEC 61131).", "Ventile, Motoren und Achsen können sich bewegen."],
+				confirm: "Laden und starten", danger: true,
+			}))) return;
 		}
 		if (await dev.download(b.result)) {
 			this.sendBreakpoints();  // the new program's statement offsets
@@ -360,13 +396,15 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		return n;
 	}
 
-	private toggleBreakpoint(line: number): void {
+	private async toggleBreakpoint(line: number): Promise<void> {
 		const next = new Set(this.breakpointLines);
 		const adding = !next.delete(line);
-		if (adding && this.breakpointCount === 0 && this.dev.kind === "fcu" && this.dev.iec &&
-			!confirm("Haltepunkt auf dem FCU mit Steuerquelle IEC 61131: hält das Programm dort an, behalten die Ausgänge ihren Wert (Ventile, Motoren!), der E/A-Zyklus läuft weiter. Setzen?")) {
-			return;
-		}
+		if (adding && this.breakpointCount === 0 && this.dev.kind === "fcu" && this.dev.iec && !(await confirmDialog({
+			title: "Haltepunkt auf dem FCU",
+			message: ["Die Steuerquelle ist IEC 61131: hält das Programm am Haltepunkt an, behalten die Ausgänge ihren Wert (Ventile, Motoren!).",
+				"Der E/A-Zyklus läuft weiter."],
+			confirm: "Haltepunkt setzen",
+		}))) return;
 		if (adding) next.add(line);
 		this.breakpoints = new Map(this.breakpoints).set(this.obj.id, next);
 		this.sendBreakpoints();
@@ -423,7 +461,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			this.flash("Das Gerät antwortet nicht");
 			return;
 		}
-		if (!confirm("Das Projekt vom Gerät laden? Das aktuelle Projekt im Browser wird ersetzt.")) return;
+		if (!(await confirmDialog({ title: "Projekt vom Gerät laden", message: "Das aktuelle Projekt im Browser wird ersetzt.", confirm: "Laden" }))) return;
 		const text = await dev.loadProject();
 		if (text === null) {
 			this.panel = "log";
@@ -441,8 +479,8 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		}
 	}
 
-	private resetToExample(): void {
-		if (!confirm("Das Beispielprojekt laden? Das aktuelle Projekt im Browser wird ersetzt.")) return;
+	private async resetToExample(): Promise<void> {
+		if (!(await confirmDialog({ title: "Beispielprojekt laden", message: "Das aktuelle Projekt im Browser wird ersetzt.", confirm: "Beispiel laden", danger: true }))) return;
 		this.setProject(exampleProject());
 		this.doBuild(true);
 	}
@@ -628,7 +666,6 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					</section>
 				</div>
 				${this.renderPanel()}
-				${this.renderStatus()}
 				${this.notice ? html`<div class="ide-toast">${this.notice}</div>` : nothing}
 			</div>`;
 	}
@@ -655,7 +692,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<button title=${this.dev.canSingleCycle ? "Ein Zyklus (in STOP)" : "Einzelne Zyklen: nur im Simulator"} ?disabled=${s !== "STOP" || !this.dev.canSingleCycle} @click=${() => this.dev.singleCycle()}>⏭ Zyklus</button>
 					<button title="Reset warm: Variablen auf Initialwerte" ?disabled=${s === "NO_PROGRAM"} @click=${() => this.dev.reset("warm")}>↺ Reset</button>
 				</div>
-				<div class="ide-tb-group" title=${this.dev.canDebug ? "Debuggen: Haltepunkt per Klick auf die Zeilennummer" : "Haltepunkte und Einzelschritt: auf dem FCU noch nicht (P3)"}>
+				<div class="ide-tb-group" title="Debuggen: Haltepunkt per Klick auf die Zeilennummer">
 					<button title="Weiter (F5): bis zum nächsten Haltepunkt" ?disabled=${s !== "HALTED"} @click=${() => this.dev.continueRun()}>▶ Weiter</button>
 					<button title="Prozedurschritt (F10): die nächste Anweisung, Aufrufe laufen durch" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("over")}>⤼</button>
 					<button title="Einzelschritt (F11): in den Aufruf hinein" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("into")}>⤵</button>
@@ -703,7 +740,17 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		const n = name.trim();
 		if (!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(n)) return null;
 		const o = this.obj;
-		const debug = this.lastBuild?.result.debug;
+		// a simple name: its declaration says the type - in the object, then in the global lists. This also
+		// works while the project does not compile (right after inserting a node it never does: an open
+		// pin is an error), so pins keep their colours.
+		if (!n.includes(".")) {
+			const up = n.toUpperCase();
+			const rows = [...parseRows(o.decl), ...this.project.objects.filter((x) => x.kind === "GVL").flatMap((x) => parseRows(x.decl))];
+			const type = rows.find((r) => r.name.toUpperCase() === up)?.type.trim().toUpperCase();
+			if (type && type in ELEM) return type;
+		}
+		// members (Timer.Q) and user types: from the last build that compiled
+		const debug = this.lastBuild?.result.debug ?? this.lastGoodDebug;
 		if (debug) {
 			const scope = o.kind === "PRG" ? o.name : o.kind === "FB" ? this.instancesOf(o, debug)[0] : undefined;
 			for (const path of scope ? [`${scope}.${n}`, n] : [n]) {
@@ -802,10 +849,10 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<table class="ide-table">
 					<thead><tr><th>Aufruf</th><th>Programm</th><th>Sprache</th><th>Reihenfolge</th></tr></thead>
 					<tbody>
-						${called.map((n, i) => {
+						${repeat(called, (n) => `in:${n}`, (n, i) => {
 							const o = prgs.find((x) => x.name.toUpperCase() === n.toUpperCase());
 							return html`<tr>
-								<td><input type="checkbox" checked @change=${() => this.setTaskPrograms(called.filter((x) => x !== n))} /></td>
+								<td><input type="checkbox" .checked=${true} @change=${() => this.setTaskPrograms(called.filter((x) => x !== n))} /></td>
 								<td class="ide-mono">${i + 1}. ${n}</td>
 								<td>${o ? LANG_NAMES[o.lang] : html`<span class="ide-bad">fehlt im Projekt</span>`}</td>
 								<td>
@@ -814,8 +861,8 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 								</td>
 							</tr>`;
 						})}
-						${prgs.filter((o) => !isIn(o)).map((o) => html`<tr class="ide-task-off">
-							<td><input type="checkbox" @change=${() => this.setTaskPrograms([...called, o.name])} /></td>
+						${repeat(prgs.filter((o) => !isIn(o)), (o) => `out:${o.name}`, (o) => html`<tr class="ide-task-off">
+							<td><input type="checkbox" .checked=${false} @change=${() => this.setTaskPrograms([...called, o.name])} /></td>
 							<td class="ide-mono">${o.name}</td>
 							<td>${LANG_NAMES[o.lang]}</td>
 							<td class="ide-node-sub">wird nicht aufgerufen</td>
@@ -841,22 +888,18 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 						}} />
 				</div>
 				<div class="ide-tree-device"><span class="ide-dot ide-dot-${this.dev.connected ? s.toLowerCase() : "offline"}"></span> ${this.dev.label} <span class="ide-node-sub">${this.dev.connected ? s : "offline"}</span></div>
-				<div class="ide-tree-group">Applikation</div>
-					${objectTree(this.project).map(({ folder, objects }) => html`
-						${folder ? html`<button class="ide-node ide-folder" title="Ordner auf- oder zuklappen" @click=${() => {
-							const c = new Set(this.collapsed);
-							if (!c.delete(folder)) c.add(folder);
-							this.collapsed = c;
-						}}><span class="ide-node-icon">${this.collapsed.has(folder) ? "📁" : "📂"}</span><span>${folder}</span><span class="ide-node-sub">${objects.length}</span></button>` : nothing}
-						${folder && this.collapsed.has(folder) ? nothing : objects.map((o) => html`
-						<button class="ide-node ${folder ? "ide-node-in" : ""} ${this.view === "prg" && o.id === this.obj.id ? "ide-node-active" : ""}" title=${KIND_NAMES[o.kind]}
-							@click=${() => {
-								this.selectedId = o.id;
-								this.view = "prg";
-							}}>
-							<span class="ide-node-icon">${KIND_ICONS[o.kind]}</span><span>${o.name}</span><span class="ide-node-sub">${hasBody(o.kind) ? `${o.kind} · ${o.lang}` : o.kind}</span>
-						</button>`)}`)}
-					${node("task", "⏱", this.project.tasks[0]?.name ?? "MainTask", `${this.dev.cycleMs} ms · ${this.project.tasks[0]?.programs.length ?? 0} PRG`)}
+				<div class="ide-tree-group ide-tree-root ${this.selectedFolder === "" ? "ide-node-active" : ""} ${this.dropTarget === "" ? "ide-drop" : ""}"
+					title="Wurzel des Projekts: hierher ziehen, um etwas aus einem Ordner zu holen"
+					@click=${() => (this.selectedFolder = "")}
+					@dragover=${(e: DragEvent) => this.dragOver(e, "")} @dragleave=${() => (this.dropTarget = null)} @drop=${(e: DragEvent) => this.drop(e, "")}>
+					<span>Applikation</span>
+					<span class="ide-tree-tools">
+						<button class="ide-icon-btn" title="Neues Objekt (im ausgewählten Ordner)" @click=${(e: Event) => { e.stopPropagation(); this.openAdd(); }}>＋📄</button>
+						<button class="ide-icon-btn" title="Neuer Ordner (im ausgewählten Ordner)" @click=${(e: Event) => { e.stopPropagation(); void this.newFolder(); }}>＋📁</button>
+					</span>
+				</div>
+					${this.renderFolder(objectTree(this.project), 0)}
+				${node("task", "⏱", this.project.tasks[0]?.name ?? "MainTask", `${this.dev.cycleMs} ms · ${this.project.tasks[0]?.programs.length ?? 0} PRG`)}
 					${this.adding ? this.renderAdd(this.adding) : html`<button class="ide-node ide-add" @click=${() => this.openAdd()}>＋ Objekt hinzufügen…</button>`}
 				<div class="ide-tree-group">Gerät</div>
 				${node("io", "🔌", "I/O-Abbild", `${IO_VARS.length} Variablen`)}
@@ -918,7 +961,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<span class="ide-tab-actions">
 					<button class="ide-icon-btn" title="Umbenennen (alle Verweise im Projekt werden angepasst)" @click=${() => this.renameSelected()}>✎ Umbenennen</button>
 					<button class="ide-icon-btn" title="Wo wird dieses Objekt benutzt?" @click=${() => this.showXref(o.name)}>🔍 Querverweise</button>
-					<button class="ide-icon-btn" title="In einen Ordner legen (leer: oberste Ebene)" @click=${() => this.moveToFolder()}>📁 Ordner</button>
+					<button class="ide-icon-btn" title="In einen anderen Ordner verschieben (oder im Baum dorthin ziehen)" @click=${() => this.moveSelected()}>📁 Verschieben</button>
 					<button class="ide-icon-btn" title="Aus dem Projekt löschen" @click=${() => this.removeSelected()}>🗑 Löschen</button>
 				</span>
 			</div>
@@ -1024,7 +1067,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		return html`
 			<div class="ide-tabs"><span class="ide-tab ide-tab-active">I/O-Abbild <span class="ide-node-sub">aus der Registerkarte erzeugt, nur lesbar</span></span></div>
 			<div class="ide-io">
-				<p class="ide-hint">Diese globalen Variablen sind in jedem Programm sichtbar. Im Mockup sind es einfache Variablen, die das Anlagenmodell des Simulators liest und schreibt; die Kopplung an die Register (%I/%Q) folgt mit P2.</p>
+				<p class="ide-hint">Diese globalen Variablen sind in jedem Programm sichtbar. Jede ist an ein Register des FCU gebunden: Eingänge (%I) liest das FCU vor jedem Zyklus aus den Registern, Ausgänge (%Q) schreibt es danach hinein. Im Simulator liest und schreibt sie das Anlagenmodell.</p>
 				<table>
 					<thead><tr><th>Name</th><th>Adresse</th><th>Typ</th><th>Richtung</th><th>Wert</th><th>Force</th><th>Beschreibung</th></tr></thead>
 					<tbody>
@@ -1040,7 +1083,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 								<td class="ide-mono">${v.type}</td>
 								<td>${v.direction === "input" ? "Eingang" : "Ausgang"}</td>
 								<td class="ide-value">${online && v.direction === "input" && s ? input(v.name, s.type, text) : text}</td>
-								<td>${s ? html`<input type="checkbox" .checked=${forced} ?disabled=${!this.dev.canForce} title=${this.dev.canForce ? "Wert festhalten (forcen)" : "Forcen auf dem FCU: P3"}
+								<td>${s ? html`<input type="checkbox" .checked=${forced} ?disabled=${!this.dev.canForce} title="Wert festhalten (forcen)"
 									@change=${(e: Event) => this.dev.force(v.name, (e.target as HTMLInputElement).checked ? (value as Value) : null)} />` : nothing}</td>
 								<td class="ide-desc">${v.description}${v.unit ? html` <span class="ide-node-sub">[${v.unit}]</span>` : nothing}</td>
 							</tr>`;
@@ -1157,11 +1200,170 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	}
 
 	// ---- folders and cross references --------------------------------------------------------------------
-	private moveToFolder(): void {
+	// ---- the explorer tree: folders -----------------------------------------------------------------------
+	/** Where a new object or folder goes: the selected folder, else the folder of the object in the editor. */
+	private targetFolder(): string {
+		return this.selectedFolder ?? (this.view === "prg" ? this.obj.folder ?? "" : "");
+	}
+
+	private toggleFolder(path: string): void {
+		const c = new Set(this.collapsed);
+		if (!c.delete(path)) c.add(path);
+		this.collapsed = c;
+	}
+
+	private expand(path: string): void {
+		const c = new Set(this.collapsed);
+		for (let f = path; f; f = f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : "") c.delete(f);
+		this.collapsed = c;
+	}
+
+	private async newFolder(): Promise<void> {
+		const parent = this.targetFolder();
+		const name = await promptDialog({
+			title: "Neuer Ordner", message: parent ? `im Ordner „${parent}“` : "in der Wurzel des Projekts", label: "Name", confirm: "Anlegen",
+			validate: (v) => folderNameProblem(this.project, parent, v),
+		});
+		if (!name) return;
+		this.setProject(addFolder(this.project, parent, name));
+		this.expand(parent);
+		this.selectedFolder = parent ? `${parent}/${name}` : name;
+	}
+
+	private async renameFolderUi(path: string): Promise<void> {
+		const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+		const old = path.slice(path.lastIndexOf("/") + 1);
+		const name = await promptDialog({
+			title: "Ordner umbenennen", label: "Neuer Name", value: old, confirm: "Umbenennen",
+			validate: (v) => (v === old ? null : folderNameProblem(this.project, parent, v, path)),
+		});
+		if (!name || name === old) return;
+		this.setProject(renameFolder(this.project, path, name));
+		this.selectedFolder = parent ? `${parent}/${name}` : name;
+	}
+
+	private async deleteFolderUi(path: string): Promise<void> {
+		const inside = objectsIn(this.project, path);
+		let contents: "delete" | "toRoot" = "toRoot";
+		if (inside.length > 0) {
+			// not empty: what happens to the objects?
+			const answer = await choiceDialog({
+				title: "Ordner löschen",
+				message: [`Der Ordner „${path}“ enthält ${inside.length} Objekt(e): ${inside.map((o) => o.name).join(", ")}.`, "Was soll mit ihnen geschehen?"],
+				choices: [{ id: "toRoot", label: "In die Wurzel verschieben", primary: true }, { id: "delete", label: "Mit löschen", danger: true }],
+			});
+			if (answer === null) return;
+			contents = answer as "delete" | "toRoot";
+			if (contents === "delete" && inside.length === this.project.objects.length) {
+				await messageDialog({ title: "Löschen nicht möglich", message: "Der Ordner enthält alle Objekte des Projekts; das letzte Objekt bleibt." });
+				return;
+			}
+		}
+		if (contents === "delete") {
+			const bps = new Map(this.breakpoints);
+			for (const o of inside) {
+				this.dev.setBreakpoints(o.name, []);
+				bps.delete(o.id);
+			}
+			this.breakpoints = bps;
+		}
+		this.setProject(deleteFolder(this.project, path, contents));
+		this.selectedFolder = null;
+		this.doBuild(false);
+	}
+
+	/** The object in the editor into another folder, chosen from a list (the tree: drag it there). */
+	private async moveSelected(): Promise<void> {
 		const o = this.obj;
-		const f = prompt(`Ordner für ${o.name} (leer: oberste Ebene):`, o.folder ?? "");
-		if (f === null) return;
-		this.setProject(setFolder(this.project, o.id, f));
+		const here = o.folder ?? "";
+		const folders = ["", ...allFolders(this.project)].filter((f) => f !== here);
+		if (folders.length === 0) {
+			await messageDialog({ title: "Verschieben", message: "Es gibt noch keinen Ordner. Ordner anlegen: ＋📁 über dem Projektbaum." });
+			return;
+		}
+		const to = await choiceDialog({
+			title: `${o.name} verschieben`, message: `Jetzt in: ${here || "Wurzel des Projekts"}`,
+			choices: folders.map((f) => ({ id: `f:${f}`, label: f || "Wurzel des Projekts" })),
+		});
+		if (to === null) return;
+		this.setProject(moveObject(this.project, o.id, to.slice(2)));
+		this.expand(to.slice(2));
+	}
+
+	private dragStart(e: DragEvent, what: { object?: string; folder?: string }): void {
+		this.dragging = what;
+		e.dataTransfer?.setData("text/plain", what.object ?? what.folder ?? "");
+		if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+		e.stopPropagation();
+	}
+
+	/** Why the dragged thing cannot be dropped into `folder` (null: it can). */
+	private dropProblem(folder: string): string | null {
+		const d = this.dragging;
+		if (!d) return "nichts gezogen";
+		if (d.object !== undefined) {
+			const o = this.project.objects.find((x) => x.id === d.object);
+			return o && (o.folder ?? "") !== folder ? null : "liegt schon dort";
+		}
+		return moveFolderProblem(this.project, d.folder!, folder);
+	}
+
+	private dragOver(e: DragEvent, folder: string): void {
+		if (this.dropProblem(folder) !== null) return;  // not a target: the browser shows "no drop"
+		e.preventDefault();
+		e.stopPropagation();
+		if (this.dropTarget !== folder) this.dropTarget = folder;
+	}
+
+	private drop(e: DragEvent, folder: string): void {
+		e.preventDefault();
+		e.stopPropagation();
+		const d = this.dragging;
+		const problem = this.dropProblem(folder);
+		this.dragging = null;
+		this.dropTarget = null;
+		if (!d || problem !== null) return;
+		if (d.object !== undefined) this.setProject(moveObject(this.project, d.object, folder));
+		else {
+			const name = d.folder!.slice(d.folder!.lastIndexOf("/") + 1);
+			this.setProject(moveFolder(this.project, d.folder!, folder));
+			this.selectedFolder = folder ? `${folder}/${name}` : name;
+		}
+		this.expand(folder);
+	}
+
+	/** One level of the explorer tree: the folders (each with its content below it), then the objects. */
+	private renderFolder(node: FolderNode, depth: number): unknown {
+		const indent = (extra = 0) => `padding-left:${6 + depth * 14 + extra}px`;
+		return html`
+			${node.folders.map((f) => {
+				const open = !this.collapsed.has(f.path);
+				return html`
+					<div class="ide-node ide-folder ${this.selectedFolder === f.path ? "ide-node-active" : ""} ${this.dropTarget === f.path ? "ide-drop" : ""}"
+						style=${indent()} role="treeitem" aria-expanded=${open} draggable="true" title=${f.path}
+						@click=${() => (this.selectedFolder = f.path)} @dblclick=${() => this.toggleFolder(f.path)}
+						@dragstart=${(e: DragEvent) => this.dragStart(e, { folder: f.path })} @dragend=${() => { this.dragging = null; this.dropTarget = null; }}
+						@dragover=${(e: DragEvent) => this.dragOver(e, f.path)} @dragleave=${() => (this.dropTarget = null)} @drop=${(e: DragEvent) => this.drop(e, f.path)}>
+						<button class="ide-chevron" title=${open ? "zuklappen" : "aufklappen"} @click=${(e: Event) => { e.stopPropagation(); this.toggleFolder(f.path); }}>${open ? "▾" : "▸"}</button>
+						<span class="ide-node-icon">${open ? "📂" : "📁"}</span><span class="ide-node-name">${f.name}</span>
+						<span class="ide-node-tools">
+							<button class="ide-icon-btn" title="Ordner umbenennen" @click=${(e: Event) => { e.stopPropagation(); void this.renameFolderUi(f.path); }}>✎</button>
+							<button class="ide-icon-btn" title="Ordner löschen" @click=${(e: Event) => { e.stopPropagation(); void this.deleteFolderUi(f.path); }}>🗑</button>
+						</span>
+					</div>
+					${open ? this.renderFolder(f, depth + 1) : nothing}`;
+			})}
+			${node.objects.map((o) => html`
+				<button class="ide-node ${this.selectedFolder === null && this.view === "prg" && o.id === this.obj.id ? "ide-node-active" : ""}"
+					style=${indent(18)} role="treeitem" draggable="true" title="${KIND_NAMES[o.kind]} - ziehen, um ihn in einen Ordner zu legen"
+					@dragstart=${(e: DragEvent) => this.dragStart(e, { object: o.id })} @dragend=${() => { this.dragging = null; this.dropTarget = null; }}
+					@click=${() => {
+						this.selectedId = o.id;
+						this.selectedFolder = null;
+						this.view = "prg";
+					}}>
+					<span class="ide-node-icon">${KIND_ICONS[o.kind]}</span><span class="ide-node-name">${o.name}</span><span class="ide-node-sub">${hasBody(o.kind) ? `${o.kind} · ${o.lang}` : o.kind}</span>
+				</button>`)}`;
 	}
 
 	private showXref(name: string): void {
@@ -1299,7 +1501,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					<input list="ide-paths" placeholder="Variable hinzufügen, z.B. PLC_PRG.Eject.Q" @change=${add} />
 					<datalist id="ide-paths">${this.knownPaths().map((p) => html`<option value=${p}></option>`)}</datalist>
 					<button ?disabled=${!online || this.prepared.size === 0} @click=${() => this.applyPrepared(false)} title="Alle vorbereiteten Werte einmal schreiben (im selben Zyklus)">Werte schreiben</button>
-					<button ?disabled=${!online || this.prepared.size === 0 || !this.dev.canForce} @click=${() => this.applyPrepared(true)} title=${this.dev.canForce ? "Alle vorbereiteten Werte festhalten" : "Forcen auf dem FCU: P3"}>Werte forcen</button>
+					<button ?disabled=${!online || this.prepared.size === 0 || !this.dev.canForce} @click=${() => this.applyPrepared(true)} title="Alle vorbereiteten Werte festhalten">Werte forcen</button>
 				</div>
 			</div>`;
 	}
@@ -1343,21 +1545,6 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		</ul>`;
 	}
 
-	private renderStatus() {
-		const s = this.dev.state;
-		return html`
-			<footer class="ide-status">
-				<span><span class="ide-dot ide-dot-${this.online ? "run" : "no_program"}"></span>${this.online ? "online" : this.dev.connected ? "keine Werte" : "offline"} · ${this.dev.label}</span>
-				<span class="ide-state ide-state-${s.toLowerCase()}">${s}</span>
-				<span>Quelle der Ausgänge: <b>${this.dev.iec ? "IEC 61131" : "Feldbus"}</b></span>
-				<span>Zyklus ${this.dev.cycleMs} ms · ${this.dev.cycles} Zyklen</span>
-				<span title="ausgeführte Befehle der VM pro Zyklus (Budget 2 000 000)">Befehle ${this.dev.lastInstructions} (max ${this.dev.maxInstructions})</span>
-				${this.stale ? html`<span class="ide-warn">⚠ Projekt ≠ Gerät</span>` : nothing}
-				${this.dev.forcedOnDevice ? html`<span class="ide-warn" title="geforcte Werte auf dem Gerät (aller Browser); STOP, Umschalten oder 'plc unforce' im Terminal heben sie auf">${this.dev.forcedOnDevice} geforct</span>` : nothing}
-				${this.dev.leasedByOther ? html`<span class="ide-warn" title="Ein anderer Browser forct Werte (Debug-Lease): hier nur beobachten; Aufheben dort oder mit 'plc unforce' im Terminal">🔒 anderer Browser debuggt</span>` : nothing}
-				<span class="ide-status-right">${this.dev.kind === "fcu" && this.dev.connected && this.dev.projectHash !== 0 && !this.dev.debug ? "Programm auf dem FCU stammt nicht aus diesem Browser: keine Online-Werte" : ""}</span>
-			</footer>`;
-	}
 }
 
 declare global {

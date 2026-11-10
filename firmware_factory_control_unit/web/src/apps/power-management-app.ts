@@ -5,6 +5,7 @@ import { REGIONS, type RegisterDef } from "../../generated/register-map.js";
 import { fetchRegisters, type RegisterValues } from "../registers.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { drawLineChart } from "./line-chart.js";
+import { kindOf, setAppStatus } from "../shell/status-bar.js";
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -51,6 +52,11 @@ function readRegister(values: RegisterValues, reg: RegisterDef): number | undefi
 
 @customElement("power-management-app")
 export class PowerManagementApp extends LitElement implements DashboardApp {
+	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
+	protected willUpdate(): void {
+		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+	}
+
 	protected createRenderRoot() {
 		return this;
 	}
@@ -157,7 +163,6 @@ export class PowerManagementApp extends LitElement implements DashboardApp {
 			<div class="container">
 				<section class="header-section app-panel">
 					<div class="panel-label">Power Management</div>
-					<div class="status-text status-${this.statusVariant}">${this.statusMessage}</div>
 				</section>
 
 				<div class="panel-section power-toolbar">

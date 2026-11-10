@@ -7,6 +7,7 @@ import type { DashboardApp } from "../shell/dashboard-app.js";
 import * as buildInfo from "../../generated/build-info.js";
 import { I2C_ADDRESS_CANDIDATES } from "../i2c-device-names.js";
 import { i2cBusSections } from "../i2c-scan.js";
+import { kindOf, setAppStatus } from "../shell/status-bar.js";
 
 type SystemInfo = system.SystemInfoMessage.Payload;
 
@@ -87,6 +88,11 @@ function cableTypeLabel(tcsr: number): string {
 
 @customElement("system-info-app")
 export class SystemInfoApp extends LitElement implements DashboardApp {
+	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
+	protected willUpdate(): void {
+		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+	}
+
 	protected createRenderRoot() {
 		return this;
 	}
@@ -196,7 +202,6 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 			<div class="container">
 				<section class="header-section app-panel">
 					<div class="panel-label">System</div>
-					<div class="status-text status-${this.statusVariant}">${this.statusMessage}</div>
 				</section>
 
 				<div class="region-grid">

@@ -337,6 +337,7 @@ Access to device functions that are more than "write a register" ([§6.3](#63-re
 | `FCU_StepperHome` | homing with a handshake (Execute/Done/Busy/Error/ErrorID, PLCopen style) over `StepperXStartHoming` |
 | `FCU_StepperMoveAbsolute` | target position (and speed), Done when the axis stands at the goal |
 | `FCU_RoArmRunMission` | start a stored RoArm mission by index (Execute/Done/Busy/Error) over the mission register (holding 110) |
+| `FCU_MalibottiRunMission` | start a mission of the Malibotti robot by number (revision 3, holding 111; ErrorID 1 no answer, 2 unknown mission, 3 aborted, 4 busy, 5 blocked, 6 robot fault) - [malibotti-uart.md](malibotti-uart.md) |
 | ~~`FCU_Ws2812`~~ | dropped for now: the register map has one pattern index per channel (`Ws2812Ch1Pattern`, `Ws2812Ch2Pattern`), ordinary outputs - a block would add nothing until the firmware offers LED colours |
 | `FCU_Log` | log entry into the device journal (rate-limited) - **P7**: needs STRING, a native in both VMs and the rate limit in the firmware |
 
@@ -929,8 +930,11 @@ information, nested ones too), a function none. A halt brings the halted object 
 Tested: the split example sorts in the simulator, diagnostics per object, add/rename/remove with
 references, renaming leaves comments/strings/fields alone, a breakpoint in the FB halts with the
 caller in the stack and step out returns to it. Also done: the declaration table for GVLs (class
-VAR_GLOBAL, online values); folders (`folder` per object, one level, tree: top level first, then
-the folders by name, collapsible; "📁 Ordner" in the object's head; only for the overview); cross
+VAR_GLOBAL, online values); folders (2026-11-10: an explorer tree - `folder` per object is a path
+"A/B", `folders` keeps empty ones; root "Applikation" with ＋📄/＋📁, a folder with rename ✎ and
+delete 🗑 - a folder that is not empty asks: move its contents to the root, or delete them too;
+folders and objects are moved by drag & drop or "📁 Verschieben"; new objects go into the selected
+folder; only for the overview, the compiler ignores them); cross
 references (panel "Querverweise", from the object's head or 🔍 at a variable row): every use of a
 name in all objects - declaration rows and headers marked "D", ST lines with column, FBD inputs,
 outputs, instances and boxes by network, SFC steps, actions, transitions and jumps - by name, not by
@@ -1000,9 +1004,15 @@ Editor aids (2026-11-09):
 - Wire routing (`ide/fbd-route.ts`): all wires of a network at once, shorter ones first. A wire
   keeps out of the boxes it does not belong to; every vertical segment and horizontal track of a
   source has its own line (wires of one output may share, they carry one value). First choice: one
-  vertical in the middle of the free gap before the target (its right edge would block wires that
-  enter the target at the height this one leaves its source), else around the boxes along a free
-  track above or below. Tested: a wire past a box in between, many wires into one box, a feedback, a
+  vertical close before the target (2026-11-10: no longer in the middle of the gap), with a lane per
+  wire into the same box - wires from below sorted so that the lowest source takes the lane nearest
+  the box, wires from above the other way round - so they do not cross; else further left or right,
+  else around the boxes along a free track above or below. Regression test: the constants 0 and 600
+  into SEL (network "Förderband ...") cross no more.
+- Inserting (2026-11-10): every network has the buttons E (inputs: variables, constants, sensors),
+  V (processing: operators, blocks, project and library blocks) and A (outputs: variables,
+  actuators); each opens a menu with a filter field (Enter takes the first hit, Esc closes) and puts
+  the node into that network. "＋ Netzwerk" below each network inserts a new one after it. Tested: a wire past a box in between, many wires into one box, a feedback, a
   grid of 12 boxes with 18 crossing wires - no wire through a box, no two sources on one line.
 - Sensors and actuators of the FCU in the FBD palette ("Sensoren · <region>", "Aktoren · <region>",
   per region of the register map, from `generated/register-map.ts` via `io-list.ts`): a click puts a

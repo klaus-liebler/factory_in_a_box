@@ -83,6 +83,8 @@ using I2c1 = chip::I2cMaster<chip::I2cId::I2c1, {.kernel_hz = clocks.pclk1_hz(),
 using I2cTof2 = chip::I2cMaster<chip::I2cId::I2c4, {.kernel_hz = clocks.pclk4_hz(), .cpu_hz = board::sysclk_hz}, I2cWait<4>>;
 using I2cSupply = chip::I2cMaster<chip::I2cId::I2c3, {.kernel_hz = clocks.pclk1_hz(), .cpu_hz = board::sysclk_hz}, I2cWait<3>>;
 using ServoUart = chip::BufferedUart<chip::UsartId::Usart1, {.kernel_hz = clocks.pclk2_hz(), .baud = 1'000'000}, 256, 256>;
+/// The Malibotti robot (J16, docs/malibotti-uart.md): frames of a few dozen bytes.
+using MalibottiUart = chip::BufferedUart<chip::UsartId::Usart6, {.kernel_hz = clocks.pclk2_hz(), .baud = 115'200}, 128, 128>;
 #else
 inline constexpr unsigned i2c_tof2_bus = 2, i2c_supply_bus = 4;
 using I2c1 = chip::I2cMaster<chip::I2cId::I2c1, {.kernel_hz = clocks.pclk1_hz(), .cpu_hz = board::sysclk_hz}, I2cWait<1>>;
@@ -264,7 +266,11 @@ inline constexpr auto dma_channels = [] {
 }();
 static_assert(rtos::distinct(dma_channels), "a DMA channel used twice");
 
+#if RTOS_FCU_REVISION == 3
+static_assert(rtos::distinct(std::array{board::Console::base, ServoUart::base, StepperUart::base, MalibottiUart::base}), "a U(S)ART used twice");
+#else
 static_assert(rtos::distinct(std::array{board::Console::base, ServoUart::base, StepperUart::base}), "a U(S)ART used twice");
+#endif
 static_assert(rtos::distinct(std::array{I2c1::base, I2cTof2::base, I2cSupply::base}), "an I2C bus used twice");
 
 using BusAddress = std::pair<std::uintptr_t, std::uint8_t>;

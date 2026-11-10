@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { addRow, deleteRow, parseRows, updateRow } from "./decl-table.ts";
 import { COMMAND_VARS, IO_VARS, ioSource } from "./io-list.ts";
-import { addObject, build, crossReferences, declLines, exampleProject, nameProblem, objectTree, parseProject, removeObject, renameIn, renameObject, setFolder, type CrossRef, type Project } from "./project.ts";
+import { addObject, build, crossReferences, declLines, exampleProject, nameProblem, objectTree, parseProject, removeObject, renameIn, renameObject, addFolder, allFolders, deleteFolder, folderNameProblem, moveFolder, moveFolderProblem, moveObject, objectsIn, renameFolder, type CrossRef, type FolderNode, type Project } from "./project.ts";
 import { Simulator } from "./simulator.ts";
 import { formatTime, parseValue } from "./values.ts";
 import { T } from "../compiler/types.ts";
@@ -151,19 +151,56 @@ describe("PLC IDE: several POUs (P4)", () => {
 		expect(sim.read("PiecesMax").value).toBe(12);
 	});
 
-	it("folders: objects keep project order inside a folder, folders sorted by name, top level first; saved in the file", () => {
+	it("folders: an explorer tree of nested folders, folders before objects, empty folders exist; saved in the file", () => {
 		let p = exampleProject();
-		p = setFolder(p, "fb_ejector", "  Bausteine ");
-		p = setFolder(p, "sfc_prg", "Ablauf/Grafik");
-		p = setFolder(p, "fbd_prg", "Ablauf Grafik");
-		expect(objectTree(p).map((g) => [g.folder, g.objects.map((o) => o.name)])).toEqual([
-			["", ["GVL", "PLC_PRG"]], ["Ablauf Grafik", ["FBD_PRG", "SFC_PRG"]], ["Bausteine", ["FB_Ejector"]],
-		]);
+		p = addFolder(p, "", " Bausteine ");
+		p = addFolder(p, "Bausteine", "Ventile");
+		p = addFolder(p, "", "Ablauf");
+		p = moveObject(p, "fb_ejector", "Bausteine/Ventile");
+		p = moveObject(p, "sfc_prg", "Ablauf");
+		expect(folderNameProblem(p, "", "bausteine")).toBe("Ordner gibt es schon");
+		expect(folderNameProblem(p, "Bausteine", "a/b")).toBe("kein '/' im Namen");
+		expect(folderNameProblem(p, "Ablauf", "Ventile")).toBeNull();
+		const shape = (n: FolderNode): unknown => [n.name, n.folders.map(shape), n.objects.map((o) => o.name)];
+		expect(shape(objectTree(p))).toEqual(["", [["Ablauf", [], ["SFC_PRG"]], ["Bausteine", [["Ventile", [], ["FB_Ejector"]]], []]], ["GVL", "PLC_PRG", "FBD_PRG"]]);
 		const back = parseProject(JSON.stringify(p));
-		expect(back.objects.find((o) => o.id === "fb_ejector")!.folder).toBe("Bausteine");
-		p = setFolder(back, "fb_ejector", "");
+		expect(back.objects.find((o) => o.id === "fb_ejector")!.folder).toBe("Bausteine/Ventile");
+		expect(allFolders(back)).toEqual(["Ablauf", "Bausteine", "Bausteine/Ventile"]);
+		expect(build(back).ok).toBe(true);  // folders are only for the overview
+	});
+
+	it("folders: rename and move take the subfolders and objects along; an object moves out to the root", () => {
+		let p = exampleProject();
+		p = addFolder(addFolder(p, "", "A"), "A", "B");
+		p = moveObject(p, "fb_ejector", "A/B");
+		p = renameFolder(p, "A", "Anlage");
+		expect(allFolders(p)).toEqual(["Anlage", "Anlage/B"]);
+		expect(p.objects.find((o) => o.id === "fb_ejector")!.folder).toBe("Anlage/B");
+		p = addFolder(p, "", "Ziel");
+		expect(moveFolderProblem(p, "Anlage", "Anlage/B")).toBe("ein Ordner kann nicht in sich selbst");
+		expect(moveFolderProblem(p, "Anlage/B", "Anlage")).toBe("liegt schon dort");
+		expect(moveFolderProblem(p, "Anlage/B", "Ziel")).toBeNull();
+		p = moveFolder(p, "Anlage/B", "Ziel");
+		expect(allFolders(p)).toEqual(["Anlage", "Ziel", "Ziel/B"]);
+		expect(p.objects.find((o) => o.id === "fb_ejector")!.folder).toBe("Ziel/B");
+		p = moveObject(p, "fb_ejector", "");
 		expect(p.objects.find((o) => o.id === "fb_ejector")!.folder).toBeUndefined();
-		expect(build(p).ok).toBe(true);  // folders are only for the overview
+		expect(allFolders(p)).toContain("Ziel/B");  // the emptied folder stays
+	});
+
+	it("folders: deleting one either moves its objects to the root or deletes them (and takes them out of the task)", () => {
+		let p = exampleProject();
+		p = addFolder(addFolder(p, "", "X"), "X", "Y");
+		p = moveObject(moveObject(p, "plc_prg", "X/Y"), "gvl", "X");
+		expect(objectsIn(p, "X").map((o) => o.name)).toEqual(["GVL", "PLC_PRG"]);
+		const kept = deleteFolder(p, "X", "toRoot");
+		expect(allFolders(kept)).toEqual([]);
+		expect(kept.objects.map((o) => [o.name, o.folder])).toEqual(p.objects.map((o) => [o.name, undefined]));
+		expect(kept.tasks[0].programs).toEqual(["PLC_PRG"]);
+		const gone = deleteFolder(p, "X", "delete");
+		expect(allFolders(gone)).toEqual([]);
+		expect(gone.objects.map((o) => o.name)).toEqual(["FB_Ejector", "FBD_PRG", "SFC_PRG"]);
+		expect(gone.tasks[0].programs).toEqual([]);
 	});
 
 	it("cross references: declarations, ST uses, FBD and SFC, not comments or fields", () => {

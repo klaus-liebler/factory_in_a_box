@@ -1,0 +1,3 @@
+# Files that tests compare byte for byte with freshly generated ones: no line-ending conversion
+# (core.autocrlf would give them CRLF on checkout - web/src/plc/renode-fixture.test.ts).
+tools/plc-renode/* -text

@@ -2,6 +2,7 @@
 // with the I/O list of the register map, written to tools/plc-renode/ with the addresses of its
 // variables. This test fails when the files are not what the current compiler produces;
 // `npm run plc:corpus` (PLC_CORPUS_UPDATE=1) rewrites them.
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -38,6 +39,13 @@ END_PROGRAM
 `;
 
 describe("PLC Renode fixture", () => {
+	it("git keeps the files byte for byte (no CRLF on checkout)", () => {
+		// core.autocrlf=true gave test.json CRLF on every fresh checkout; the comparison below then failed
+		// although nothing had changed (.gitattributes: tools/plc-renode/* -text)
+		const out = execFileSync("git", ["check-attr", "text", "--", "test.json", "test.img"], { cwd: OUT_DIR, encoding: "utf-8" });
+		expect(out.trim().split(/\r?\n/).map((l) => l.split(": ").at(-1))).toEqual(["unset", "unset"]);
+	});
+
 	it("tools/plc-renode/test.img is up to date", () => {
 		const r = compile(deviceSources("PLC_PRG", RENODE_PROGRAM), undefined,
 			{ io: ioBindings(), ioMapHash: ioMapHash() });

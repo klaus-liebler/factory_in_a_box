@@ -3379,10 +3379,6 @@
 		(uuid "ecc04ec2-fa44-4c3c-8826-b29ff65dfb6b")
 	)
 	(no_connect
-		(at 114.3 52.07)
-		(uuid "6ca0aa2d-dfbf-4eb6-8503-1c03e670674d")
-	)
-	(no_connect
 		(at 40.64 52.07)
 		(uuid "896cb37c-c0c3-4f72-8f0a-db704ff5eae4")
 	)
@@ -3397,10 +3393,6 @@
 	(no_connect
 		(at 127 49.53)
 		(uuid "dc133446-8e1a-412b-afe9-f1a30a680166")
-	)
-	(no_connect
-		(at 127 52.07)
-		(uuid "f2bdad79-9ad0-47a9-acff-31fbc04802c0")
 	)
 	(wire
 		(pts
@@ -3686,6 +3678,30 @@
 			)
 		)
 	)
+	(global_label "I2C4_SDA"
+		(shape bidirectional)
+		(at 127 52.07 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "421e60e0-f3c1-443b-826c-baed3a49dfd4")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 139.926 52.07 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+	)
 	(global_label "WS2812_CH1"
 		(shape input)
 		(at 76.2 82.55 180)
@@ -3915,6 +3931,30 @@
 		(uuid "a63ba9ef-7635-4544-8a43-dd40ba8c588c")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 64.4457 48.26 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(global_label "I2C4_SCL"
+		(shape bidirectional)
+		(at 114.3 52.07 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "a71e9bcd-5b4e-4743-a6a5-a6975dc29632")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 101.4345 52.07 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)

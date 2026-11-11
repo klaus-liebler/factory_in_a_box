@@ -15941,7 +15941,7 @@
 				)
 			)
 		)
-		(property "Value" "TPS26631RGE"
+		(property "Value" "MX26631DL"
 			(at 113.03 21.59 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15962,7 +15962,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/tps2663.pdf"
+		(property "Datasheet" ""
 			(at 102.87 17.78 0)
 			(hide yes)
 			(show_name no)
@@ -15973,7 +15973,7 @@
 				)
 			)
 		)
-		(property "Description" "60V, 6A Power Limiting, Surge Protection Industrial eFuse, Adjustable Overvoltage cut-off, Active Current Limiting with Pulse current support, VQFN-24"
+		(property "Description" ""
 			(at 113.03 38.1 0)
 			(hide yes)
 			(show_name no)
@@ -15984,7 +15984,7 @@
 				)
 			)
 		)
-		(property "MPN" "TPS26631RGER"
+		(property "MPN" "MX26631DL"
 			(at 113.03 38.1 0)
 			(hide yes)
 			(show_name no)
@@ -15995,7 +15995,7 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Texas Instruments"
+		(property "Manufacturer" ""
 			(at 113.03 38.1 0)
 			(hide yes)
 			(show_name no)
@@ -16006,7 +16006,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C1850273"
+		(property "LCSC" "C18197523"
 			(at 113.03 38.1 0)
 			(hide yes)
 			(show_name no)
@@ -23354,7 +23354,7 @@
 				)
 			)
 		)
-		(property "MPN" "125CDMCCDS-4R7MC"
+		(property "MPN" ""
 			(at 146.05 25.4 0)
 			(hide yes)
 			(show_name no)
@@ -23365,7 +23365,7 @@
 				)
 			)
 		)
-		(property "Manufacturer" "Sumida"
+		(property "Manufacturer" ""
 			(at 146.05 25.4 0)
 			(hide yes)
 			(show_name no)
@@ -23376,7 +23376,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C212263"
+		(property "LCSC" "C54620181"
 			(at 146.05 25.4 0)
 			(hide yes)
 			(show_name no)

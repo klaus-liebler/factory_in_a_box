@@ -52,6 +52,10 @@ function wsUrl(): string {
 }
 
 let socket: WebSocket | null = null;
+/** Messages received from the device so far: a request that times out with
+ *  nothing at all received since it was sent means a dead connection - a device that hangs or lost
+ *  its link sends no TCP close, the socket would stay "open" for minutes. */
+let messagesReceived = 0;
 let nextRequestId = 1;
 
 /** The connection for the status bar: connecting (also between two attempts), open, or closed
@@ -149,6 +153,20 @@ function handleMessage(data: ArrayBuffer): void {
 	}
 }
 
+/** Sockets given up as dead: their late close event (the browser waits for the closing handshake
+ *  the dead peer never sends) must not start a second reconnect. */
+const abandoned = new WeakSet<WebSocket>();
+
+/** A dead connection: closed now, not when the browser's closing handshake times out. */
+function abandon(ws: WebSocket): void {
+	if (socket !== ws || abandoned.has(ws)) return;
+	abandoned.add(ws);
+	socket = null;
+	ws.close();
+	setState("closed");
+	setTimeout(connect, RECONNECT_DELAY_MS);
+}
+
 function connect(): void {
 	const ws = new WebSocket(wsUrl());
 	ws.binaryType = "arraybuffer";
@@ -162,12 +180,14 @@ function connect(): void {
 	});
 
 	ws.addEventListener("message", (event) => {
+		messagesReceived++;
 		if (event.data instanceof ArrayBuffer) {
 			handleMessage(event.data);
 		}
 	});
 
 	ws.addEventListener("close", () => {
+		if (abandoned.has(ws)) return;  // already given up and replaced (abandon())
 		if (socket === ws) socket = null;
 		setState("closed");
 		setTimeout(connect, RECONNECT_DELAY_MS);
@@ -214,8 +234,14 @@ export async function wsRequest<TPayload>(
 		}
 		const requestId = nextRequestId++ & 0xffff;
 		const bytes = encode(requestId);
+		const receivedBefore = messagesReceived;
+		const sentOn = socket;
 		const timer = window.setTimeout(() => {
 			pendingRequests.delete(requestId);
+			// nothing at all from the device since the request: the connection is dead - close it, so
+			// the status bar says so and the reconnect starts (a device that only skips this answer
+			// keeps its connection)
+			if (messagesReceived === receivedBefore && sentOn) abandon(sentOn);
 			reject(new Error("Zeitüberschreitung bei WS-Anfrage"));
 		}, timeoutMs);
 		pendingRequests.set(requestId, {

@@ -20,12 +20,24 @@ namespace ws = WsProtocol;
 using SessionId = net::Server::SessionId;
 
 void send(SessionId id, const std::uint8_t* data, std::size_t size) {
-    if (size > 0) {
-        (void)net::server.send(id, {reinterpret_cast<const std::byte*>(data), size});
+    if (size == 0) {
+        // Encode() found its buffer too small: the client waits in vain - say so
+        RTOS_LOG_ERROR("ws: answer could not be encoded (buffer too small), client %u gets none", static_cast<unsigned>(id));
+        return;
     }
+    (void)net::server.send(id, {reinterpret_cast<const std::byte*>(data), size});
 }
 
 // ---- modbus ---------------------------------------------------------------------------------
+
+// The register answer carries every register: its schema bounds (schema/best_binary_buffers/modbus.cs)
+// must hold the register map, and the message must fit a WebSocket message. Header 4, requestId 2,
+// two array lengths of 2 each, 2 bytes per register.
+static_assert(ws::modbus::RegistersMessage::RegistersMessage_MAX_SIZE >=
+                  4 + 2 + 2 * 2 + (register_map::holding_count + register_map::input_count) * 2,
+              "RegistersMessage too small for the register map: raise the bounds in modbus.cs");
+static_assert(ws::modbus::RegistersMessage::RegistersMessage_MAX_SIZE <= net::max_ws_message,
+              "RegistersMessage larger than a WebSocket message");
 
 void get_registers(SessionId id, const std::uint8_t* data, std::size_t len) {
     ws::modbus::GetRegistersRequest::Payload req{};

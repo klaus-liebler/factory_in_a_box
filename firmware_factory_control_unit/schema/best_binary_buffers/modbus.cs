@@ -14,11 +14,11 @@ public class GetRegistersRequest
 [BinaryMessage(MessageKind.Response)]
 public class RegistersMessage
 {
-    // Bounds = register_map::holding_count / input_count
-    // (generated/register_map.hpp, aus schema/register_map/*.cs generiert) --
-    // bei Wachstum der Registerkarte hier nachziehen.
-    [BinaryMaxItemCount(111)] public ushort[] holding = System.Array.Empty<ushort>();
-    [BinaryMaxItemCount(258)] public ushort[] input = System.Array.Empty<ushort>();
+    // Bounds >= register_map::holding_count / input_count (generated/register_map.hpp), with room
+    // for new registers. Too small, the firmware could not encode the answer and sent none (the
+    // register console timed out): src/web.cpp checks it at compile time.
+    [BinaryMaxItemCount(128)] public ushort[] holding = System.Array.Empty<ushort>();
+    [BinaryMaxItemCount(320)] public ushort[] input = System.Array.Empty<ushort>();
 }
 
 /// <summary>Nachfolger von GET /api/write-holding?address=&value=.</summary>

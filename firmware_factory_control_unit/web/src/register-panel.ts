@@ -23,6 +23,9 @@ export class RegisterPanel extends LitElement {
 	@property({ attribute: false }) region!: RegisterRegion;
 	@property({ attribute: false }) holdingValues: number[] = [];
 	@property({ attribute: false }) inputValues: number[] = [];
+	/** The IEC 61131 program is the control source: the device refuses writes to every holding
+	 *  register but the parameters (src/plc.cpp, permit()) - so they get no controls. */
+	@property({ attribute: false }) iecControlled = false;
 
 	@state() private pendingEdits: Record<number, string> = {};
 	@state() private sliderPreview: Record<number, number> = {};
@@ -130,6 +133,9 @@ export class RegisterPanel extends LitElement {
 		if (reg.bank !== "holding") {
 			// Input-Register sind reine Hardware-Anzeige, nie schreibbar.
 			return null;
+		}
+		if (this.iecControlled && reg.kind !== "parameter") {
+			return html`<span class="register-locked" title="Steuerquelle IEC 61131: das SPS-Programm schreibt dieses Register. Umschalten auf Feldbus in der SPS-Seite.">🔒 SPS</span>`;
 		}
 		switch (reg.display) {
 			case "bool":

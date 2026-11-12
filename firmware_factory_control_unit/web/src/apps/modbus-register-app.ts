@@ -6,6 +6,8 @@ import { REGIONS } from "../../generated/register-map.js";
 import { fetchRegisters, writeHolding, type RegisterValues } from "../registers.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { kindOf, setAppStatus } from "../shell/status-bar.js";
+import { plc } from "../../generated/ws-protocol.js";
+import { wsRequest } from "../ws-client.js";
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -13,8 +15,14 @@ const POLL_INTERVAL_MS = 1000;
 export class ModbusRegisterApp extends LitElement implements DashboardApp {
 	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
 	protected willUpdate(): void {
-		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+		setAppStatus(this, {
+			text: this.statusMessage, kind: kindOf(this.statusVariant),
+			extra: this.iec ? html`<span title="Das SPS-Programm schreibt die Ausgänge; schreibbar sind nur Parameter. Umschalten auf Feldbus in der SPS-Seite.">Steuerquelle IEC 61131: Ausgänge gesperrt</span>` : null,
+		});
 	}
+
+	/** The IEC 61131 program is the control source: only parameter registers are writable. */
+	@state() private iec = false;
 
 	protected createRenderRoot() {
 		return this;
@@ -58,6 +66,8 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 	private async poll() {
 		try {
 			this.values = await fetchRegisters();
+			const status = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.StatusRequest.encode({ requestId }), plc.StatusResponse);
+			this.iec = status.source === plc.ControlSource.Iec;
 			const now = new Date().toLocaleTimeString("de-DE");
 			this.statusMessage = `Verbunden -- zuletzt aktualisiert ${now}`;
 			this.statusVariant = "success";
@@ -75,9 +85,22 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 			await this.poll();
 		} catch (error) {
 			console.error("Schreiben fehlgeschlagen", error);
-			this.statusMessage = "Schreiben fehlgeschlagen";
+			// refused although offered: the control source changed to IEC since the last poll
+			this.statusMessage = this.iec || (await this.iecNow())
+				? `Register ${address} nicht geschrieben: das SPS-Programm ist Steuerquelle (nur Parameter schreibbar)`
+				: `Register ${address} nicht geschrieben`;
 			this.statusVariant = "error";
 		}
+	}
+
+	private async iecNow(): Promise<boolean> {
+		try {
+			const s = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.StatusRequest.encode({ requestId }), plc.StatusResponse);
+			this.iec = s.source === plc.ControlSource.Iec;
+		} catch {
+			/* keep what we knew */
+		}
+		return this.iec;
 	}
 
 	render() {
@@ -94,6 +117,7 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 								.region=${region}
 								.holdingValues=${this.values.holding}
 								.inputValues=${this.values.input}
+								.iecControlled=${this.iec}
 							></register-panel>
 						`
 					)}

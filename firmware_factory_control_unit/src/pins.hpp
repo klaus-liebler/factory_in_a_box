@@ -31,6 +31,27 @@ using S = gpio::Signal;
 inline constexpr bool rev1 = board::revision == 1;
 inline constexpr bool rev3 = board::revision == 3;
 
+/// The LAN9253's host interface (SPI/SQI) and its other lines. The test code drives SPI by GPIO
+/// (SIO0 = SI, SIO1 = SO; SIO2/SIO3 held high), no OCTOSPI/QUADSPI driver yet.
+struct EthercatPins {
+    Pin sck, cs, sio0, sio1, sio2, sio3, irq, sync0, sync1;
+};
+template <std::size_t A, std::size_t B>
+[[nodiscard]] constexpr std::array<gpio::PinConfig, A + B> join_pins(const std::array<gpio::PinConfig, A>& a,
+                                                                     const std::array<gpio::PinConfig, B>& b) {
+    std::array<gpio::PinConfig, A + B> r{};
+    for (std::size_t i = 0; i < A; ++i) r[i] = a[i];
+    for (std::size_t i = 0; i < B; ++i) r[A + i] = b[i];
+    return r;
+}
+/// Their configuration: select inactive, clock low, SYNC/IRQ inputs (IRQ: open drain, pulled up).
+[[nodiscard]] constexpr std::array<gpio::PinConfig, 9> ethercat_pin_config(const EthercatPins& e) {
+    return {gpio::output(e.cs, /*high = deselected*/ true, gpio::Speed::High), gpio::output(e.sck, false, gpio::Speed::High),
+            gpio::output(e.sio0, false, gpio::Speed::High), gpio::input(e.sio1, gpio::Pull::Up),
+            gpio::output(e.sio2, true), gpio::output(e.sio3, true), gpio::input(e.irq, gpio::Pull::Up),
+            gpio::input(e.sync0, gpio::Pull::Down), gpio::input(e.sync1, gpio::Pull::Down)};
+}
+
 #if RTOS_FCU_REVISION == 3
 // ---- pneumatics -----------------------------------------------------------------------------
 inline constexpr Pin valve1{GpioPort::D, 10};
@@ -91,8 +112,11 @@ inline constexpr Pin malibotti_rx{GpioPort::C, 7};  ///< J16 pin 1 (MALIBOTTI_RX
 /// an open input at 0. Direct to the MCU (no series resistor, no ESD protection on the board).
 inline constexpr std::optional<Pin> gpio1 = Pin{GpioPort::E, 2};
 inline constexpr std::optional<Pin> gpio2 = Pin{GpioPort::E, 3};
-// Not configured (reset state: analog): the LAN9253's QUADSPI (PB2, PC11, PE7-PE10), CAT_IRQ PC14,
-// CAT_SYNC0/1 PB0/PB1.
+/// LAN9253 EtherCAT (U13): its QUADSPI lines driven as plain SPI by GPIO (ethercat_test.cpp).
+inline constexpr std::optional<EthercatPins> ethercat = EthercatPins{
+    .sck = {GpioPort::B, 2}, .cs = {GpioPort::C, 11}, .sio0 = {GpioPort::E, 7}, .sio1 = {GpioPort::E, 8},
+    .sio2 = {GpioPort::E, 9}, .sio3 = {GpioPort::E, 10}, .irq = {GpioPort::C, 14}, .sync0 = {GpioPort::B, 0},
+    .sync1 = {GpioPort::B, 1}};
 
 /// I2C buses: the supply bus carries the INA226, ToF 3 and the CH224Q; the second ToF bus ToF 2.
 inline constexpr Pin i2c1_scl{GpioPort::B, 8}, i2c1_sda{GpioPort::B, 9};             ///< colour, ToF 1
@@ -108,8 +132,8 @@ inline constexpr auto supply_pins = std::array{
     gpio::output(*uext_cs, /*high = deselected*/ true),
 };
 
-/// Everything else, configured once the supply is up (power consumers).
-inline constexpr auto io_pins = std::array{
+namespace detail {
+inline constexpr auto base_io_pins = std::array{
     // outputs start inactive: valves closed, motors off, steppers disabled, ESC in reset
     gpio::output(valve1), gpio::output(valve2), gpio::output(valve3),
     gpio::output(*vacuum_valve), gpio::output(*vacuum_pump),
@@ -135,6 +159,9 @@ inline constexpr auto io_pins = std::array{
     gpio::input(usb_vsense),
     gpio::output(ethercat_reset),
 };
+}  // namespace detail
+/// Everything else, configured once the supply is up (power consumers).
+inline constexpr auto io_pins = join_pins(detail::base_io_pins, ethercat_pin_config(*ethercat));
 
 #else  // revisions 1 and 2: STM32H563
 // ---- pneumatics -----------------------------------------------------------------------------
@@ -197,6 +224,13 @@ inline constexpr Pin ethercat_reset = rev1 ? Pin{GpioPort::C, 14} : Pin{GpioPort
 /// SPI itself (SPI4, PE12-PE14) is unused so far: only the select is driven, inactive.
 inline constexpr std::optional<Pin> uext_cs = rev1 ? std::nullopt : std::optional{Pin{GpioPort::B, 13}};
 /// GPIO 1/2 inputs: revision 3 only.
+/// LAN9253 EtherCAT on OCTOSPI1 (former CubeMX project: ETHERCAT_*), driven as plain SPI by GPIO
+/// (ethercat_test.cpp); revision 1 only - revision 2's wiring is not known here.
+inline constexpr std::optional<EthercatPins> ethercat =
+    rev1 ? std::optional{EthercatPins{.sck = {GpioPort::B, 2}, .cs = {GpioPort::E, 11}, .sio0 = {GpioPort::B, 1},
+                                      .sio1 = {GpioPort::B, 0}, .sio2 = {GpioPort::E, 2}, .sio3 = {GpioPort::A, 6},
+                                      .irq = {GpioPort::C, 13}, .sync0 = {GpioPort::E, 4}, .sync1 = {GpioPort::E, 3}}}
+         : std::nullopt;
 inline constexpr std::optional<Pin> gpio1 = std::nullopt;
 inline constexpr std::optional<Pin> gpio2 = std::nullopt;
 
@@ -253,7 +287,8 @@ constexpr auto join(const std::array<gpio::PinConfig, A>& a, const std::array<gp
 /// Everything else, configured once the supply is up (power consumers).
 inline constexpr auto io_pins = [] {
     if constexpr (rev1) {
-        return detail::join(detail::common_io_pins, std::array{gpio::input(*light_barrier3)});
+        return join_pins(detail::join(detail::common_io_pins, std::array{gpio::input(*light_barrier3)}),
+                         ethercat_pin_config(*ethercat));
     } else {
         return detail::join(detail::common_io_pins,
                             std::array{gpio::output(*vacuum_valve), gpio::output(*vacuum_pump),

@@ -11,6 +11,7 @@
 #include "rtos/devices/tmc2209.hpp"
 #include "rtos/sync/message_queue.hpp"
 #include "plc_project.hpp"
+#include "ethercat_test.hpp"
 #include "malibotti.hpp"
 #include "roarm/roarm.hpp"
 #include "system.hpp"
@@ -694,6 +695,7 @@ void setup(bool supply_up) noexcept {
 
     roarm::setup();
     malibotti::setup();
+    ethercat::setup();  // releases the ESC from reset (until now it was held there)
 }
 
 void set_event_thread(Kernel::Thread& thread) noexcept { event_thread = &thread; }
@@ -726,6 +728,7 @@ void cycle(std::uint32_t now) noexcept {
     steppers(now);
     roarm::cycle(now);
     malibotti::cycle(now);
+    ethercat::cycle(now);
     plc::project::cycle();
     terminal::cycle();
     leds();

@@ -258,9 +258,6 @@ void net_main(void*) {
     contract_assert(u == 1);
     stack.set_random([](void*) noexcept { return board::Rng::next(); }, nullptr);
 
-    board::init_usb();
-    usb_fs.start();
-    enable_irq(UsbController::irq, irq_priority_net);
     enable_irq(Ethernet::irq_number, irq_priority_net);
 
     if (!rn::TlsServerContext::initialize_library(
@@ -312,6 +309,13 @@ void net_main(void*) {
     runtime.add(modbus_rtu, "modbus-rtu");
     runtime.add(opcua, "opcua");
     runtime.set_cycle_counter([]() noexcept { return board::CycleCounter::now(); });
+    // USB last: the PC sees the device (pull-up on) only now that the loop serves it and the DHCP
+    // server answers. Started before the TLS and OPC UA setup (seconds: certificates, RSA key), the
+    // PC's first DHCP requests went unanswered and Windows gave the adapter a 169.254 address,
+    // asking again only minutes later.
+    board::init_usb();
+    usb_fs.start();
+    enable_irq(UsbController::irq, irq_priority_net);
     RTOS_LOG_INFO("net: https://%s.local/, opc.tcp://%s.local:4840, modbus tcp 502", DEVICE_HOSTNAME, DEVICE_HOSTNAME);
     for (;;) {
         const std::uint32_t wake = runtime.run_once(kernel.now());

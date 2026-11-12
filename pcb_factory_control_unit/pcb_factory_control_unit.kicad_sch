@@ -6738,16 +6738,6 @@
 		)
 		(uuid "c40ba5a5-4948-45d7-b9f5-88bdfc3e1f6c")
 	)
-	(text "EXTI-Zuordnung\n========================\n10B ->SYNC1\n1B  ->SYNC0\n9A  ->LiBar2 (nicht zwingend!)\n"
-		(exclude_from_sim no)
-		(at 55.88 87.63 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-		)
-		(uuid "d295405c-925c-4b8c-8917-24e3876631b1")
-	)
 	(text "STM32 Debug"
 		(exclude_from_sim no)
 		(at 82.55 205.74 0)

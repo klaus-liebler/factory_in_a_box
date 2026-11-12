@@ -44,7 +44,8 @@ template <std::size_t A, std::size_t B>
     for (std::size_t i = 0; i < B; ++i) r[A + i] = b[i];
     return r;
 }
-/// Their configuration: select inactive, clock low, SYNC/IRQ inputs (IRQ: open drain, pulled up).
+/// Their configuration: select inactive, clock low, SYNC/IRQ inputs (IRQ: open drain, pulled up -
+/// not used by the software, which polls; on revision 1 it is not connected).
 [[nodiscard]] constexpr std::array<gpio::PinConfig, 9> ethercat_pin_config(const EthercatPins& e) {
     return {gpio::output(e.cs, /*high = deselected*/ true, gpio::Speed::High), gpio::output(e.sck, false, gpio::Speed::High),
             gpio::output(e.sio0, false, gpio::Speed::High), gpio::input(e.sio1, gpio::Pull::Up),

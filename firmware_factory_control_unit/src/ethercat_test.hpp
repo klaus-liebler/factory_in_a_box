@@ -9,6 +9,14 @@
 //   board has no EEPROM: EEPROM emulation, 12.2), the AL state requests of the master acknowledged,
 //   link changes per port logged
 // Everything goes to the log (terminal page, serial console). Revision 1 and 3; nothing on 2.
+//
+// No interrupt: the ESC's IRQ line is not used (on revision 1 it is not connected) - EEPROM
+// commands, AL control and link status are polled every I/O cycle (50 ms). A master waits for the
+// EEPROM busy bit, so the polling only makes the SII scan slower, not fail.
+//
+// SPI by GPIO instead of the OCTOSPI (H563) / QUADSPI (H743) peripheral: rtoos has no driver for
+// either yet (two different IPs), and for a first hardware test a bit-banged 1-1-1 SPI leaves the
+// wiring and the LAN9253 as the only unknowns. The same pins take the peripheral later.
 #pragma once
 
 #include <cstdint>

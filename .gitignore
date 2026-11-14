@@ -22,3 +22,8 @@ firmware_factory_control_unit/tools/environment-config.mjs
 /firmware_factory_control_unit/Core/RoArm-M3_example
 /firmware_factory_control_unit/Core/RoArm-M3_example
 /pcb_factory_control_unit/.history_trim
+/pcb_factory_control_unit_rev1/.history
+/pcb_factory_control_unit_rev1/.history_trim
+/pcb_factory_control_unit_rev1/pcb_control_unit_ethernet-backups
+# KiCad lock files of an open project
+~*.lck

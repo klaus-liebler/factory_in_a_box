@@ -1,7 +1,6 @@
-// The Malibotti robot (see malibotti.hpp, docs/malibotti-uart.md).
+// The Malibotti robot (see malibotti.hpp, docs/malibotti-uart.md): boards with the connector
+// (src/hal/<revision>/hal.cmake lists this file; the others malibotti_absent.cpp).
 #include "malibotti.hpp"
-
-#if RTOS_FCU_REVISION == 3
 
 #include <array>
 #include <cstddef>
@@ -153,13 +152,4 @@ void cycle(std::uint32_t now) noexcept {
 
 }  // namespace fcu::malibotti
 
-extern "C" void USART6_IRQHandler() noexcept { fcu::malibotti::uart.on_irq(); }
-
-#else  // revision 1: no Malibotti connector
-
-namespace fcu::malibotti {
-void setup() noexcept {}
-void cycle(std::uint32_t) noexcept {}
-}  // namespace fcu::malibotti
-
-#endif
+extern "C" void FCU_MALIBOTTI_UART_IRQ_HANDLER() noexcept { fcu::malibotti::uart.on_irq(); }

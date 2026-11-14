@@ -3,14 +3,15 @@
 // take it through INIT -> PRE-OP -> SAFE-OP -> OP. No mailbox (no CoE), no process data.
 //
 // - SPI by GPIO on the QUADSPI/OCTOSPI lines (READ 03h, WRITE 02h; LAN9253 DS00003421 9.2),
-//   EtherCAT core registers through ECAT_CSR_DATA/ECAT_CSR_CMD (11.13.1)
+//   EtherCAT core registers through ECAT_CSR_DATA/ECAT_CSR_CMD (11.13.1, PDI 0x80) or directly
+//   (EtherCAT Direct Mapped, PDI 0x82: revision 3's straps) - which one is found at the start
 // - at the start: reset released, BYTE_TEST/ID_REV/HW_CFG and the ESC's type and settings logged
 // - every I/O cycle: the EEPROM commands of the ESC answered from a small SII image in RAM (the
 //   board has no EEPROM: EEPROM emulation, 12.2), the AL state requests of the master acknowledged,
 //   link changes per port logged
 // Everything goes to the log (terminal page, serial console). Revision 1 and 3; nothing on 2.
 //
-// No interrupt: the ESC's IRQ line is not used (on revision 1 it is not connected) - EEPROM
+// No interrupt: the ESC's IRQ line (revision 1: PC13, revision 3: PC14) is not used - EEPROM
 // commands, AL control and link status are polled every I/O cycle (50 ms). A master waits for the
 // EEPROM busy bit, so the polling only makes the SII scan slower, not fail.
 //

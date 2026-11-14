@@ -4,8 +4,8 @@ hardware revision 3 runs on rtoos' fcu_rev3-net.resc (STM32H743, TAP adapter "rt
 rtoos/emulation/renode/setup-tap.ps1) with a fresh FAT16 card image in SDMMC1; over wss:// it
 saves, lists, reads, overwrites and deletes missions (WsProtocol roarm namespace).
 
-  cmake --build --preset Release-Rev3
-  python tools/test-missions-sd-renode.py [--elf build/Release-Rev3/firmware_factory_control_unit.elf]
+  cmake --build --preset rev3
+  python tools/test-missions-sd-renode.py [--elf build/rev3/firmware_factory_control_unit.elf]
 
 The chip UID in the emulated system memory is set to the board's (generated/device_ids.hh), so the
 firmware's identity check passes. Exit code 0 = pass.
@@ -26,7 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-ap.add_argument("--elf", type=Path, default=ROOT / "build/Release-Rev3/firmware_factory_control_unit.elf")
+ap.add_argument("--elf", type=Path, default=ROOT / "build/rev3/firmware_factory_control_unit.elf")
 ap.add_argument("--renode", default="C:/opt/renode/renode.exe")
 args = ap.parse_args()
 rtoos = ROOT / "rtoos"

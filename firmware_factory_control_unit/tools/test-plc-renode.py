@@ -19,8 +19,8 @@ TAP adapter "rtoos-tap" (rtoos/emulation/renode/setup-tap.ps1); over wss:// (WsP
   - the project source on the SD card (a FAT16 image): none at first, stored in chunks, read back the
     same, a chunk out of order refused, still there after the reset
 
-  cmake --build --preset Release-Rev3 && python tools/test-plc-renode.py
-  cmake --build --preset Release-Rev1 && python tools/test-plc-renode.py --revision 1
+  cmake --build --preset rev3 && python tools/test-plc-renode.py
+  cmake --build --preset rev1 && python tools/test-plc-renode.py --revision 1
 
 The image comes from `npm run plc:corpus` (web/src/plc/renode-fixture.test.ts). Exit code 0 = pass.
 """
@@ -44,10 +44,10 @@ ROOT = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 # revision 2 (STM32H563 with CH224K) was never built as hardware: not tested
 ap.add_argument("--revision", type=int, choices=[1, 3], default=3)
-ap.add_argument("--elf", type=Path, help="default: build/Release-Rev3 (revision 3), build/Release-Rev1 (1)")
+ap.add_argument("--elf", type=Path, help="default: build/rev3 (revision 3), build/rev1 (1)")
 ap.add_argument("--renode", default="C:/opt/renode/renode.exe")
 args = ap.parse_args()
-elf = args.elf or ROOT / f"build/{'Release-Rev3' if args.revision == 3 else 'Release-Rev1'}/firmware_factory_control_unit.elf"
+elf = args.elf or ROOT / f"build/rev{args.revision}/firmware_factory_control_unit.elf"
 resc = "fcu_rev3-net.resc" if args.revision == 3 else "fcu-net.resc"
 uid_at = 0x1FF1E800 if args.revision == 3 else 0x08FFF800  # STM32H743 / STM32H563 unique ID
 rtoos = ROOT / "rtoos"

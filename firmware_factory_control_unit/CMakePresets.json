@@ -16,86 +16,84 @@
       }
     },
     {
-      "name": "Debug",
-      "displayName": "FCU revision 2 (current PCB), debug",
-      "inherits": "gcc16",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "RTOS_FCU_REVISION": "2"
-      }
-    },
-    {
-      "name": "Release",
-      "displayName": "FCU revision 2 (current PCB), release",
+      "name": "rev1",
+      "displayName": "FCU revision 1 (first boards, STM32H563), release",
       "inherits": "gcc16",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "MinSizeRel",
-        "RTOS_FCU_REVISION": "2"
+        "FCU_HAL": "rev1"
       }
     },
     {
-      "name": "Debug-Rev1",
-      "displayName": "FCU revision 1 (first boards), debug",
+      "name": "rev1-debug",
+      "displayName": "FCU revision 1 (first boards, STM32H563), debug",
       "inherits": "gcc16",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "RTOS_FCU_REVISION": "1"
+        "FCU_HAL": "rev1"
       }
     },
     {
-      "name": "Release-Rev1",
-      "displayName": "FCU revision 1 (first boards), release",
+      "name": "rev2",
+      "displayName": "FCU revision 2 (STM32H563, CH224K), release",
       "inherits": "gcc16",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "MinSizeRel",
-        "RTOS_FCU_REVISION": "1"
+        "FCU_HAL": "rev2"
       }
     },
     {
-      "name": "Debug-Rev3",
-      "displayName": "FCU revision 3 (STM32H743), debug",
+      "name": "rev2-debug",
+      "displayName": "FCU revision 2 (STM32H563, CH224K), debug",
       "inherits": "gcc16",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "RTOS_CHIP": "stm32h743",
-        "RTOS_FCU_REVISION": "3"
+        "FCU_HAL": "rev2"
       }
     },
     {
-      "name": "Release-Rev3",
+      "name": "rev3",
       "displayName": "FCU revision 3 (STM32H743), release",
       "inherits": "gcc16",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "MinSizeRel",
-        "RTOS_CHIP": "stm32h743",
-        "RTOS_FCU_REVISION": "3"
+        "FCU_HAL": "rev3"
+      }
+    },
+    {
+      "name": "rev3-debug",
+      "displayName": "FCU revision 3 (STM32H743), debug",
+      "inherits": "gcc16",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "FCU_HAL": "rev3"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "Debug",
-      "configurePreset": "Debug"
+      "name": "rev1",
+      "configurePreset": "rev1"
     },
     {
-      "name": "Release",
-      "configurePreset": "Release"
+      "name": "rev1-debug",
+      "configurePreset": "rev1-debug"
     },
     {
-      "name": "Debug-Rev1",
-      "configurePreset": "Debug-Rev1"
+      "name": "rev2",
+      "configurePreset": "rev2"
     },
     {
-      "name": "Release-Rev1",
-      "configurePreset": "Release-Rev1"
+      "name": "rev2-debug",
+      "configurePreset": "rev2-debug"
     },
     {
-      "name": "Debug-Rev3",
-      "configurePreset": "Debug-Rev3"
+      "name": "rev3",
+      "configurePreset": "rev3"
     },
     {
-      "name": "Release-Rev3",
-      "configurePreset": "Release-Rev3"
+      "name": "rev3-debug",
+      "configurePreset": "rev3-debug"
     }
   ]
 }

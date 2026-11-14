@@ -228,12 +228,32 @@ struct LinkTasks {
             RTOS_LOG_INFO("usb: VBUS %s", v ? "present, connected" : "gone, disconnected");
         }
         usb_configured = usb_device.state() == usb::DeviceState::Configured;
+        if constexpr (requires { usb_fs.stats().rx_late; }) {  // USB_DRD_FS (STM32H5)
+            log_late_descriptors(now);
+        }
         if (sntp.synchronized() && !synced) {
             synced = true;
             RTOS_LOG_INFO("net: sntp synchronized");
         }
     }
     [[nodiscard]] std::uint32_t next_deadline() const noexcept { return next_poll; }
+
+    /// USB_DRD_FS late buffer descriptor (erratum ES0565 2.20.1, rtoos usb_device.hpp): how often
+    /// the interrupt found COUNT_RX not yet written and had to wait for it - every 10 s, if changed.
+    rtos::Tick next_usb_log = 0;
+    std::uint32_t usb_late_logged = 0, usb_lost_logged = 0;
+    void log_late_descriptors(rtos::Tick now) noexcept {
+        const auto& s = usb_fs.stats();
+        if (static_cast<std::int32_t>(now - next_usb_log) < 0 || (s.rx_late == usb_late_logged && s.rx_late_lost == usb_lost_logged)) {
+            return;
+        }
+        next_usb_log = now + 10'000;
+        usb_late_logged = s.rx_late;
+        usb_lost_logged = s.rx_late_lost;
+        RTOS_LOG_INFO("usb: %lu OUT packets waited for COUNT_RX (at most %lu reads), %lu never got it",
+                      static_cast<unsigned long>(s.rx_late), static_cast<unsigned long>(s.rx_late_max_polls),
+                      static_cast<unsigned long>(s.rx_late_lost));
+    }
 } link_tasks;
 
 bool rng_fill(std::span<std::byte> out) noexcept {

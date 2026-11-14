@@ -47,16 +47,18 @@ nach `web/node_modules/`, wo `WebAppBuildService` sowie
 ### Gesamt-Pipelines
 
 ```
-dotnet run --project builder -- PipelineLazy   -- --preset <Release|Debug|Release-Rev1|Debug-Rev1|Release-Rev3|Debug-Rev3>   # kein Flash
-dotnet run --project builder -- PipelineForced -- --preset <Release|Debug|Release-Rev1|Debug-Rev1|Release-Rev3|Debug-Rev3>   # wie lazy, Zertifikat erzwungen
-dotnet run --project builder -- PipelineFlash  -- --preset <Release|Debug|Release-Rev1|Debug-Rev1|Release-Rev3|Debug-Rev3>   # wie lazy, danach flashen
+dotnet run --project builder -- PipelineLazy   -- --preset <rev1|rev1-debug|rev2|rev2-debug|rev3|rev3-debug>   # kein Flash
+dotnet run --project builder -- PipelineForced -- --preset <rev1|rev1-debug|rev2|rev2-debug|rev3|rev3-debug>   # wie lazy, Zertifikat erzwungen
+dotnet run --project builder -- PipelineFlash  -- --preset <rev1|rev1-debug|rev2|rev2-debug|rev3|rev3-debug>   # wie lazy, danach flashen
 ```
 
-`--preset` fehlt -> Default `Release` (s. `Stm32BuildContext.Preset`). Das Preset waehlt die
-Hardware-Revision der Platine (`RTOS_FCU_REVISION`, Pin-Belegung in `src/pins.hpp`):
-`Release`/`Debug` = Revision 2 (STM32H563 mit CH224K), `Release-Rev1`/`Debug-Rev1` = Revision 1
-(erste Platinen, STM32H563, Pin-Belegung des frueheren CubeMX-Projekts), `Release-Rev3`/`Debug-Rev3`
-= Revision 3 (STM32H743VIT6, aktuelle Platine `pcb_factory_control_unit`; `RTOS_CHIP=stm32h743`).
+`--preset` fehlt -> Default `rev1` (s. `Stm32BuildContext.DefaultPreset`); gueltig ist jedes
+nicht versteckte Preset aus `CMakePresets.json`. Das Preset waehlt die Hardware-Revision der Platine
+und damit deren HAL `src/hal/<revision>/` (`FCU_HAL`; `hal.cmake` setzt `RTOS_CHIP` und
+`RTOS_FCU_REVISION`, dazu `mcu.h`, `pins.hpp`, `peripherals.hpp`): `rev1`/`rev1-debug` = Revision 1
+(erste Platinen, STM32H563, Pin-Belegung des frueheren CubeMX-Projekts), `rev2`/`rev2-debug` =
+Revision 2 (STM32H563 mit CH224K; wird nicht gefertigt), `rev3`/`rev3-debug` = Revision 3
+(STM32H743VIT6, aktuelle Platine `pcb_factory_control_unit`).
 Das Nucleo-Testboard wird nicht mehr unterstuetzt. Die Unique-ID liest der Builder je nach Chip an
 der richtigen Adresse (Device ID beim Verbinden: 0x484 STM32H563 -> 0x08FFF800, 0x450 STM32H743 ->
 0x1FF1E800, `Stm32HardwareIdentityService`).
@@ -64,7 +66,7 @@ der richtigen Adresse (Device ID beim Verbinden: 0x484 STM32H563 -> 0x08FFF800, 
 Beispiel fuer den alltaeglichen Zyklus (Board an ST-Link, provisionieren + bauen + flashen):
 
 ```
-dotnet run --project builder -- PipelineFlash -- --preset Release
+dotnet run --project builder -- PipelineFlash -- --preset rev1
 ```
 
 ### Einzelne Schritte
@@ -241,7 +243,7 @@ firmware_factory_control_unit/
 ├── build/                         # komplett gitignored (CMake-Output + generierte Assets)
 │   ├── .last-board-id             # "letztes bekanntes Board"-Cache, s. Abschnitt 2
 │   ├── assets/                    # device_certificate.der, device_key.der, index.html.br
-│   └── Release/, Debug/, Release-Rev1/, Debug-Rev1/, Release-Rev3/, Debug-Rev3/   # je Preset ein eigener CMake-Binärordner
+│   └── rev1/, rev1-debug/, rev2/, rev2-debug/, rev3/, rev3-debug/   # je Preset ein eigener CMake-Binärordner
 ├── schema/
 │   ├── best_binary_buffers/       # C#-Protokollschema (BestBinaryBuffers) + ids.txt
 │   ├── register_map/              # C#-Registerschema (Modbus + OPC UA), s. Abschnitt 3

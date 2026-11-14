@@ -30,6 +30,10 @@ public sealed class Stm32BuildContext : Stm32BuildContextBase
 
     protected override IBuilderAppSettingsStm32 Stm32Settings => BuilderSettings.Current;
 
+    // Die CMake-Presets heissen nach der Board-Revision (src/hal/<revision>); ohne --preset die
+    // Revision der Platine, die es real gibt (Revision 1; Revision 2 wird nicht gefertigt).
+    protected override string DefaultPreset => "rev1";
+
     public override string WebGeneratedDir => _webGeneratedDir;
     public override string FirmwareGeneratedDir => _coreGeneratedDir;
     public override string BuildDir => _buildDir;

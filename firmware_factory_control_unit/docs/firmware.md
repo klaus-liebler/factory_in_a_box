@@ -1,6 +1,6 @@
 # Firmware architecture (rtoos)
 
-The Factory Control Unit firmware runs on [rtoos](https://github.com/klaus-liebler/rtoos) (submodule `rtoos/`): GCC 16, C++26, no HAL, no heap, every peripheral configured at compile time. Hardware revisions 1/2 have an STM32H563 (Cortex-M33, 250 MHz), revision 3 an STM32H743VIT6 (Cortex-M7, 400 MHz); the board package's `board/chip.hpp` names the chip, `src/pins.hpp` and `src/hardware.hpp` have a branch per chip, everything else is the same code. USB (CDC-NCM network + CDC-ACM Modbus RTU) runs on both: the H563's USB_DRD_FS, the H743's USB2_OTG_FS (`board::UsbDevice`); on revision 3 tested in Renode only (`tools/test-usb-renode.py`), not yet on the board. The builder (`builder/`, [build-process.md](build-process.md)) provisions the board and generates the register map, the WebSocket protocol and the identity headers.
+The Factory Control Unit firmware runs on [rtoos](https://github.com/klaus-liebler/rtoos) (submodule `rtoos/`): GCC 16, C++26, no HAL, no heap, every peripheral configured at compile time. Hardware revisions 1/2 have an STM32H563 (Cortex-M33, 250 MHz), revision 3 an STM32H743VIT6 (Cortex-M7, 400 MHz); the board package's `board/chip.hpp` names the chip; what differs per board revision is its HAL in `src/hal/<revision>/` (`mcu.h`: the chip's peripheral headers, `pins.hpp`, `peripherals.hpp`: buses, DMA, USB-PD controller, interrupt vector names; `hal.cmake`; selected by the CMake preset `rev1`/`rev2`/`rev3`), everything else is the same code without a preprocessor switch on the revision. USB (CDC-NCM network + CDC-ACM Modbus RTU) runs on both: the H563's USB_DRD_FS, the H743's USB2_OTG_FS (`board::UsbDevice`); on revision 3 tested in Renode only (`tools/test-usb-renode.py`), not yet on the board. The builder (`builder/`, [build-process.md](build-process.md)) provisions the board and generates the register map, the WebSocket protocol and the identity headers.
 
 ## Threads
 
@@ -17,14 +17,14 @@ Stepper steps come from TIM2/TIM3 compare outputs, their periods from DMA (STM32
 
 1. Chip UID must match `generated/device_ids.hh` (else the LED blinks fast and nothing starts).
 2. Supply gate: if the INA226 measures less than 18 V, the board waits for 20 V from a USB-C supply. Revision 2: a CH224K negotiates 20 V by itself (CFG1 open), the firmware only waits; revision 3 likewise with a CH224Q (CFG1; its I2C on I2C3 is not used); revision 1: USB Power Delivery sink on UCPD1 (rtoos `usb_pd`).
-3. Power consumers: pins (`src/pins.hpp`), I2C bus scans, sensors, steppers (TMC2209), servos, LEDs, CAN, ADC.
+3. Power consumers: pins (`src/hal/<revision>/pins.hpp`), I2C bus scans, sensors, steppers (TMC2209), servos, LEDs, CAN, ADC.
 4. Network thread, then the I/O cycle.
 
 ## Sources
 
 | File | Contents |
 |---|---|
-| `src/pins.hpp` | pins per hardware revision (1: first boards, 2: STM32H563 with CH224K, 3: STM32H743); named by signal, checked against ST's pin database at compile time |
+| `src/hal/<revision>/` | the board revision's HAL (rev1: first boards, rev2: STM32H563 with CH224K, rev3: STM32H743): `mcu.h`, `pins.hpp` (named by signal, checked against ST's pin database at compile time), `peripherals.hpp`, `power_delivery.cpp`, `hal.cmake`; common building blocks in `src/hal_types.hpp` |
 | `src/hardware.hpp` | all peripheral and chip types with their compile-time configuration |
 | `src/boot.*` | reset cause, identity, banner, supply gate, USB-PD |
 | `src/io.*` | the I/O cycle: inputs, sensors (INA226, VL53L0X x3, TCS34725, HX711, CPU temperature: DTS on the H563, ADC3's sensor on the H743), outputs (valves, vacuum, PWM), steppers with sensorless homing, WS2812, CAN, health bits, heartbeat |

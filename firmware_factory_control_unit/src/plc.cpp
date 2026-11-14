@@ -9,17 +9,13 @@
 #include <string_view>
 
 #include "board/chip.hpp"
+#include "mcu.h"  // the revision's MCU: its flash_program.hpp
 #include "rtos/plc/slot_store.hpp"
 #include "rtos/plc/vm.hpp"
 #include "rtos/sync/message_queue.hpp"
 #include "system.hpp"
 #include "task_monitor.hpp"
 #include "ws_protocol.hh"
-#if RTOS_FCU_REVISION == 3
-#include "rtos/port/stm32h7/flash_program.hpp"
-#else
-#include "rtos/port/stm32h5/flash_program.hpp"
-#endif
 
 namespace fcu::plc {
 namespace {

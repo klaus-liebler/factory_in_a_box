@@ -4,3 +4,6 @@ cryptography
 # tools/test-https-and-websocket.py -- RFC6455 WebSocket client (HTTPS itself uses stdlib ssl/
 # http.client).
 websockets
+# tools/ethercat_master.py -- raw EtherCAT frames (EtherType 0x88A4) through Npcap (Windows: install
+# Npcap first).
+scapy

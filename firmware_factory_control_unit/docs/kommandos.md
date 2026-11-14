@@ -18,11 +18,13 @@ Ein Firmware-Build wird durch drei Dinge bestimmt. Sie sind unabhängig voneinan
 
 | Preset | Platine | Chip | Besonderheit |
 |---|---|---|---|
-| `Release-Rev1`, `Debug-Rev1` | Revision 1 (vorhandene Hardware) | STM32H563 | USB-PD über UCPD; **keine DIAG-Leitungen** der TMC2209 |
-| `Release-Rev3`, `Debug-Rev3` | Revision 3 (wird als nächste gebaut) | STM32H743 | DIAG-Leitungen verdrahtet |
-| `Release`, `Debug` | Revision 2 | STM32H563 | nie als Hardware gebaut: wird übersetzt, aber **nicht getestet** |
+| `rev1`, `rev1-debug` | Revision 1 (vorhandene Hardware) | STM32H563 | USB-PD über UCPD; **keine DIAG-Leitungen** der TMC2209 |
+| `rev3`, `rev3-debug` | Revision 3 (wird als nächste gebaut) | STM32H743 | DIAG-Leitungen verdrahtet |
+| `rev2`, `rev2-debug` | Revision 2 | STM32H563 | wird nicht gefertigt (Teile nicht lieferbar): wird übersetzt, aber **nicht getestet** |
 
-`Release` ist auf Größe optimiert (`-Os`), `Debug` ohne Optimierung zum Debuggen. Jedes Preset hat
+Das Preset ohne Zusatz ist auf Größe optimiert (`-Os`), `-debug` ohne Optimierung zum Debuggen. Der
+Name der Revision ist zugleich das Verzeichnis ihrer HAL (`src/hal/rev1` ...: `mcu.h`, `pins.hpp`,
+`peripherals.hpp`, `hal.cmake`). Jedes Preset hat
 seinen eigenen Ordner `build/<Preset>/`; die fertige Firmware ist
 `build/<Preset>/firmware_factory_control_unit.elf`.
 
@@ -77,13 +79,13 @@ Fehlt `--preset`, gilt `Release` (Revision 2). Für die echten Platinen also imm
 **Board am ST-Link, alles bauen und flashen (der Normalfall):**
 
 ```
-dotnet run --project builder -- PipelineFlash -- --preset Release-Rev1
+dotnet run --project builder -- PipelineFlash -- --preset rev1
 ```
 
 **Alles bauen, nicht flashen:**
 
 ```
-dotnet run --project builder -- PipelineLazy -- --preset Release-Rev1
+dotnet run --project builder -- PipelineLazy -- --preset rev1
 ```
 
 **Ohne angeschlossenes Board bauen** (das Board muss schon einmal geflasht worden sein, also im
@@ -95,15 +97,15 @@ dotnet run --project builder -- GenerateDeviceArtifacts
 dotnet run --project builder -- ReadGitStatusAndGenerateFiles
 dotnet run --project builder -- CopyGeneratedFilesToBuildDirectory
 dotnet run --project builder -- BuildWebApp
-dotnet run --project builder -- BuildFirmware -- --preset Release-Rev1
+dotnet run --project builder -- BuildFirmware -- --preset rev1
 ```
 
 **Nur den C++-Code neu übersetzen** (nach einer Änderung in `src/` oder `rtoos/`; Web-App und
 erzeugte Dateien bleiben, wie sie sind):
 
 ```
-cmake --build --preset Release-Rev1
-cmake --build --preset Release-Rev3
+cmake --build --preset rev1
+cmake --build --preset rev3
 ```
 
 Beim ersten Mal für ein Preset vorher einmal `cmake --preset <Preset>` (legt `build/<Preset>/` an).
@@ -113,7 +115,7 @@ Firmware bettet die Web-App ein.
 
 ```
 dotnet run --project builder -- BuildWebApp
-cmake --build --preset Release-Rev1
+cmake --build --preset rev1
 ```
 
 **Nach einer Änderung an einem Schema** (`schema/…/*.cs`): den passenden Erzeuger laufen lassen,
@@ -127,7 +129,7 @@ dotnet run --project builder -- GenerateRegisterAccessFiles       # Registerkart
 **Flashen einer schon gebauten Firmware:**
 
 ```
-dotnet run --project builder -- FlashFirmware -- --preset Release-Rev1
+dotnet run --project builder -- FlashFirmware -- --preset rev1
 ```
 
 ## 4. Zwischen Boards und Revisionen umschalten
@@ -140,7 +142,7 @@ dotnet run --project builder -- FlashFirmware -- --preset Release-Rev1
   `CopyGeneratedFilesToBuildDirectory`. `generated/` und `build/assets/` gehören immer zu genau
   einem Board, nämlich dem zuletzt gewählten (`build/.last-board-id`).
 - **Neues Board (z. B. die erste Revision-3-Platine):** anschließen und
-  `dotnet run --project builder -- PipelineFlash -- --preset Release-Rev3`. Der Builder legt den
+  `dotnet run --project builder -- PipelineFlash -- --preset rev3`. Der Builder legt den
   Archiv-Ordner an, erzeugt Hostname, MAC-Adressen und Zertifikate und flasht.
 
 Welches Board gerade gilt: `cat build/.last-board-id`. Welche Boards es gibt: die Ordner im
@@ -204,7 +206,7 @@ python tools/test-usb-renode.py                  # USB (Revision 3)
 
 | Parameter | Bedeutung |
 |---|---|
-| `--revision 1\|3` | welche Platine emuliert wird; wählt auch die Firmware (`build/Release-Rev1` bzw. `-Rev3`) |
+| `--revision 1\|3` | welche Platine emuliert wird; wählt auch die Firmware (`build/rev1` bzw. `build/rev3`) |
 | `--elf <Datei>` | eine andere Firmware-Datei als die Standard-Datei des Presets |
 | `--renode <Pfad>` | Renode an anderer Stelle (Standard `C:/opt/renode/renode.exe`) |
 
@@ -253,7 +255,7 @@ Danach liegt die Test-Identität in `tools/.opcua-test-client/` (nicht in Git) u
 ```
 cd web && npm test && npm run typecheck && cd ..
 cd rtoos && cmake --build --preset host && ctest --preset host && cd ..
-cmake --build --preset Release-Rev1 && cmake --build --preset Release-Rev3
+cmake --build --preset rev1 && cmake --build --preset rev3
 python tools/test-plc-renode.py --revision 1
 python tools/test-plc-renode.py --revision 3
 ```
@@ -261,9 +263,9 @@ python tools/test-plc-renode.py --revision 3
 **Neue Firmware auf die Revision-1-Platine:**
 
 ```
-dotnet run --project builder -- PipelineFlash -- --preset Release-Rev1
+dotnet run --project builder -- PipelineFlash -- --preset rev1
 ```
 
 **Nur die Web-Oberfläche geändert, schnell ansehen:** `cd web && npm run dev` (ohne Gerät), oder mit
-Firmware: `dotnet run --project builder -- BuildWebApp`, `cmake --build --preset Release-Rev3`,
+Firmware: `dotnet run --project builder -- BuildWebApp`, `cmake --build --preset rev3`,
 `python tools/run-renode-fcu.py --revision 3`.

@@ -1,6 +1,16 @@
 // LAN9253 bring-up test (see ethercat_test.hpp). Register addresses and bits: LAN9253 data sheet
-// DS00003421B (system CSRs: table 5-1, LAN9252-compatible indirect mode; EtherCAT core CSRs:
-// 11.16; EEPROM emulation: 12.2, 13.4) and the EtherCAT slave information (ETG.2010).
+// DS00003421B (system CSRs: table 5-1; EtherCAT core CSRs: 11.16; EEPROM emulation: 12.2, 13.4;
+// SPI EtherCAT Direct Mapped mode: 5.0, 9.3) and the EtherCAT slave information (ETG.2010).
+//
+// Two register maps, chosen by the EE_EMUL[2:0] straps (EESCL, EESDA, RUNLED; table 13-3):
+//   000 -> PDI 0x80, LAN9252 compatible: system CSRs at 0x050.., EtherCAT core registers through
+//          ECAT_CSR_CMD/ECAT_CSR_DATA
+//   100 -> PDI 0x82, EtherCAT Direct Mapped (revision 3, and revision 1 with EESDA and RUNLED
+//          wired to GND): the core registers at their own addresses 0x0000.., the system CSRs at
+//          0x3000 + offset. Without WAIT_ACK the host keeps the worst-case timing (9.3.2): 370 ns
+//          from the address to each data byte of a READ, 250 ns + 80 ns per byte after a core
+//          write before the next command.
+// setup() finds the map by BYTE_TEST (87654321h at 0x064 or at 0x3064).
 #include "ethercat_test.hpp"
 
 #include <array>
@@ -36,16 +46,31 @@ std::uint8_t transfer(std::uint8_t out) noexcept {
     return in;
 }
 
+/// At least `ns` nanoseconds (DWT cycle counter).
+void wait_ns(std::uint32_t ns) noexcept {
+    const auto cycles = static_cast<std::uint32_t>(std::uint64_t{ns} * board::sysclk_hz / 1'000'000'000u) + 1;
+    const std::uint32_t start = board::CycleCounter::now();
+    while (board::CycleCounter::now() - start < cycles) {
+    }
+}
+
 void select(bool on) noexcept {
     write(pins::ethercat->cs, !on);
     pause();
 }
 
-// System CSRs (byte address, 14 bits; bits 15:14 = 00: the bytes of the DWORD in order)
+// System CSRs (byte address, 14 bits; bits 15:14 = 00: the bytes of the DWORD in order); in
+// Direct Mapped mode at 0x3000 + these offsets
 constexpr std::uint16_t id_rev = 0x050, byte_test = 0x064, hw_cfg = 0x074, ecat_csr_data = 0x300, ecat_csr_cmd = 0x304;
+constexpr std::uint16_t direct_system_base = 0x3000;
 constexpr std::uint32_t byte_test_value = 0x8765'4321, hw_cfg_ready = 1u << 27;
+constexpr std::uint16_t increment = 0x4000;  ///< address bits 15:14 = 01: auto-increment (9.2.5, 9.3.2)
 
-std::uint32_t read32(std::uint16_t address) noexcept {
+bool direct_mapped = false;  ///< PDI 0x82: see the top of the file
+std::uint16_t system_base = 0;
+
+std::uint32_t read32(std::uint16_t offset) noexcept {
+    const auto address = static_cast<std::uint16_t>(system_base + offset);
     select(true);
     transfer(0x03);  // READ
     transfer(static_cast<std::uint8_t>(address >> 8));
@@ -59,7 +84,8 @@ std::uint32_t read32(std::uint16_t address) noexcept {
     return v;
 }
 
-void write32(std::uint16_t address, std::uint32_t value) noexcept {
+void write32(std::uint16_t offset, std::uint32_t value) noexcept {
+    const auto address = static_cast<std::uint16_t>(system_base + offset);
     select(true);
     transfer(0x02);  // WRITE
     transfer(static_cast<std::uint8_t>(address >> 8));
@@ -83,7 +109,36 @@ bool csr_wait() noexcept {
     return false;
 }
 
+// ---- EtherCAT core CSRs, Direct Mapped mode: READ/WRITE at their own address (9.3.2) ------------
+std::uint32_t direct_read(std::uint16_t address, unsigned size) noexcept {
+    select(true);
+    transfer(0x03);  // READ, byte by byte, incrementing
+    transfer(static_cast<std::uint8_t>((address | increment) >> 8));
+    transfer(static_cast<std::uint8_t>(address));
+    std::uint32_t v = 0;
+    for (unsigned i = 0; i < size; ++i) {
+        wait_ns(400);  // each byte: 370 ns until the core has delivered it
+        v |= std::uint32_t{transfer(i + 1 == size ? 0xFF : 0x00)} << (8 * i);  // SI high on the last: no prefetch
+    }
+    select(false);
+    return v;
+}
+
+void direct_write(std::uint16_t address, unsigned size, std::uint32_t value) noexcept {
+    select(true);
+    transfer(0x02);  // WRITE, incrementing
+    transfer(static_cast<std::uint8_t>((address | increment) >> 8));
+    transfer(static_cast<std::uint8_t>(address));
+    for (unsigned i = 0; i < size; ++i) {
+        transfer(static_cast<std::uint8_t>(value >> (8 * i)));
+        wait_ns(250);  // the core takes 250 ns per byte
+    }
+    select(false);
+    wait_ns(250 + 80 * size);  // no command while the core write is pending
+}
+
 std::uint32_t esc_read(std::uint16_t address, unsigned size) noexcept {
+    if (direct_mapped) return direct_read(address, size);
     write32(ecat_csr_cmd, csr_busy | csr_read | (std::uint32_t{size} << 16) | address);
     if (!csr_wait()) return 0;
     const std::uint32_t v = read32(ecat_csr_data);
@@ -91,6 +146,10 @@ std::uint32_t esc_read(std::uint16_t address, unsigned size) noexcept {
 }
 
 void esc_write(std::uint16_t address, unsigned size, std::uint32_t value) noexcept {
+    if (direct_mapped) {
+        direct_write(address, size, value);
+        return;
+    }
     write32(ecat_csr_data, value);
     write32(ecat_csr_cmd, csr_busy | (std::uint32_t{size} << 16) | address);
     (void)csr_wait();
@@ -100,7 +159,7 @@ void esc_write(std::uint16_t address, unsigned size, std::uint32_t value) noexce
 constexpr std::uint16_t esc_type = 0x0000, esc_revision = 0x0001, esc_build = 0x0002, esc_fmmus = 0x0004,
                         esc_syncmanagers = 0x0005, esc_ram_kb = 0x0006, esc_ports = 0x0007, esc_features = 0x0008,
                         dl_status = 0x0110, al_control = 0x0120, al_status = 0x0130, al_status_code = 0x0134,
-                        pdi_control = 0x0140, esc_config = 0x0141, pdi_config = 0x0150, sync_latch_config = 0x0151,
+                        run_led_override = 0x0138, pdi_control = 0x0140, esc_config = 0x0141, pdi_config = 0x0150, sync_latch_config = 0x0151,
                         ext_pdi_config = 0x0152, eeprom_status = 0x0502, eeprom_address = 0x0504, eeprom_data = 0x0508;
 constexpr std::uint16_t eeprom_busy = 1u << 15, eeprom_emulation = 1u << 5, eeprom_8_bytes = 1u << 6;
 constexpr unsigned cmd_read = 1, cmd_write = 2, cmd_reload = 4;
@@ -155,6 +214,12 @@ void build_sii(std::uint8_t pdi, std::uint8_t pdi_cfg) noexcept {
     sii[w] = 0xFFFF;             // end
 }
 
+/// RUN LED off by override (11.16.23): with the RUNLED/EE_EMUL0 strap at 0 the pin is an active-high
+/// open-source output; on revision 1 it is wired straight to GND for the strap, and "off" keeps it
+/// from driving high into that wire. A valid AL status write ends the override: it is set again
+/// after each one (serve_al()).
+constexpr std::uint32_t run_led_off = 0x10;  // override enabled, code 0 (off)
+
 // ---- state -----------------------------------------------------------------------------------------
 bool present = false;
 std::uint16_t last_dl = 0xFFFF, last_al = 0xFFFF;
@@ -204,6 +269,7 @@ void serve_al() noexcept {
     }
     esc_write(al_status_code, 2, 0);
     esc_write(al_status, 2, wanted);  // no checks: a test without mailbox and process data
+    esc_write(run_led_override, 1, run_led_off);
     RTOS_LOG_INFO("ethercat: AL state %s -> %s", state_name(status), state_name(wanted));
 }
 
@@ -232,17 +298,26 @@ void setup() noexcept {
         write(pins::ethercat_reset, false);
         kernel.sleep(2);
         write(pins::ethercat_reset, true);  // out of reset
-        // the SPI answers once the device is up: BYTE_TEST reads 87654321h (the first reads may not)
-        std::uint32_t test = 0;
-        for (int i = 0; i < 100 && test != byte_test_value; ++i) {
+        // the SPI answers once the device is up: BYTE_TEST reads 87654321h (the first reads may not) -
+        // at 0x064 (LAN9252 compatible) or at 0x3064 (EtherCAT Direct Mapped)
+        std::uint32_t test = 0, test_direct = 0;
+        for (int i = 0; i < 100 && test != byte_test_value && test_direct != byte_test_value; ++i) {
             kernel.sleep(2);
+            system_base = 0;
             test = read32(byte_test);
+            system_base = direct_system_base;
+            test_direct = read32(byte_test);
         }
-        if (test != byte_test_value) {
-            RTOS_LOG_ERROR("ethercat: no answer on SPI (BYTE_TEST 0x%08lx, expected 0x87654321) - PDI not SPI (straps), "
-                           "wiring, or the LAN9253 has no clock/supply", static_cast<unsigned long>(test));
+        direct_mapped = test_direct == byte_test_value;
+        system_base = direct_mapped ? direct_system_base : 0;
+        if (test != byte_test_value && !direct_mapped) {
+            RTOS_LOG_ERROR("ethercat: no answer on SPI (BYTE_TEST 0x%08lx at 0x064, 0x%08lx at 0x3064, expected 0x87654321) - "
+                           "PDI not SPI (EE_EMUL straps), wiring, or the LAN9253 has no clock/supply",
+                           static_cast<unsigned long>(test), static_cast<unsigned long>(test_direct));
             return;
         }
+        RTOS_LOG_INFO("ethercat: SPI %s", direct_mapped ? "EtherCAT Direct Mapped (system CSRs at 0x3000)"
+                                                        : "LAN9252 compatible (core registers through ECAT_CSR_CMD)");
         const std::uint32_t cfg = read32(hw_cfg);
         RTOS_LOG_INFO("ethercat: LAN9253 on SPI - ID_REV 0x%08lx, HW_CFG 0x%08lx (%s)", static_cast<unsigned long>(read32(id_rev)),
                       static_cast<unsigned long>(cfg), (cfg & hw_cfg_ready) != 0 ? "ready" : "not ready");
@@ -261,6 +336,7 @@ void setup() noexcept {
                       (eeprom & eeprom_emulation) != 0 ? "emulated by the PDI" : "I2C EEPROM",
                       (eeprom & (1u << 12)) != 0 ? "not loaded" : "loaded", (eeprom & eeprom_8_bytes) != 0 ? 8u : 4u);
         build_sii(pdi, pdi_cfg);
+        esc_write(run_led_override, 1, run_led_off);
         present = true;
     }
 }

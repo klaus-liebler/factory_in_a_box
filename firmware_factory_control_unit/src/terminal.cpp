@@ -77,8 +77,8 @@ constexpr std::array outputs{
     NamedOutput{"valve1", rm::holding::valve1, true},
     NamedOutput{"valve2", rm::holding::valve2, true},
     NamedOutput{"valve3", rm::holding::valve3, true},
-    NamedOutput{"vacuum_valve", rm::holding::vacuum_valve, !pins::rev1},
-    NamedOutput{"vacuum_pump", rm::holding::vacuum_pump, !pins::rev1},
+    NamedOutput{"vacuum_valve", rm::holding::vacuum_valve, pins::vacuum_valve.has_value()},
+    NamedOutput{"vacuum_pump", rm::holding::vacuum_pump, pins::vacuum_pump.has_value()},
     NamedOutput{"stepper_enable", rm::holding::stepper_enable, true},
 };
 

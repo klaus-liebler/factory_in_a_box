@@ -389,8 +389,4 @@ void post(net::Server::SessionId id, std::span<const std::uint8_t> message) noex
 
 }  // namespace fcu::roarm
 
-#if RTOS_FCU_REVISION == 3
-extern "C" void USART1_IRQHandler() noexcept { fcu::roarm::servo_uart.on_irq(); }
-#else
-extern "C" void UART7_IRQHandler() noexcept { fcu::roarm::servo_uart.on_irq(); }
-#endif
+extern "C" void FCU_SERVO_UART_IRQ_HANDLER() noexcept { fcu::roarm::servo_uart.on_irq(); }

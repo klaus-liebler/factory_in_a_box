@@ -160,7 +160,7 @@ void outputs() noexcept {
     write(pins::valve1, rm::valve1(registers) != 0);
     write(pins::valve2, rm::valve2(registers) != 0);
     write(pins::valve3, rm::valve3(registers) != 0);
-    if constexpr (!pins::rev1) {
+    if constexpr (pins::vacuum_valve.has_value() && pins::vacuum_pump.has_value()) {
         write(*pins::vacuum_valve, rm::vacuum_valve(registers) != 0);
         write(*pins::vacuum_pump, rm::vacuum_pump(registers) != 0);
     }
@@ -173,7 +173,7 @@ void inputs() noexcept {
     // (EXTI latches it): one cycle of 1 for an object that passed between two looks.
     rm::set_lightbarrier1(registers, !read(pins::light_barrier1) || barrier_interrupted[0].exchange(false) ? 1 : 0);
     rm::set_lightbarrier2(registers, !read(pins::light_barrier2) || barrier_interrupted[1].exchange(false) ? 1 : 0);
-    if constexpr (pins::rev1) {
+    if constexpr (hw::has_barrier3) {
         rm::set_lightbarrier3(registers, !read(*pins::light_barrier3) || barrier_interrupted[2].exchange(false) ? 1 : 0);
     }
     if constexpr (pins::gpio1.has_value()) {
@@ -298,7 +298,7 @@ void homing(std::size_t i, Stepper& stepper, std::uint16_t start_reg, SetTarget 
             homed[i] = true;
             RTOS_LOG_INFO("stepper %u: homed (StallGuard at the end stop, seen %s), position 0", n,
                           tmc[i].stall_by_signal() ? "on DIAG" : "over UART");
-            if (pins::stepper_diag && !tmc[i].stall_by_signal()) {
+            if (hw::has_stepper_diag && !tmc[i].stall_by_signal()) {
                 RTOS_LOG_WARN("stepper %u: the stall did not show on DIAG - is the DIAG wire there?", n);
             }
             break;
@@ -468,7 +468,7 @@ void lab_handle(const LabRequest& r) noexcept {
             p.homed = homed[i];
             p.homingResult = homing_result[i];
             p.stallByDiag = tmc[i].stall_by_signal();
-            p.hasDiag = pins::stepper_diag;
+            p.hasDiag = hw::has_stepper_diag;
             p.enabled = rm::stepper_enable(registers) != 0 || homing_active[0] || homing_active[1] || manual[0] || manual[1];
             p.drvStatus = drv.value_or(0);
             p.sgResult = static_cast<std::uint16_t>(sg.value_or(0) & 0x3FFu);
@@ -603,12 +603,12 @@ void setup(bool supply_up) noexcept {
     hw::Barrier2::enable();
     enable_irq(hw::Barrier1::irq, irq_priority_net);
     enable_irq(hw::Barrier2::irq, irq_priority_net);
-    if constexpr (pins::rev1) {
+    if constexpr (hw::has_barrier3) {
         hw::Barrier3::init();
         hw::Barrier3::enable();
         enable_irq(hw::Barrier3::irq, irq_priority_net);
     }
-    if constexpr (pins::stepper_diag) {
+    if constexpr (hw::has_stepper_diag) {
         hw::Diag1::init();
         hw::Diag2::init();
         hw::Diag1::enable();
@@ -688,7 +688,7 @@ void setup(bool supply_up) noexcept {
     hw::LedTimer::configure_pwm<2>();
     hw::LedTimer::enable_compare_dma<1>();
     hw::LedTimer::enable_update_dma();
-    hw::configure_led_burst();  // DMAR -> CCR2 at each update
+    hw::configure_led_burst<hw::LedTimer>();  // DMAR -> CCR2 at each update
     hw::LedTimer::start();
     hw::LedStripDma::init();
     hw::LedSingleDma::init();
@@ -792,36 +792,25 @@ void exti_irq() noexcept {
     if constexpr (hw::Barrier2::irq == Irq) {
         if (hw::Barrier2::take().falling) barrier_interrupted[1] = true;
     }
-    if constexpr (pins::rev1 && hw::Barrier3::irq == Irq) {
+    if constexpr (hw::has_barrier3 && hw::Barrier3::irq == Irq) {
         if (hw::Barrier3::take().falling) barrier_interrupted[2] = true;
     }
-    if constexpr (pins::stepper_diag && hw::Diag1::irq == Irq) {
+    if constexpr (hw::has_stepper_diag && hw::Diag1::irq == Irq) {
         if (hw::Diag1::take().rising) stall_from_isr(0);
     }
-    if constexpr (pins::stepper_diag && hw::Diag2::irq == Irq) {
+    if constexpr (hw::has_stepper_diag && hw::Diag2::irq == Irq) {
         if (hw::Diag2::take().rising) stall_from_isr(1);
     }
 }
 }  // namespace
 }  // namespace fcu::io
 
-#if RTOS_FCU_REVISION == 3
-extern "C" void EXTI0_IRQHandler() noexcept { fcu::io::exti_irq<6>(); }
-extern "C" void EXTI1_IRQHandler() noexcept { fcu::io::exti_irq<7>(); }
-extern "C" void EXTI2_IRQHandler() noexcept { fcu::io::exti_irq<8>(); }
-extern "C" void EXTI3_IRQHandler() noexcept { fcu::io::exti_irq<9>(); }
-extern "C" void EXTI4_IRQHandler() noexcept { fcu::io::exti_irq<10>(); }
-extern "C" void EXTI9_5_IRQHandler() noexcept { fcu::io::exti_irq<23>(); }
-extern "C" void EXTI15_10_IRQHandler() noexcept { fcu::io::exti_irq<40>(); }
-#else
-extern "C" void EXTI0_IRQHandler() noexcept { fcu::io::exti_irq<11>(); }
-extern "C" void EXTI2_IRQHandler() noexcept { fcu::io::exti_irq<13>(); }
-extern "C" void EXTI4_IRQHandler() noexcept { fcu::io::exti_irq<15>(); }
-extern "C" void EXTI6_IRQHandler() noexcept { fcu::io::exti_irq<17>(); }
-extern "C" void EXTI7_IRQHandler() noexcept { fcu::io::exti_irq<18>(); }
-extern "C" void EXTI8_IRQHandler() noexcept { fcu::io::exti_irq<19>(); }
-extern "C" void EXTI9_IRQHandler() noexcept { fcu::io::exti_irq<20>(); }
-#endif
+// The EXTI vectors of the revision (FCU_EXTI_HANDLERS, its peripherals.hpp), each to exti_irq<IRQ>
+// (hardware.hpp checks that every line used is among them).
+#define FCU_DEFINE_EXTI_HANDLER(handler, irq) \
+    extern "C" void handler() noexcept { fcu::io::exti_irq<irq>(); }
+FCU_EXTI_HANDLERS(FCU_DEFINE_EXTI_HANDLER)
+#undef FCU_DEFINE_EXTI_HANDLER
 
 /// HX711: the SPI's end of transfer - the reading that the DOUT edge started.
 extern "C" void SPI2_IRQHandler() noexcept {
@@ -832,20 +821,11 @@ extern "C" void SPI2_IRQHandler() noexcept {
 
 extern "C" void I2C1_EV_IRQHandler() noexcept { fcu::hw::I2c1::on_event_irq(); }
 extern "C" void I2C1_ER_IRQHandler() noexcept { fcu::hw::I2c1::on_error_irq(); }
-#if RTOS_FCU_REVISION == 3
-extern "C" void I2C3_EV_IRQHandler() noexcept { fcu::hw::I2cSupply::on_event_irq(); }
-extern "C" void I2C3_ER_IRQHandler() noexcept { fcu::hw::I2cSupply::on_error_irq(); }
-extern "C" void I2C4_EV_IRQHandler() noexcept { fcu::hw::I2cTof2::on_event_irq(); }
-extern "C" void I2C4_ER_IRQHandler() noexcept { fcu::hw::I2cTof2::on_error_irq(); }
-extern "C" void DMA1_Stream2_IRQHandler() noexcept { fcu::io::stepper1.on_dma_irq(); }
-extern "C" void DMA1_Stream3_IRQHandler() noexcept { fcu::io::stepper2.on_dma_irq(); }
-#else
-extern "C" void I2C2_EV_IRQHandler() noexcept { fcu::hw::I2cTof2::on_event_irq(); }
-extern "C" void I2C2_ER_IRQHandler() noexcept { fcu::hw::I2cTof2::on_error_irq(); }
-extern "C" void I2C4_EV_IRQHandler() noexcept { fcu::hw::I2cSupply::on_event_irq(); }
-extern "C" void I2C4_ER_IRQHandler() noexcept { fcu::hw::I2cSupply::on_error_irq(); }
-extern "C" void GPDMA1_CH4_IRQHandler() noexcept { fcu::io::stepper1.on_dma_irq(); }
-extern "C" void GPDMA1_CH5_IRQHandler() noexcept { fcu::io::stepper2.on_dma_irq(); }
-#endif
+extern "C" void FCU_I2C_TOF2_EV_IRQ_HANDLER() noexcept { fcu::hw::I2cTof2::on_event_irq(); }
+extern "C" void FCU_I2C_TOF2_ER_IRQ_HANDLER() noexcept { fcu::hw::I2cTof2::on_error_irq(); }
+extern "C" void FCU_I2C_SUPPLY_EV_IRQ_HANDLER() noexcept { fcu::hw::I2cSupply::on_event_irq(); }
+extern "C" void FCU_I2C_SUPPLY_ER_IRQ_HANDLER() noexcept { fcu::hw::I2cSupply::on_error_irq(); }
+extern "C" void FCU_STEPPER1_DMA_IRQ_HANDLER() noexcept { fcu::io::stepper1.on_dma_irq(); }
+extern "C" void FCU_STEPPER2_DMA_IRQ_HANDLER() noexcept { fcu::io::stepper2.on_dma_irq(); }
 extern "C" void TIM2_IRQHandler() noexcept { (void)fcu::io::stepper1.on_timer_irq(); }
 extern "C" void TIM3_IRQHandler() noexcept { (void)fcu::io::stepper2.on_timer_irq(); }

@@ -1030,6 +1030,24 @@ Editor aids (2026-11-09):
   Enter/Tab take, Esc closes. Nothing in comments, strings and literals (16#FF, T#1s). Tested: the
   context recognition.
 
+**Libraries VDI3814 and SIM, HMI (2026-11-16, browser only).** Two source libraries in namespaces (like the
+FCU library: compiled with every project, only what is used goes into the image; FBD palette groups per
+section, the first comment line is the title; internal helpers start with `__` and are no boxes):
+`VDI3814` - the GA functions of VDI 3814 Blatt 4.3:2022, groups 1 and 2 (AI ... SUNPOS, 50 blocks and functions; behaviour and
+edge cases in [vdi3814-library.md](vdi3814-library.md)); `SIM` - "Realsimulatoren", physical models of motors,
+compressors, pressure vessels, lead screws, actuators, valves, heating elements, heat transfer, heat exchangers,
+PT1 and dead time ([sim-library.md](sim-library.md)). Both take their time step from `__PLC_TIME` per instance
+(first call 0, at most 1 s). Tests: every block against its documented edge cases (`vdi3814-lib.test.ts`), the
+simulators against analytic solutions and energy/mass balances (`sim-lib.test.ts`), the documentation names
+every pin of every block (`libs-docs.test.ts`). The libraries are not yet versioned library files (P7).
+VDI 3814 group 3 is the **HMI** ([hmi.md](hmi.md)): operating pages in the project (`hmi`, not compiled, no
+effect on the project hash) with buttons, switches, knobs, sliders, digital and analogue displays, bars, line
+recorders, LEDs, alarms and text; an editor in the IDE tree ("Visualisierung") and a runtime page `/hmi` (device
+simulator or FCU, project from this browser or from the FCU's SD card, alarm list with acknowledgement,
+full screen). Writes go through `PlcDevice.write` (the data segment between cycles), reads through the watch
+subscription. Fixed on the way: the ST parser looped forever (out of memory) on a statement error before a
+VAR section, e.g. `USING` after the POU header - regression test in `compiler.test.ts`.
+
 ## 14. Decisions from the review and postponed points
 
 Review round 1 (2026-11-08):

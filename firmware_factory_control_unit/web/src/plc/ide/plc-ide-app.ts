@@ -28,8 +28,11 @@ import {
 } from "./project.ts";
 import type { FbdPou } from "./fbd.ts";
 import { sfcWalk, type SfcPou } from "./sfc.ts";
-import { Simulator } from "./simulator.ts";
-import { FcuDevice, type PlcDevice } from "./device.ts";
+import type { PlcDevice } from "./device.ts";
+import { fcuDevice, simulator } from "./devices.ts";
+import { newPage, type HmiPage } from "../hmi/hmi.ts";
+import { sampleTrends } from "../hmi/hmi-trends.ts";
+import "../hmi/hmi-editor.ts";
 import { formatValue, parseValue, readValue, type Value } from "./values.ts";
 import { addRow, deleteRow, freeName, GVL_CLASSES, parseRows, updateRow, VAR_CLASSES, type DeclRow } from "./decl-table.ts";
 import type { Completion, CompletionContext, LineMarker, StEditor } from "./st-editor.ts";
@@ -40,7 +43,7 @@ import type { DebugInfo } from "../compiler/compiler.ts";
 const STD_FUNCTIONS = ["ABS", "SQRT", "LN", "LOG", "EXP", "EXPT", "SIN", "COS", "TAN", "ASIN", "ACOS", "ATAN", "MIN", "MAX", "LIMIT", "SEL",
 	"MUX", "MOVE", "SHL", "SHR", "ROL", "ROR", "ADD", "SUB", "MUL", "DIV", "MOD", "GT", "GE", "EQ", "LE", "LT", "NE", "TRUNC"];
 
-type View = "prg" | "io" | "lib" | "task";
+type View = "prg" | "io" | "lib" | "task" | "hmi";
 
 type Panel = "messages" | "watch" | "log" | "plant" | "stack" | "xref";
 
@@ -103,8 +106,12 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 	@query("#body-editor") private bodyEditor?: StEditor;
 	@query("#decl-editor") private declEditor?: StEditor;
 
-	private sim = new Simulator();
-	private fcu = new FcuDevice();
+	private sim = simulator;
+	private fcu = fcuDevice;
+	/** The HMI page in the editor (view "hmi"). */
+	@state() private hmiPage = "";
+	/** The library shown (view "lib"). */
+	@state() private lib: "std" | "VDI3814" | "SIM" = "std";
 	@state() private dev: PlcDevice = this.sim;
 	private shown = false;
 	private readonly std = stdBlocks();
@@ -118,14 +125,21 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			this.watch = [];
 		}
 		if (this.watch.length === 0) this.watch = ["PLC_PRG.Pieces.CV", "PLC_PRG.Ejected", "ConveyorPwm", "Lightbarrier2"];
-		this.sim.addEventListener("update", () => this.tick++);
-		this.fcu.addEventListener("update", () => this.tick++);
+		// the line recorders of the HMI pages record while the IDE shows (the runtime records on its own)
+		this.sim.addEventListener("update", () => {
+			if (this.shown) sampleTrends(this.sim, this.project.hmi ?? []);
+			this.tick++;
+		});
+		this.fcu.addEventListener("update", () => {
+			if (this.shown) sampleTrends(this.fcu, this.project.hmi ?? []);
+			this.tick++;
+		});
 		this.selectedId = this.firstProgram().id;
 		this.lastBuild = build(this.project);
 		this.fcu.attach(this.lastBuild.result);
 		// a link to a view: /plc?view=fbd
 		const view = new URLSearchParams(window.location.search).get("view");
-		if (view === "prg" || view === "io" || view === "lib" || view === "task") this.view = view;
+		if (view === "prg" || view === "io" || view === "lib" || view === "task" || view === "hmi") this.view = view;
 		// /plc?view=fbd|sfc: the first object in that language
 		const lang = view?.toUpperCase();
 		const first = this.project.objects.find((o) => o.lang === lang);
@@ -662,7 +676,8 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				<div class="ide-main">
 					${this.renderTree()}
 					<section class="ide-center">
-						${this.view === "prg" ? this.renderPrg() : this.view === "io" ? this.renderIo() : this.view === "task" ? this.renderTask() : this.renderLib()}
+						${this.view === "prg" ? this.renderPrg() : this.view === "io" ? this.renderIo() : this.view === "task" ? this.renderTask()
+							: this.view === "hmi" ? this.renderHmi() : this.renderLib()}
 					</section>
 				</div>
 				${this.renderPanel()}
@@ -901,10 +916,21 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 					${this.renderFolder(objectTree(this.project), 0)}
 				${node("task", "⏱", this.project.tasks[0]?.name ?? "MainTask", `${this.dev.cycleMs} ms · ${this.project.tasks[0]?.programs.length ?? 0} PRG`)}
 					${this.adding ? this.renderAdd(this.adding) : html`<button class="ide-node ide-add" @click=${() => this.openAdd()}>＋ Objekt hinzufügen…</button>`}
+				<div class="ide-tree-group">Visualisierung</div>
+				${(this.project.hmi ?? []).map((p) => html`
+					<button class="ide-node ${this.view === "hmi" && this.currentHmiPage()?.id === p.id ? "ide-node-active" : ""}"
+						@click=${() => { this.view = "hmi"; this.hmiPage = p.id; this.selectedFolder = null; }}>
+						<span class="ide-node-icon">🖥</span><span>${p.name}</span><span class="ide-node-sub">${p.elements.length} Elemente</span>
+					</button>`)}
+				<button class="ide-node ide-add" @click=${() => this.addHmiPage()}>＋ Bedienseite</button>
 				<div class="ide-tree-group">Gerät</div>
 				${node("io", "🔌", "I/O-Abbild", `${IO_VARS.length} Variablen`)}
 				<div class="ide-tree-group">Bibliotheken</div>
-				${node("lib", "📚", "Standard", "IEC 61131-3")}
+				${(["std", "VDI3814", "SIM"] as const).map((l) => html`
+					<button class="ide-node ${this.view === "lib" && this.lib === l ? "ide-node-active" : ""}" @click=${() => { this.view = "lib"; this.lib = l; }}>
+						<span class="ide-node-icon">📚</span><span>${l === "std" ? "Standard" : l === "SIM" ? "Simulation (SIM)" : "VDI 3814"}</span>
+						<span class="ide-node-sub">${l === "std" ? "IEC 61131-3" : l === "SIM" ? "Realsimulatoren" : "GA-Funktionen"}</span>
+					</button>`)}
 				<div class="ide-tree-actions">
 					<button @click=${() => this.exportProject()} title="Projekt als Datei speichern">Export</button>
 					<button @click=${() => this.importProject()} title="Projektdatei laden">Import</button>
@@ -1093,7 +1119,47 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			</div>`;
 	}
 
+	// ---- HMI pages ---------------------------------------------------------------------------------------
+	private currentHmiPage(): HmiPage | undefined {
+		const pages = this.project.hmi ?? [];
+		return pages.find((p) => p.id === this.hmiPage) ?? pages[0];
+	}
+
+	private addHmiPage(): void {
+		const pages = this.project.hmi ?? [];
+		const p = newPage(`Seite ${pages.length + 1}`);
+		this.setProject({ ...this.project, hmi: [...pages, p] });
+		this.hmiPage = p.id;
+		this.view = "hmi";
+	}
+
+	/** A symbol key of the debug information (upper case) as the project writes it. */
+	private displayName = (key: string): string => {
+		const o = this.project.objects.find((x) => x.name.toUpperCase() === key);
+		if (o) return o.name;
+		const io = IO_VARS.find((v) => v.name.toUpperCase() === key);
+		if (io) return io.name;
+		for (const g of this.project.objects.filter((x) => x.kind === "GVL")) {
+			const r = parseRows(g.decl).find((x) => x.name.toUpperCase() === key);
+			if (r) return r.name;
+		}
+		return key;
+	};
+
+	private renderHmi() {
+		const pages = this.project.hmi ?? [];
+		const p = this.currentHmiPage();
+		return html`
+			<div class="ide-tabs"><span class="ide-tab ide-tab-active">🖥 Visualisierung <span class="ide-node-sub">Bedienen und Beobachten (VDI 3814 Gruppe 3)</span></span></div>
+			<hmi-editor .pages=${pages} .pageId=${p?.id ?? ""} .device=${this.dev} .tick=${this.tick} .names=${this.displayName}
+				.debug=${this.dev.debug ?? this.lastBuild?.result.debug ?? this.lastGoodDebug}
+				@change=${(e: CustomEvent<HmiPage[]>) => this.setProject({ ...this.project, hmi: e.detail })}
+				@page=${(e: CustomEvent<string>) => (this.hmiPage = e.detail)}
+				@notice=${(e: CustomEvent<string>) => this.flash(e.detail)}></hmi-editor>`;
+	}
+
 	private renderLib() {
+		if (this.lib !== "std") return this.renderLibBoxes(this.lib);
 		return html`
 			<div class="ide-tabs"><span class="ide-tab ide-tab-active">Bibliothek Standard <span class="ide-node-sub">IEC 61131-3 Ed. 3</span></span></div>
 			<div class="ide-lib">
@@ -1110,6 +1176,35 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 				</div>
 				<h4>Funktionen</h4>
 				<p class="ide-mono ide-funcs">ABS SQRT LN LOG EXP EXPT SIN COS TAN ASIN ACOS ATAN · MIN MAX LIMIT SEL MUX MOVE · SHL SHR ROL ROR · ADD SUB MUL DIV MOD · GT GE EQ LE LT NE · TRUNC · <i>typ</i>_TO_<i>typ</i></p>
+			</div>`;
+	}
+
+	/** A library in a namespace (VDI3814, SIM): its blocks by palette group, with title and typed pins. */
+	private renderLibBoxes(ns: "VDI3814" | "SIM") {
+		const boxes = boxesFor(this.project, this.obj).filter((b) => b.type.startsWith(`${ns}.`));
+		const groups = [...new Set(boxes.map((b) => b.group))];
+		const pin = (name: string, type?: string) => `${name}${type ? ` : ${type}` : ""}`;
+		return html`
+			<div class="ide-tabs"><span class="ide-tab ide-tab-active">Bibliothek ${ns === "SIM" ? "Simulation (SIM)" : "VDI 3814"}
+				<span class="ide-node-sub">${boxes.length} Bausteine</span></span></div>
+			<div class="ide-lib">
+				<p class="ide-hint">${ns === "SIM"
+					? html`Realsimulatoren: physikalische Modelle von Motoren, Kompressoren, Druckspeichern, Spindeln, Heizelementen und Wärmeübergängen - für die Simulation der Anlage im Programm. Beschreibung mit Modellgleichungen und Grenzen: <code>docs/sim-library.md</code>.`
+					: html`GA-Funktionen nach VDI 3814 Blatt 4.3 (Ein-/Ausgabe- und Anwendungsfunktionen). Genaue Funktionsweise und Grenzfälle: <code>docs/vdi3814-library.md</code>.`}
+					Deklaration <code>x : ${ns}.${ns === "SIM" ? "MOTOR" : "PID"};</code> oder nach <code>USING ${ns};</code> ohne Präfix; im FBD in der Palette.</p>
+				${groups.map((g) => html`
+					<h4>${g}</h4>
+					<div class="ide-lib-grid">
+						${boxes.filter((b) => b.group === g).map((b) => html`
+							<div class="ide-fb" title=${b.title}>
+								<div class="ide-fb-name">${b.type.slice(ns.length + 1)}${b.kind === "func" ? " ()" : ""}</div>
+								<div class="ide-node-sub" style="padding:0 6px">${b.title}</div>
+								<div class="ide-fb-body">
+									<div>${b.inputs.map((i) => html`<div class="ide-fb-pin">▸ ${pin(i, b.types?.[i])}</div>`)}</div>
+									<div class="ide-fb-out">${b.outputs.map((o) => html`<div class="ide-fb-pin">${pin(o, b.types?.[o])} ▸</div>`)}</div>
+								</div>
+							</div>`)}
+					</div>`)}
 			</div>`;
 	}
 

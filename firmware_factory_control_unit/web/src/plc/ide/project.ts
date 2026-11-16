@@ -11,6 +11,9 @@ import type * as A from "../compiler/ast.ts";
 import { FCU_LIB_FILE, fcuLibSource } from "./fcu-lib.ts";
 import { IO_FILE, ioBindings, ioMapHash, ioSource } from "./io-list.ts";
 import { exampleFbd, fbdSource, type BoxDef, type FbdNetwork, type FbdProblem } from "./fbd.ts";
+import { VDI3814_LIB_FILE, VDI3814_NAMESPACE, vdi3814LibSource, vdi3814Sections } from "./vdi3814-lib.ts";
+import { SIM_LIB_FILE, SIM_NAMESPACE, simLibSource, simSections } from "./sim-lib.ts";
+import { examplePages, hmiProblem, type HmiPage } from "../hmi/hmi.ts";
 import { exampleSfc, SFC_FILE, SFC_STEP_SOURCE, sfcId, sfcSource, type SfcItem, type SfcProblem } from "./sfc.ts";
 
 export type ObjectKind = "PRG" | "FB" | "FUN" | "DUT" | "GVL";
@@ -50,6 +53,8 @@ export interface Project {
 	tasks: { name: string; intervalCycles: number; programs: string[] }[];
 	/** The folders of the explorer tree (paths; also empty ones). Objects name theirs in `folder`. */
 	folders?: string[];
+	/** The operating pages (HMI, plc/hmi/hmi.ts); not compiled, so they do not change the project hash. */
+	hmi?: HmiPage[];
 }
 
 /** Objects with an implementation part. */
@@ -123,6 +128,7 @@ export function exampleProject(): Project {
 			{ id: "sfc_prg", name: "SFC_PRG", kind: "PRG", lang: "SFC", ...(({ decl, chart }) => ({ decl, chart }))(exampleSfc()), body: "" },
 		],
 		tasks: [{ name: "MainTask", intervalCycles: 1, programs: ["PLC_PRG"] }],
+		hmi: examplePages(),
 	};
 }
 
@@ -447,6 +453,7 @@ function projectProblem(p: Project): string | null {
 	}
 	if (!Array.isArray(p.tasks) || p.tasks.length === 0) return "keine Task";
 	if (p.folders !== undefined && !(Array.isArray(p.folders) && p.folders.every((f) => typeof f === "string" && f.length > 0))) return "Ordnerliste ungültig";
+	if (p.hmi !== undefined) return hmiProblem(p.hmi);
 	return null;
 }
 
@@ -519,28 +526,49 @@ export function partLine(o: PlcObject, line: number): { part: "decl" | "body"; l
 // ---- FBD boxes beyond the standard ones: the project's FBs and functions, the FCU library -------------
 /** The boxes of the function blocks and functions in an ST text (their interface: VAR_INPUT and
  *  VAR_IN_OUT are inputs, VAR_OUTPUT outputs, a function's result is OUT). */
-function boxesOf(text: string, file: string, group: string, title: (kind: "FB" | "FUN") => string): BoxDef[] {
+function boxesOf(text: string, file: string, group: string, title: (kind: "FB" | "FUN", name: string) => string, ns = ""): BoxDef[] {
 	const typeOf = (t: A.TypeRef) => (t.kind === "named" ? t.name.toUpperCase() : t.kind === "string" ? "STRING" : "");
 	const out: BoxDef[] = [];
-	for (const u of parse(text, file, new Diagnostics())) {
-		if (u.kind !== "pou" || u.pouKind === "PROGRAM") continue;
+	for (const pu of parse(text, file, new Diagnostics())) {
+		// a library's internal helpers ("__") are no boxes; in a namespace the box type is the qualified name
+		if (pu.kind !== "pou" || pu.pouKind === "PROGRAM" || pu.name.startsWith("__")) continue;
+		const u = { ...pu, name: ns ? `${ns}.${pu.name}` : pu.name };
 		const ins = u.vars.filter((v) => v.cls === "VAR_INPUT" || v.cls === "VAR_IN_OUT");
 		const outs = u.vars.filter((v) => v.cls === "VAR_OUTPUT");
 		const types: Record<string, string> = {};
 		for (const v of [...ins, ...outs]) types[v.name] = typeOf(v.type);
 		if (u.pouKind === "FUNCTION_BLOCK") {
-			out.push({ type: u.name, kind: "fb", inputs: ins.map((v) => v.name), outputs: outs.map((v) => v.name), group, title: title("FB"), types, omit: true });
+			out.push({ type: u.name, kind: "fb", inputs: ins.map((v) => v.name), outputs: outs.map((v) => v.name), group, title: title("FB", pu.name), types, omit: true });
 		} else {
 			if (u.returnType) types.OUT = typeOf(u.returnType);
-			out.push({ type: u.name, kind: "func", inputs: ins.map((v) => v.name), outputs: ["OUT"], group, title: title("FUN"), types });
+			out.push({ type: u.name, kind: "func", inputs: ins.map((v) => v.name), outputs: ["OUT"], group, title: title("FUN", pu.name), types });
 		}
 	}
 	return out;
 }
 
+/** The first line of the comment right after each POU header of a library ("FUNCTION_BLOCK X\n(* title"). */
+export function libraryTitles(text: string): Map<string, string> {
+	const titles = new Map<string, string>();
+	for (const m of text.matchAll(/^(?:FUNCTION_BLOCK|FUNCTION)\s+([A-Za-z_]\w*)[^\n]*\n\s*\(\*\s*([^\n]*?)\s*(?:\*\))?\s*$/gm)) titles.set(m[1].toUpperCase(), m[2]);
+	return titles;
+}
+
+/** The boxes of a library in a namespace, one palette group per section, titled by their comments. */
+function libraryBoxes(sections: readonly { group: string; source: string }[], file: string, ns: string): BoxDef[] {
+	return sections.flatMap((s) => {
+		const titles = libraryTitles(s.source);
+		return boxesOf(s.source, file, s.group, (k, name) => titles.get(name.toUpperCase()) ?? (k === "FB" ? "Funktionsbaustein" : "Funktion"), ns);
+	});
+}
+
 let fcuBoxCache: BoxDef[] | null = null;
 function fcuBoxes(): BoxDef[] {
-	fcuBoxCache ??= boxesOf(fcuLibSource(), FCU_LIB_FILE, "FCU-Bibliothek", (k) => (k === "FB" ? "Funktionsbaustein der FCU-Bibliothek" : "Funktion der FCU-Bibliothek"));
+	fcuBoxCache ??= [
+		...boxesOf(fcuLibSource(), FCU_LIB_FILE, "FCU-Bibliothek", (k) => (k === "FB" ? "Funktionsbaustein der FCU-Bibliothek" : "Funktion der FCU-Bibliothek")),
+		...libraryBoxes(vdi3814Sections(), VDI3814_LIB_FILE, VDI3814_NAMESPACE),
+		...libraryBoxes(simSections(), SIM_LIB_FILE, SIM_NAMESPACE),
+	];
 	return fcuBoxCache;
 }
 
@@ -574,7 +602,8 @@ export function deviceSources(file: string, text: string): { file: string; text:
 export function deviceSources(sources: { file: string; text: string }[]): { file: string; text: string }[];
 export function deviceSources(a: string | { file: string; text: string }[], text?: string): { file: string; text: string }[] {
 	const own = typeof a === "string" ? [{ file: a, text: text! }] : a;
-	return [...own, { file: IO_FILE, text: ioSource() }, { file: FCU_LIB_FILE, text: fcuLibSource() }, { file: SFC_FILE, text: SFC_STEP_SOURCE }];
+	return [...own, { file: IO_FILE, text: ioSource() }, { file: FCU_LIB_FILE, text: fcuLibSource() }, { file: SFC_FILE, text: SFC_STEP_SOURCE },
+		{ file: VDI3814_LIB_FILE, text: vdi3814LibSource() }, { file: SIM_LIB_FILE, text: simLibSource() }];
 }
 
 /** The project hash an image of the project's current state has (also while it does not compile). */

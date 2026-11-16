@@ -11,6 +11,7 @@ import "./apps/task-manager-app.js";
 import "./apps/druckregelstrecke-app.js";
 import "./apps/terminal-app.js";
 import "./plc/ide/plc-ide-app.ts";
+import "./plc/hmi/hmi-runtime-app.ts";
 import "./apps/stepper-lab-app.js";
 import type { AppShell } from "./shell/app-shell.js";
 import { startWebSocketClient } from "./ws-client.js";
@@ -27,6 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	shell.RegisterApp("/druckregelstrecke", "Druckregelstrecke", "🌬️", document.createElement("druckregelstrecke-app"));
 	shell.RegisterApp("/steppers", "Schrittmotoren", "⚙️", document.createElement("stepper-lab-app"));
 	shell.RegisterApp("/plc", "SPS (IEC 61131)", "🧩", document.createElement("plc-ide-app"));
+	shell.RegisterApp("/hmi", "Bedienen & Beobachten", "🖥", document.createElement("hmi-runtime-app"));
 	shell.RegisterApp("/terminal", "Terminal", "⌨️", document.createElement("terminal-app"));
 
 	shell.Start();

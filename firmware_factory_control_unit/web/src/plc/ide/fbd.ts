@@ -291,7 +291,8 @@ export function lowerFbd(pou: FbdPou): FbdLowered {
 		for (const w of net.wires) into.set(`${w.to.node}.${w.to.pin}`, w.from);
 		const problem = (node: string | undefined, message: string) => problems.push({ network: net.id, node, message });
 
-		const instanceOf = (n: FbdNode & { kind: "box" }) => n.instance?.trim() || `${n.type}_${n.id}`;
+		// a library block in a namespace (VDI3814.PID): the default instance name has no dots
+		const instanceOf = (n: FbdNode & { kind: "box" }) => n.instance?.trim() || `${n.type.replace(/\./g, "_")}_${n.id}`;
 		for (const n of net.nodes) {
 			if (n.kind !== "box") continue;
 			const d = boxDef(n.type);

@@ -23,15 +23,13 @@ export class Renderer {
     this.ctx = canvas.getContext('2d')!
   }
 
-  // Setzt NUR die Zeichenflaechen-Aufloesung (canvas.width/height, das Bitmap-Pixelraster) --
-  // die CSS-Box-Groesse (was tatsaechlich auf dem Bildschirm Platz einnimmt) kommt bewusst
-  // AUSSCHLIESSLICH aus CSS/Flexbox (position:absolute; inset:0 im Container, s.
-  // roarm-3d-view.ts), kein per JS gesetztes style.width/height mehr. Frueher wurden beide Werte
-  // hier gesetzt -- wenn `width`/`height` (aus container.clientWidth/Height) je einmal veraltet
-  // waren (z.B. bevor ein Layout-getriebener Groessenwechsel den ResizeObserver erneut ausgeloest
-  // hatte), driftete dadurch die CSS-Box selbst vom Flexbox-Layout weg, unabhaengig vom
-  // eigentlichen Container. Jetzt kann die CSS-Box nie von dem abweichen, was Flexbox vorgibt --
-  // nur die interne Bitmap-Aufloesung wird bei Bedarf nachgezogen.
+  // Sets ONLY the drawing surface resolution (canvas.width/height, the bitmap pixel grid) - the CSS box size
+  // (what actually takes up room on screen) deliberately comes ONLY from CSS/flexbox (position:absolute;
+  // inset:0 in the container, see roarm-3d-view.ts), no style.width/height set by JS any more. Both used to
+  // be set here - whenever `width`/`height` (from container.clientWidth/Height) were stale once (e.g. before
+  // a layout-driven size change had triggered the ResizeObserver again), the CSS box itself drifted away from
+  // the flexbox layout, independent of the actual container. Now the CSS box can never differ from what
+  // flexbox dictates - only the internal bitmap resolution follows when needed.
   resize(width: number, height: number, dpr: number) {
     this.width = width
     this.height = height

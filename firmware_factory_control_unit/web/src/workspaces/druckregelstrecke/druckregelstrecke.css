@@ -1,10 +1,9 @@
 /* Druckregelstrecke (druckregelstrecke-app.ts, druckregelstrecke-view.ts). */
 /* ==========================================================================
-   Druckregelstrecke-App: SVG-Prinzipschaltbild (druckregelstrecke-view.ts) --
-   Ventile/Kompressor sind komplett inline in der Grafik bedienbar, daher hier
-   kein separates HTML-Bedienfeld mehr. Darunter Modus-Umschaltung (Freies
-   Experiment/Kennlinie/Sprungantwort/Reglerbetrieb, s.
-   docs/druckregelstrecke-modes.md) + je Modus eine eigene Auswerte-/Bedien-UI.
+   Druckregelstrecke app: SVG schematic (druckregelstrecke-view.ts) - valves and compressor are operated
+   completely inline in the drawing, so there is no separate HTML control panel here. Below it the mode switch
+   (Freies Experiment/Kennlinie/Sprungantwort/Reglerbetrieb, see docs/druckregelstrecke-modes.md) + an
+   evaluation/control UI of its own per mode.
    ========================================================================== */
 
 .druckregel-container {

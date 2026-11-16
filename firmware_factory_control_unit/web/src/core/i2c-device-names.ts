@@ -1,8 +1,7 @@
-// Bekannte IC-Kandidaten je I2C-7-Bit-Adresse -- reine Nachschlagehilfe fuer den "I2C Diagnostics"-
-// Block in apps/system-info-app.ts: mehrere ICs teilen sich oft dieselbe Standardadresse, ein
-// tatsaechlicher Treffer bei einer Adresse ist deshalb nur ein Hinweis, keine sichere Identifikation.
-// Reines Nachschlagewerk, wird nirgends von der Firmware gebraucht (die liefert nur, OB unter
-// einer Adresse ein Geraet geantwortet hat, s. scan() in src/io.cpp).
+// Known IC candidates per 7-bit I2C address - only a lookup aid for the "I2C Diagnostics" block of the system
+// workspace: several ICs often share the same default address, so a hit at an address is only a hint, not a
+// reliable identification. Pure reference data, not needed by the firmware (it only reports WHETHER a device
+// answered at an address, see scan() in src/io.cpp).
 export const I2C_ADDRESS_CANDIDATES: readonly string[] = [
 	"?", // 0x00
 	"?",

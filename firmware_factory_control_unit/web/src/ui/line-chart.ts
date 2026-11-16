@@ -1,9 +1,8 @@
-// Handgerollter Canvas-Liniendiagramm-Renderer -- bewusst keine Chart-Bibliothek (Chart.js o.ae.),
-// um den Single-File-Bundle klein zu halten, der komplett ins Firmware-Flash einkompiliert wird
-// (s. web/scripts/embed-into-firmware.mjs). Nur eine Serie pro Aufruf (ein Diagramm = eine
-// Achse) -- fuer mehrere Groessen (Spannung/Strom/Leistung) werden bewusst mehrere einzelne
-// Diagramme nebeneinander gezeichnet statt einer Mehrfach-Achsen-Darstellung, s.
-// power-management-app.ts.
+// Hand-rolled canvas line chart renderer - deliberately no chart library (Chart.js or similar), to keep the
+// single-file bundle small that is compiled completely into the firmware flash (see
+// web/scripts/embed-into-firmware.mjs). Only one series per call (one chart = one axis) - several quantities
+// (voltage/current/power) are drawn as several separate charts side by side instead of a multi-axis chart,
+// see power-management-app.ts.
 import { COLORS } from "./colors.ts";
 
 export interface LineChartPoint {
@@ -100,8 +99,8 @@ export function drawLineChart(canvas: HTMLCanvasElement, points: readonly LineCh
 		ctx.fillText(v.toFixed(decimals), paddingLeft - 6, y);
 	}
 
-	// x-Achse: Baseline + drei Zeit-Labels (Start/Mitte/Ende des sichtbaren Fensters), analog zu
-	// den drei y-Achsen-Labels oben.
+	// x axis: baseline + three time labels (start/middle/end of the visible window), like the three y axis
+	// labels above.
 	const axisY = paddingTop + plotHeight;
 	ctx.strokeStyle = GRID_LINE;
 	ctx.beginPath();

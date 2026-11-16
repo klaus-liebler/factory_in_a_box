@@ -1,10 +1,9 @@
-// Echte Firmware-Anbindung fuers RoArmBackend-Interface (roarm-backend.ts) -- ersetzt
-// MockRoArmBackend im Firmware-Build (WS-Handler in src/web.cpp, Ausfuehrung im I/O-Thread in
-// src/roarm/roarm.cpp). Uebersetzt 1:1 auf die generierten
-// roarm.*-Nachrichtentypen (web/generated/ws-protocol.ts) ueber die generischen Sende-/
-// Anfrage-Helfer aus ws-client.ts -- kein eigenes Wire-Format-Wissen hier. Besitzt den
-// roarm-Namespace: als dessen WsProtocolListener empfaengt es alle roarm-Push-Nachrichten
-// (aktuell PoseFeedback) und verteilt sie selbst an seine Abonnenten.
+// Real firmware connection for the RoArmBackend interface (roarm-backend.ts) - replaces MockRoArmBackend in
+// the firmware build (WS handler in src/web.cpp, execution in the I/O thread in src/roarm/roarm.cpp).
+// Translates 1:1 to the generated roarm.* message types (web/generated/ws-protocol.ts) via the generic
+// send/request helpers of ws-client.ts - no wire format knowledge of its own here. Owns the roarm namespace:
+// as its WsProtocolListener it receives all roarm push messages (currently PoseFeedback) and distributes them
+// to its subscribers itself.
 import { roarm } from "../../../generated/ws-protocol.ts";
 import { registerWsProtocolListener, sendBinary, wsRequest, type WsProtocolListener } from "../../core/ws-client.ts";
 import { JOINT_COUNT, radToCentiDeg, type CartesianPose } from "./roarm-kinematics.ts";
@@ -31,14 +30,14 @@ export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 		this.unregisterListener = registerWsProtocolListener(roarm.NAMESPACE_ID, this);
 	}
 
-	/** Meldet den roarm-Namespace-Listener wieder ab -- fuer den seltenen Fall, dass eine Seite dieses
-	 * Backend nicht mehr braucht (aktuell lebt es fuer die gesamte Seitenlebensdauer, s. roarm-teach-app.ts). */
+	/* Unregisters the roarm namespace listener - for the rare case that a page no longer needs this backend
+	   (currently it lives for the whole page lifetime, see roarm-teach-app.ts). */
 	dispose(): void {
 		this.unregisterListener();
 	}
 
-	// Responses (StartTeachModeResponse usw.) landen hier nie -- die ordnet ws-client.ts direkt dem
-	// wartenden wsRequest() zu. JointJogTarget/CartesianJogTarget gehen nur Client->Firmware.
+	// Responses (StartTeachModeResponse etc.) never arrive here - ws-client.ts matches them directly to the
+	// waiting wsRequest(). JointJogTarget/CartesianJogTarget only go client -> firmware.
 	onWsMessage(messageTypeId: number, view: DataView): void {
 		switch (messageTypeId) {
 			case roarm.PoseFeedback.TYPE_ID:
@@ -80,9 +79,9 @@ export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 		sendBinary(roarm.JointJogTarget.encode({ jointAnglesCentiDeg: [...jointAnglesCentiDeg] }));
 	}
 
-	// Die Servo-Ansteuerung auf dem echten Board ist ohnehin geschwindigkeitsbegrenzt (kein
-	// Sofort-Sprung wie im Mock ohne Rampe) -- maxSpeedDegPerSec ist daher hier nur fuer den Mock
-	// relevant, s. Interface-Kommentar in roarm-backend.ts.
+	// The servo control on the real board is speed-limited anyway (no immediate jump as in the mock without a
+	// ramp) - so maxSpeedDegPerSec only matters for the mock here, see the interface comment in
+	// roarm-backend.ts.
 	setJointMoveTargetCentiDeg(jointAnglesCentiDeg: readonly number[]): void {
 		this.setJointJogTargetCentiDeg(jointAnglesCentiDeg);
 	}

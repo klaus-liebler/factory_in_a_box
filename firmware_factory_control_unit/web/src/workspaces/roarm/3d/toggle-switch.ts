@@ -1,12 +1,10 @@
-// Kleiner, abgerundeter Zwei-Wege-Umschalter (wie ein iOS-Segmented-Control) fuers
-// Gizmo-Overlay -- ersetzt zwei separate Knoepfe durch einen einzigen Schalter mit
-// gleitendem Farb-"Daumen" hinter der aktiven Beschriftung. Rein inline gestylt (kein
-// externes Stylesheet noetig), passend zum Rest von roarm-3d-view.ts' selbstenthaltenen
-// Overlay-Widgets.
+// Small rounded two-way switch (like an iOS segmented control) for the gizmo overlay - replaces two separate
+// buttons with a single switch with a sliding coloured "thumb" behind the active label. Styled inline only
+// (no external stylesheet needed), matching the other self-contained overlay widgets of roarm-3d-view.ts.
 
 export interface ToggleSwitchHandle {
   el: HTMLElement
-  /** Aktive Option von aussen setzen (z.B. bei programmatischer Zustandsaenderung), ohne onChange auszuloesen. */
+  /* Sets the active option from outside (e.g. on a programmatic state change) without firing onChange. */
   setIndex(index: 0 | 1): void
 }
 
@@ -32,9 +30,9 @@ export function createToggleSwitch(labels: [string, string], initialIndex: 0 | 1
     const btn = document.createElement('button')
     btn.type = 'button'
     btn.textContent = label
-    // Feste Breite (statt am Textinhalt haengend) -- so werden alle Umschalter im UI gleich
-    // gross, unabhaengig davon, ob ihre beiden Labels lang ("Bewegen"/"Drehen") oder kurz
-    // ("Welt"/"Lokal") sind, s. deren gemeinsamen Container in roarm-3d-view.ts.
+    // Fixed width (instead of depending on the text) - so all switches in the UI have the same size, whether
+    // their two labels are long ("Bewegen"/"Drehen") or short ("Welt"/"Lokal"), see their shared container in
+    // roarm-3d-view.ts.
     btn.style.cssText =
       'position:relative;font:inherit;font-size:12px;padding:4px 0;width:56px;text-align:center;border:none;' +
       'background:transparent;cursor:pointer;border-radius:6px;transition:color 0.16s ease;white-space:nowrap;'

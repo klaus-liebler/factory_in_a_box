@@ -1,10 +1,9 @@
-// RoArm-M3 Teach-Seite: vereinfachtes 3D-Modell (roarm-3d-view.ts) + Gelenk-/Cartesian-Jogging +
-// Schritt-Liste (Gelenkbewegung/GPIO/Delay) + Mission speichern/laden. Spricht ausschliesslich
-// gegen das RoArmBackend-Interface (roarm-backend.ts) -- zwei Implementierungen, s.
-// createBackend() unten: WsRoArmBackend (echte Firmware, s. src/roarm/roarm.cpp +
-// src/web.cpp) im eingebetteten Firmware-Build, MockRoArmBackend im Vite-Dev-Server (kein Board
-// noetig, s. "import.meta.env.DEV"-Kommentar dort) -- damit bleibt die Seite weiterhin ohne
-// Hardware am PC testbar, waehrend die echte Firmware automatisch die echte Anbindung bekommt.
+// RoArm-M3 teach workspace: simplified 3D model (roarm-3d-view.ts) + joint/cartesian jogging + step list
+// (joint move/GPIO/delay) + save/load mission. Talks only to the RoArmBackend interface (roarm-backend.ts) -
+// two implementations, see createBackend() below: WsRoArmBackend (real firmware, see src/roarm/roarm.cpp +
+// src/web.cpp) in the embedded firmware build, MockRoArmBackend in the Vite dev server (no board needed, see
+// the "import.meta.env.DEV" comment there) - so the workspace stays testable on the PC without hardware,
+// while the real firmware automatically gets the real connection.
 import { LitElement, html } from "lit";
 import { customElement, state, query } from "lit/decorators.js";
 import "./roarm-teach.css";
@@ -17,17 +16,16 @@ import { JOINT_NAMES, JOINT_COUNT, JOINT_LIMITS_RAD, centiDegToRad, radToCentiDe
 import { kindOf, setAppStatus } from "../../shell/status-bar.ts";
 import { setAppRibbon } from "../../shell/ribbon.ts";
 
-// import.meta.env.DEV ist Vites eingebautes Dev/Prod-Flag (true unter "npm run dev", false im
-// echten "vite build", der als index.html.br ins Firmware-Flash eincompiliert wird, s.
-// docs/build-process.md) -- kein manuelles Umschalten noetig, jede Build-Art bekommt automatisch
-// das fuer sie sinnvolle Backend.
+// import.meta.env.DEV is Vite's built-in dev/prod flag (true under "npm run dev", false in the real "vite
+// build" that is compiled into the firmware flash as index.html.br, see docs/build-process.md) - no manual
+// switching needed, every kind of build automatically gets the backend that makes sense for it.
 function createBackend(): RoArmBackend {
 	return import.meta.env.DEV ? new MockRoArmBackend() : new WsRoArmBackend();
 }
 
 const DEFAULT_JOINT_MOVE_SPEED_DEG_PER_SEC = 60;
 const DEFAULT_DELAY_MS = 500;
-const GPIO_STEP_SIMULATED_DELAY_MS = 300; // Play-Wiedergabe: keine echte Hardware im Teach-Modus, s. playMission()
+const GPIO_STEP_SIMULATED_DELAY_MS = 300; // play: no real hardware in teach mode, see playMission()
 const JOINT_ARRIVAL_TOLERANCE_CENTIDEG = 50; // Play-Wiedergabe: "angekommen" (0.5 Grad), s. waitForArrival()
 const JOINT_ARRIVAL_TIMEOUT_MS = 8000; // Play-Wiedergabe: Sicherheitsabbruch falls nie "angekommen", s. waitForArrival()
 
@@ -35,18 +33,16 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Kein Greifer an diesem Arm (Vakuumsauger statt Zangen-Greifer) -- der 6. Kanal (JOINT_NAMES[5]
-// "Gripper") bleibt im Wire-Protokoll/roarm-kinematics.ts bestehen (keine Protokoll-Aenderung in
-// diesem Durchgang, s. Absprache), wird hier aber weder als Jogging-Slider noch als
-// Kartesisches-Ziel-Feld angezeigt.
+// No gripper on this arm (vacuum suction cup instead of a gripper) - the 6th channel (JOINT_NAMES[5]
+// "Gripper") stays in the wire protocol/roarm-kinematics.ts (no protocol change in this round, as agreed),
+// but is shown neither as a jogging slider nor as a cartesian target field here.
 const JOGGABLE_JOINT_COUNT = 5;
 
-// Gelenkwinkel (centiDeg) des naechstgelegenen JointMoveStep AB fromIndex rueckwaerts -- fuers
-// Ghost-Overlay: zeigt an, wo der Arm vor der Einfuegeposition (s. insertAfterIndex) zuletzt
-// stand. Rueckwaerts statt einfach "letzter Schritt", weil der markierte Einfuegepunkt (Klick auf
-// einen Missionsschritt) auf einem Pause- oder Vakuum-Schritt OHNE eigene Pose liegen kann --
-// dann muss der Ghost sich auf die letzte Pose DAVOR beziehen, nicht auf den markierten Schritt
-// selbst oder das Ende der Liste.
+// Joint angles (centiDeg) of the nearest JointMoveStep FROM fromIndex backwards - for the ghost overlay:
+// shows where the arm last stood before the insert position (see insertAfterIndex). Backwards instead of
+// simply "last step", because the marked insert point (click on a mission step) can lie on a delay or vacuum
+// step WITHOUT a pose of its own - then the ghost must refer to the last pose BEFORE it, not to the marked
+// step itself or the end of the list.
 function lastJointMoveStepAngles(steps: readonly MissionStep[], fromIndex: number): number[] | null {
 	for (let i = Math.min(fromIndex, steps.length - 1); i >= 0; i--) {
 		const step = steps[i];
@@ -108,16 +104,15 @@ export class RoArmTeachApp extends LitElement implements WorkspaceApp {
 
 	@query(".roarm-3d-container") private viewContainer!: HTMLDivElement;
 
-	// Eingeknickte Ruhepose statt voll gestreckt (0/0/.../0) -- deckt sich mit MockRoArmBackends
-	// eigenem initialJointsRad-Default (s. dort), so dass die Ansicht nicht kurz die gestreckte
-	// Pose aufblitzt, bevor das erste PoseFeedback eintrifft.
+	// Folded rest pose instead of fully stretched (0/0/.../0) - matches MockRoArmBackend's own initialJointsRad
+	// default (see there), so that the view does not briefly flash the stretched pose before the first
+	// PoseFeedback arrives.
 	@state() private jointAnglesCentiDeg: number[] = [...FOLDED_REST_POSE_CENTIDEG];
 	@state() private pose: roarm.PoseFeedback.Payload = this.backend.getLastPoseFeedback();
 	@state() private steps: MissionStep[] = [];
-	// Neue Schritte werden HINTER diesem Index eingefuegt (-1 = ganz an den Anfang) -- per Klick auf
-	// einen Missionsschritt verschiebbar (s. selectInsertPoint()), nicht zwingend das Ende der
-	// Liste. Default: ans Ende anhaengen (wird bei jeder Aenderung von `steps` nachgezogen, s.
-	// insertStep()/removeStep()/moveStep()).
+	// New steps are inserted AFTER this index (-1 = at the very beginning) - movable by clicking a mission step
+	// (see selectInsertPoint()), not necessarily the end of the list. Default: append at the end (kept up to
+	// date on every change of `steps`, see insertStep()/removeStep()/moveStep()).
 	@state() private insertAfterIndex = -1;
 	@state() private missionIndex = 1;
 	@state() private missionName = "";
@@ -162,10 +157,9 @@ export class RoArmTeachApp extends LitElement implements WorkspaceApp {
 		this.ensureView();
 	}
 
-	// Ghost-Overlay (letzte Pose VOR dem Einfuegepunkt, s. lastJointMoveStepAngles()) reaktiv mit
-	// `steps`/`insertAfterIndex` synchron halten -- deckt "Schritt hinzufuegen", Mission laden/
-	// Schritt loeschen UND einen neuen Einfuegepunkt anklicken ab, ohne dass jede Stelle, die eines
-	// der beiden aendert, das Overlay einzeln nachfuehren muss.
+	// Keep the ghost overlay (last pose BEFORE the insert point, see lastJointMoveStepAngles()) reactively in
+	// sync with `steps`/`insertAfterIndex` - covers "add step", load mission/delete step AND clicking a new
+	// insert point, without every place that changes one of the two having to update the overlay itself.
 	protected updated(changedProperties: Map<string, unknown>): void {
 		if (changedProperties.has("steps") || changedProperties.has("insertAfterIndex")) {
 			this.view?.setGhostAnglesRad(lastJointMoveStepAngles(this.steps, this.insertAfterIndex)?.map(centiDegToRad) ?? null);
@@ -184,9 +178,9 @@ export class RoArmTeachApp extends LitElement implements WorkspaceApp {
 		this.backend.setJointJogTargetCentiDeg(next);
 	}
 
-	// 3D-Gizmo (roarm-3d-view.ts) -- loest die IK jetzt clientseitig und meldet hier direkt fertige
-	// Gelenkwinkel (Base..Roll, rad) statt roher Deltas. Nur Index 5 (Gripper) bleibt unberuehrt --
-	// der Vakuum-Sauger-Endeffektor hat keine eigene Gelenkachse.
+	// 3D gizmo (roarm-3d-view.ts) - now solves the IK on the client and reports finished joint angles here
+	// (Base..Roll, rad) instead of raw deltas. Only index 5 (gripper) stays untouched - the vacuum cup end
+	// effector has no joint axis of its own.
 	private onGizmoJointAnglesPreview(armAnglesRad: readonly number[]): void {
 		const next = [...this.jointAnglesCentiDeg];
 		for (let i = 0; i < armAnglesRad.length; i++) next[i] = radToCentiDeg(armAnglesRad[i]);
@@ -203,14 +197,13 @@ export class RoArmTeachApp extends LitElement implements WorkspaceApp {
 			zMm: num("z"),
 			pitchRad: centiDegToRad(num("pitch") * 100),
 			rollRad: centiDegToRad(num("roll") * 100),
-			gripperRad: 0, // kein Greifer an diesem Arm (Vakuumsauger statt Zangen-Greifer), kein Formularfeld dafuer
+			gripperRad: 0, // no gripper on this arm (vacuum cup instead of a gripper), no form field for it
 		});
 	}
 
-	// Fuegt hinter insertAfterIndex ein (nicht zwingend am Ende, s. Feld-Kommentar) und ruecht den
-	// Einfuegepunkt auf den neuen Schritt nach -- weitere Klicks auf "+"-Buttons ohne zwischenzeitliche
-	// Auswahl haengen so weiterhin fortlaufend hintereinander an, statt sich am urspruenglich
-	// angeklickten Schritt zu stapeln.
+	// Inserts after insertAfterIndex (not necessarily at the end, see the field comment) and moves the insert
+	// point on to the new step - further clicks on "+" buttons without a selection in between thus keep
+	// appending one after another instead of piling up at the step clicked originally.
 	private insertStep(step: MissionStep): void {
 		const at = this.insertAfterIndex + 1;
 		this.steps = [...this.steps.slice(0, at), step, ...this.steps.slice(at)];
@@ -226,8 +219,8 @@ export class RoArmTeachApp extends LitElement implements WorkspaceApp {
 		});
 	}
 
-	// Einziger Mission-GPIO auf diesem Arm ist der Vakuumsauger (VACUUM_GPIO_ID) -- keine generische
-	// Mehr-GPIO-Auswahl noetig, nur ein/aus.
+	// The only mission GPIO on this arm is the vacuum cup (VACUUM_GPIO_ID) - no generic multi-GPIO selection
+	// needed, only on/off.
 	private addVacuumStep(state: boolean): void {
 		this.insertStep({ classId: roarm.GpioStep.CLASS_ID, gpioId: VACUUM_GPIO_ID, state });
 	}
@@ -236,11 +229,10 @@ export class RoArmTeachApp extends LitElement implements WorkspaceApp {
 		this.insertStep({ classId: roarm.DelayStep.CLASS_ID, durationMs: this.newDelayMs });
 	}
 
-	// Klick auf einen Missionsschritt (oder auf den "Anfang"-Platzhalter, index=-1): dieser Schritt
-	// wird zum neuen Einfuegepunkt fuer den naechsten hinzugefuegten Schritt UND der Arm faehrt dort
-	// hin (dieselbe Pose, die als Ghost angezeigt wird, s. lastJointMoveStepAngles()) -- so kann man
-	// von dieser Stelle aus mit Jogging/Gizmo weiterarbeiten, statt nur optisch zu vergleichen. Bei
-	// "Anfang" (index=-1) gibt es keine vorherige Pose, dort bewegt sich der Arm folgerichtig nicht.
+	// Click on a mission step (or on the "Anfang" placeholder, index=-1): this step becomes the new insert point
+	// for the next added step AND the arm moves there (the same pose shown as the ghost, see
+	// lastJointMoveStepAngles()) - so one can continue from there with jogging/gizmo instead of only comparing
+	// visually. At "Anfang" (index=-1) there is no previous pose, so the arm consistently does not move.
 	private selectInsertPoint(index: number): void {
 		this.insertAfterIndex = index;
 		const angles = lastJointMoveStepAngles(this.steps, index);
@@ -252,8 +244,8 @@ export class RoArmTeachApp extends LitElement implements WorkspaceApp {
 
 	private removeStep(index: number): void {
 		this.steps = this.steps.filter((_, i) => i !== index);
-		// War der Einfuegepunkt auf oder hinter dem geloeschten Schritt, ruecht er um eins nach --
-		// zeigt danach auf denselben (jetzt vorgerueckten) Nachbarn wie vorher.
+		// If the insert point was on or after the deleted step, it moves up by one - afterwards it points to the
+		// same (now moved up) neighbour as before.
 		if (index <= this.insertAfterIndex) this.insertAfterIndex -= 1;
 	}
 
@@ -263,7 +255,7 @@ export class RoArmTeachApp extends LitElement implements WorkspaceApp {
 		const next = [...this.steps];
 		[next[index], next[target]] = [next[target], next[index]];
 		this.steps = next;
-		// Einfuegepunkt folgt demselben logischen Schritt durch die Vertauschung, nicht der Position.
+		// The insert point follows the same logical step through the swap, not the position.
 		if (this.insertAfterIndex === index) this.insertAfterIndex = target;
 		else if (this.insertAfterIndex === target) this.insertAfterIndex = index;
 	}
@@ -347,12 +339,11 @@ export class RoArmTeachApp extends LitElement implements WorkspaceApp {
 		this.dialogMode = "closed";
 	}
 
-	// --- Play: fuehrt die aktuelle Mission clientseitig aus, ueber dasselbe RoArmBackend-Interface
-	// wie das interaktive Jogging (kein separater "Mission abspielen"-Kanal im Wire-Protokoll noetig).
-	// GpioStep hat KEINE eigene Live-Ansteuerung (nur innerhalb einer auf dem Board gespeicherten,
-	// dort ausgefuehrten Mission bedeutungsvoll) -- hier daher nur simuliert (Status-Text + kurze
-	// Pause), waehrend JointMoveStep/DelayStep echt ausgefuehrt werden (echtes Jogging bzw. echtes
-	// Warten).
+	// --- Play: runs the current mission on the client, via the same RoArmBackend interface as interactive
+	// jogging (no separate "play mission" channel needed in the wire protocol). GpioStep has NO live control of
+	// its own (only meaningful within a mission stored and run on the board) - so it is only simulated here
+	// (status text + short pause), while JointMoveStep/DelayStep are really executed (real jogging and real
+	// waiting).
 	private async playMission(): Promise<void> {
 		if (this.steps.length === 0 || this.isPlaying) return;
 		this.isPlaying = true;

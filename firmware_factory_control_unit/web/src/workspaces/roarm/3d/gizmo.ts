@@ -26,14 +26,12 @@ const AXES: Vec3[] = [
   [0, 0, 1],
 ]
 const AXIS_COLORS = ['#e5484d', '#46a758', '#0091ff']
-// Rotate-Ringe: nur Achse 0 (rot, Tilt) und 2 (blau, Roll) -- diese Kette hat genau EINEN echten
-// Tilt-Freiheitsgrad (ueber Schulter/Ellbogen/Handgelenk-Summe) plus Roll, keine unabhaengige
-// zweite Kippachse. Ein Ring fuer Achse 1 (gruen) wuerde eine Drehung anbieten, die die Kinematik
-// gar nicht ausfuehren kann -- roarm-3d-view.ts bildete das bisher einfach auf denselben
-// targetTiltSum wie Achse 0 ab, was beim Ziehen von Gruen zu einer Drehung um eine andere Achse
-// fuehrte, als der Ring suggerierte. Translate-Pfeile (alle 3 Achsen) sind davon nicht betroffen --
-// eine kartesische Zielposition in jede Richtung ist (innerhalb der Reichweite) tatsaechlich
-// erreichbar, anders als eine freie 3D-Werkzeug-Orientierung.
+// Rotate rings: only axis 0 (red, tilt) and 2 (blue, roll) - this chain has exactly ONE real tilt degree of
+// freedom (via the shoulder/elbow/wrist sum) plus roll, no independent second tilt axis. A ring for axis 1
+// (green) would offer a rotation the kinematics cannot perform at all - roarm-3d-view.ts used to map it onto
+// the same targetTiltSum as axis 0, so dragging green rotated about a different axis than the ring suggested.
+// Translate arrows (all 3 axes) are not affected - a cartesian target position in any direction is actually
+// reachable (within reach), unlike a free 3D tool orientation.
 const ROTATE_AXES = [0, 2] as const
 const HANDLE_LENGTH = 0.09
 const RING_RADIUS = 0.09
@@ -74,11 +72,10 @@ export type GizmoSpace = 'local' | 'world'
 
 export class Gizmo {
   mode: GizmoMode = 'translate'
-  // Nur die Translate-Pfeile betrifft das (Rotate-Ringe sind an die kinematisch bedeutsamen
-  // Tilt-/Roll-Achsen des Werkzeugs gekoppelt, s. main.ts' updateDrag()-Auswertung, "Welt" ergibt
-  // dort keinen zusaetzlichen Sinn). 'world': Pfeile zeigen fix in Welt-X/Y/Z, unabhaengig von der
-  // aktuellen Werkzeug-Ausrichtung -- Default, weil sich sonst nach jeder Drehung die Bedeutung
-  // von "ziehe den roten Pfeil" aendert.
+  // Only affects the translate arrows (the rotate rings are tied to the kinematically meaningful tilt/roll
+  // axes of the tool, see the drag handling in roarm-3d-view.ts; "world" makes no additional sense there).
+  // 'world': the arrows point along fixed world X/Y/Z, independent of the current tool orientation - the
+  // default, because otherwise the meaning of "drag the red arrow" changes after every rotation.
   space: GizmoSpace = 'world'
   private renderer: Renderer
   private hoverAxis: 0 | 1 | 2 | null = null
@@ -96,14 +93,12 @@ export class Gizmo {
     return this.space === 'world' ? AXES[i] : rotateVec3(pose.quat, AXES[i])
   }
 
-  // ringQuat: die Ausrichtung, gegen die die ROTATE-Ringe gezeichnet/getroffen-getestet werden --
-  // per Default pose.quat, aber der Aufrufer kann eine davon abweichende Ausrichtung uebergeben
-  // (s. roarm-3d-view.ts' tiltRingQuat()): der Tilt-Ring (Achse 0) soll NICHT mitdrehen, wenn nur
-  // Roll (Achse 2) gezogen wird -- Roll ist kinematisch das LETZTE Kettenglied und aendert die
-  // Tilt-Achse selbst nicht, mit dem vollen pose.quat (das Roll schon eingerechnet hat) drehte sich
-  // der Tilt-Ring bislang optisch mit, obwohl seine tatsaechliche Bedeutung unveraendert blieb.
-  // Betrifft nur die Ringe -- Translate-Pfeile nutzen weiterhin ausschliesslich pose.quat (ueber
-  // translateAxisDir()/this.space).
+  // ringQuat: the orientation the ROTATE rings are drawn and hit-tested against - pose.quat by default, but
+  // the caller can pass a different orientation (see tiltRingQuat() in roarm-3d-view.ts): the tilt ring (axis
+  // 0) must NOT rotate along when only roll (axis 2) is dragged - roll is kinematically the LAST link of the
+  // chain and does not change the tilt axis itself; with the full pose.quat (which already includes roll) the
+  // tilt ring used to rotate visually although its actual meaning stayed the same. Only affects the rings -
+  // translate arrows still use pose.quat only (via translateAxisDir()/this.space).
   render(camera: Camera, pose: Pose, ringQuat: Quat = pose.quat) {
     const { ctx } = this.renderer
     if (this.mode === 'translate') {

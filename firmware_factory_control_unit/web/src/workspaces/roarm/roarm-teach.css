@@ -1,15 +1,14 @@
 /* RoArm Teach (roarm-teach-app.ts). */
 /* ==========================================================================
-   RoArm-Teach-App: alle Einstellungen kompakt+scrollbar in einer schmalen
-   linken Spalte, die 3D-Ansicht (roarm-3d-view.ts) nimmt den Rest der
-   verfuegbaren Hoehe/Breite ein statt einer festen Vorschaugroesse.
+   RoArm teach app: all settings compact and scrollable in a narrow left column, the 3D view
+   (roarm-3d-view.ts) takes the rest of the available height/width instead of a fixed preview size.
    ========================================================================== */
 
-/* roarm-teach-app selbst braucht eine definitive Hoehe, sonst loest .roarm-container{height:100%}
-   unten gegen "auto" auf (kein Effekt) -- die anderen App-Elemente (modbus-register-app etc., s.
-   gemeinsame Regel oben) bleiben bewusst bei ihrer natuerlichen, dokumentenfluss-basierten Hoehe
-   samt Seiten-Scroll in .app-shell-content, nur diese Seite bekommt eine feste, nicht scrollende
-   Vollhoehen-Ansicht (Steuerung scrollt stattdessen INNERHALB in .roarm-controls-panel, s.u.). */
+/* roarm-teach-app itself needs a definite height, otherwise .roarm-container{height:100%} below resolves
+   against "auto" (no effect) - the other app elements (modbus-register-app etc., see the shared rule above)
+   deliberately keep their natural height from the document flow with page scrolling in .app-shell-content;
+   only this page gets a fixed, non-scrolling full-height view (the controls scroll INSIDE
+   .roarm-controls-panel instead, see below). */
 roarm-teach-app {
 	height: 100%;
 }
@@ -17,13 +16,12 @@ roarm-teach-app {
 .roarm-container {
 	max-width: none;
 	height: 100%;
-	/* .container (s.o.) bringt padding:12px 16px mit, aber kein box-sizing -- der Browser-Default
-	   content-box addiert dieses Padding OBEN AUF die 100% Hoehe drauf, statt es einzurechnen. Bei
-	   fixem px-Padding faellt das meist nicht auf, aber hier ist die Hoehe selbst relativ (100% des
-	   verfuegbaren .app-shell-content-Platzes) -- das Element wurde dadurch real 24px (= padding-top
-	   + padding-bottom) hoeher als sein Container, mit exakt diesem Betrag lief die Seite ueber und
-	   bekam eine vertikale Scrollbar (sichtbar u.a. daran, dass .roarm-3d-container's untere Kante
-	   unterhalb des sichtbaren Viewports lag). border-box rechnet das Padding in die 100% mit ein. */
+	/* .container (see above) brings padding:12px 16px, but no box-sizing - the browser default content-box adds
+	   this padding ON TOP of the 100% height instead of including it. With fixed px padding this usually goes
+	   unnoticed, but here the height itself is relative (100% of the available .app-shell-content space) - the
+	   element thus became really 24px (= padding-top + padding-bottom) taller than its container, the page
+	   overflowed by exactly that amount and got a vertical scrollbar (visible e.g. because the bottom edge of
+	   .roarm-3d-container was below the visible viewport). border-box includes the padding in the 100%. */
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
@@ -36,12 +34,11 @@ roarm-teach-app {
 	min-height: 0;
 }
 
-/* display:flex (statt des von .panel-section geerbten display:grid, s. dort -- gleiche
-   Selektor-Spezifitaet, spaeter in der Kaskade gewinnt) -- damit die Missionsplanung unten (s.
-   .roarm-mission-collapsible) sich per flex-grow den kompletten verbleibenden vertikalen Platz
-   nehmen kann, waehrend Gelenke/Kartesisches-Ziel-Panels ihre natuerliche Groesse behalten.
-   overflow-y:auto bleibt als Sicherheitsnetz fuer sehr niedrige Viewports, in denen selbst die
-   fixen Panels nicht mehr reinpassen. */
+/* display:flex (instead of the display:grid inherited from .panel-section, see there - same selector
+   specificity, later in the cascade wins) - so that the mission planning below (see
+   .roarm-mission-collapsible) can take all the remaining vertical space via flex-grow, while the
+   joint/cartesian target panels keep their natural size. overflow-y:auto stays as a safety net for very low
+   viewports in which even the fixed panels no longer fit. */
 .roarm-controls-panel {
 	flex: 0 0 320px;
 	min-width: 0;
@@ -96,10 +93,9 @@ roarm-teach-app {
 
 .roarm-slider-row {
 	display: grid;
-	/* minmax(0, 1fr) statt 1fr: Grid-Items haben per Default min-width:auto, wodurch die mittlere
-	   Spur nicht unter die intrinsische Mindestbreite des <input type="range"> schrumpfen kann --
-	   die Zeile (und damit die ganze schmale linke Spalte) ragte dadurch ueber ihren Container
-	   hinaus. minmax(0, 1fr) erlaubt das Schrumpfen explizit. */
+	/* minmax(0, 1fr) instead of 1fr: grid items have min-width:auto by default, so the middle track cannot
+	   shrink below the intrinsic minimum width of the <input type="range"> - the row (and with it the whole
+	   narrow left column) stuck out of its container. minmax(0, 1fr) explicitly allows shrinking. */
 	grid-template-columns: 90px minmax(0, 1fr) 4em;
 	align-items: center;
 	gap: 8px;
@@ -203,14 +199,12 @@ roarm-teach-app {
 	padding: 8px 0;
 }
 
-/* Eigene Scrollbar fuer die Schrittliste statt fuer die ganze linke Spalte (.roarm-controls-panel)
-   -- bei vielen Missionsschritten soll man weiter scrollen koennen, ohne dass Slider/Buttons oben
-   aus dem sichtbaren Bereich verschwinden. Kein max-height mehr (war 260px fix) -- flex:1 1 auto
-   in einer flex-column-Kette (.roarm-mission-collapsible -> dessen .roarm-collapsible-body -> hier)
-   lässt die Liste stattdessen den gesamten verbleibenden Platz der Seitenspalte einnehmen und nur
-   scrollen, wenn selbst das nicht reicht. min-height als Untergrenze, damit sie bei wenig Platz
-   nicht komplett verschwindet.
-*/
+/* A scrollbar of its own for the step list instead of for the whole left column (.roarm-controls-panel) -
+   with many mission steps one must be able to scroll on without the sliders/buttons at the top disappearing
+   from view. No max-height any more (was a fixed 260px) - flex:1 1 auto in a flex column chain
+   (.roarm-mission-collapsible -> its .roarm-collapsible-body -> here) instead lets the list take all the
+   remaining space of the side column and only scroll when even that is not enough. min-height as the lower
+   bound, so that it does not disappear completely when space is short. */
 .roarm-mission-list {
 	list-style: none;
 	margin: 0;
@@ -227,10 +221,10 @@ roarm-teach-app {
 	box-sizing: border-box;
 }
 
-/* Einklappbare Abschnitte ("Gelenke (Jogging)", "Kartesisches Ziel", "Missionsplanung") -- natives
-   <details>/<summary> statt eigenem Auf/Zu-State, braucht dadurch keine zusaetzliche
-   Lit-@state()-Verwaltung. flex:0 0 auto als Baseline (natuerliche Groesse, nicht schrumpfen) --
-   .roarm-mission-collapsible unten durchbricht das gezielt fuer die Missionsplanung. */
+/* Collapsible sections ("Gelenke (Jogging)", "Kartesisches Ziel", "Missionsplanung") - native
+   <details>/<summary> instead of an open/closed state of our own, so no additional lit @state() handling is
+   needed. flex:0 0 auto as the baseline (natural size, do not shrink) - .roarm-mission-collapsible below
+   deliberately breaks this for the mission planning. */
 .roarm-collapsible {
 	flex: 0 0 auto;
 	border: 1px solid var(--ui-color-border-soft);
@@ -239,19 +233,18 @@ roarm-teach-app {
 	background: var(--ui-color-bg-surface);
 }
 
-/* Neuere Chromium-Versionen legen den Nicht-<summary>-Inhalt eines offenen <details> intern in eine
-   generierte ::details-content-Box (fuers Auf/Zu-Transition-Animieren) -- diese Box liegt zwischen
-   <details> und unserem eigenen .roarm-collapsible-body im Rendering-Baum und ist per UA-Default
-   NICHT Teil unseres Flex-Layouts (display:block), wodurch .roarm-collapsible-bodys eigenes
-   "flex:1 1 auto" ins Leere lief (der tatsaechliche Flex-Parent war diese Box, nicht <details>) --
-   sichtbar als Missionsliste, die trotz min-height:0-Kette in der Hoehe einfach durchwuchs statt
-   sich am verfuegbaren Platz zu orientieren. display:contents nimmt die Box aus dem Layout-Baum
-   heraus, macht .roarm-collapsible-body wieder zum direkten Flex-Kind von <details>.
-   WICHTIG: nur mit [open] qualifiziert -- das UA-Stylesheet versteckt den Inhalt eines
-   GESCHLOSSENEN <details> genau ueber diese ::details-content-Box (Hoehe 0 + content-visibility);
-   ein ungebundenes "display:contents" hier haette diesen Hide-Mechanismus fuer ALLE Zustaende
-   ausgehebelt, wodurch eingeklappte Panels ihren Inhalt trotzdem weiter anzeigten. Browser ohne
-   dieses Pseudo-Element ignorieren die Regel folgenlos (Selektor matcht dann einfach nichts). */
+/* Newer Chromium versions put the non-<summary> content of an open <details> internally into a generated
+   ::details-content box (for animating the open/close transition) - this box lies between <details> and our
+   own .roarm-collapsible-body in the rendering tree and is, by UA default, NOT part of our flex layout
+   (display:block), so the "flex:1 1 auto" of .roarm-collapsible-body had no effect (the actual flex parent
+   was this box, not <details>) - visible as a mission list that simply kept growing in height despite the
+   min-height:0 chain instead of following the available space. display:contents takes the box out of the
+   layout tree and makes .roarm-collapsible-body a direct flex child of <details> again. IMPORTANT: qualified
+   with [open] only - the UA stylesheet hides the content of a CLOSED <details> exactly via this
+   ::details-content box (height 0 + content-visibility); an unqualified "display:contents" here would have
+   defeated this hiding mechanism for ALL states, so collapsed panels still showed their content. Browsers
+   without this pseudo-element ignore the rule without consequences (the selector then simply matches
+   nothing). */
 .roarm-collapsible[open]::details-content {
 	display: contents;
 }
@@ -273,9 +266,9 @@ roarm-teach-app {
 	gap: 10px;
 }
 
-/* Missionsplanung darf (im Gegensatz zu den anderen Panels) den kompletten verbleibenden
-   vertikalen Platz der Seitenspalte einnehmen, damit die Schrittliste (.roarm-mission-list) darin
-   moeglichst gross werden kann statt frueh auf eine kleine feste Hoehe gedeckelt zu sein. */
+/* Mission planning may (unlike the other panels) take all the remaining vertical space of the side column, so
+   that the step list (.roarm-mission-list) in it can become as large as possible instead of being capped
+   early at a small fixed height. */
 .roarm-mission-collapsible {
 	flex: 1 1 auto;
 	min-height: 0;
@@ -284,7 +277,7 @@ roarm-teach-app {
 }
 
 .roarm-mission-collapsible[open] {
-	min-height: 160px; /* auch bei knappem Platz noch als eigener Aufklapp-Block erkennbar */
+	min-height: 160px; /* still recognizable as a collapsible block of its own when space is short */
 }
 
 .roarm-mission-collapsible > .roarm-collapsible-body {
@@ -308,7 +301,7 @@ roarm-teach-app {
 	background: var(--ui-color-bg-muted);
 }
 
-/* Der Schritt, hinter dem der naechste neue Schritt eingefuegt wird -- s. insertAfterIndex. */
+/* The step after which the next new step is inserted - see insertAfterIndex. */
 .roarm-mission-cursor-slot.is-cursor,
 .roarm-mission-step.is-cursor {
 	border-color: #2f6fed;

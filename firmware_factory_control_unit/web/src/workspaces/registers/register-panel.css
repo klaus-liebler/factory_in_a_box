@@ -45,8 +45,8 @@
 	color: #15803d;
 }
 
-/* "bool-error"-Variante: 0 = kein Fehler (gleiches Grau wie bool-badge-off), 1 = Fehler (rot) --
-   fuer Register wie PWR_ALERT, wo 1 einen Fehlerzustand meldet statt eines neutralen "an". */
+/* "bool-error" variant: 0 = no error (same grey as bool-badge-off), 1 = error (red) - for registers like
+   PWR_ALERT, where 1 reports an error state instead of a neutral "on". */
 .bool-badge-error {
 	background: #fee2e2;
 	color: #b91c1c;

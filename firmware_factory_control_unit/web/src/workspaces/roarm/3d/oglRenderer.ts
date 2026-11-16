@@ -169,13 +169,12 @@ export class OglRenderer {
       antialias: true,
       dpr: window.devicePixelRatio || 1,
     })
-    // OGLs Konstruktor ruft intern setSize(300, 150) (seine eigenen Defaults) auf, was
-    // canvas.style.width/height explizit auf "300px"/"150px" setzt -- das ueberschreibt das
-    // bereits von roarm-3d-view.ts gesetzte position:absolute;inset:0 (explizite Breite/Hoehe
-    // gewinnt gegenueber inset, s. CSS-Ueberbestimmungsregeln fuer absolut positionierte Boxen).
-    // Da resize() unten bewusst NIE MEHR style.width/height anfasst (die CSS-Box soll komplett aus
-    // Flexbox/inset:0 kommen, s. dortiger Kommentar), muss dieser einmalige Konstruktor-Nebeneffekt
-    // hier einmalig wieder entfernt werden, sonst bleibt der Canvas dauerhaft auf 300x150 haengen.
+    // OGL's constructor internally calls setSize(300, 150) (its own defaults), which explicitly sets
+    // canvas.style.width/height to "300px"/"150px" - this overrides the position:absolute;inset:0 already set
+    // by roarm-3d-view.ts (an explicit width/height wins over inset, see the CSS over-constraint rules for
+    // absolutely positioned boxes). Since resize() below deliberately NEVER touches style.width/height again
+    // (the CSS box must come entirely from flexbox/inset:0, see the comment there), this one-time constructor
+    // side effect has to be removed here once, otherwise the canvas stays stuck at 300x150 for good.
     canvas.style.removeProperty('width')
     canvas.style.removeProperty('height')
     this.renderer.gl.clearColor(0, 0, 0, 0)
@@ -183,12 +182,11 @@ export class OglRenderer {
     this.scene = new Transform()
   }
 
-  // OGLs eigenes renderer.setSize() setzt NEBENBEI auch canvas.style.width/height -- genau das
-  // wollen wir hier nicht (s. renderer.ts' Overlay2D.resize()-Kommentar: die CSS-Box soll
-  // ausschliesslich aus Flexbox/inset:0 kommen, nie aus einem JS-gesetzten Pixelwert, der bei
-  // Timing-Problemen vom tatsaechlichen Container-Layout abweichen kann). Deshalb hier die
-  // Bitmap-Aufloesung manuell setzen (identisch zu dem, was setSize() intern tut, s.
-  // node_modules/ogl/src/core/Renderer.js), aber ohne dessen style-Zeilen.
+  // OGL's own renderer.setSize() ALSO sets canvas.style.width/height as a side effect - exactly what we do
+  // not want here (see the Overlay2D.resize() comment in renderer.ts: the CSS box must come only from
+  // flexbox/inset:0, never from a pixel value set by JS that can differ from the actual container layout
+  // because of timing). So the bitmap resolution is set manually here (identical to what setSize() does
+  // internally, see node_modules/ogl/src/core/Renderer.js), but without its style lines.
   resize(width: number, height: number, dpr: number) {
     this.renderer.dpr = dpr
     this.renderer.width = width
@@ -269,10 +267,10 @@ export class OglRenderer {
     handle.glMesh.visible = visible
   }
 
-  /** Faerbt ein bereits erzeugtes Part (z.B. das Bodenraster) live um -- fuer Signalfarben, die
-   * sich pro Frame aendern koennen (s. roarm-3d-view.ts' Naeherungs-an-die-Bewegungsgrenze-Warnung),
-   * ohne die Geometrie neu aufzubauen. Funktioniert fuer jedes ueber createPart()/createLines()/
-   * createTexturedQuad() erzeugte Part, deren Programme alle eine "uColor"-Uniform haben. */
+  /* Recolours an already created part (e.g. the floor grid) live - for signal colours that can change per
+     frame (see the approaching-the-motion-limit warning in roarm-3d-view.ts), without rebuilding the
+     geometry. Works for every part created via createPart()/createLines()/createTexturedQuad(), whose
+     programs all have a "uColor" uniform. */
   setColor(handle: PartHandle, color: [number, number, number]) {
     const uColor = handle.glMesh.program.uniforms.uColor
     if (uColor) uColor.value = [color[0] / 255, color[1] / 255, color[2] / 255]

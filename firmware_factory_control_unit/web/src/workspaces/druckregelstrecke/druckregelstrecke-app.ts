@@ -139,10 +139,10 @@ export class DruckregelstreckeApp extends LitElement implements WorkspaceApp, Ws
 		chrBehavior: "fuehrung",
 	};
 
-	// --- Reglerbetrieb --- Default Kp/Tn/Tv aus der T-Summen-Regel (normale Einstellung, PID)
-	// mit den in docs/druckregelstrecke-modes.md genannten ERWARTETEN Streckenkennwerten
-	// (Tu≈3s, T≈10s) und Ks=1 als neutralem Platzhalter -- nur ein Startpunkt, gedacht zum
-	// Ueberschreiben, sobald eine echte Sprungantwort samt Ks gemessen und uebernommen wurde.
+	// --- Controller mode --- Default Kp/Tn/Tv from the T-sum rule (normal setting, PID) with the EXPECTED plant
+	// parameters named in docs/druckregelstrecke-modes.md (Tu≈3s, T≈10s) and Ks=1 as a neutral placeholder -
+	// only a starting point, meant to be overwritten as soon as a real step response including Ks has been
+	// measured and applied.
 	@state() private sollwertRaw = 2048;
 	@state() private reglerOn = false;
 	@state() private reglerSettings: ControllerSettings = { type: "PID", arbeitspunktPermille: 300, kp: 1, tnSec: 8.58, tvSec: 2.17 };
@@ -160,8 +160,8 @@ export class DruckregelstreckeApp extends LitElement implements WorkspaceApp, Ws
 		this.poller.stop();
 		this.unregisterWsListener?.();
 		this.unregisterWsListener = null;
-		// Sicherheitsabschaltung: ein laufender clientseitiger Regelkreis soll nicht unsichtbar
-		// weiterlaufen, nur weil die Seite gerade nicht angezeigt wird.
+		// Safety shutdown: a running client-side control loop must not keep running invisibly just because the page
+		// is not shown at the moment.
 		if (this.reglerOn) this.toggleRegler(false);
 	}
 
@@ -195,7 +195,7 @@ export class DruckregelstreckeApp extends LitElement implements WorkspaceApp, Ws
 		});
 	}
 
-	// WsProtocolListener fuer den pneumatics-Namespace -- nur zwischen onShow() und onHide() registriert.
+	// WsProtocolListener for the pneumatics namespace - registered only between onShow() and onHide().
 	onWsMessage(messageTypeId: number, view: DataView): void {
 		switch (messageTypeId) {
 			case pneumatics.PressureControlFeedback.TYPE_ID:
@@ -206,9 +206,9 @@ export class DruckregelstreckeApp extends LitElement implements WorkspaceApp, Ws
 		}
 	}
 
-	// Zentrale Senke fuer JEDEN eintreffenden pneumatics.PressureControlFeedback-Tick (500ms) --
-	// speist Trend-Ringpuffer, Kennlinien-Laufzeit-Maximum, Sprungantwort-Aufzeichnung und (via
-	// this.latestFeedback) den Reglerkreis, s. Dateikommentar.
+	// Central sink for EVERY incoming pneumatics.PressureControlFeedback tick (500ms) - feeds the trend ring
+	// buffer, the characteristic-curve running maximum, the step response recording and (via
+	// this.latestFeedback) the control loop, see the file comment.
 	private onPressureFeedback(payload: pneumatics.PressureControlFeedback.Payload): void {
 		this.latestFeedback = payload;
 		const now = Date.now();
@@ -305,14 +305,13 @@ export class DruckregelstreckeApp extends LitElement implements WorkspaceApp, Ws
 		this.sprungPhase = "stepped";
 	}
 
-	// Totzeit: erste merkliche Abweichung vom Vorher-Wert (Schwelle: 2% der Gesamtbewegung, min.
-	// 20 Counts Rauschmarge). Zeitkonstante: 63%-Zeit ABZUEGLICH der Totzeit -- gemessen ab dem
-	// Ende der Totzeit (Standardkonvention fuer die Zeitkonstante eines PT1-Glieds: bei einer
-	// reinen Exponentialantwort y(t)=K(1-e^(-t/T)) sind nach genau T 63,2% des Endwerts erreicht,
-	// t=0 ist hier der Moment, ab dem die Antwort ueberhaupt zu reagieren beginnt, also NACH der
-	// Totzeit). S. auch StepResponseParameters-Kommentar in druckregelstrecke-controller.ts fuer
-	// die daran anschliessende Annahme T≈Tg (Wendetangenten-Ausgleichszeit) fuer Chien-Hrones-
-	// Reswick.
+	// Dead time: first noticeable deviation from the value before the step (threshold: 2% of the total movement,
+	// at least 20 counts noise margin). Time constant: 63% time MINUS the dead time - measured from the end of
+	// the dead time (standard convention for the time constant of a PT1 element: for a pure exponential response
+	// y(t)=K(1-e^(-t/T)), 63.2% of the final value is reached after exactly T; t=0 is the moment the response
+	// starts to react at all, i.e. AFTER the dead time). See also the StepResponseParameters comment in
+	// druckregelstrecke-controller.ts for the subsequent assumption T≈Tg (inflection tangent balance time) for
+	// Chien-Hrones-Reswick.
 	private sprungEndAndAnalyze(): void {
 		void this.direct.write(COMPRESSOR_PWM_REG, 0);
 		const recording = this.sprungRecording;
@@ -347,8 +346,8 @@ export class DruckregelstreckeApp extends LitElement implements WorkspaceApp, Ws
 		if (!this.sprungResult) return;
 		const result = designController(this.sprungResult, this.designChoice);
 		if (!result) return;
-		// Auf sinnvolle Anzeigegenauigkeit runden -- result.kp/tnSec/tvSec sind sonst volle
-		// Fliesskomma-Praezision aus der Formel, was in den Zahlenfeldern nur unleserlich waere.
+		// Round to a sensible display precision - result.kp/tnSec/tvSec otherwise have the full floating point
+		// precision of the formula, which would only be unreadable in the number fields.
 		this.reglerSettings = {
 			type: this.designChoice.controllerType,
 			arbeitspunktPermille: this.reglerSettings.arbeitspunktPermille,

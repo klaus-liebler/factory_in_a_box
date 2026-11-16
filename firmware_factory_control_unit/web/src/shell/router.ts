@@ -1,8 +1,7 @@
-// Minimaler Pfad-Router fuer die Dashboard-Shell (app-shell.ts) -- inspiriert von RouterMenu aus
-// @klaus-liebler/web-components, aber ohne jede Websocket-Kopplung und ohne Regex-Parameter
-// (die drei Apps hier haben keine dynamischen URL-Segmente, ein exakter Pfadabgleich genuegt).
-// History-API (pushState/popstate) statt Hash-Routing, damit die URL in der Adresszeile wie eine
-// "richtige" Unterseite aussieht (z.B. "/power").
+// Minimal path router for the shell (app-shell.ts) - inspired by RouterMenu from
+// @klaus-liebler/web-components, but without any WebSocket coupling and without regex parameters (the
+// workspaces have no dynamic URL segments, an exact path match is enough). History API (pushState/popstate)
+// instead of hash routing, so that the URL in the address bar looks like a "real" sub-page (e.g. "/power").
 
 export interface RouteDef {
 	path: string;
@@ -24,8 +23,8 @@ export class Router extends EventTarget {
 		return window.location.pathname || "/";
 	}
 
-	// Faellt auf die erste Route zurueck, wenn der aktuelle Pfad keiner registrierten Route
-	// entspricht (z.B. Erststart, oder ein Lesezeichen auf einen inzwischen entfernten Pfad).
+	// Falls back to the first route if the current path matches no registered route (e.g. first start, or a
+	// bookmark to a path removed in the meantime).
 	MatchCurrent(): RouteDef {
 		const path = this.CurrentPath();
 		return this.routes.find((r) => r.path === path) ?? this.routes[0];

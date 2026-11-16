@@ -1,26 +1,24 @@
-// Clientseitiger P/PI/PID-Regler fuer den Reglerbetrieb-Modus der Druckregelstrecke (s.
-// docs/druckregelstrecke-modes.md) -- laeuft bewusst im Browser statt in der Firmware (die bleibt
-// ein reines Modbus-Register-Interface), getaktet mit fester Zykluszeit (500ms, s.
-// druckregelstrecke-app.ts). Reine Regel-Arithmetik ohne jegliche DOM-/Register-/WS-Kenntnis, um
-// sie unabhaengig von der App testen/nachvollziehen zu koennen.
+// Client-side P/PI/PID controller for the Reglerbetrieb mode of the Druckregelstrecke (see
+// docs/druckregelstrecke-modes.md) - deliberately runs in the browser instead of the firmware (which stays a
+// pure Modbus register interface), clocked with a fixed cycle time (500ms, see druckregelstrecke-app.ts).
+// Pure control arithmetic without any DOM/register/WS knowledge, so it can be tested and understood
+// independently of the app.
 //
-// Reglergleichung (ideale/nicht-interagierende Form, s. Kahlert/Bate "PID-Einstellregeln" S.4):
-//   u(t) = Arbeitspunkt + KP * (e(t) + 1/TN * Integral(e dt) + TV * de/dt)
-// Diskretisiert (Rechteck-Integration, Differenzenquotient fuer den D-Anteil) mit fester
-// Zykluszeit dt.
+// Controller equation (ideal/non-interacting form, see Kahlert/Bate "PID-Einstellregeln" p.4):
+// u(t) = operating point + KP * (e(t) + 1/TN * integral(e dt) + TV * de/dt)
+// Discretized (rectangle integration, difference quotient for the D part) with the fixed cycle time dt.
 //
-// Anti-Windup: "Begrenzung des Integrators auf 100%" (einzige vorerst unterstuetzte Variante,
-// s. docs/druckregelstrecke-modes.md) -- der I-Anteil wird als eigener Zustand GENAU in
-// Stellgroessen-Einheiten (Promille) gefuehrt und nach jedem Aufaddieren sofort auf den vollen
-// Stellgroessenbereich [0, 1000] geklemmt. Das ist die einfachste Form von Integrator-Clamping:
-// solange der Regler saettigt, waechst der I-Anteil nicht unbegrenzt weiter (klassisches
-// Wind-up), er bleibt aber sofort wieder nutzbar, sobald die Regelabweichung das Vorzeichen
-// wechselt -- kein Rueckrechnen/"Back-Calculation" noetig.
+// Anti-windup: "limit the integrator to 100%" (the only variant supported for now, see
+// docs/druckregelstrecke-modes.md) - the I part is kept as a state of its own EXACTLY in manipulated-variable
+// units (per mille) and clamped to the full output range [0, 1000] right after every addition. This is the
+// simplest form of integrator clamping: while the controller saturates, the I part does not keep growing
+// without bound (classic wind-up), but it is usable again immediately as soon as the control error changes
+// sign - no back-calculation needed.
 export type ControllerType = "P" | "PI" | "PID";
 
 export interface ControllerSettings {
 	type: ControllerType;
-	/** Grundleistung, die zum Reglerausgang addiert wird (0..1000 Promille). */
+	/* Base power added to the controller output (0..1000 per mille). */
 	arbeitspunktPermille: number;
 	kp: number;
 	tnSec: number;
@@ -40,17 +38,17 @@ export class PidController {
 		this.settings = settings;
 	}
 
-	/** Setzt den internen Regler-Zustand zurueck (I-Anteil, D-Vorwissen) -- beim Einschalten des
-	 * Reglers aufzurufen, damit ein waehrend "Regler aus" aufgelaufener alter Zustand nicht
-	 * sofort einen Sprung im Stellsignal verursacht. */
+	/* Resets the internal controller state (I part, D history) - to be called when the controller is switched
+	   on, so that old state accumulated while the controller was off does not immediately cause a jump in the
+	   output. */
 	reset(): void {
 		this.integralTermPermille = 0;
 		this.previousError = null;
 	}
 
-	/** Ein Regelzyklus. setpointRaw/processValueRaw in denselben Einheiten (PRESSURE_RAW-
-	 * Rohwerten), dtSec = tatsaechlich vergangene Zeit seit dem letzten Aufruf. Rueckgabe: neue
-	 * Kompressorleistung in Promille (0..1000, bereits geklemmt). */
+	/* One control cycle. setpointRaw/processValueRaw in the same units (PRESSURE_RAW raw values), dtSec = time
+	   actually elapsed since the last call. Returns the new compressor power in per mille (0..1000, already
+	   clamped). */
 	step(setpointRaw: number, processValueRaw: number, dtSec: number): number {
 		const { type, arbeitspunktPermille, kp, tnSec, tvSec } = this.settings;
 		const error = setpointRaw - processValueRaw;
@@ -85,12 +83,11 @@ export interface StepResponseParameters {
 	ks: number;
 	/** Totzeit Tu in Sekunden. */
 	tuSec: number;
-	/** Zeitkonstante T (63%-Zeit NACH Ablauf der Totzeit) in Sekunden -- s. Kommentar in
-	 * druckregelstrecke-app.ts zur Messkonvention. Fuer die Chien-Hrones-Reswick-Formeln (die
-	 * eigentlich die per Wendetangente ermittelte Ausgleichszeit Tg erwarten) wird hier bewusst
-	 * T als Naeherung fuer Tg verwendet -- fuer ein reines PT1+Totzeit-Streckenmodell (angenommen
-	 * fuer diesen Versuchsaufbau) sind beide Groessen identisch, s. Herleitung im Uebernehmen-
-	 * Handler von druckregelstrecke-app.ts. */
+	/* Time constant T (63% time AFTER the dead time) in seconds - see the comment in druckregelstrecke-app.ts on
+	   the measuring convention. For the Chien-Hrones-Reswick formulas (which actually expect the balance time Tg
+	   found with the inflection tangent) T is deliberately used as an approximation of Tg - for a pure PT1 +
+	   dead time plant model (assumed for this setup) both are identical, see the derivation in the apply handler
+	   of druckregelstrecke-app.ts. */
 	tSec: number;
 }
 
@@ -113,8 +110,8 @@ export interface DesignResult {
 	tvSec: number;
 }
 
-// T-Summen-Regel nach Kuhn (s. control-technology.de/ct/tsumreg.html) -- TSumme = Tu + T fuer ein
-// PT1+Totzeit-Modell (Summe aller Verzoegerungen inkl. Totzeit, s. Kommentar oben).
+// T-sum rule after Kuhn (see control-technology.de/ct/tsumreg.html) - TSum = Tu + T for a PT1 + dead time
+// model (sum of all delays including dead time, see the comment above).
 function designTSumme(params: StepResponseParameters, type: ControllerType, variant: TSummeVariant): DesignResult | null {
 	const tSumme = params.tuSec + params.tSec;
 	const ks = params.ks;
@@ -130,9 +127,9 @@ function designTSumme(params: StepResponseParameters, type: ControllerType, vari
 		: { kp: 2 / ks, tnSec: 0.8 * tSumme, tvSec: 0.194 * tSumme };
 }
 
-// Chien/Hrones/Reswick (s. Kahlert/Bate "PID-Einstellregeln", S.9) -- erwartet eigentlich Tu/Tg
-// aus dem Wendetangentenverfahren; Tg wird hier durch die gemessene Zeitkonstante T angenaehert
-// (s. StepResponseParameters-Kommentar).
+// Chien/Hrones/Reswick (see Kahlert/Bate "PID-Einstellregeln", p.9) - actually expects Tu/Tg from the
+// inflection tangent method; Tg is approximated here by the measured time constant T (see the
+// StepResponseParameters comment).
 function designChr(params: StepResponseParameters, type: ControllerType, overshoot: ChrOvershoot, behavior: ChrBehavior): DesignResult {
 	const { ks, tuSec: tu, tSec: tg } = params;
 	const ratio = tg / tu;

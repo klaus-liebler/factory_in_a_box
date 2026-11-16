@@ -3,18 +3,16 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { RegisterRegion, RegisterDef } from "../../../generated/register-map.ts";
 import "./register-panel.css";
 
-// Zeigt eine Register-Region (siehe register-map.ts) als Tabelle. reg.display ist die EINE
-// Darstellungsform fuers Lesen UND Schreiben:
-//   - "decimal" (Default): Zahl; Holding-Register bekommen ein generisches Zahlenfeld +
-//     Schreiben-Button.
-//   - "hex" / "binary": Zahl als 0x.../0b...-String (Lesen wie "decimal" geschrieben).
-//   - "bool": Wert als grau (0) / gruen (1) eingefaerbtes Badge -- bei Holding-Registern
-//     zusaetzlich ein Toggle-Switch zum Schreiben (Ersatz fuer den frueheren "toggle"-Control).
-//   - "range": Slider mit min/max (Ersatz fuer den frueheren "slider"-Control) -- nur bei
-//     Holding-Registern sinnvoll.
-// reg.combine fasst mehrere aufeinanderfolgende Register (ab reg.address, MSB zuerst) zu
-// einem gemeinsamen Anzeigewert zusammen (z.B. 6 Register -> eine Chip-ID als Hex-String).
-// Firmware-Zugriff macht app.ts (dieses Panel feuert nur ein "write-register"-Event nach oben).
+// Shows a register region (see register-map.ts) as a table. reg.display is the ONE representation for reading
+// AND writing:
+// - "decimal" (default): number; holding registers get a generic number field + write button.
+// - "hex" / "binary": number as a 0x.../0b... string (written like "decimal").
+// - "bool": value as a grey (0) / green (1) badge - holding registers additionally get a toggle switch for
+// writing.
+// - "range": slider with min/max - only sensible for holding registers.
+// reg.combine joins several consecutive registers (from reg.address, MSB first) into one display value (e.g.
+// 6 registers -> one chip ID as a hex string). The app does the firmware access (this panel only fires a
+// "write-register" event upwards).
 @customElement("register-panel")
 export class RegisterPanel extends LitElement {
 	protected createRenderRoot() {
@@ -31,9 +29,9 @@ export class RegisterPanel extends LitElement {
 	@state() private pendingEdits: Record<number, string> = {};
 	@state() private sliderPreview: Record<number, number> = {};
 
-	// Liest "count" (Standard: 1, oder reg.combine.count) aufeinanderfolgende Rohwerte ab
-	// reg.address aus der passenden Bank -- Rueckgabe kann kuerzer als erwartet sein, solange
-	// die Werte noch nicht (vollstaendig) vom ersten Poll geladen wurden.
+	// Reads "count" (default: 1, or reg.combine.count) consecutive raw values from reg.address of the matching
+	// bank - the result can be shorter than expected while the first poll has not loaded the values (completely)
+	// yet.
 	private rawValuesFor(reg: RegisterDef): number[] {
 		const source = reg.bank === "holding" ? this.holdingValues : this.inputValues;
 		const count = reg.combine?.count ?? 1;
@@ -46,13 +44,11 @@ export class RegisterPanel extends LitElement {
 		return values;
 	}
 
-	// MSB-zuerst zu einer Dezimalzahl kombiniert -- fuer bis zu 3 Register (48 Bit) noch exakt
-	// in einer JS-Number darstellbar (Number.MAX_SAFE_INTEGER = 2^53-1); fuer die 6-Register-
-	// Chip-ID wird stattdessen "hex" verwendet (s. formatValue), das kombiniert stattdessen
-	// pro Register einzeln zu Hex-Nibbles statt rechnerisch, keine Praezisionsgrenze.
-	// signed interpretiert das Ergebnis als Zweierkomplement (nur fuer den 32-Bit/2-Register-
-	// Fall relevant, z.B. SCALE_A_WEIGHT) -- bei mehr als 2 Registern bliebe das Vorzeichenbit
-	// mehrdeutig, daher dort ignoriert.
+	// Combined MSB first into a decimal number - exact in a JS number for up to 3 registers (48 bits)
+	// (Number.MAX_SAFE_INTEGER = 2^53-1); the 6-register chip ID uses "hex" instead (see formatValue), which
+	// combines per register into hex nibbles instead of arithmetically, without a precision limit. signed
+	// interprets the result as two's complement (only relevant for the 32-bit/2-register case, e.g.
+	// SCALE_A_WEIGHT) - with more than 2 registers the sign bit would be ambiguous, so it is ignored there.
 	private combineDecimal(raws: number[], signed: boolean | undefined): number {
 		const unsigned = raws.reduce((acc, v) => acc * 65536 + v, 0);
 		if (signed && raws.length === 2 && unsigned > 0x7fffffff) {
@@ -84,9 +80,8 @@ export class RegisterPanel extends LitElement {
 	}
 
 	private handleSliderInput(address: number, ev: Event) {
-		// Nur die Live-Anzeige aktualisieren, waehrend gezogen wird -- geschrieben wird erst
-		// bei "change" (Loslassen), um den kleinen Server-Paket-Pool nicht mit einem Request
-		// pro Pixel Mausbewegung zu fluten.
+		// While dragging, only update the live display - the write happens on "change" (release), so that the small
+		// server packet pool is not flooded with one request per pixel of mouse movement.
 		this.sliderPreview = { ...this.sliderPreview, [address]: Number((ev.target as HTMLInputElement).value) };
 	}
 
@@ -120,9 +115,8 @@ export class RegisterPanel extends LitElement {
 			return html`<span class="bool-badge ${on ? onClass : "bool-badge-off"}">${raws.length ? (on ? 1 : 0) : "–"}</span>`;
 		}
 		if (reg.display === "status") {
-			// Fehlercode-Konvention: 0 = ok (grau), ungleich 0 = Fehler (rot) -- zeigt den
-			// tatsaechlichen Wert an, nicht nur ein 0/1-Badge, falls kuenftig mehrere
-			// unterschiedliche Fehlercodes vorkommen.
+			// Error code convention: 0 = ok (grey), non-zero = error (red) - shows the actual value, not just a 0/1
+			// badge, in case several different error codes appear in the future.
 			const value = raws[0] ?? 0;
 			const ok = value === 0;
 			return html`<span class="bool-badge ${ok ? "bool-badge-off" : "bool-badge-error"}">${raws.length ? value : "–"}</span>`;
@@ -132,7 +126,7 @@ export class RegisterPanel extends LitElement {
 
 	private renderControl(reg: RegisterDef, value: number | undefined) {
 		if (reg.bank !== "holding") {
-			// Input-Register sind reine Hardware-Anzeige, nie schreibbar.
+			// Input registers only show hardware state, never writable.
 			return null;
 		}
 		if (this.iecControlled && reg.kind !== "parameter") {

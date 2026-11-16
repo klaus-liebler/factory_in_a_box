@@ -80,9 +80,8 @@ export const VACUUM_CUP_TIP_OFFSET_M = STEM_LEN_M + CUP_LEN_M
  * extending along the tool frame's local +Z. Tip sits at local Z =
  * VACUUM_CUP_TIP_OFFSET_M -- keep in sync with that constant if these radii/lengths change.
  */
-// Der Sauger transportiert 2,5cm-Holzwuerfel -- vor allem hilfreich, um den Effekt von "Roll"
-// ueberhaupt sehen zu koennen (der Sauger selbst ist rotationssymmetrisch um seine eigene Achse,
-// ein Wuerfel am Kopf macht die Drehung sichtbar).
+// The suction cup carries 2.5cm wooden cubes - mainly useful to make the effect of "roll" visible at all (the
+// cup itself is rotationally symmetric about its own axis, a cube at the head makes the rotation visible).
 export const TRANSPORTED_CUBE_SIZE_M = 0.025
 
 export function makeVacuumCup(): Mesh {

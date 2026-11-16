@@ -1,12 +1,11 @@
-// Geschlossene IK/FK fuer den RoArm-M3 -- 1:1 Portierung der Trigonometrie aus Waveshares
-// Referenzfirmware (RoArm-M3_example/RoArm-M3_config.h + RoArm-M3_module.h,
-// RoArmM3_computePosbyJointRad()/RoArmM3_baseCoordinateCtrl()/simpleLinkageIkRad()), NICHT neu
-// hergeleitet. Muss inhaltlich synchron bleiben mit der C++-Portierung
-// (src/roarm/kinematics.hpp) -- beide Seiten kennen
-// bislang nur die Linklaengen aus der Referenz, nicht gegen die reale Hardware verifiziert.
+// Closed-form IK/FK for the RoArm-M3 - a 1:1 port of the trigonometry of Waveshare's reference firmware
+// (RoArm-M3_example/RoArm-M3_config.h + RoArm-M3_module.h,
+// RoArmM3_computePosbyJointRad()/RoArmM3_baseCoordinateCtrl()/simpleLinkageIkRad()), NOT derived anew. Must
+// stay in sync in content with the C++ port (src/roarm/kinematics.hpp) - both sides so far only know the link
+// lengths of the reference, not verified against the real hardware.
 //
-// Joint-Reihenfolge (6 DOF, wie im Wire-Format jointAnglesCentiDeg[6]):
-//   0 Base (Yaw) | 1 Shoulder (Pitch) | 2 Elbow (Pitch) | 3 Wrist (Pitch) | 4 Roll | 5 Gripper
+// Joint order (6 DOF, as in the wire format jointAnglesCentiDeg[6]):
+// 0 Base (yaw) | 1 Shoulder (pitch) | 2 Elbow (pitch) | 3 Wrist (pitch) | 4 Roll | 5 Gripper
 
 export const JOINT_COUNT = 6;
 export const enum JointIndex {
@@ -32,15 +31,15 @@ const L3 = Math.hypot(L3A, L3B);
 const T3RAD = Math.atan2(L3B, L3A);
 const L4A = 171.67;
 const L4B = 13.69;
-const LEA = L4A; // EoAT_A (Werkzeug-Offset) ist in der Referenz 0
+const LEA = L4A; // EoAT_A (tool offset) is 0 in the reference
 const LEB = L4B;
 const LE = Math.hypot(LEA, LEB);
 const TERAD = Math.atan2(LEB, LEA);
 
-/// Gelenkgrenzen, auf die die Firmware jedes Jog-Ziel klemmt -- 1:1 Spiegel von kin::limits
-/// in src/roarm/kinematics.hpp (Begruendung der Werte dort), MUSS mit ihr
-/// uebereinstimmen. Die Gizmo-IK (roarm3d/ik.ts) schneidet ihre URDF-Grenzen hiermit, damit sie
-/// nie eine Pose anbietet, die die Firmware anschliessend wegklemmt.
+// Joint limits the firmware clamps every jog target to - a 1:1 mirror of kin::limits in
+// src/roarm/kinematics.hpp (the reasons for the values are there), MUST match it. The gizmo IK
+// (roarm3d/ik.ts) intersects its URDF limits with these, so that it never offers a pose the firmware clamps
+// away afterwards.
 export const JOINT_LIMITS_RAD: ReadonlyArray<readonly [number, number]> = [
 	[-Math.PI, Math.PI], // Base
 	[-Math.PI / 2, Math.PI / 2], // Shoulder
@@ -94,7 +93,7 @@ export function forwardKinematics(jointsRad: readonly number[]): CartesianPose {
 	};
 }
 
-/// Port von rotatePoint()/movePoint() (RoArm-M3_module.h) -- Hilfsfunktionen fuer die IK.
+// Port of rotatePoint()/movePoint() (RoArm-M3_module.h) - helper functions for the IK.
 function rotatePoint(theta: number): [number, number] {
 	const alpha = TERAD + theta;
 	return [-LE * Math.cos(alpha), -LE * Math.sin(alpha)];
@@ -107,9 +106,9 @@ function movePoint(xA: number, yA: number, s: number): [number, number] {
 	return [xA * ratio, yA * ratio];
 }
 
-/// Port von simpleLinkageIkRad(): 2-Link-Ebenen-IK fuer Schulter/Ellbogen. Gibt NaN zurueck
-/// (isReachable=false), wenn die Zielposition ausserhalb der Armreichweite liegt (acos-Argument
-/// ausserhalb [-1,1]) -- entspricht der Referenz' "nanIK"-Flag.
+// Port of simpleLinkageIkRad(): 2-link planar IK for shoulder/elbow. Returns NaN (isReachable=false) if the
+// target position is outside the arm's reach (acos argument outside [-1,1]) - corresponds to the "nanIK" flag
+// of the reference.
 function simpleLinkageIkRad(aIn: number, bIn: number): { shoulderRad: number; elbowRad: number; gripperOffsetRad: number } {
 	let psi: number;
 	let alpha: number;
@@ -135,8 +134,8 @@ function simpleLinkageIkRad(aIn: number, bIn: number): { shoulderRad: number; el
 	return { shoulderRad: alpha, elbowRad: beta, gripperOffsetRad: delta };
 }
 
-/// Port von RoArmM3_baseCoordinateCtrl(): kartesische Pose (mm/rad) -> Gelenkwinkel (rad).
-/// isReachable=false, falls die Pose ausserhalb der Armreichweite liegt (entspricht "nanIK").
+// Port of RoArmM3_baseCoordinateCtrl(): cartesian pose (mm/rad) -> joint angles (rad). isReachable=false if
+// the pose is outside the arm's reach (corresponds to "nanIK").
 export function inverseKinematics(pose: CartesianPose): { jointsRad: number[]; isReachable: boolean } {
 	const [deltaX, deltaY] = rotatePoint(pose.pitchRad - Math.PI);
 	const [betaX, betaY] = movePoint(pose.xMm, pose.yMm, deltaX);

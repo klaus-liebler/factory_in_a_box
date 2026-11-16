@@ -1,47 +1,41 @@
-// Bidirektionale binaere WebSocket-Verbindung zum Server (s. docs/websocket-protocol.md,
-// rtoos rtos/net/https_server.hpp) -- mittelfristig der einzige Kanal fuer laufenden
-// Datenaustausch zwischen Browser und Firmware; HTTP GET dient nur noch dem einmaligen Laden
-// dieser Seite. Jede Binaerframe traegt genau eine Nachricht mit 4-Byte-Kopf
-// (namespaceId/messageTypeId, s. ws-protocol/*.json); decode() der generierten Typen aus
-// web/generated/ws-protocol.ts erwartet den KOMPLETTEN Frame inkl. Kopf plus offset=0.
+// Bidirectional binary WebSocket connection to the server (see docs/websocket-protocol.md, rtoos
+// rtos/net/https_server.hpp) - the only channel for ongoing data exchange between browser and firmware; HTTP
+// GET only loads this page once. Every binary frame carries exactly one message with a 4-byte header
+// (namespaceId/messageTypeId, see ws-protocol/*.json); decode() of the generated types in
+// web/generated/ws-protocol.ts expects the COMPLETE frame including the header plus offset=0.
 //
-// Dieses Modul ist reiner, App-neutraler Transport -- es kennt keinen einzigen konkreten
-// Nachrichtentyp:
-// - Eingehende Nachrichten werden ausschliesslich anhand ihrer namespaceId an den EINEN dafuer
-//   registrierten WsProtocolListener weitergereicht (registerWsProtocolListener()). Decodieren,
-//   Verteilen innerhalb der App und Behandeln unbekannter messageTypeIds ist Sache der App, die
-//   den Namespace besitzt (z.B. roarm -> WsRoArmBackend, tasks -> task-manager-app.ts).
-// - Request/Response (wsRequest()): das generierte Payload jeder Request- und Response-Nachricht
-//   traegt als ERSTES Feld requestId (uint16, direkt hinter dem 4-Byte-Kopf). Die Zuordnung einer
-//   Antwort zum wartenden Promise braucht daher nur requestId plus die vom Aufrufer genannte
-//   erwartete (namespaceId, TYPE_ID) -- Antworten auf laufende wsRequest()-Aufrufe erreichen den
-//   Namespace-Listener nicht.
-// - Fire-and-forget (Events wie roarm.JointJogTarget, Polls wie tasks.TaskManagerRequest):
-//   sendBinary().
+// This module is pure, app-neutral transport - it knows no concrete message type:
+// - Incoming messages are passed on by their namespaceId only, to the ONE WsProtocolListener registered for
+// it (registerWsProtocolListener()). Decoding, dispatching within the app and handling unknown messageTypeIds
+// is the job of the app that owns the namespace (e.g. roarm -> WsRoArmBackend, tasks -> task-manager-app.ts).
+// - Request/response (wsRequest()): the generated payload of every request and response message carries
+// requestId (uint16, right after the 4-byte header) as its FIRST field. Matching a response to the waiting
+// promise therefore needs only requestId plus the expected (namespaceId, TYPE_ID) given by the caller -
+// responses to pending wsRequest() calls do not reach the namespace listener.
+// - Fire-and-forget (events such as roarm.JointJogTarget, polls such as tasks.TaskManagerRequest):
+// sendBinary().
 
-// Reconnect-Backoff bewusst simpel/fest (kein exponentielles Backoff): das Board ist im
-// bestimmungsgemaessen Betrieb dauerhaft im selben Netz erreichbar, ein kurzer fester Abstand
-// haelt die Verbindung nach einem Boot/Reset/Netzwechsel zuegig wieder her, ohne bei einem
-// tatsaechlich dauerhaft nicht erreichbaren Board die Konsole mit Reconnect-Versuchen zu fluten.
+// Reconnect backoff deliberately simple and fixed (no exponential backoff): in normal operation the board is
+// permanently reachable in the same network; a short fixed interval restores the connection quickly after a
+// boot/reset/network change without flooding the console with reconnect attempts when the board really is
+// unreachable for good.
 const RECONNECT_DELAY_MS = 2000;
 const REQUEST_TIMEOUT_MS = 3000;
-// Wie lange wsRequest() auf eine (noch) nicht offene Verbindung wartet, bevor es aufgibt. Der
-// WebSocket-Aufbau kostet einen kompletten TLS-Handshake (RSA-2048-Signatur in Software, keine
-// PKA auf dem H563) -- direkt nach dem Seitenladen fragen Screens (z.B. system-info-app.ts in
-// onShow()) schon an, bevor der Socket offen ist; ein sofortiges "nicht verbunden" liess diese
-// erste Anfrage ohne jede Wiederholung scheitern.
+// How long wsRequest() waits for a connection that is not open (yet) before giving up. Opening the WebSocket
+// costs a complete TLS handshake (RSA-2048 signature in software, no PKA on the H563) - right after the page
+// loads, screens (e.g. the system workspace in onShow()) already ask before the socket is open; failing
+// immediately with "not connected" made that first request fail without any retry.
 const CONNECT_WAIT_TIMEOUT_MS = 10000;
 
-/** Von einer App fuer IHREN Namespace implementiert (s. registerWsProtocolListener()). */
+/** Implemented by an app for ITS namespace (see registerWsProtocolListener()). */
 export interface WsProtocolListener {
-	/** Jede eingehende Nachricht des registrierten Namespaces, ausser Antworten auf laufende
-	 * wsRequest()-Aufrufe. 'view' umfasst den kompletten Frame inkl. 4-Byte-Kopf (direkt an das
-	 * generierte decode(view, 0) weiterreichbar). */
+	/* Every incoming message of the registered namespace, except responses to pending wsRequest() calls. 'view'
+	   covers the complete frame including the 4-byte header (can be passed directly to the generated
+	   decode(view, 0)). */
 	onWsMessage(messageTypeId: number, view: DataView): void;
 }
 
-/** Generierte Response-Nachricht (z.B. system.SystemInfoMessage) -- nur die fuer wsRequest()
- * noetigen Teile. */
+/* Generated response message (e.g. system.SystemInfoMessage) - only the parts wsRequest() needs. */
 export interface WsResponseType<TPayload> {
 	readonly TYPE_ID: number;
 	decode(view: DataView, offset: number): TPayload;
@@ -76,7 +70,7 @@ export function onWsStateChange(listener: () => void): () => void {
 	stateListeners.add(listener);
 	return () => stateListeners.delete(listener);
 }
-// Auf das naechste "open" wartende wsRequest()-Aufrufe (s. waitForOpen()).
+// wsRequest() calls waiting for the next "open" (see waitForOpen()).
 let openWaiters: Array<() => void> = [];
 const listeners = new Map<number, WsProtocolListener>(); // key = namespaceId
 const pendingRequests = new Map<
@@ -88,9 +82,9 @@ function isOpen(): boolean {
 	return socket !== null && socket.readyState === WebSocket.OPEN;
 }
 
-/** Registriert den einzigen Abnehmer fuer alle Nachrichten eines Namespaces. Rueckgabewert meldet
- * ihn wieder ab. Eine zweite Registrierung fuer denselben Namespace ist ein Programmierfehler
- * (wirft), damit nicht stillschweigend eine App einer anderen die Nachrichten wegnimmt. */
+/* Registers the only consumer of all messages of a namespace. The return value unregisters it. A second
+   registration for the same namespace is a programming error (throws), so that one app cannot silently take
+   the messages away from another. */
 export function registerWsProtocolListener(namespaceId: number, listener: WsProtocolListener): () => void {
 	if (listeners.has(namespaceId)) {
 		throw new Error(`WebSocket: fuer namespaceId=${namespaceId} ist bereits ein Listener registriert`);
@@ -101,9 +95,8 @@ export function registerWsProtocolListener(namespaceId: number, listener: WsProt
 	};
 }
 
-/** Feuert-und-vergisst -- kein Queueing bei fehlender Verbindung (bewusst): Polls und Jog-Events
- * kommen ohnehin in Kuerze erneut, ein einzelner verlorener Frame ist unkritisch. Liefert, ob
- * gesendet wurde. */
+/* Fire-and-forget - deliberately no queueing while disconnected: polls and jog events come again shortly
+   anyway, a single lost frame does no harm. Returns whether the frame was sent. */
 export function sendBinary(bytes: Uint8Array): boolean {
 	if (!isOpen()) return false;
 	socket!.send(bytes);
@@ -114,8 +107,8 @@ function hexDump(data: ArrayBuffer): string {
 	return Array.from(new Uint8Array(data), (b) => b.toString(16).padStart(2, "0")).join(" ");
 }
 
-// requestId liegt bei JEDER Response an derselben Stelle (erstes Feld nach dem 4-Byte-Kopf, s.
-// Dateikommentar). true = Nachricht war die erwartete Antwort und ist damit verbraucht.
+// requestId is at the same place in EVERY response (first field after the 4-byte header, see the file
+// comment). true = the message was the expected response and is consumed.
 function tryResolvePendingRequest(view: DataView, namespaceId: number, messageTypeId: number): boolean {
 	if (view.byteLength < 6) return false;
 	const requestId = view.getUint16(4, true);
@@ -140,9 +133,9 @@ function handleMessage(data: ArrayBuffer): void {
 
 	const listener = listeners.get(namespaceId);
 	if (!listener) {
-		// Kein Abnehmer -- z.B. ein Namespace, dessen App gerade nicht angezeigt wird, oder eine
-		// neuere Firmware mit einem dieser Web-UI unbekannten Namespace. Nur geloggt, damit ein
-		// einzelner unerwarteter Frame nicht die ganze Verbindung stoert.
+		// No consumer - e.g. a namespace whose app is not shown at the moment, or a newer firmware with a namespace
+		// this web UI does not know. Only logged, so that a single unexpected frame does not disturb the whole
+		// connection.
 		console.debug(`WebSocket: kein Listener fuer namespaceId=${namespaceId} (messageTypeId=${messageTypeId})`);
 		return;
 	}
@@ -216,10 +209,10 @@ function waitForOpen(timeoutMs: number): Promise<void> {
 	});
 }
 
-/** Request/Response mit generischer requestId-Zuordnung (s. Dateikommentar). 'encode' bekommt die
- * zu verwendende requestId (in das Payload-Objekt einzusetzen) und muss die fertigen Frame-Bytes
- * zurueckgeben; 'response' ist der generierte Antworttyp im Namespace 'namespaceId'. Wartet bei
- * noch nicht offener Verbindung bis zu CONNECT_WAIT_TIMEOUT_MS auf das Oeffnen. */
+/* Request/response with generic requestId matching (see the file comment). 'encode' gets the requestId to use
+   (to be put into the payload object) and must return the finished frame bytes; 'response' is the generated
+   response type in namespace 'namespaceId'. If the connection is not open yet, waits up to
+   CONNECT_WAIT_TIMEOUT_MS for it to open. */
 export async function wsRequest<TPayload>(
 	namespaceId: number,
 	encode: (requestId: number) => Uint8Array,

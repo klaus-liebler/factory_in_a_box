@@ -1,28 +1,23 @@
-// Inline-SVG-Prinzipschaltbild einer pneumatischen Druckregelstrecke (Kompressor -> Druckspeicher
-// mit Manometer -> Sammelleitung -> 3x Ventil -> Verbraucher/Schalldaempfer), gezeichnet mit an
-// ISO 1219 angelehnten Symbolen (Kreis+Dreieck fuer den Kompressor, Kapsel fuer den
-// Druckspeicher, Kreis mit Zeiger fuer das Manometer, 2/2-Wege-Sitzventil mit Elektromagnet+Feder
-// fuer die Auf/Zu-Ventile, Trichter+Lamellen fuer einen Schalldaempfer/Verbraucherausgang). Analog
-// zu roarm-3d-view.ts: dieses Modul kennt nur Geometrie/Zustand-zu-Darstellung, keine Modbus-/
-// Register-Details -- das Verdrahten gegen echte Werte macht der Aufrufer
-// (druckregelstrecke-app.ts).
+// Inline SVG schematic of a pneumatic pressure control plant (compressor -> pressure vessel with manometer ->
+// manifold -> 3x valve -> consumer/silencer), drawn with symbols based on ISO 1219 (circle + triangle for the
+// compressor, capsule for the pressure vessel, circle with pointer for the manometer, 2/2-way poppet valve
+// with solenoid + spring for the open/close valves, funnel + fins for a silencer/consumer outlet). Like
+// roarm-3d-view.ts this module only knows geometry and state-to-display, no Modbus/register details - the
+// caller (druckregelstrecke-app.ts) wires it to real values.
 //
-// Bewusst ein statisches SVG-Markup (Template-String, einmalig per innerHTML gesetzt) statt
-// Element-fuer-Element per createElementNS wie bei der WebGL-Szene in roarm-3d-view.ts -- SVG-DOM
-// ist deutlich weniger Code pro Symbol, und alles hier ist ohnehin flach (keine Transform-
-// Hierarchie/Vererbung noetig). setState() aktualisiert danach nur noch die paar dynamischen
-// Attribute (Zeiger-Rotation, Schieber-Verschiebung, Text) ueber querySelector(). Die Kompressor-
-// Bedienung (Ein/Aus-Schalter + Leistungsregler) sitzt als <foreignObject> mit echten HTML-
-// Formularelementen direkt im Bedientableau-Symbol -- damit ist die Steuerung, wie gefordert,
-// "inline" in der Grafik statt in einem separaten HTML-Panel daneben (s. druckregelstrecke-app.ts,
-// das dafuer keinen eigenen Kompressor-/Ventil-Regelbereich mehr rendert).
+// Deliberately static SVG markup (template string, set once via innerHTML) instead of element by element via
+// createElementNS as in the WebGL scene of roarm-3d-view.ts - SVG DOM is much less code per symbol, and
+// everything here is flat anyway (no transform hierarchy needed). setState() afterwards only updates the few
+// dynamic attributes (pointer rotation, spool displacement, text) via querySelector(). The compressor
+// controls (on/off switch + power slider) sit as a <foreignObject> with real HTML form elements directly in
+// the control panel symbol - so the controls are "inline" in the drawing as required, not in a separate HTML
+// panel next to it (druckregelstrecke-app.ts therefore renders no compressor/valve control area of its own).
 export type ValveIndex = 0 | 1 | 2;
 
 export interface DruckregelstreckeState {
-	/** Rohwert des analogen Drucksensors (ADC1 CH10, 12 Bit) -- s. PRESSURE_RAW-Register,
-	 * physikalische Skalierung ist in der Firmware noch offen (s. src/io.cpp, inputs()),
-	 * daher hier bewusst nur als Rohwert/Prozent vom Vollausschlag dargestellt, keine erfundene
-	 * bar-Kalibrierung. */
+	/* Raw value of the analog pressure sensor (ADC1 CH10, 12 bit) - see the PRESSURE_RAW register; the physical
+	   scaling is still open in the firmware (see src/io.cpp, inputs()), so it is deliberately shown only as raw
+	   value/percent of full scale, no invented bar calibration. */
 	pressureRaw: number;
 	valveOpen: readonly [boolean, boolean, boolean];
 	/** COMPRESSOR_PWM-Register, 0..1000 Promille -- 0 = aus. */
@@ -31,11 +26,11 @@ export interface DruckregelstreckeState {
 
 export interface DruckregelstreckeCallbacks {
 	onValveClick?(index: ValveIndex): void;
-	/** Bedientableau-Kippschalter -- welchen Wert "an" bedeuten soll (0 vs. letzte Leistung),
-	 * entscheidet der Aufrufer (kennt die zuletzt geschriebene Leistung). */
+	/* Control panel toggle switch - the caller decides which value "on" means (0 vs. last power), since it knows
+	   the last power written. */
 	onCompressorToggle?(): void;
-	/** Leistungsregler-Schieberegler, gemeldet erst bei "change" (Loslassen), s. Kommentar an der
-	 * Registrierung weiter unten -- analog zum sliderPreview-Muster in register-panel.ts. */
+	/* Power slider, reported only on "change" (release), see the comment at the registration further down - like
+	   the sliderPreview pattern in register-panel.ts. */
 	onCompressorPowerChange?(promille: number): void;
 }
 
@@ -62,8 +57,8 @@ const COLOR_IDLE = "#94a3b8";
 const COLOR_INK = "#334155";
 const COLOR_PIPE = "#475569";
 
-// Zeigerausschlag eines klassischen Manometers: -120..+120 Grad um die 12-Uhr-Stellung, 240 Grad
-// Gesamtskala (5 Teilstriche bei 0/25/50/75/100%).
+// Pointer deflection of a classic manometer: -120..+120 degrees around the 12 o'clock position, 240 degrees
+// total scale (5 ticks at 0/25/50/75/100%).
 const GAUGE_MIN_DEG = -120;
 const GAUGE_MAX_DEG = 120;
 const GAUGE_CX = 285;
@@ -94,18 +89,16 @@ function gaugeTicksMarkup(): string {
 	}).join("\n");
 }
 
-// 2/2-Wege-Sitzventil, elektromagnetisch betaetigt, in Ruhestellung gesperrt (NC) -- DIN-ISO-1219-
-// Symbolik: zwei quadratische Schaltstellungsfelder (Feder-/Ruhestellung = gesperrt, Magnet-/
-// Arbeitsstellung = Durchgang), von denen wegen der festen Leitungsanschluesse immer nur EINES
-// im "Sichtfenster" zwischen den Leitungsstutzen liegt -- genau wie beim echten Schieberventil,
-// bei dem der Schieber innerhalb des ortsfesten Gehaeuses verschoben wird. Die Klick-Animation
-// verschiebt daher exakt dieses Schieber-Element (s. ".valve-spool"-Transform in setState()),
-// statt nur eine Fuellfarbe umzuschalten -- sichtbar auch die tatsaechliche "Verschiebung".
-// Feder sitzt links (drueckt den Schieber in Ruhestellung = Fenster zeigt "gesperrt"), Magnet
-// rechts (zieht/drueckt den Schieber bei Erregung um einen Fensterschritt nach links, das
-// Durchgangsfeld ruetscht ins Fenster). Name- und Zustandsbeschriftung sitzen bewusst seitlich
-// AUSSERHALB von Rohr, Fenster und Aktorsymbolen (statt darueber/darunter wie zuvor), damit sie
-// nicht mehr von der Sammelleitung/Zweigleitung ueberdeckt werden.
+// 2/2-way poppet valve, solenoid operated, closed at rest (NC) - DIN ISO 1219 symbols: two square switching
+// position fields (spring/rest position = closed, solenoid/working position = open), of which, because of the
+// fixed line connections, only ONE is ever in the "window" between the line stubs - just like a real spool
+// valve whose spool moves inside the fixed housing. The click animation therefore moves exactly this spool
+// element (see the ".valve-spool" transform in setState()) instead of only switching a fill color - the
+// actual "displacement" is visible too. The spring is on the left (pushes the spool into the rest position =
+// window shows "closed"), the solenoid on the right (moves the spool one window step to the left when
+// energized, the open field slides into the window). Name and state labels deliberately sit to the side,
+// OUTSIDE pipe, window and actuator symbols (instead of above/below as before), so that the manifold/branch
+// line no longer covers them.
 function valveMarkup(index: ValveIndex, x: number): string {
 	const windowLeft = x - WINDOW_HALF;
 	const windowTop = VALVE_MID_Y - WINDOW_HALF;
@@ -114,8 +107,8 @@ function valveMarkup(index: ValveIndex, x: number): string {
 	const solenoidLeft = x + WINDOW_HALF;
 	const actuatorTop = VALVE_MID_Y - ACTUATOR_SIZE / 2;
 
-	// Gesperrtes Feld: zwei Leitungsstummel, die in der Mitte NICHT zusammentreffen, mit
-	// quer stehendem Abschluss-Strich (T-Form) -- das uebliche Symbol fuer einen blockierten Weg.
+	// Closed field: two line stubs that do NOT meet in the middle, with a crossbar at their ends (T shape) - the
+	// usual symbol for a blocked path.
 	const blockedField = `
 		<rect x="${windowLeft}" y="${windowTop}" width="${WINDOW_SHIFT}" height="${WINDOW_SHIFT}" fill="#f8fafc" stroke="${COLOR_INK}" stroke-width="2" />
 		<line x1="${x}" y1="${windowTop}" x2="${x}" y2="${windowTop + 9}" stroke="${COLOR_VALVE_CLOSED}" stroke-width="2.5" />
@@ -160,9 +153,9 @@ function valveMarkup(index: ValveIndex, x: number): string {
 		</g>`;
 }
 
-// Verbraucher-/Schalldaempfer-Symbol: Trichter (Spitze am Rohr) mit Lamellen an der offenen Seite
-// -- Standardsymbol fuer eine Entlueftung/Drossel ins Freie, passend zu einem Regelstrecken-
-// Versuchsaufbau, bei dem die "Verbraucher" schlicht einstellbare Ausbläser/Stoerungen sind.
+// Consumer/silencer symbol: funnel (tip at the pipe) with fins at the open side - standard symbol for
+// venting/throttling to atmosphere, fitting a control plant setup whose "consumers" are simply adjustable
+// blow-offs/disturbances.
 function consumerMarkup(index: ValveIndex, x: number): string {
 	const halfW = 20;
 	return `
@@ -176,11 +169,11 @@ function consumerMarkup(index: ValveIndex, x: number): string {
 		</g>`;
 }
 
-// Bedientableau: Kontroll-Lampe (rein informativ) + eingebettetes HTML-Formular (Kippschalter +
-// Leistungsregler) via <foreignObject> -- damit ist die Kompressor-Steuerung Teil der Grafik
-// selbst statt eines separaten Bedienfelds neben ihr. Wiederverwendet die globalen
-// .toggle-switch/.panel-slider-Klassen aus ui/components.css, die dank Light-DOM (kein Shadow Root, s.
-// createRenderRoot() in den *-app.ts-Dateien) auch innerhalb des foreignObject greifen.
+// Control panel: indicator lamp (information only) + embedded HTML form (toggle switch + power slider) via
+// <foreignObject> - so the compressor controls are part of the drawing itself instead of a separate panel
+// next to it. Reuses the global .toggle-switch/.panel-slider classes from ui/components.css, which apply
+// inside the foreignObject too thanks to light DOM (no shadow root, see createRenderRoot() in the *-app.ts
+// files).
 function panelMarkup(compressorCx: number): string {
 	const panelX = compressorCx - 85;
 	const panelY = 16;
@@ -319,11 +312,10 @@ export function createDruckregelstreckeView(container: HTMLElement, callbacks: D
 
 	on(compressorToggle, "change", () => callbacks.onCompressorToggle?.());
 
-	// Waehrend gezogen wird nur die lokale Anzeige aktualisieren (kein Register-Schreiben pro
-	// Pixel Mausbewegung); "sliderDragging" verhindert ausserdem, dass der naechste Poll-Tick
-	// (s. druckregelstrecke-app.ts, setState() alle ~1s) den Regler waehrend des Ziehens wieder
-	// auf den zuletzt bestaetigten Server-Wert zurueckspringen laesst -- analog zum
-	// sliderPreview-Muster in register-panel.ts, hier nur lokal statt ueber Lit-@state gefuehrt.
+	// While dragging, only update the local display (no register write per pixel of mouse movement);
+	// "sliderDragging" also keeps the next poll tick (see druckregelstrecke-app.ts, setState() about every 1s)
+	// from making the slider jump back to the last confirmed server value while dragging - like the
+	// sliderPreview pattern in register-panel.ts, only kept locally here instead of in a lit @state.
 	let sliderDragging = false;
 	on(compressorSlider, "pointerdown", () => {
 		sliderDragging = true;

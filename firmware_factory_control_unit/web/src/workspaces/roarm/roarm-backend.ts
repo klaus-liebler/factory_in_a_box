@@ -1,10 +1,9 @@
-// Abstraktion der Firmware-Kommunikation fuer die RoArm-Teach-Seite. Die echte Implementierung
-// (WsRoArmBackend, roarm-ws-backend.ts; Firmware-Seite in src/web.cpp und src/roarm/roarm.cpp)
-// sendet/empfaengt die hier importierten, bereits generierten BestBinaryBuffers-
-// Nachrichtentypen (roarm.* aus generated/ws-protocol.ts) unveraendert ueber ws-client.ts.
-// MockRoArmBackend simuliert dieselbe Schnittstelle rein clientseitig, damit die Teach-Seite schon
-// jetzt -- ohne Firmware/Mikrocontroller -- am PC benutzt und getestet werden kann (s.
-// roarm-teach-app.ts, das ausschliesslich gegen dieses Interface programmiert ist).
+// Abstraction of the firmware communication for the RoArm teach workspace. The real implementation
+// (WsRoArmBackend, roarm-ws-backend.ts; firmware side in src/web.cpp and src/roarm/roarm.cpp) sends/receives
+// the generated BestBinaryBuffers message types imported here (roarm.* from generated/ws-protocol.ts)
+// unchanged via ws-client.ts. MockRoArmBackend simulates the same interface purely on the client, so that the
+// teach workspace can be used and tested on the PC without firmware/microcontroller (see roarm-teach-app.ts,
+// which is programmed against this interface only).
 
 import { roarm } from "../../../generated/ws-protocol.ts";
 import { JOINT_COUNT, forwardKinematics, inverseKinematics, radToCentiDeg, centiDegToRad, type CartesianPose } from "./roarm-kinematics.ts";
@@ -18,23 +17,23 @@ export interface StoredMission {
 }
 
 export interface RoArmBackend {
-	/** Startet den Teach-Modus (sperrt in der echten Firmware das Mission-Playback). */
+	/* Starts teach mode (blocks mission playback in the real firmware). */
 	startTeachMode(): Promise<boolean>;
 	stopTeachMode(): Promise<boolean>;
 
-	/** Feuert-und-vergisst wie das echte JointJogTarget-Event -- kein Request/Response-Umlauf. */
+	/* Fire-and-forget like the real JointJogTarget event - no request/response round trip. */
 	setJointJogTargetCentiDeg(jointAnglesCentiDeg: readonly number[]): void;
-	/** Wie oben, aber kartesisch -- die echte Firmware macht IK, der Mock macht es lokal (roarm-kinematics.ts). */
+	/* Like above, but cartesian - the real firmware does the IK, the mock does it locally (roarm-kinematics.ts). */
 	setCartesianJogTarget(pose: CartesianPose): void;
-	/** Fuer die Missions-Wiedergabe (Play): faehrt mit hoechstens maxSpeedDegPerSec statt sofort
-	 * zu springen, s. playMission() in roarm-teach-app.ts. Die echte Hardware ist ueber die
-	 * Servo-Ansteuerung ohnehin geschwindigkeitsbegrenzt, WsRoArmBackend delegiert daher einfach an
-	 * setJointJogTargetCentiDeg; der Mock simuliert die Rampe clientseitig ueber MultiJointTracker. */
+	/* For mission playback (play): moves with at most maxSpeedDegPerSec instead of jumping at once, see
+	   playMission() in roarm-teach-app.ts. The real hardware is speed-limited by the servo control anyway, so
+	   WsRoArmBackend simply delegates to setJointJogTargetCentiDeg; the mock simulates the ramp on the client
+	   via MultiJointTracker. */
 	setJointMoveTargetCentiDeg(jointAnglesCentiDeg: readonly number[], maxSpeedDegPerSec: number): void;
 
-	/** Liefert die zuletzt bekannte Pose sofort (fuer den initialen Render, vor der ersten PoseFeedback-Nachricht). */
+	/* Returns the last known pose immediately (for the initial render, before the first PoseFeedback message). */
 	getLastPoseFeedback(): roarm.PoseFeedback.Payload;
-	/** Analog zum WS-Push -- Rueckgabewert ist eine Unsubscribe-Funktion. */
+	/* Like the WS push - the return value is an unsubscribe function. */
 	subscribePoseFeedback(cb: (feedback: roarm.PoseFeedback.Payload) => void): () => void;
 
 	getMissionGpioNames(): Promise<string[]>;
@@ -49,23 +48,21 @@ function mockDelay<T>(value: T): Promise<T> {
 	return new Promise((resolve) => setTimeout(() => resolve(value), MOCK_LATENCY_MS));
 }
 
-// Nur ein einziger Mission-GPIO auf diesem Arm -- er traegt einen Vakuum-Sauger statt des
-// mechanischen Zangen-Greifers, es gibt also nur "Vakuumsauger ein/aus" zu schalten, keine
-// generische Mehr-GPIO-Auswahl (s. roarm-teach-app.ts' addVacuumStep()).
+// Only one single mission GPIO on this arm - it carries a vacuum suction cup instead of the mechanical
+// gripper, so there is only "vacuum on/off" to switch, no generic multi-GPIO selection (see addVacuumStep()
+// in roarm-teach-app.ts).
 export const VACUUM_GPIO_ID = 0;
 const MOCK_MISSION_GPIO_NAMES = ["Vakuumsauger"];
 
-// "Eingeknickte" Ruhepose statt der voll gestreckten Nullstellung (alle Winkel 0) -- die
-// Nullstellung liegt nahe der maximalen Reichweite (fast singulaer fuer die geschlossene
-// Gizmo-IK, s. roarm3d/ik.ts), dort sind schon kleine Gizmo-Drags kaum bewegbar. Dieselben Werte
-// wie robot_ui_programmatic's DEFAULT_ANGLES (link2=0.6/link3=1.5/link4=1 rad), auf
-// Shoulder/Elbow/Wrist gemappt.
+// "Folded" rest pose instead of the fully stretched zero position (all angles 0) - the zero position is close
+// to the maximum reach (almost singular for the closed-form gizmo IK, see roarm3d/ik.ts), where even small
+// gizmo drags hardly move anything. The same values as DEFAULT_ANGLES of robot_ui_programmatic
+// (link2=0.6/link3=1.5/link4=1 rad), mapped to shoulder/elbow/wrist.
 export const FOLDED_REST_POSE_CENTIDEG: readonly number[] = [0, 3438, 8594, 5730, 0, 0];
 
-// Bewusst grosszuegig (nicht aus der Referenzfirmware uebernommen, dort keine expliziten
-// Servo-Geschwindigkeits-/Beschleunigungswerte fuer die Ziel-Verfolgung) -- rein fuers lokale
-// Bewegungsgefuehl im Mock; die tatsaechlichen Werte werden beim Firmware-Bring-up am realen Arm
-// abgestimmt.
+// Deliberately generous (not taken from the reference firmware, which has no explicit servo
+// speed/acceleration values for target tracking) - only for the local feel of motion in the mock; the actual
+// values are tuned on the real arm during the firmware bring-up.
 const MOCK_MAX_VELOCITY_RAD_PER_SEC = (90 * Math.PI) / 180;
 const MOCK_MAX_ACCEL_RAD_PER_SEC2 = (180 * Math.PI) / 180;
 
@@ -142,10 +139,10 @@ export class MockRoArmBackend implements RoArmBackend {
 		return mockDelay(true);
 	}
 
-	// snapTo() statt setTargets(): Jogging (Slider/Gizmo/kartesisches Ziel) ist direkte
-	// Handfuehrung -- der Nutzer erwartet 1:1-Nachfuehren ohne das beschleunigungsbegrenzte Profil
-	// dazwischen, das sonst wie ein "Glätten"/Nachlaufen der Bewegung wirkt. Der Tracker bleibt
-	// fuer eine spaetere Missions-Wiedergabe-Simulation nutzbar (dort ueber setTargets()+tick()).
+	// snapTo() instead of setTargets(): jogging (slider/gizmo/cartesian target) is direct hand guidance - the
+	// user expects 1:1 following without the acceleration-limited profile in between, which otherwise feels like
+	// "smoothing"/lagging of the movement. The tracker stays usable for a later mission playback simulation
+	// (there via setTargets() + tick()).
 	setJointJogTargetCentiDeg(jointAnglesCentiDeg: readonly number[]): void {
 		this.tracker.snapTo(jointAnglesCentiDeg.map(centiDegToRad));
 	}

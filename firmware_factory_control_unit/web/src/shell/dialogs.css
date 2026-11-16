@@ -1,6 +1,6 @@
 /* Modal dialogs (shell/dialogs.ts), for every app. */
 /* ==========================================================================
-   Modale Dialoge (shell/dialogs.ts), fuer alle Apps.
+   Modal dialogs (shell/dialogs.ts), for all apps.
    ========================================================================== */
 dialog.ui-dialog {
 	border: 1px solid var(--ui-color-border);

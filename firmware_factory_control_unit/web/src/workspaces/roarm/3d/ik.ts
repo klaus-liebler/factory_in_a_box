@@ -122,10 +122,10 @@ function angleDiff(a: number, b: number): number {
   return Math.abs(wrapAngle(a - b))
 }
 
-// URDF-Grenze (CHAIN[].limit) geschnitten mit der Firmware-Klemmung (JOINT_LIMITS_RAD, Index
-// 0..4 = link1..link5) -- die URDF erlaubt z.B. Elbow bis -1 rad, die Servo-Ansteuerung aber erst
-// ab 0. Ohne den Schnitt bot der Gizmo Posen an, die die Firmware gelenkweise wegklemmte, und der
-// Arm sprang nach dem Loslassen in eine ganz andere Pose.
+// URDF limit (CHAIN[].limit) intersected with the firmware clamping (JOINT_LIMITS_RAD, index 0..4 =
+// link1..link5) - the URDF allows e.g. the elbow down to -1 rad, but the servo control only from 0. Without
+// the intersection the gizmo offered poses the firmware clamped joint by joint, and the arm jumped into a
+// completely different pose after release.
 const EFFECTIVE_LIMITS: ReadonlyMap<string, readonly [number, number]> = new Map(
   CHAIN.filter((seg) => seg.limit).map((seg, i) => {
     const urdf = seg.limit!
@@ -143,15 +143,14 @@ function withinLimits(c: Candidate): boolean {
   return true
 }
 
-// Wie nah ist irgendein Gelenk an SEINER EIGENEN Grenze? 0 = alle Gelenke bequem in der Mitte
-// ihres Bereichs, 1 = mindestens eines genau an (oder ueber) seiner Grenze. Nur das aeussere
-// LIMIT_WARNING_ZONE des jeweiligen Bereichs ramped ueberhaupt hoch (sonst waere schon eine leicht
-// asymmetrische Mittelstellung "gelb") -- fuers Bodenraster-Warnsignal in roarm-3d-view.ts, s. dort.
-// War zuvor 0.25 mit linearem Anstieg -- das faerbte das Raster schon in der gefalteten
-// Ruhepose ein (Wrist steht dort bei ca. 57% seines Bereichs, also < 25% vom Rand entfernt).
-// Kleinere Zone + quadratischer statt linearer Anstieg: nahe der Zonengrenze fast unsichtbar,
-// zieht erst wirklich nah an der Gelenkgrenze sichtbar an.
-const LIMIT_WARNING_ZONE = 0.12 // Anteil des Gelenkbereichs, ab dem die Warnung einsetzt
+// How close is any joint to ITS OWN limit? 0 = all joints comfortably in the middle of their range, 1 = at
+// least one exactly at (or beyond) its limit. Only the outer LIMIT_WARNING_ZONE of each range ramps up at all
+// (otherwise a slightly asymmetric middle position would already be "yellow") - for the floor grid warning in
+// roarm-3d-view.ts, see there. Was 0.25 with a linear rise before - that coloured the grid already in the
+// folded rest pose (the wrist is at about 57% of its range there, i.e. less than 25% from the edge). Smaller
+// zone + quadratic instead of linear rise: almost invisible near the zone boundary, only becomes clearly
+// visible really close to the joint limit.
+const LIMIT_WARNING_ZONE = 0.12 // Fraction of the joint range at which the warning starts
 
 export function limitProximity(angles: JointAngles): number {
   let maxProximity = 0
@@ -209,13 +208,12 @@ export function solveIK(currentAngles: JointAngles, targetPos: Vec3, targetTiltS
     )
   }
 
-  // Nur Kandidaten, die OHNE Klemmen innerhalb aller Gelenkgrenzen liegen, kommen infrage. Frueher
-  // fiel dies bei leerer withinLimit-Liste auf "irgendeinen" Kandidaten zurueck und klemmte dessen
-  // Winkel EINZELN auf die Grenzen -- das Klemmen jedes Gelenks fuer sich ergibt aber keine in sich
-  // konsistente (geometrisch gueltige) Pose mehr, sichtbar als "Ausrichtung kippt/springt weg",
-  // sobald der Rand des erreichbaren Bereichs ueberschritten wird. Stattdessen jetzt: keine
-  // gueltige Konfiguration -> einfrieren (wie der leere-all-Fall oben), der Arm bewegt sich dann
-  // schlicht nicht weiter, als es die Kinematik zulaesst.
+  // Only candidates that lie within all joint limits WITHOUT clamping qualify. Previously an empty
+  // withinLimit list fell back to "any" candidate and clamped its angles to the limits ONE BY ONE - but
+  // clamping every joint on its own no longer gives a consistent (geometrically valid) pose, visible as
+  // "orientation tilts/jumps away" as soon as the edge of the reachable range is crossed. Now instead: no
+  // valid configuration -> freeze (like the empty-all case above), the arm then simply does not move further
+  // than the kinematics allow.
   const withinLimit = all.filter(withinLimits)
   if (withinLimit.length === 0) {
     return { angles: currentAngles, reachable: false }

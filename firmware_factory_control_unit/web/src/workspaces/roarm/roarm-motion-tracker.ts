@@ -1,10 +1,8 @@
-// Client-seitiges Gegenstueck zum JointTracker der Firmware (src/roarm/motion.hpp): ein
-// beschleunigungsbegrenztes
-// (trapezfoermiges) Geschwindigkeitsprofil pro Gelenk, das bei jedem Tick aus der verbleibenden
-// Distanz neu entscheidet, ob beschleunigt/konstant gefahren/gebremst wird -- kein vorab fixes
-// Zeitprofil noetig, reagiert daher auch glatt auf ein sich waehrend der Fahrt aenderndes Ziel
-// (Live-Jogging). Hier zusaetzlich nuetzlich, um das Bewegungsgefuehl schon ohne Hardware im
-// Browser zu pruefen/abzustimmen, bevor dieselbe Logik in C++ entsteht.
+// Client-side counterpart of the firmware's JointTracker (src/roarm/motion.hpp): an acceleration-limited
+// (trapezoidal) velocity profile per joint that decides anew on every tick from the remaining distance
+// whether to accelerate/cruise/brake - no time profile fixed in advance, so it also reacts smoothly to a
+// target changing during the movement (live jogging). Also useful here to check/tune the feel of motion in
+// the browser without hardware, before the same logic is written in C++.
 
 export class JointTracker {
 	current: number;
@@ -24,17 +22,16 @@ export class JointTracker {
 		return Math.abs(this.target - this.current) > 1e-4 || Math.abs(this.velocity) > 1e-4;
 	}
 
-	/// Ist- UND Zielwinkel sowie die Geschwindigkeit sofort setzen, ohne das Beschleunigungsprofil
-	/// zu durchlaufen -- s. MultiJointTracker.snapTo().
+	// Sets actual AND target angle as well as the velocity immediately, without going through the acceleration
+	// profile - see MultiJointTracker.snapTo().
 	snapTo(value: number): void {
 		this.current = value;
 		this.target = value;
 		this.velocity = 0;
 	}
 
-	/// dtSeconds: seit dem letzten Tick vergangene Zeit. Bremsweg wird aus der aktuellen
-	/// Geschwindigkeit hergeleitet (v^2 / 2a), damit rechtzeitig vor dem Ziel abgebremst wird,
-	/// statt es zu ueberschwingen.
+	// dtSeconds: time elapsed since the last tick. The braking distance is derived from the current velocity
+	// (v^2 / 2a), so that braking starts in time before the target instead of overshooting it.
 	tick(dtSeconds: number): number {
 		if (dtSeconds <= 0) return this.current;
 
@@ -46,7 +43,7 @@ export class JointTracker {
 
 		let desiredVelocity: number;
 		if (absDistance <= 1e-4 && Math.abs(this.velocity) < this.maxAccelerationPerSec2 * dtSeconds) {
-			// Ziel praktisch erreicht und schon (fast) zum Stillstand gebremst -- exakt einrasten.
+			// Target practically reached and already braked to (almost) standstill - snap in exactly.
 			this.current = this.target;
 			this.velocity = 0;
 			return this.current;
@@ -61,7 +58,7 @@ export class JointTracker {
 		this.velocity += deltaV;
 
 		let next = this.current + this.velocity * dtSeconds;
-		// Ueberschiessen durch grobe Zeitschritte vermeiden: nie ueber das Ziel hinausfahren.
+		// Avoid overshooting because of coarse time steps: never move beyond the target.
 		if ((direction >= 0 && next > this.target) || (direction < 0 && next < this.target)) {
 			next = this.target;
 			this.velocity = 0;
@@ -84,9 +81,9 @@ export class MultiJointTracker {
 		});
 	}
 
-	/// Wie setTargets(), aber mit einer je Aufruf vorgegebenen Hoechstgeschwindigkeit statt der
-	/// Konstruktor-Vorgabe -- fuer die Missions-Wiedergabe, wo jeder Schritt sein eigenes
-	/// maxSpeedDegPerSec mitbringt (s. playMission() in roarm-teach-app.ts).
+	// Like setTargets(), but with a maximum speed given per call instead of the constructor default - for
+	// mission playback, where every step brings its own maxSpeedDegPerSec (see playMission() in
+	// roarm-teach-app.ts).
 	setTargetsWithSpeed(targetsRad: readonly number[], maxVelocityRadPerSec: number): void {
 		targetsRad.forEach((v, i) => {
 			this.trackers[i].maxVelocityPerSec = maxVelocityRadPerSec;
@@ -94,10 +91,10 @@ export class MultiJointTracker {
 		});
 	}
 
-	/// Setzt Ist- UND Zielwinkel sofort, ohne das beschleunigungsbegrenzte Profil zu durchlaufen --
-	/// fuers direkte Jogging/Gizmo-Ziehen gedacht (der Nutzer erwartet dort 1:1-Nachfuehren, keine
-	/// Traegheit), waehrend tick()/setTargets() fuer eine spaetere Missions-Wiedergabe-Simulation
-	/// mit realistischem Bewegungsgefuehl verfuegbar bleiben.
+	// Sets actual AND target angles immediately, without going through the acceleration-limited profile - meant
+	// for direct jogging/gizmo dragging (the user expects 1:1 following there, no inertia), while
+	// tick()/setTargets() stay available for a later mission playback simulation with a realistic feel of
+	// motion.
 	snapTo(anglesRad: readonly number[]): void {
 		anglesRad.forEach((v, i) => this.trackers[i].snapTo(v));
 	}

@@ -1,9 +1,8 @@
-// Zwei handgerollte Canvas-Diagramme fuer die Druckregelstrecke-Modi (s.
-// docs/druckregelstrecke-modes.md) -- bewusst eigenstaendig statt line-chart.ts
-// wiederzuverwenden: line-chart.ts zeichnet genau EINE zeitbasierte Serie mit einer Y-Achse
-// (s. dortiger Kommentar), hier werden aber (a) zwei Serien mit UNTERSCHIEDLICHEN Skalen auf
-// gemeinsamer Zeitachse (Trend: Druck 0..4095 links, Kompressorleistung 0..1000 rechts) bzw.
-// (b) mehrere XY-Kurven ohne Zeitachse (Kennlinien) gebraucht.
+// Two hand-rolled canvas charts for the Druckregelstrecke modes (see docs/druckregelstrecke-modes.md) -
+// deliberately separate instead of reusing line-chart.ts: line-chart.ts draws exactly ONE time-based series
+// with one y axis (see its comment), but here we need (a) two series with DIFFERENT scales on a shared time
+// axis (trend: pressure 0..4095 on the left, compressor power 0..1000 on the right) and (b) several XY curves
+// without a time axis (characteristic curves).
 const MUTED_INK = "#898781";
 const GRID_LINE = "#e1e0d9";
 const FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -35,10 +34,9 @@ export interface TrendSample {
 	compressorPermille: number;
 }
 
-/** Zwei Linien (Druck links, Kompressorleistung rechts) ueber ein festes Zeitfenster
- * (durationSec, endend bei "nowMs") -- fuer "Freies Experiment", "Sprungantwort" und
- * "Reglerbetrieb" (s. docs/druckregelstrecke-modes.md, jeweils "Liniendiagramm ... der letzten
- * 60 Sekunden"). Optional eine dritte, gestrichelte Linie fuer den Sollwert (Reglerbetrieb). */
+/* Two lines (pressure left, compressor power right) over a fixed time window (durationSec, ending at "nowMs")
+   - for "Freies Experiment", "Sprungantwort" and "Reglerbetrieb" (see docs/druckregelstrecke-modes.md, each a
+   "line chart ... of the last 60 seconds"). Optionally a third, dashed line for the setpoint (Reglerbetrieb). */
 export function drawTrendChart(
 	canvas: HTMLCanvasElement,
 	samples: readonly TrendSample[],
@@ -142,8 +140,8 @@ export interface CharacteristicCurve {
 	points: readonly { compressorPermille: number; maxPressureRaw: number }[];
 }
 
-/** Kennfelddiagramm: X = Kompressorleistung (0..1000), Y = max. erreichter Druck (0..4095), eine
- * Kurve je Ventilkombination (s. docs/druckregelstrecke-modes.md, Abschnitt "Kennlinie"). */
+/** Characteristic map: X = compressor power (0..1000), Y = maximum pressure reached (0..4095), one
+ * curve per valve combination (see docs/druckregelstrecke-modes.md, section "Kennlinie"). */
 export function drawCharacteristicChart(canvas: HTMLCanvasElement, curves: readonly CharacteristicCurve[]): void {
 	const ctx = resizeForDpr(canvas);
 	if (!ctx) return;

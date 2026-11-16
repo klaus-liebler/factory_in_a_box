@@ -78,6 +78,10 @@ plc-ide-app {
 	flex-direction: column;
 	gap: 2px;
 }
+/* in a low window the tree scrolls instead of squeezing its entries */
+.ide-tree > * {
+	flex-shrink: 0;
+}
 .ide-tree-head {
 	padding: 0 4px 6px;
 }

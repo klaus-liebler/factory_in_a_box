@@ -331,7 +331,7 @@ export class HmiView extends LitElement {
 				${this.body(e)}
 				${missing ? svg`<rect class="hmi-missing" x="1" y="1" width=${e.w - 2} height=${e.h - 2}><title>Variable fehlt im Programm auf dem Gerät: ${vars.join(", ")}</title></rect>` : nothing}
 				${edit ? svg`<rect class="hmi-hit" x="0" y="0" width=${e.w} height=${e.h}><title>${KIND_INFO[e.kind].name}${vars[0] ? `: ${vars.join(", ")}` : ""}</title></rect>` : nothing}
-				${edit && unbound ? svg`<text class="hmi-unbound" x=${e.w - 4} y="12" text-anchor="end">⚠ ohne Variable</text>` : nothing}
+				${edit && unbound ? svg`<text class="hmi-unbound" x=${e.w - 3} y="11" text-anchor="end">⚠<title>ohne Variable</title></text>` : nothing}
 				${sel ? svg`<rect class="hmi-sel" x="-2" y="-2" width=${e.w + 4} height=${e.h + 4} />
 					${this.selected.size === 1 ? svg`<rect class="hmi-handle" x=${e.w - 6} y=${e.h - 6} width="12" height="12"
 						@pointerdown=${(ev: PointerEvent) => this.onHandleDown(ev, e)} />` : nothing}` : nothing}

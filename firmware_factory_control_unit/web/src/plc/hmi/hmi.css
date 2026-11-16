@@ -60,7 +60,10 @@ hmi-view { display: block; width: 100%; height: 100%; min-height: 0; }
 .hmi-alarm-text { font-size: 14px; font-weight: 600; }
 
 /* ---- editor ---- */
-.hmi-editor { display: grid; grid-template-columns: 190px 1fr 270px; grid-template-rows: auto 1fr; gap: 0; height: 100%; min-height: 520px; color: var(--ui-color-text-primary); }
+/* The host fills the IDE's center column and may shrink below its content: otherwise the 16:10 page at full
+   width makes it taller than the column and it runs into the bottom panel. */
+hmi-editor { display: block; flex: 1 1 0; min-height: 0; overflow: hidden; }
+.hmi-editor { display: grid; grid-template-columns: 190px 1fr 270px; grid-template-rows: auto minmax(0, 1fr); gap: 0; height: 100%; color: var(--ui-color-text-primary); }
 .hmi-ed-bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--ui-color-border); background: var(--ui-color-bg-surface); }
 .hmi-ed-bar .hmi-sep { width: 1px; align-self: stretch; background: var(--ui-color-border); margin: 0 4px; }
 .hmi-tabs { display: flex; gap: 2px; flex-wrap: wrap; }
@@ -85,7 +88,9 @@ hmi-view { display: block; width: 100%; height: 100%; min-height: 0; }
 .hmi-small-btn:disabled { opacity: 0.5; cursor: default; }
 .hmi-small-btn.on { background: var(--ui-color-accent); color: #fff; border-color: var(--ui-color-accent); }
 @media (max-width: 900px) {
-	.hmi-editor { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+	/* stacked: the column scrolls as a whole */
+	hmi-editor { overflow: auto; }
+	.hmi-editor { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; height: auto; }
 	.hmi-palette { border-right: 0; display: flex; flex-wrap: wrap; gap: 4px; }
 	.hmi-palette h5 { width: 100%; }
 	.hmi-pal-item { width: auto; }

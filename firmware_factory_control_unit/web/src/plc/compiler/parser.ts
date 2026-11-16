@@ -385,11 +385,15 @@ class Parser {
 	private statements(stop: Set<string>): A.Stmt[] {
 		const out: A.Stmt[] = [];
 		while (this.tok.kind !== "eof" && !(this.tok.kind === "keyword" && (stop.has(this.tok.text) || STMT_END.has(this.tok.text)))) {
+			const before = this.tok;
 			try {
 				out.push(this.statement());
 			} catch (e) {
 				if (!(e instanceof ParseError)) throw e;
 				this.recover();
+				// recover() stops at END_VAR/END_TYPE/END_STRUCT without taking it; among statements that is no
+				// end, so take at least one token (else the same error again, forever)
+				if (this.tok === before) this.next();
 			}
 		}
 		return out;

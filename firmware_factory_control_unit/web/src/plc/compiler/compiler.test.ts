@@ -84,6 +84,15 @@ describe("compiler: basics", () => {
 			.toEqual([-7, 1.5, true, 62000, -5n, 0xa5]);
 	});
 
+	it("a stray line before the VAR sections is one error, no endless loop", () => {
+		// regression: a statement error before a VAR section (here a USING after the header), recover() stopping
+		// at END_VAR without taking it, and END_VAR being no statement end made statements() report the same
+		// error forever - the parser ran out of memory (the IDE froze while typing)
+		const e = errors("PROGRAM PLC_PRG\nUSING Lib;\nVAR x : INT; END_VAR\nx := 1;\nEND_PROGRAM\n");
+		expect(e.length).toBeGreaterThan(0);
+		expect(e.length).toBeLessThan(10);
+	});
+
 	it("is deterministic: the same source gives the same image", () => {
 		const src = prg("x : INT; t : TON;", "t(IN := TRUE, PT := T#1s); x := x + 1;");
 		expect(build(src).image).toEqual(build(src).image);

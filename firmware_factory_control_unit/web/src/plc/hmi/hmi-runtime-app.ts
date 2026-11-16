@@ -5,7 +5,7 @@
 // the project from the FCU, compiles it for the variable addresses and shows the pages.
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { DashboardApp } from "../../shell/dashboard-app.ts";
+import type { WorkspaceApp } from "../../shell/workspace-app.ts";
 import { setAppStatus } from "../../shell/status-bar.ts";
 import { setAppRibbon } from "../../shell/ribbon.ts";
 import { clock } from "../../core/format.ts";
@@ -19,7 +19,7 @@ import "./hmi-view.ts";
 const PREFS_KEY = "fcu.hmi.runtime";
 
 @customElement("hmi-runtime-app")
-export class HmiRuntimeApp extends LitElement implements DashboardApp {
+export class HmiRuntimeApp extends LitElement implements WorkspaceApp {
 	@state() private dev: PlcDevice = simulator;
 	@state() private source: "browser" | "device" = "browser";
 	@state() private project: Project | null = null;

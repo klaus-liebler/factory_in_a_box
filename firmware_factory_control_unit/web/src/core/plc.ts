@@ -2,7 +2,7 @@
 // switches the outputs (control source), and switching it. In IEC mode the PLC program owns every output and
 // command register; the device refuses external writes to them (docs/plc-iec61131.md 6.2).
 import { plc } from "../../generated/ws-protocol.ts";
-import { wsRequest } from "../ws-client.ts";
+import { wsRequest } from "./ws-client.ts";
 
 export type PlcStatus = plc.StatusResponse.Payload;
 

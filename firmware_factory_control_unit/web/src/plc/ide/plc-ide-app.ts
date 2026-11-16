@@ -20,7 +20,7 @@ import { KEYWORDS } from "../compiler/lexer.ts";
 import { elemOf, typeName, type Type } from "../compiler/types.ts";
 import type { Symbol } from "../compiler/compiler.ts";
 import type * as A from "../compiler/ast.ts";
-import type { DashboardApp } from "../../shell/dashboard-app.ts";
+import type { WorkspaceApp } from "../../shell/workspace-app.ts";
 import { IO_VARS } from "./io-list.ts";
 import {
 	addObject, boxesFor, build, crossReferences, objectTree, type CrossRef,
@@ -77,7 +77,7 @@ function stdBlocks(): StdBlock[] {
 }
 
 @customElement("plc-ide-app")
-export class PlcIdeApp extends LitElement implements DashboardApp {
+export class PlcIdeApp extends LitElement implements WorkspaceApp {
 	@state() private project: Project = loadProject();
 	@state() private lastBuild: Build | null = null;
 	/** The object in the editor (its id). */

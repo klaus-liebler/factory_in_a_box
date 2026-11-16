@@ -1,6 +1,6 @@
 # Druckregelstrecke -- Betriebsmodi (Spezifikation)
 
-Status: **Implementiert** (`web/src/apps/druckregelstrecke-app.ts`,
+Status: **Implementiert** (`web/src/workspaces/druckregelstrecke/druckregelstrecke-app.ts`,
 `druckregelstrecke-controller.ts`, `druckregelstrecke-charts.ts`,
 `druckregelstrecke-view.ts`; Firmware-seitig `schema/best_binary_buffers/pneumatics.cs` +
 `src/web.cpp`/`src/io.cpp`). Diese Datei bleibt trotzdem die Referenz-Spezifikation --

@@ -1,6 +1,6 @@
 // The device's system information (uptime, network, PHY registers, I2C scans, reset cause).
 import { system } from "../../generated/ws-protocol.ts";
-import { wsRequest } from "../ws-client.ts";
+import { wsRequest } from "./ws-client.ts";
 
 export type SystemInfo = system.SystemInfoMessage.Payload;
 

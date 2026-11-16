@@ -6,7 +6,7 @@ import type { CompileResult, DebugInfo } from "../compiler/compiler.ts";
 import { TRAP_NAMES } from "../generated/isa.ts";
 import { Hdr, crc32 } from "../image.ts";
 import { plc } from "../../../generated/ws-protocol.ts";
-import { registerWsProtocolListener, wsRequest } from "../../ws-client.ts";
+import { registerWsProtocolListener, wsRequest } from "../../core/ws-client.ts";
 import type { Symbol } from "../compiler/compiler.ts";
 import type { LogLine, PlcError, PlcState } from "./simulator.ts";
 import { sizeOf } from "../compiler/types.ts";

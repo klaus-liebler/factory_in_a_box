@@ -4,7 +4,7 @@
 // lookup or decoding.
 import { modbus } from "../../generated/ws-protocol.ts";
 import { REGIONS, type RegisterDef } from "../../generated/register-map.ts";
-import { wsRequest } from "../ws-client.ts";
+import { wsRequest } from "./ws-client.ts";
 
 export interface RegisterValues {
 	holding: number[];

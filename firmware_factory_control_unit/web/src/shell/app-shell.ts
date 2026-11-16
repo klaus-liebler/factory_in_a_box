@@ -10,15 +10,15 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, state, query } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { Router, type RouteDef } from "./router.js";
-import { hasDashboardLifecycle } from "./dashboard-app.js";
-import { appStatusOf, onAppStatusChange } from "./status-bar.js";
-import { appRibbonOf, onAppRibbonChange, openWorkspace, type RibbonCommand, type RibbonGroup, type RibbonTab } from "./ribbon.js";
-import { icon, type IconName } from "./icons.js";
-import { onWsStateChange, wsState } from "../ws-client.js";
-import { logEntries, subscribeLog } from "../log-store.js";
-import { system } from "../../generated/ws-protocol.js";
-import { DEVICE_HOSTNAME } from "../../generated/build-info.js";
+import { Router, type RouteDef } from "./router.ts";
+import { hasWorkspaceLifecycle } from "./workspace-app.ts";
+import { appStatusOf, onAppStatusChange } from "./status-bar.ts";
+import { appRibbonOf, onAppRibbonChange, openWorkspace, type RibbonCommand, type RibbonGroup, type RibbonTab } from "./ribbon.ts";
+import { icon, type IconName } from "./icons.ts";
+import { onWsStateChange, wsState } from "../core/ws-client.ts";
+import { logEntries, subscribeLog } from "../core/log-store.ts";
+import { system } from "../../generated/ws-protocol.ts";
+import { DEVICE_HOSTNAME } from "../../generated/build-info.ts";
 import logoSvg from "../assets/factory-control-unit-logo.svg?raw";
 import "./shell.css";
 
@@ -139,10 +139,10 @@ export class AppShell extends LitElement {
 		const match = this.router.MatchCurrent();
 		const next = this.entries.find((e) => e.path === match.path) ?? this.entries[0];
 		if (!next || next.element === this.activeElement) return;
-		if (this.activeElement && hasDashboardLifecycle(this.activeElement)) this.activeElement.onHide();
+		if (this.activeElement && hasWorkspaceLifecycle(this.activeElement)) this.activeElement.onHide();
 		this.activeElement = next.element;
 		this.activeElement.hidden = false;
-		if (hasDashboardLifecycle(this.activeElement)) this.activeElement.onShow();
+		if (hasWorkspaceLifecycle(this.activeElement)) this.activeElement.onShow();
 		this.activePath = next.path;
 		this.switcherOpen = false;
 		this.groupMenu = null;

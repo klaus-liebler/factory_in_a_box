@@ -4,22 +4,22 @@
 // (ws-client.ts) runs for the pushed data (e.g. the firmware log, log-store.ts).
 import "./ui/base.css";
 import "./ui/components.css";
-import "./shell/app-shell.js";
-import "./apps/overview-app.js";
-import "./apps/actuator-test-app.ts";
-import "./apps/modbus-register-app.js";
-import "./apps/power-management-app.js";
-import "./apps/system-info-app.js";
-import "./apps/roarm-teach-app.js";
-import "./apps/task-manager-app.js";
-import "./apps/druckregelstrecke-app.js";
-import "./apps/terminal-app.js";
+import "./shell/app-shell.ts";
+import "./workspaces/dashboard/overview-app.ts";
+import "./workspaces/actuators/actuator-test-app.ts";
+import "./workspaces/registers/modbus-register-app.ts";
+import "./workspaces/power/power-management-app.ts";
+import "./workspaces/system/system-info-app.ts";
+import "./workspaces/roarm/roarm-teach-app.ts";
+import "./workspaces/tasks/task-manager-app.ts";
+import "./workspaces/druckregelstrecke/druckregelstrecke-app.ts";
+import "./workspaces/terminal/terminal-app.ts";
 import "./plc/ide/plc-ide-app.ts";
 import "./plc/hmi/hmi-runtime-app.ts";
-import "./apps/stepper-lab-app.js";
-import type { AppShell } from "./shell/app-shell.js";
-import { startWebSocketClient } from "./ws-client.js";
-import { startLogStore } from "./log-store.js";
+import "./workspaces/steppers/stepper-lab-app.ts";
+import type { AppShell } from "./shell/app-shell.ts";
+import { startWebSocketClient } from "./core/ws-client.ts";
+import { startLogStore } from "./core/log-store.ts";
 
 document.addEventListener("DOMContentLoaded", () => {
 	const shell = document.querySelector("app-shell") as AppShell;

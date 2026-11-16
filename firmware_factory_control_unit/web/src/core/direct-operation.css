@@ -1,8 +1,8 @@
 /* The bar of direct operation (core/direct-operation.ts): who switches the outputs. */
 .direct-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 12px; margin-bottom: 12px; border-radius: 6px; font-size: 13px; border: 1px solid; }
-.direct-free { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
-.direct-locked { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
-.direct-unknown { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
-.direct-error { color: #b91c1c; font-weight: 600; }
+.direct-free { background: var(--ui-color-ok-soft); border-color: #86efac; color: var(--ui-color-ok-text); }
+.direct-locked { background: var(--ui-color-warn-soft); border-color: #fcd34d; color: var(--ui-color-warn-text); }
+.direct-unknown { background: var(--ui-color-bg-muted); border-color: var(--ui-color-border); color: var(--ui-color-text-secondary); }
+.direct-error { color: var(--ui-color-error-text); font-weight: 600; }
 .direct-take { margin-left: auto; background: #ea580c; border-color: #ea580c; color: #fff; }
 .direct-take:hover:not(:disabled) { background: #c2410c; }

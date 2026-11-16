@@ -1,0 +1,22 @@
+/* Power management (power-management-app.ts): canvas time series (drawn by line-chart.ts). */
+.power-chart-grid {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.power-chart-card {
+	min-height: 220px;
+}
+
+.power-chart-canvas {
+	width: 100%;
+	height: 180px;
+	display: block;
+}
+
+.power-readout {
+	float: right;
+	font-variant-numeric: tabular-nums;
+	color: var(--ui-color-text-secondary);
+}

@@ -179,7 +179,7 @@ function consumerMarkup(index: ValveIndex, x: number): string {
 // Bedientableau: Kontroll-Lampe (rein informativ) + eingebettetes HTML-Formular (Kippschalter +
 // Leistungsregler) via <foreignObject> -- damit ist die Kompressor-Steuerung Teil der Grafik
 // selbst statt eines separaten Bedienfelds neben ihr. Wiederverwendet die globalen
-// .toggle-switch/.panel-slider-Klassen aus styles.css, die dank Light-DOM (kein Shadow Root, s.
+// .toggle-switch/.panel-slider-Klassen aus ui/components.css, die dank Light-DOM (kein Shadow Root, s.
 // createRenderRoot() in den *-app.ts-Dateien) auch innerhalb des foreignObject greifen.
 function panelMarkup(compressorCx: number): string {
 	const panelX = compressorCx - 85;

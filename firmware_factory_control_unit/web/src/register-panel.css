@@ -1,0 +1,86 @@
+/* The register panel (register-panel.ts): values, bank tags, BOOL badges, write controls. */
+.register-comment {
+	display: block;
+	color: var(--ui-color-text-muted);
+}
+
+
+.register-value {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.register-bank-tag {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	padding: 2px 6px;
+	border-radius: var(--ui-radius-sm);
+	background: var(--ui-color-bg-muted);
+	color: var(--ui-color-text-muted);
+}
+
+.register-bank-tag.register-bank-holding {
+	background: #dbeafe;
+	color: #1e40af;
+}
+
+.bool-badge {
+	display: inline-block;
+	min-width: 1.6em;
+	text-align: center;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.bool-badge-off {
+	background: var(--ui-color-bg-muted);
+	color: var(--ui-color-text-muted);
+}
+
+.bool-badge-on {
+	background: #dcfce7;
+	color: #15803d;
+}
+
+/* "bool-error"-Variante: 0 = kein Fehler (gleiches Grau wie bool-badge-off), 1 = Fehler (rot) --
+   fuer Register wie PWR_ALERT, wo 1 einen Fehlerzustand meldet statt eines neutralen "an". */
+.bool-badge-error {
+	background: #fee2e2;
+	color: #b91c1c;
+}
+
+.register-locked {
+	font-size: 12px;
+	color: #64748b;
+	white-space: nowrap;
+	cursor: help;
+}
+
+.register-write-controls {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.register-write-input {
+	width: 90px;
+}
+
+
+.register-slider-controls {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 160px;
+}
+
+.register-slider-value {
+	min-width: 3.5em;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	font-size: var(--ui-font-size-sm);
+	color: var(--ui-color-text-secondary);
+}

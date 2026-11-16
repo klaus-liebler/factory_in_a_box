@@ -8,9 +8,10 @@ import { elemOf } from "../compiler/types.ts";
 import type { PlcDevice } from "../ide/device.ts";
 import { formatTime, formatValue, type Value } from "../ide/values.ts";
 import {
-	fraction, KIND_INFO, LED_COLORS, place, PRIO_NAMES, quantize, resize, toNumber, toValue, TrendBuffer, type HmiElement, type HmiKind, type HmiPage,
+	fraction, KIND_INFO, LED_COLORS, place, PRIO_NAMES, prioColor, quantize, resize, toNumber, toValue, TrendBuffer, type HmiElement, type HmiKind, type HmiPage,
 } from "./hmi.ts";
 import { trendOf } from "./hmi-trends.ts";
+import { COLORS } from "../../ui/colors.ts";
 import "./hmi.css";
 
 /** The drag type of a new element from the palette. */
@@ -20,7 +21,6 @@ const LED_RGB: Record<string, [string, string]> = {
 	red: ["#ff3b30", "#4a1512"], green: ["#30d158", "#123a1d"], yellow: ["#ffd60a", "#453b0b"],
 	blue: ["#0a84ff", "#0d2a4a"], white: ["#f5f5f7", "#3a3a3c"], orange: ["#ff9f0a", "#4a2e08"],
 };
-const PRIO_COLOR = (p: number) => (p <= 3 ? "#e5383b" : p === 4 ? "#f48c06" : p === 5 ? "#e9c46a" : "#4895ef");
 
 interface Read {
 	value: Value | null;
@@ -373,7 +373,7 @@ export class HmiView extends LitElement {
 				@pointerdown=${(ev: PointerEvent) => this.press(e, true, ev)} @pointerup=${() => this.press(e, false)}
 				@pointercancel=${() => this.press(e, false)} @lostpointercapture=${() => this.press(e, false)}>
 				<rect class="hmi-btn-shadow" x="2" y="4" width=${e.w - 4} height=${h - 4} rx="10" />
-				<rect x="2" y=${on ? 4 : 1} width=${e.w - 4} height=${h - 5} rx="10" fill=${on ? col : "var(--hmi-btn)"} stroke=${col} stroke-width="2" />
+				<rect x="2" y=${on ? 4 : 1} width=${e.w - 4} height=${h - 5} rx="10" fill=${on ? col : "var(--ui-btn-neutral-inactive)"} stroke=${col} stroke-width="2" />
 				<text class="hmi-btn-text" x=${e.w / 2} y=${(on ? 4 : 1) + (h - 5) / 2} text-anchor="middle" dominant-baseline="central"
 					style=${on ? "fill:#fff" : `fill:${col}`}>${e.text ?? ""}</text>
 			</g>`;
@@ -390,7 +390,7 @@ export class HmiView extends LitElement {
 		return svg`${c.t}
 			<g class=${this.canOperate(e) ? "hmi-active" : ""} @click=${() => this.toggle(e)}>
 				<rect x="0" y=${c.h} width=${e.w} height=${ch} fill="transparent" />
-				<rect x="4" y=${y} width=${tw} height=${th} rx=${th / 2} fill=${on ? col : "var(--hmi-track)"} />
+				<rect x="4" y=${y} width=${tw} height=${th} rx=${th / 2} fill=${on ? col : "var(--ui-color-border-input)"} />
 				<circle cx=${on ? 4 + tw - th / 2 : 4 + th / 2} cy=${y + th / 2} r=${th / 2 - 3} class="hmi-thumb" />
 				<text class="hmi-state" x=${tw + 12} y=${y + th / 2} dominant-baseline="central">${!r.ok ? "–" : on ? "EIN" : "AUS"}</text>
 			</g>`;
@@ -513,8 +513,8 @@ export class HmiView extends LitElement {
 		const h = e.h - c.h - 20;
 		const vertical = h >= e.w;
 		const f = r.num === null ? 0 : fraction(r.num, min, max);
-		const col = r.num !== null && e.alarm !== undefined && e.alarm !== null && r.num >= e.alarm ? "#e5383b"
-			: r.num !== null && e.warn !== undefined && e.warn !== null && r.num >= e.warn ? "#f4a261" : e.color || "#2f9bde";
+		const col = r.num !== null && e.alarm !== undefined && e.alarm !== null && r.num >= e.alarm ? COLORS.error
+			: r.num !== null && e.warn !== undefined && e.warn !== null && r.num >= e.warn ? COLORS.warn : e.color || COLORS.info;
 		const fill = vertical
 			? svg`<rect x="4" y=${c.h + 2 + (h - 4) * (1 - f)} width=${e.w - 8} height=${(h - 4) * f} fill=${col} rx="2" />`
 			: svg`<rect x="2" y=${c.h + 4} width=${(e.w - 4) * f} height=${h - 8} fill=${col} rx="2" />`;
@@ -606,13 +606,13 @@ export class HmiView extends LitElement {
 		const unacked = st ? !st.acked : false;
 		const blinkOff = unacked && Math.floor(Date.now() / 500) % 2 === 1;
 		const prio = e.prio ?? 4;
-		const col = PRIO_COLOR(prio);
+		const col = prioColor(prio);
 		const lit = (active || unacked) && !blinkOff;
 		return svg`
 			<g class=${this.mode === "run" && unacked ? "hmi-active" : ""} @click=${() => {
 				if (this.mode === "run" && unacked) this.dispatchEvent(new CustomEvent("ack", { detail: e, bubbles: true, composed: true }));
 			}}>
-				<rect x="0" y="0" width=${e.w} height=${e.h} rx="6" class="hmi-alarm-box" style=${lit ? `fill:${col};stroke:${col}` : `stroke:${active || unacked ? col : "var(--hmi-border)"}`} />
+				<rect x="0" y="0" width=${e.w} height=${e.h} rx="6" class="hmi-alarm-box" style=${lit ? `fill:${col};stroke:${col}` : `stroke:${active || unacked ? col : "var(--ui-color-border)"}`} />
 				<text class="hmi-alarm-icon" x="10" y=${e.h / 2} dominant-baseline="central" style=${lit ? "fill:#fff" : ""}>${active ? "▲" : unacked ? "△" : "●"}</text>
 				<text class="hmi-alarm-text" x="32" y=${e.h / 2} dominant-baseline="central" style=${lit ? "fill:#fff" : ""}>${e.text ?? ""}</text>
 				<title>${PRIO_NAMES[prio] ?? ""}${unacked ? " - klicken zum Quittieren" : ""}</title>

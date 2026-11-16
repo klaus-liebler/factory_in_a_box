@@ -1,0 +1,87 @@
+/* Small components shared by the workspaces: chips (state labels), LEDs, meters (bars), the toggle switch.
+   Variants by modifier class: .ok .warn .bad, .on, .green .amber .red .blue. */
+
+/* ---- chip: a short state label ---- */
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 9px;
+	border-radius: 999px;
+	font-size: var(--ui-font-size-sm);
+	white-space: nowrap;
+	background: var(--ui-color-bg-muted);
+	border: 1px solid var(--ui-color-border-soft);
+	color: var(--ui-color-text-secondary);
+}
+.chip.ok { background: var(--ui-color-ok-soft); border-color: #86efac; color: var(--ui-color-ok-text); }
+.chip.warn { background: var(--ui-color-warn-soft); border-color: #fcd34d; color: var(--ui-color-warn-text); }
+.chip.bad { background: var(--ui-color-error-soft); border-color: #fca5a5; color: var(--ui-color-error-text); }
+
+/* ---- LED: a round state light ---- */
+.led {
+	display: inline-block;
+	flex: 0 0 auto;
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	background: var(--ui-led-off);
+	border: 1px solid rgba(0, 0, 0, 0.2);
+	vertical-align: middle;
+}
+.led.unknown { background: transparent; border-style: dashed; }
+.led.on, .led.on.green { background: var(--ui-led-green); box-shadow: 0 0 6px var(--ui-led-green); }
+.led.on.amber { background: var(--ui-led-amber); box-shadow: 0 0 6px var(--ui-led-amber); }
+.led.on.red { background: var(--ui-led-red); box-shadow: 0 0 6px var(--ui-led-red); }
+.led.on.blue { background: var(--ui-led-blue); box-shadow: 0 0 6px var(--ui-led-blue); }
+.led-item { display: inline-flex; align-items: center; gap: 6px; font-size: var(--ui-font-size-sm); white-space: nowrap; }
+
+/* ---- meter: a horizontal fill bar (optional peak mark <i style="left:..">) ---- */
+.meter {
+	position: relative;
+	flex: 1;
+	min-width: 60px;
+	height: 8px;
+	border-radius: 4px;
+	background: var(--ui-color-track);
+	overflow: hidden;
+}
+.meter > span { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: linear-gradient(90deg, #60a5fa, var(--ui-color-accent)); }
+.meter > i { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ui-color-warn); }
+
+/* ---- toggle switch (register panel, Druckregelstrecke, RoArm view) ---- */
+.toggle-switch {
+	position: relative;
+	display: inline-block;
+	width: 40px;
+	height: 22px;
+}
+.toggle-switch input {
+	position: absolute;
+	opacity: 0;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	cursor: pointer;
+}
+.toggle-slider-track {
+	position: absolute;
+	inset: 0;
+	background: var(--ui-color-border-input);
+	border-radius: 999px;
+	transition: background 0.2s ease;
+	pointer-events: none;
+}
+.toggle-slider-track::before {
+	content: "";
+	position: absolute;
+	width: 16px;
+	height: 16px;
+	left: 3px;
+	top: 3px;
+	background: var(--ui-color-bg-surface);
+	border-radius: 50%;
+	transition: transform 0.2s ease;
+}
+.toggle-switch input:checked + .toggle-slider-track { background: var(--ui-led-green); }
+.toggle-switch input:checked + .toggle-slider-track::before { transform: translateX(18px); }

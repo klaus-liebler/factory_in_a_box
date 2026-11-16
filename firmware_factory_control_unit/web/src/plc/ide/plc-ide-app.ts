@@ -9,7 +9,6 @@ import { choiceDialog, confirmDialog, messageDialog, promptDialog } from "../../
 import { setAppStatus, type StatusKind } from "../../shell/status-bar.ts";
 import { setAppRibbon } from "../../shell/ribbon.ts";
 import type { IconName } from "../../shell/icons.ts";
-import "../../styles.css";
 import "./plc-ide.css";
 import "./st-editor.ts";
 import "./fbd-editor.ts";

@@ -4,6 +4,7 @@
 // Achse) -- fuer mehrere Groessen (Spannung/Strom/Leistung) werden bewusst mehrere einzelne
 // Diagramme nebeneinander gezeichnet statt einer Mehrfach-Achsen-Darstellung, s.
 // power-management-app.ts.
+import { COLORS } from "./colors.ts";
 
 export interface LineChartPoint {
 	t: number;
@@ -20,9 +21,9 @@ export interface LineChartOptions {
 	showLast?: boolean;
 }
 
-const MUTED_INK = "#898781";
-const GRID_LINE = "#e1e0d9";
-const PRIMARY_INK = "#0b0b0b";
+const MUTED_INK = COLORS.muted;
+const GRID_LINE = COLORS.grid;
+const PRIMARY_INK = COLORS.text;
 const FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif";
 
 export function drawLineChart(canvas: HTMLCanvasElement, points: readonly LineChartPoint[], opts: LineChartOptions): void {

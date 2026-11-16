@@ -12,7 +12,6 @@
 // level filter is CSS on the table (instant), auto-scroll can be switched off.
 import { LitElement, html, nothing } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
-import "../styles.css";
 import "./terminal-app.css";
 import { system, terminal } from "../../generated/ws-protocol.js";
 import { TERMINAL_COMMANDS, TERMINAL_LOOKUPS, type TerminalCommand, type TerminalParam, type TerminalValue } from "../../generated/terminal-commands.js";

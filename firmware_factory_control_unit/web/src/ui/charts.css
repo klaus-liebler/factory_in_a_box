@@ -1,0 +1,6 @@
+/* Small charts (ui/charts.ts). The box sets the size; .ui-spark fills its width. */
+.ui-spark { width: 100%; height: 38px; display: block; }
+.ui-spark-empty { height: 38px; border-radius: 3px; background: repeating-linear-gradient(90deg, var(--ui-color-bg-muted) 0 6px, transparent 6px 12px); }
+.ui-ring { width: 92px; height: 92px; flex: 0 0 auto; }
+.ui-ring-value { font-size: 15px; font-weight: 700; fill: var(--ui-color-text-primary); }
+.ui-ring-sub { font-size: 8px; fill: var(--ui-color-text-muted); }

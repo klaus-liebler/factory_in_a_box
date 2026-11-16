@@ -2,11 +2,11 @@
 // line-chart.ts, no chart library), sampled every second while the workspace is shown.
 import { LitElement, html } from "lit";
 import { customElement, state, query } from "lit/decorators.js";
-import "../styles.css";
+import "./power-management.css";
 import { fetchRegisters, regValue } from "../core/registers.ts";
 import { Poller } from "../core/poller.ts";
 import type { DashboardApp } from "../shell/dashboard-app.ts";
-import { drawLineChart } from "./line-chart.ts";
+import { drawLineChart } from "../ui/line-chart.ts";
 import { setAppStatus } from "../shell/status-bar.ts";
 import { openWorkspace, setAppRibbon } from "../shell/ribbon.ts";
 

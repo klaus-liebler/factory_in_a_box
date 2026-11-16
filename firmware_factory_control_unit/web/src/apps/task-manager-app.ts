@@ -2,10 +2,10 @@
 // The requests only send; the answers arrive as pushed messages of the "tasks" namespace.
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import "../styles.css";
+import "./task-manager.css";
 import * as WsProtocol from "../../generated/ws-protocol.ts";
 import { registerWsProtocolListener, sendBinary, type WsProtocolListener } from "../ws-client.ts";
-import { drawSparkline } from "./sparkline.ts";
+import { sparkline } from "../ui/charts.ts";
 import type { DashboardApp } from "../shell/dashboard-app.ts";
 import { setAppStatus } from "../shell/status-bar.ts";
 import { openWorkspace, setAppRibbon } from "../shell/ribbon.ts";
@@ -117,18 +117,15 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 	}
 
 	private renderCpuCell(task: WsProtocol.tasks.TaskInfo) {
-		// Canvas IMMER rendern (auch vor der zweiten Antwort) -- haelt die Zeilenstruktur stabil,
-		// damit drawSparklines() Canvas und this.tasks per Index zuordnen kann (s. updated()).
-		return html`
-			<span class="cpu-cell">
-				<canvas class="cpu-sparkline"></canvas>
+		return html`n			<span class="cpu-cell">
+				<span class="cpu-sparkline">${sparkline(this.cpuHistory.get(cString(task.name)) ?? [], { min: 0, max: CPU_SPARKLINE_MAX_PERMILLE, capacity: CPU_HISTORY_LENGTH, area: false })}</span>
 				<span>${this.receivedCount < 2 ? "–" : `${(task.cpuPermille / 10).toFixed(1)} %`}</span>
 			</span>
 		`;
 	}
 
-	// Gleiche Warn-/Fehler-Schwellen wie renderStackCell() -- ein Pool nahe seiner Kapazitaet ist
-	// dieselbe Art von Diagnosesignal wie ein Thread nahe seinem Stack-Limit.
+	// The same warning/error thresholds as renderStackCell(): a pool near its capacity is the same kind of
+	// signal as a thread near its stack limit.
 	private renderPoolRow(pool: WsProtocol.tasks.PoolInfo) {
 		const used = pool.capacity - pool.free;
 		const ratio = pool.capacity > 0 ? used / pool.capacity : 0;
@@ -144,20 +141,6 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 				<td><span class=${cssClass}>${percentText}</span></td>
 			</tr>
 		`;
-	}
-
-	// Canvas-Inhalte liegen ausserhalb von Lits deklarativem Rendering -- nach jedem Update per
-	// Index den passenden Verlauf aus cpuHistory in die (in derselben Reihenfolge wie this.tasks
-	// gerenderte, s. renderCpuCell()) Sparkline-Canvases zeichnen. Analog zu updated()/redraw() bei
-	// power-management-app.ts.
-	protected updated(): void {
-		const canvases = this.querySelectorAll<HTMLCanvasElement>(".cpu-sparkline");
-		canvases.forEach((canvas, i) => {
-			const task = this.tasks[i];
-			if (!task) return;
-			const history = this.cpuHistory.get(cString(task.name)) ?? [];
-			drawSparkline(canvas, history, { max: CPU_SPARKLINE_MAX_PERMILLE });
-		});
 	}
 
 	render() {

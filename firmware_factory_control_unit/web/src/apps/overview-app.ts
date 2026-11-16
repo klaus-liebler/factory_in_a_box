@@ -2,7 +2,7 @@
 // uptime, temperature, CPU load, memory, supply, network, PLC, actuators and sensors, drives, buses, the
 // latest log events - each with a link into its workspace. Polls only while it is shown: registers every
 // second, tasks every 2 s, PLC status every 2 s, system information every 10 s.
-import { LitElement, html, nothing, svg } from "lit";
+import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import type { DashboardApp } from "../shell/dashboard-app.ts";
 import { setAppStatus } from "../shell/status-bar.ts";
@@ -18,37 +18,14 @@ import { registerWsProtocolListener, sendBinary } from "../ws-client.ts";
 import { logEntries, subscribeLog, type LogEntry } from "../log-store.ts";
 import * as buildInfo from "../../generated/build-info.ts";
 import { i2cBusSections } from "../i2c-scan.ts";
+import { ring, sparkline } from "../ui/charts.ts";
+import { COLORS } from "../ui/colors.ts";
 import "./overview.css";
 
 const HISTORY = 120;
 
-/** A sparkline (area + line) of the values over the tile's width. */
-function sparkline(values: number[], color: string, min?: number, max?: number) {
-	if (values.length < 2) return html`<div class="ov-spark ov-spark-empty"></div>`;
-	const lo = min ?? Math.min(...values), hi = max ?? Math.max(...values);
-	const span = hi - lo || 1;
-	const pts = values.map((v, i) => `${((i / (HISTORY - 1)) * 100 + (HISTORY - values.length) * (100 / (HISTORY - 1))).toFixed(2)},${(30 - ((v - lo) / span) * 28 - 1).toFixed(2)}`);
-	const id = `g${color.replace("#", "")}`;
-	return html`<svg class="ov-spark" viewBox="0 0 100 30" preserveAspectRatio="none">
-		<defs><linearGradient id=${id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color=${color} stop-opacity=".35"/><stop offset="1" stop-color=${color} stop-opacity="0"/></linearGradient></defs>
-		${svg`<polygon points="${pts[0].split(",")[0]},30 ${pts.join(" ")} 100,30" fill="url(#${id})"/><polyline points=${pts.join(" ")} fill="none" stroke=${color} stroke-width="1.6" vector-effect="non-scaling-stroke"/>`}
-	</svg>`;
-}
-
-/** A ring gauge 0..1 with the value in the middle. */
-function ring(f: number, color: string, text: string, sub: string) {
-	const r = 34, c = 2 * Math.PI * r, v = Math.max(0, Math.min(1, f));
-	return html`<svg class="ov-ring" viewBox="0 0 84 84">
-		${svg`<circle cx="42" cy="42" r=${r} fill="none" stroke="#e5e7eb" stroke-width="8"/>
-		<circle cx="42" cy="42" r=${r} fill="none" stroke=${color} stroke-width="8" stroke-linecap="round"
-			stroke-dasharray="${(c * v).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 42 42)"/>
-		<text x="42" y="44" text-anchor="middle" class="ov-ring-value">${text}</text>
-		<text x="42" y="58" text-anchor="middle" class="ov-ring-sub">${sub}</text>`}
-	</svg>`;
-}
-
-const tempColor = (t: number) => (t >= 80 ? "#ef4444" : t >= 65 ? "#f59e0b" : "#14b8a6");
-const loadColor = (f: number) => (f >= 0.85 ? "#ef4444" : f >= 0.6 ? "#f59e0b" : "#3b82f6");
+const tempColor = (t: number) => (t >= 80 ? COLORS.error : t >= 65 ? COLORS.warn : COLORS.info);
+const loadColor = (f: number) => (f >= 0.85 ? COLORS.error : f >= 0.6 ? COLORS.warn : COLORS.accent);
 
 @customElement("overview-app")
 export class OverviewApp extends LitElement implements DashboardApp {
@@ -180,7 +157,7 @@ export class OverviewApp extends LitElement implements DashboardApp {
 	}
 
 	private led(on: boolean | undefined, label: string, color = "green") {
-		return html`<span class="ov-led-item"><span class="ov-led ov-led-${on === undefined ? "na" : on ? color : "off"}"></span>${label}</span>`;
+		return html`<span class="led-item"><span class="led ${on === undefined ? "unknown" : on ? `on ${color}` : ""}"></span>${label}</span>`;
 	}
 
 	render() {
@@ -241,7 +218,7 @@ export class OverviewApp extends LitElement implements DashboardApp {
 					${this.kv("Maximum", h.length ? `${Math.max(...h)} °C` : "–")}
 				</div>
 			</div>
-			${sparkline(h, tempColor(t ?? 0))}`, { link: "/system" });
+			${sparkline(h, { color: tempColor(t ?? 0), capacity: HISTORY })}`, { link: "/system" });
 	}
 
 	private renderCpu() {
@@ -252,10 +229,10 @@ export class OverviewApp extends LitElement implements DashboardApp {
 				${ring(load ?? 0, loadColor(load ?? 0), load === null ? "–" : `${Math.round(load * 100)} %`, `${this.taskList.length} Tasks`)}
 				<div class="ov-col ov-bars">
 					${top.map((t) => html`<div class="ov-bar-row"><span>${cString(t.name)}</span>
-						<span class="ov-bar"><span style="width:${Math.min(100, t.cpuPermille / 10)}%"></span></span><b>${(t.cpuPermille / 10).toFixed(1)} %</b></div>`)}
+						<span class="meter"><span style="width:${Math.min(100, t.cpuPermille / 10)}%"></span></span><b>${(t.cpuPermille / 10).toFixed(1)} %</b></div>`)}
 				</div>
 			</div>
-			${sparkline(this.hist.load.map((x) => x * 100), "#3b82f6", 0, 100)}`, { link: "/tasks" });
+			${sparkline(this.hist.load.map((x) => x * 100), { color: COLORS.accent, min: 0, max: 100, capacity: HISTORY })}`, { link: "/tasks" });
 	}
 
 	private renderMemory() {
@@ -268,7 +245,7 @@ export class OverviewApp extends LitElement implements DashboardApp {
 				const used = p.capacity ? 1 - p.free / p.capacity : 0;
 				const peak = p.capacity ? 1 - p.minFree / p.capacity : 0;
 				return html`<div class="ov-pool"><span>${cString(p.name)}</span>
-					<span class="ov-bar"><span style="width:${used * 100}%"></span><i style="left:${peak * 100}%" title="Spitze"></i></span>
+					<span class="meter"><span style="width:${used * 100}%"></span><i style="left:${peak * 100}%" title="Spitze"></i></span>
 					<b>${Math.round(used * 100)} %</b></div>`;
 			})}`, { link: "/tasks" });
 	}
@@ -283,7 +260,7 @@ export class OverviewApp extends LitElement implements DashboardApp {
 				<div><span>Strom</span><b>${i === undefined ? "–" : (i / 1000).toFixed(3)}</b><small>A</small></div>
 				<div><span>Leistung</span><b>${p === undefined ? "–" : (p / 1000).toFixed(2)}</b><small>W</small></div>
 			</div>
-			${sparkline(this.hist.power, "#f59e0b")}
+			${sparkline(this.hist.power, { color: COLORS.ledAmber, capacity: HISTORY })}
 			${this.kv("USB-PD", pdText)}`, { link: "/power" });
 	}
 
@@ -296,7 +273,7 @@ export class OverviewApp extends LitElement implements DashboardApp {
 			${this.kv("IP-Adresse", this.info ? this.info.ipAddress.join(".") : "–")}
 			${this.kv("Empfangen / Gesendet", `${this.rates.rx.toFixed(0)} / ${this.rates.tx.toFixed(0)} Pakete/s`)}
 			${this.kv("Fehler", err ?? "–")}
-			${sparkline(this.hist.rx, "#14b8a6", 0)}`, { link: "/system" });
+			${sparkline(this.hist.rx, { color: COLORS.info, min: 0, capacity: HISTORY })}`, { link: "/system" });
 	}
 
 	private renderPlc() {
@@ -319,8 +296,8 @@ export class OverviewApp extends LitElement implements DashboardApp {
 				${this.led(b("VACUUM_PUMP"), "Vakuumpumpe", "amber")}${this.led(b("VACUUM_VALVE"), "Vakuumventil", "amber")}
 				${this.led(b("LIGHTBARRIER1"), "Lichtschranke 1")}${this.led(b("LIGHTBARRIER2"), "Lichtschranke 2")}${this.led(b("LIGHTBARRIER3"), "Lichtschranke 3")}
 			</div>
-			<div class="ov-pool"><span>Förderband</span><span class="ov-bar"><span style="width:${pwm("CONVEYOR_PWM") / 10}%"></span></span><b>${pwm("CONVEYOR_PWM") / 10} %</b></div>
-			<div class="ov-pool"><span>Kompressor</span><span class="ov-bar"><span style="width:${pwm("COMPRESSOR_PWM") / 10}%"></span></span><b>${pwm("COMPRESSOR_PWM") / 10} %</b></div>
+			<div class="ov-pool"><span>Förderband</span><span class="meter"><span style="width:${pwm("CONVEYOR_PWM") / 10}%"></span></span><b>${pwm("CONVEYOR_PWM") / 10} %</b></div>
+			<div class="ov-pool"><span>Kompressor</span><span class="meter"><span style="width:${pwm("COMPRESSOR_PWM") / 10}%"></span></span><b>${pwm("COMPRESSOR_PWM") / 10} %</b></div>
 			${this.kv("Druck (roh)", v("PRESSURE_RAW") ?? "–")}
 			${this.kv("Abstand ToF 1 / 2 / 3", [1, 2, 3].map((k) => (v(`TOF${k}_STATUS`) === 0 ? `${v(`TOF${k}_DISTANCE_MM`)} mm` : "–")).join(" / "))}`, { link: "/registers", wide: false });
 	}

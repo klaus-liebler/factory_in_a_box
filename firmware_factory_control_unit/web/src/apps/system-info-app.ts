@@ -2,7 +2,6 @@
 // information - uptime, network, Ethernet PHY diagnostics, I2C scans - refreshed every 10 s while shown.
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import "../styles.css";
 import type { system } from "../../generated/ws-protocol.ts";
 import type { DashboardApp } from "../shell/dashboard-app.ts";
 import * as buildInfo from "../../generated/build-info.ts";

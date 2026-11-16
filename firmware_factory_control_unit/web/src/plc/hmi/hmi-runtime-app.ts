@@ -8,13 +8,13 @@ import { customElement, state } from "lit/decorators.js";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
 import { setAppStatus } from "../../shell/status-bar.ts";
 import { setAppRibbon } from "../../shell/ribbon.ts";
+import { clock } from "../../core/format.ts";
 import type { PlcDevice } from "../ide/device.ts";
 import { fcuDevice, simulator } from "../ide/devices.ts";
 import { build, loadProject, parseProject, projectHash, type Project } from "../ide/project.ts";
-import { AlarmList, PRIO_NAMES, type HmiElement, type HmiPage } from "./hmi.ts";
+import { AlarmList, PRIO_NAMES, prioColor, type HmiElement, type HmiPage } from "./hmi.ts";
 import { sampleTrends } from "./hmi-trends.ts";
 import "./hmi-view.ts";
-import "../../styles.css";
 
 const PREFS_KEY = "fcu.hmi.runtime";
 
@@ -256,15 +256,14 @@ export class HmiRuntimeApp extends LitElement implements DashboardApp {
 	}
 
 	private renderAlarms(list: ReturnType<AlarmList["list"]>) {
-		const t = (ms: number) => new Date(ms).toLocaleTimeString("de-DE");
-		const color = (p: number) => (p <= 3 ? "#e5383b" : p === 4 ? "#f48c06" : p === 5 ? "#e9c46a" : "#4895ef");
+		const t = (ms: number) => clock(ms);
 		return html`
 			<aside class="hmi-rt-alarms" aria-label="Meldungen">
 				<h4>Anstehende Meldungen <button class="hmi-small-btn" ?disabled=${this.alarms.unacked === 0} @click=${() => this.ack(null)}>Alle quittieren</button></h4>
 				${list.length === 0 ? html`<p class="hmi-history">Keine Meldungen.</p>` : nothing}
 				${list.map((x) => html`
 					<div class="hmi-alarm-row ${x.acked ? "" : "unacked"}">
-						<span class="hmi-prio" style="background:${color(x.prio)}"></span>
+						<span class="hmi-prio" style="background:${prioColor(x.prio)}"></span>
 						<div>
 							<div class="hmi-alarm-title">${x.text}</div>
 							<div class="hmi-sub">${PRIO_NAMES[x.prio] ?? `Klasse ${x.prio}`} · ${x.page} · kam ${t(x.came)}${x.went ? ` · ging ${t(x.went)}` : ""}</div>

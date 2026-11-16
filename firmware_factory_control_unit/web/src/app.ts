@@ -2,6 +2,8 @@
 // the order of the RegisterApp() calls is the order in the workspace switcher, grouped by its section.
 // The first workspace ("/", the dashboard) is shown at the start. Next to them the WebSocket connection
 // (ws-client.ts) runs for the pushed data (e.g. the firmware log, log-store.ts).
+import "./ui/base.css";
+import "./ui/components.css";
 import "./shell/app-shell.js";
 import "./apps/overview-app.js";
 import "./apps/actuator-test-app.ts";

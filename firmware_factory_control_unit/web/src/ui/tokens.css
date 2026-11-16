@@ -1,0 +1,59 @@
+/* The design tokens of the web UI: the one set of colours, radii and sizes every stylesheet uses. Light only:
+   the dark theme is the page-wide inversion in base.css (own dark values would be inverted back to light).
+   Canvas and SVG drawn by script take their colours from ui/colors.ts (the same values). */
+:root {
+	--ui-font-family: "Segoe UI", system-ui, Roboto, Arial, sans-serif;
+	--ui-font-mono: "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Courier New", monospace;
+	--ui-font-size-sm: 12px;
+	--ui-font-size-md: 14px;
+	--ui-font-size-lg: 16px;
+	--ui-radius-sm: 4px;
+	--ui-radius-md: 6px;
+	--ui-radius-lg: 8px;
+
+	/* surfaces */
+	--ui-color-bg-app: #eceef1;        /* the window behind the pages */
+	--ui-color-bg-surface: #ffffff;    /* cards, tables, inputs */
+	--ui-color-bg-subtle: #f8f9fa;     /* panels, ribbon */
+	--ui-color-bg-muted: #f1f3f5;      /* table heads, quiet chips */
+	--ui-color-border: #d5d9df;
+	--ui-color-border-soft: #e5e7eb;
+	--ui-color-border-input: #c9d1db;
+	--ui-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05);
+	--ui-shadow-popup: 0 12px 32px rgba(15, 23, 42, 0.2);
+
+	/* text */
+	--ui-color-text-primary: #1f2937;
+	--ui-color-text-secondary: #374151;
+	--ui-color-text-muted: #6b7280;
+
+	/* buttons */
+	--ui-btn-neutral-inactive: #f7f9fb;
+	--ui-btn-neutral-hover: #e8edf3;
+	--ui-btn-neutral-active: #dde4ec;
+
+	/* meaning: accent (selection, links), ok, warning, error, info - each strong, soft (background), text */
+	--ui-color-accent: #2563eb;
+	--ui-color-accent-soft: #dbeafe;
+	--ui-color-accent-text: #1e40af;
+	--ui-color-ok: #16a34a;
+	--ui-color-ok-soft: #dcfce7;
+	--ui-color-ok-text: #166534;
+	--ui-color-warn: #d97706;
+	--ui-color-warn-soft: #fef3c7;
+	--ui-color-warn-text: #92400e;
+	--ui-color-error: #dc2626;
+	--ui-color-error-soft: #fee2e2;
+	--ui-color-error-text: #991b1b;
+	--ui-color-info: #0891b2;
+
+	/* indicators: LEDs, tracks of sliders and meters, chart grids */
+	--ui-led-off: #d1d5db;
+	--ui-led-green: #22c55e;
+	--ui-led-amber: #f59e0b;
+	--ui-led-red: #ef4444;
+	--ui-led-blue: #3b82f6;
+	--ui-color-track: #e5e7eb;
+	--ui-color-grid: rgba(80, 100, 130, 0.12);
+	--ui-color-lcd: #10161c;
+}

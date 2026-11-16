@@ -1,21 +1,8 @@
-/* PLC page (plc-ide-app.ts): toolbar, project tree | editors, panel, status bar. */
+/* PLC page (plc-ide-app.ts): project tree | editors, panel (its commands are in the ribbon). */
 plc-ide-app {
-	display: block;
-	font-family: "Segoe UI", Roboto, Arial, sans-serif;
-	--ide-mono: "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Courier New", monospace;
-	--ide-accent: #2563eb;
-	--ide-accent-soft: #dbeafe;
-	--ide-error: #dc2626;
-	--ide-error-soft: #fee2e2;
-	--ide-warn: #b45309;
-	--ide-warn-soft: #fef3c7;
-	--ide-ok: #15803d;
-	--ide-ok-soft: #dcfce7;
+	font-family: var(--ui-font-family);
 	--ide-value-bg: #ecfeff;
 	--ide-value-fg: #0e7490;
-}
-plc-ide-app[hidden] {
-	display: none;
 }
 
 .ide {
@@ -33,6 +20,7 @@ plc-ide-app[hidden] {
 }
 
 .ide button {
+	min-height: 0;
 	font: inherit;
 	font-size: 13px;
 	padding: 4px 10px;
@@ -51,8 +39,8 @@ plc-ide-app[hidden] {
 	cursor: default;
 }
 .ide button.ide-primary {
-	background: var(--ide-accent);
-	border-color: var(--ide-accent);
+	background: var(--ui-color-accent);
+	border-color: var(--ui-color-accent);
 	color: #fff;
 }
 .ide button.ide-primary:hover:not(:disabled) {
@@ -69,7 +57,7 @@ plc-ide-app[hidden] {
 	color: inherit;
 }
 .ide-mono {
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 12.5px;
 }
 
@@ -128,7 +116,7 @@ plc-ide-app[hidden] {
 	background: var(--ui-btn-neutral-hover);
 }
 .ide .ide-node-active {
-	background: var(--ide-accent-soft);
+	background: var(--ui-color-accent-soft);
 	border-color: #bfdbfe;
 	color: #1e3a8a;
 }
@@ -149,13 +137,13 @@ plc-ide-app[hidden] {
 }
 /* an action, not a muted entry (it looked disabled) */
 .ide .ide-add {
-	color: var(--ide-accent);
+	color: var(--ui-color-accent);
 	font-weight: 600;
-	border: 1px dashed var(--ide-accent);
+	border: 1px dashed var(--ui-color-accent);
 	margin-top: 4px;
 }
 .ide .ide-add:hover {
-	background: color-mix(in srgb, var(--ide-accent) 10%, transparent);
+	background: color-mix(in srgb, var(--ui-color-accent) 10%, transparent);
 }
 
 .ide-dot {
@@ -174,7 +162,7 @@ plc-ide-app[hidden] {
 	background: #f59e0b;
 }
 .ide-dot-error {
-	background: var(--ide-error);
+	background: var(--ui-color-error);
 }
 
 /* ---- center ------------------------------------------------------------------------------------- */
@@ -204,7 +192,7 @@ plc-ide-app[hidden] {
 	align-items: baseline;
 }
 .ide-modified {
-	color: var(--ide-warn);
+	color: var(--ui-color-warn-text);
 }
 .ide-pou {
 	display: flex;
@@ -260,7 +248,7 @@ plc-ide-app[hidden] {
 	border-left: none;
 }
 .ide .ide-seg button.on {
-	background: var(--ide-accent-soft);
+	background: var(--ui-color-accent-soft);
 	color: #1e3a8a;
 }
 .ide-online {
@@ -271,8 +259,8 @@ plc-ide-app[hidden] {
 	padding: 0 8px;
 }
 .ide-online-stale {
-	color: var(--ide-warn);
-	background: var(--ide-warn-soft);
+	color: var(--ui-color-warn-text);
+	background: var(--ui-color-warn-soft);
 }
 
 /* declaration table */
@@ -305,7 +293,7 @@ plc-ide-app[hidden] {
 }
 .ide-decl-table input {
 	padding: 1px 4px;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	width: 120px;
 	border-color: transparent;
 	background: transparent;
@@ -322,7 +310,7 @@ plc-ide-app[hidden] {
 }
 .ide-decl-table select {
 	padding: 1px 2px;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 12px;
 	border-color: transparent;
 	background: transparent;
@@ -335,7 +323,7 @@ plc-ide-app[hidden] {
 	background: var(--ui-color-bg-muted);
 }
 .ide-row-error td {
-	background: var(--ide-error-soft);
+	background: var(--ui-color-error-soft);
 }
 .ide .ide-add-row {
 	margin-top: 6px;
@@ -348,7 +336,7 @@ plc-ide-app[hidden] {
 	color: var(--ui-color-text-muted);
 }
 .ide-value {
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 12.5px;
 	color: var(--ide-value-fg);
 	white-space: nowrap;
@@ -377,7 +365,7 @@ plc-ide-app[hidden] {
 }
 .ide-io-edit {
 	width: 80px;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	color: var(--ide-value-fg);
 }
 .ide-desc {
@@ -385,7 +373,7 @@ plc-ide-app[hidden] {
 	color: var(--ui-color-text-secondary);
 }
 .ide-forced td {
-	background: var(--ide-warn-soft);
+	background: var(--ui-color-warn-soft);
 }
 .ide-lib-grid {
 	display: grid;
@@ -403,14 +391,14 @@ plc-ide-app[hidden] {
 	font-weight: 700;
 	padding: 3px;
 	background: #e2e8f0;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 }
 .ide-fb-body {
 	display: flex;
 	justify-content: space-between;
 	gap: 10px;
 	padding: 4px 6px;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 12px;
 }
 .ide-fb-out {
@@ -450,7 +438,7 @@ plc-st-editor {
 .ste-ln {
 	height: 20px;
 	line-height: 20px;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 12px;
 	text-align: right;
 	padding: 0 8px 0 14px;
@@ -467,7 +455,7 @@ plc-st-editor {
 	width: 8px;
 	height: 8px;
 	border-radius: 50%;
-	background: var(--ide-error);
+	background: var(--ui-color-error);
 }
 .ste-ln-warning::before {
 	background: #f59e0b;
@@ -525,7 +513,7 @@ plc-st-editor {
 .ste-input {
 	margin: 0;
 	padding: 8px 10px;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 13.5px;
 	line-height: 20px;
 	tab-size: 4;
@@ -543,10 +531,10 @@ plc-st-editor {
 	height: 20px;
 }
 .ste-row-error {
-	background: linear-gradient(90deg, var(--ide-error-soft), transparent 80%);
+	background: linear-gradient(90deg, var(--ui-color-error-soft), transparent 80%);
 }
 .ste-row-error > span:not(.ste-val) {
-	text-decoration: underline wavy var(--ide-error);
+	text-decoration: underline wavy var(--ui-color-error);
 	text-decoration-skip-ink: none;
 	text-underline-offset: 2px;
 }
@@ -586,8 +574,8 @@ plc-st-editor {
 	font-size: 12px;
 }
 .ste-val-stale {
-	background: var(--ide-warn-soft);
-	color: var(--ide-warn);
+	background: var(--ui-color-warn-soft);
+	color: var(--ui-color-warn-text);
 }
 .t-keyword {
 	color: #7c3aed;
@@ -645,7 +633,7 @@ plc-st-editor {
 	min-width: 16px;
 	padding: 0 4px;
 	border-radius: 8px;
-	background: var(--ide-error);
+	background: var(--ui-color-error);
 	color: #fff;
 	font-size: 11px;
 	text-align: center;
@@ -657,7 +645,7 @@ plc-st-editor {
 }
 .ide-empty {
 	padding: 10px 12px;
-	color: var(--ide-ok);
+	color: var(--ui-color-ok-text);
 }
 .ide-messages,
 .ide-log {
@@ -681,7 +669,7 @@ plc-st-editor {
 	width: 16px;
 }
 .ide-msg-error .ide-msg-icon {
-	color: var(--ide-error);
+	color: var(--ui-color-error);
 }
 .ide-msg-warning .ide-msg-icon {
 	color: #f59e0b;
@@ -690,7 +678,7 @@ plc-st-editor {
 	background: #f5f3ff;
 }
 .ide-msg-loc {
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 12px;
 	color: var(--ui-color-text-muted);
 	white-space: nowrap;
@@ -701,17 +689,17 @@ plc-st-editor {
 	border-bottom: 1px solid var(--ui-color-border-soft);
 }
 .ide-log-warn {
-	background: var(--ide-warn-soft);
+	background: var(--ui-color-warn-soft);
 }
 .ide-log-error {
-	background: var(--ide-error-soft);
+	background: var(--ui-color-error-soft);
 }
 .ide-watch {
 	padding: 4px 8px;
 }
 .ide-prep {
 	width: 150px;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 }
 .ide-force-tag {
 	display: inline-block;
@@ -723,7 +711,7 @@ plc-st-editor {
 	font-weight: 700;
 }
 .ide-bad {
-	color: var(--ide-error);
+	color: var(--ui-color-error);
 }
 .ide-watch-actions {
 	display: flex;
@@ -732,7 +720,7 @@ plc-st-editor {
 }
 .ide-watch-actions input {
 	flex: 0 1 320px;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 }
 
 /* plant */
@@ -777,7 +765,7 @@ plc-st-editor {
 	font-size: 10px;
 	text-anchor: middle;
 	fill: #6b7280;
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 }
 .ide-plant-facts {
 	display: flex;
@@ -805,13 +793,13 @@ plc-st-editor {
 	background: #475569;
 }
 .ide-state-run {
-	background: var(--ide-ok);
+	background: var(--ui-color-ok-text);
 }
 .ide-state-stop {
 	background: #b45309;
 }
 .ide-state-error {
-	background: var(--ide-error);
+	background: var(--ui-color-error);
 }
 .ide-warn {
 	color: #fcd34d;
@@ -873,11 +861,11 @@ plc-st-editor {
 	flex-wrap: wrap;
 }
 .gfx-status-ok {
-	color: var(--ide-ok);
+	color: var(--ui-color-ok-text);
 	font-size: 13px;
 }
 .gfx-status-bad {
-	color: var(--ide-error);
+	color: var(--ui-color-error);
 	font-size: 13px;
 }
 .gfx-st summary {
@@ -889,7 +877,7 @@ plc-st-editor {
 .fbd-problems {
 	margin: 0;
 	padding: 6px 24px;
-	color: var(--ide-error);
+	color: var(--ui-color-error);
 	font-size: 12px;
 }
 
@@ -964,31 +952,31 @@ plc-st-editor {
 	stroke: #64748b;
 }
 .fbd-sel rect {
-	stroke: var(--ide-accent);
+	stroke: var(--ui-color-accent);
 	stroke-width: 2.5;
 }
 .fbd-bad rect {
-	stroke: var(--ide-error);
+	stroke: var(--ui-color-error);
 	stroke-dasharray: 4 2;
 }
 .fbd-head {
 	stroke: #cbd5e1;
 }
 .fbd-type {
-	font: 600 12px var(--ide-mono);
+	font: 600 12px var(--ui-font-mono);
 	fill: #0f172a;
 }
 .fbd-instance {
-	font: 12px var(--ide-mono);
+	font: 12px var(--ui-font-mono);
 	fill: #1d4ed8;
 }
 .fbd-pin-name {
-	font: 11px var(--ide-mono);
+	font: 11px var(--ui-font-mono);
 	fill: #475569;
 	pointer-events: none;
 }
 .fbd-var-text {
-	font: 12px var(--ide-mono);
+	font: 12px var(--ui-font-mono);
 	fill: #0f172a;
 	pointer-events: none;
 }
@@ -1002,8 +990,8 @@ plc-st-editor {
 	cursor: crosshair;
 }
 .fbd-pin:hover {
-	fill: var(--ide-accent);
-	stroke: var(--ide-accent);
+	fill: var(--ui-color-accent);
+	stroke: var(--ui-color-accent);
 }
 .fbd-wire-line {
 	fill: none;
@@ -1021,18 +1009,18 @@ plc-st-editor {
 	stroke-width: 2.4;
 }
 .fbd-wire.fbd-sel .fbd-wire-line {
-	stroke: var(--ide-accent);
+	stroke: var(--ui-color-accent);
 	stroke-width: 2.6;
 }
 .fbd-rubber {
 	fill: none;
-	stroke: var(--ide-accent);
+	stroke: var(--ui-color-accent);
 	stroke-dasharray: 4 3;
 	stroke-width: 1.6;
 	pointer-events: none;
 }
 .fbd-value {
-	font: 11px var(--ide-mono);
+	font: 11px var(--ui-font-mono);
 	fill: var(--ide-value-fg);
 	pointer-events: none;
 }
@@ -1057,7 +1045,7 @@ plc-st-editor {
 	font-size: 12px;
 }
 .fbd-field input {
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 }
 .fbd-hint {
 	color: #64748b;
@@ -1144,7 +1132,7 @@ plc-st-editor {
 	box-shadow: none;
 	background: transparent;
 	text-align: center;
-	font: 600 13px var(--ide-mono);
+	font: 600 13px var(--ui-font-mono);
 	color: #0f172a;
 }
 .sfc-active {
@@ -1155,7 +1143,7 @@ plc-st-editor {
 	color: #166534;
 }
 .sfc-time {
-	font: 11px var(--ide-mono);
+	font: 11px var(--ui-font-mono);
 	color: #15803d;
 }
 /* the action block, joined to the step by a short line */
@@ -1188,7 +1176,7 @@ plc-st-editor {
 	border: none;
 	box-shadow: none;
 	background: transparent;
-	font: 12px var(--ide-mono);
+	font: 12px var(--ui-font-mono);
 }
 .sfc-add-action {
 	font-size: 12px;
@@ -1220,7 +1208,7 @@ plc-st-editor {
 	box-shadow: none;
 	background: transparent;
 	padding: 1px 3px;
-	font: 12px var(--ide-mono);
+	font: 12px var(--ui-font-mono);
 	color: #1e3a8a;
 }
 .sfc .sfc-cond:hover,
@@ -1307,15 +1295,15 @@ plc-st-editor {
 	background: var(--sfc-line);
 }
 .sfc-sel {
-	outline: 2px solid var(--ide-accent);
+	outline: 2px solid var(--ui-color-accent);
 	outline-offset: 3px;
 }
 .sfc-branch.sfc-sel {
 	outline-style: dashed;
 }
 .sfc-bad {
-	border-color: var(--ide-error);
-	outline: 2px dashed var(--ide-error);
+	border-color: var(--ui-color-error);
+	outline: 2px dashed var(--ui-color-error);
 	outline-offset: 3px;
 }
 
@@ -1365,19 +1353,19 @@ plc-st-editor {
 	stroke-width: 3.4;
 }
 .fbd-wire.fbd-mismatch .fbd-wire-line {
-	stroke: var(--ide-error);
+	stroke: var(--ui-color-error);
 	stroke-dasharray: 6 3;
 	stroke-width: 2.2;
 }
 .fbd-wire.fbd-sel .fbd-wire-line {
-	stroke: var(--ide-accent);
+	stroke: var(--ui-color-accent);
 	stroke-width: 2.8;
 	stroke-dasharray: none;
 }
 /* the pin within reach: a ring; the cursor shows that a press starts or ends a wire */
 .fbd-pin-near {
 	fill: none;
-	stroke: var(--ide-accent);
+	stroke: var(--ui-color-accent);
 	stroke-width: 2;
 	pointer-events: none;
 }
@@ -1461,10 +1449,10 @@ plc-st-editor {
 	padding: 3px 5px;
 }
 .ide-add-form input {
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 }
 .ide-add-form .ide-bad-input {
-	border-color: var(--ide-error);
+	border-color: var(--ui-color-error);
 }
 .ide-add-actions {
 	display: flex;
@@ -1478,7 +1466,7 @@ plc-st-editor {
 	font-size: 12px;
 }
 .ide-instance select {
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 12px;
 	padding: 1px 4px;
 }
@@ -1562,7 +1550,7 @@ plc-st-editor {
 	border: 1px solid var(--ui-color-border);
 	border-radius: var(--ui-radius-md);
 	box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 12.5px;
 }
 .ste-complete li {
@@ -1574,7 +1562,7 @@ plc-st-editor {
 	white-space: nowrap;
 }
 .ste-complete li.on {
-	background: color-mix(in srgb, var(--ide-accent) 16%, transparent);
+	background: color-mix(in srgb, var(--ui-color-accent) 16%, transparent);
 }
 .ste-ck {
 	flex: 0 0 22px;
@@ -1690,7 +1678,7 @@ plc-st-editor {
 	background: #e0f2fe;
 }
 .fbd-menu-item b {
-	font-family: var(--ide-mono);
+	font-family: var(--ui-font-mono);
 	font-size: 12.5px;
 	white-space: nowrap;
 }
@@ -1706,15 +1694,15 @@ plc-st-editor {
 	height: 24px;
 	padding: 0 14px;
 	font-size: 12px;
-	color: var(--ide-accent);
+	color: var(--ui-color-accent);
 	background: none;
-	border: 1px dashed var(--ide-accent);
+	border: 1px dashed var(--ui-color-accent);
 	border-radius: 12px;
 	opacity: 0.65;
 }
 .fbd .fbd-add-net:hover {
 	opacity: 1;
-	background: color-mix(in srgb, var(--ide-accent) 10%, transparent);
+	background: color-mix(in srgb, var(--ui-color-accent) 10%, transparent);
 }
 .fbd-toolbar .fbd-hint {
 	margin: 0;
@@ -1790,3 +1778,5 @@ plc-st-editor {
 	margin-left: 2px;
 	padding-left: 3px;
 }
+
+html[data-theme="dark"] .ide-toast { filter: invert(1) hue-rotate(180deg); }

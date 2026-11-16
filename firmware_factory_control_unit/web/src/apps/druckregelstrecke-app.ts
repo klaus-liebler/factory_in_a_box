@@ -15,7 +15,7 @@
 // coarse for those.
 import { LitElement, html } from "lit";
 import { customElement, state, query } from "lit/decorators.js";
-import "../styles.css";
+import "./druckregelstrecke.css";
 import { pneumatics } from "../../generated/ws-protocol.ts";
 import { fetchRegisters, register, regValue, type RegisterValues } from "../core/registers.ts";
 import { Poller } from "../core/poller.ts";
@@ -26,6 +26,7 @@ import { createDruckregelstreckeView, type DruckregelstreckeViewHandles, type Va
 import { drawTrendChart, drawCharacteristicChart, type TrendSample, type CharacteristicCurve } from "./druckregelstrecke-charts.ts";
 import { setAppStatus } from "../shell/status-bar.ts";
 import { setAppRibbon } from "../shell/ribbon.ts";
+import { SERIES } from "../ui/colors.ts";
 import type { IconName } from "../shell/icons.ts";
 import {
 	PidController,
@@ -42,7 +43,7 @@ import {
 
 const CONTROLLER_CYCLE_MS = 500;
 const TREND_WINDOW_SEC = 60;
-const CURVE_PALETTE = ["#2a78d6", "#e08a1e", "#16a34a", "#b91c1c", "#7c3aed", "#0891b2", "#be185d", "#4d7c0f"];
+const CURVE_PALETTE = SERIES;
 
 type Mode = "free" | "kennlinie" | "sprung" | "regler";
 type SprungPhase = "idle" | "before" | "stepped" | "analyzed";

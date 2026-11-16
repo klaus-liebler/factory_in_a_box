@@ -6,6 +6,7 @@
 import type { DebugInfo } from "../compiler/compiler.ts";
 import { ELEM, elemOf, type Type } from "../compiler/types.ts";
 import type { Value } from "../ide/values.ts";
+import { COLORS } from "../../ui/colors.ts";
 
 export type HmiKind = "button" | "switch" | "knob" | "slider" | "digital" | "gauge" | "bar" | "trend" | "led" | "label" | "alarm";
 
@@ -172,6 +173,11 @@ export const PRIO_NAMES: Record<number, string> = {
 };
 
 export const PEN_COLORS = ["#e4572e", "#2f6fde", "#1f9d55", "#b07d00"];
+
+/** The colour of a message class: 1-3 alarm (red), 4 fault (orange), 5 maintenance (yellow), 6-8 info (blue). */
+export function prioColor(p: number): string {
+	return p <= 3 ? COLORS.error : p === 4 ? "#f48c06" : p === 5 ? "#e9c46a" : COLORS.ledBlue;
+}
 export const GRID = 10;
 export const MAX_PENS = 4;
 

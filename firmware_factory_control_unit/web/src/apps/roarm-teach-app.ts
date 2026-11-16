@@ -7,7 +7,7 @@
 // Hardware am PC testbar, waehrend die echte Firmware automatisch die echte Anbindung bekommt.
 import { LitElement, html } from "lit";
 import { customElement, state, query } from "lit/decorators.js";
-import "../styles.css";
+import "./roarm-teach.css";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { roarm } from "../../generated/ws-protocol.js";
 import { createRoArm3DView, type RoArm3DHandles } from "./roarm-3d-view.js";

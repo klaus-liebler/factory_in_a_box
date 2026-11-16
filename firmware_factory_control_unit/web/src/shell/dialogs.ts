@@ -7,7 +7,8 @@
 //   const what = await choiceDialog({ title: "Ordner löschen", message: "...", choices: [{ id: "all", label: "Alles löschen", danger: true }, ...] });
 //   await messageDialog({ title: "Hinweis", message: "..." });
 //
-// Styles: .ui-dialog in styles.css.
+// Styles: .ui-dialog in shell/dialogs.css.
+import "./dialogs.css";
 
 export interface DialogChoice {
 	id: string;

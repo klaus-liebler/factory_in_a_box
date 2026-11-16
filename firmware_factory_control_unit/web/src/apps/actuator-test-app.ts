@@ -4,7 +4,6 @@
 // fieldbus is the control source; the bar on top says who switches the outputs and takes them over.
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import "../styles.css";
 import "./actuator-test.css";
 import type { DashboardApp } from "../shell/dashboard-app.ts";
 import { setAppStatus } from "../shell/status-bar.ts";
@@ -150,12 +149,12 @@ export class ActuatorTestApp extends LitElement implements DashboardApp {
 					@input=${(e: Event) => (this.dragging = { reg, value: Number((e.target as HTMLInputElement).value) })}
 					@change=${(e: Event) => this.setPwm(reg, Number((e.target as HTMLInputElement).value))} />
 				<div class="act-buttons">
-					${[0, 250, 500, 750, 1000].map((v) => html`<button class=${actual === v ? "act-sel" : ""} ?disabled=${locked} @click=${() => this.setPwm(reg, v)}>${v === 0 ? "Aus" : `${v / 10} %`}</button>`)}
+					${[0, 250, 500, 750, 1000].map((v) => html`<button class=${actual === v ? "selected" : ""} ?disabled=${locked} @click=${() => this.setPwm(reg, v)}>${v === 0 ? "Aus" : `${v / 10} %`}</button>`)}
 				</div>
 				${reg === "CONVEYOR_PWM" ? html`<div class="act-feedback">
-					${([1, 2, 3] as const).map((n) => html`<span class="act-led ${lb(n) ? "act-led-on" : ""}"></span>Lichtschranke ${n}`)}
+					${([1, 2, 3] as const).map((n) => html`<span class="led-item"><span class="led ${lb(n) ? "on" : ""}"></span>Lichtschranke ${n}</span>`)}
 				</div>` : html`<div class="act-feedback">Druck (roh): <b>${pressure ?? "–"}</b> / 4095
-					<span class="act-bar"><span style="width:${((pressure ?? 0) / 4095) * 100}%"></span></span></div>`}
+					<span class="meter"><span style="width:${((pressure ?? 0) / 4095) * 100}%"></span></span></div>`}
 			</section>`;
 	}
 
@@ -166,9 +165,9 @@ export class ActuatorTestApp extends LitElement implements DashboardApp {
 				${SWITCHES.map((s) => {
 					const on = regBool(this.values, s.reg);
 					return html`<div class="act-switch">
-						<span class="act-led ${on ? "act-led-on act-led-amber" : ""}"></span>
+						<span class="led ${on ? "on amber" : ""}"></span>
 						<span class="act-switch-name">${s.name}</span>
-						<button class="act-toggle ${on ? "act-sel" : ""}" ?disabled=${locked || on === undefined} @click=${() => this.toggle(s.reg)}>${on ? "Ein" : "Aus"}</button>
+						<button class="act-toggle ${on ? "selected" : ""}" ?disabled=${locked || on === undefined} @click=${() => this.toggle(s.reg)}>${on ? "Ein" : "Aus"}</button>
 						<button ?disabled=${locked || on === undefined || on} title="${PULSE_MS} ms einschalten" @click=${() => void this.pulse(s.reg)}>Impuls</button>
 					</div>`;
 				})}
@@ -185,13 +184,13 @@ export class ActuatorTestApp extends LitElement implements DashboardApp {
 				<div class="act-head"><b>RGB-Beleuchtung</b><span class="act-hint">WS2812: Kanal 1 Streifen (8 LEDs, Muster), Kanal 2 Einzel-LED (Farbe)</span></div>
 				<div class="act-sub">Kanal 1 - Streifen ${strip !== undefined ? html`<span class="act-hint">aktiv: ${STRIP_PATTERNS[strip].name}</span>` : nothing}</div>
 				<div class="act-swatches">
-					${STRIP_PATTERNS.map((pat, i) => html`<button class="act-pattern ${strip === i ? "act-sel" : ""}" ?disabled=${locked || p1 === undefined}
+					${STRIP_PATTERNS.map((pat, i) => html`<button class="act-pattern ${strip === i ? "selected" : ""}" ?disabled=${locked || p1 === undefined}
 						title=${pat.name} @click=${() => void this.direct.write("WS2812_CH1_PATTERN", i)}>
 						<span class="act-strip">${pat.leds.map((c) => html`<i style="background:${c}"></i>`)}</span><span>${pat.name}</span></button>`)}
 				</div>
 				<div class="act-sub">Kanal 2 - Einzel-LED ${single !== undefined ? html`<span class="act-hint">aktiv: ${SINGLE_PALETTE[single].name}</span>` : nothing}</div>
 				<div class="act-swatches">
-					${SINGLE_PALETTE.map((c, i) => html`<button class="act-color ${single === i ? "act-sel" : ""}" ?disabled=${locked || p2 === undefined}
+					${SINGLE_PALETTE.map((c, i) => html`<button class="act-color ${single === i ? "selected" : ""}" ?disabled=${locked || p2 === undefined}
 						title=${c.name} @click=${() => void this.direct.write("WS2812_CH2_PATTERN", i)}><i style="background:${c.color}"></i><span>${c.name}</span></button>`)}
 				</div>
 			</section>`;

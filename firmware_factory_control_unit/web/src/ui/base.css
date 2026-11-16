@@ -1,0 +1,138 @@
+/* The base of every page: document, buttons and inputs, panels, data tables, the dark theme. Element
+   selectors only where every page wants the same (no fixed sizes: the shell and components size their own). */
+@import "./tokens.css";
+
+html, body {
+	height: 100%;
+	margin: 0;
+	font-family: var(--ui-font-family);
+	color: var(--ui-color-text-primary);
+}
+
+button {
+	min-height: 30px;
+	padding: 4px 12px;
+	font: inherit;
+	font-size: var(--ui-font-size-sm);
+	font-weight: 600;
+	border: 1px solid var(--ui-color-border-input);
+	border-radius: var(--ui-radius-md);
+	background: var(--ui-btn-neutral-inactive);
+	color: var(--ui-color-text-primary);
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+button:hover:not(:disabled) { background: var(--ui-btn-neutral-hover); }
+button:active:not(:disabled) { background: var(--ui-btn-neutral-active); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary { background: var(--ui-color-accent); border-color: var(--ui-color-accent); color: #fff; }
+button.primary:hover:not(:disabled) { background: var(--ui-color-accent-text); }
+button.danger { background: var(--ui-color-error); border-color: var(--ui-color-error); color: #fff; }
+button.selected { background: var(--ui-color-accent-soft); border-color: var(--ui-color-accent); color: var(--ui-color-accent-text); }
+
+.panel-input {
+	height: 32px;
+	border-radius: var(--ui-radius-md);
+	font-size: var(--ui-font-size-sm);
+	border: 1px solid var(--ui-color-border-input);
+	padding: 0 8px;
+	box-sizing: border-box;
+}
+
+/* ---- page layout ---- */
+.container {
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 12px 16px;
+}
+
+.region-grid {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+
+.panel-section {
+	display: grid;
+	gap: 10px;
+	padding: 12px;
+	border: 1px solid var(--ui-color-border-soft);
+	border-radius: var(--ui-radius-lg);
+	background: var(--ui-color-bg-surface);
+	box-shadow: var(--ui-shadow-card);
+	align-content: start;
+}
+
+.panel-label {
+	font-weight: 600;
+	font-size: 15px;
+	color: var(--ui-color-text-primary);
+	margin-bottom: 4px;
+}
+
+.status-text { font-size: var(--ui-font-size-md); font-weight: 500; }
+.status-text.status-success { color: var(--ui-color-ok); }
+.status-text.status-warning { color: var(--ui-color-warn); }
+.status-text.status-error { color: var(--ui-color-error); }
+
+/* ---- data tables (registers, system, tasks) ---- */
+.register-table-wrap {
+	width: 100%;
+	overflow-x: auto;
+}
+
+.register-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--ui-font-size-sm);
+	background: var(--ui-color-bg-surface);
+	border: 1px solid var(--ui-color-border-soft);
+	border-radius: var(--ui-radius-md);
+	overflow: hidden;
+}
+
+.register-table th,
+.register-table td {
+	text-align: left;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--ui-color-border-soft);
+	vertical-align: middle;
+}
+
+.register-table tr:last-child td { border-bottom: none; }
+
+.register-table th {
+	background: var(--ui-color-bg-muted);
+	color: var(--ui-color-text-secondary);
+	font-weight: 600;
+}
+
+/* With explicit <col style="width:..."> (task-manager-app.ts) the column widths stay put instead of
+   following the text length of live values. */
+.register-table-fixed { table-layout: fixed; }
+.register-table-fixed td { overflow-wrap: break-word; }
+
+/* Name/value tables: the same label width in every table of a page, so consecutive tables line up. */
+.kv-table { table-layout: fixed; }
+.kv-table td:first-child { width: 40%; }
+.kv-table td { overflow-wrap: break-word; }
+
+@media (max-width: 760px) {
+	.region-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- dark theme ----
+   The whole page is inverted and its hue turned back, so it applies to every app and chart without keeping
+   every colour twice (red stays red, green stays green). What is dark already or shows real colours is
+   inverted back where it is defined, with this pattern:
+     html[data-theme="dark"] .something { filter: invert(1) hue-rotate(180deg); }
+   (status bar, dashboard hero, terminal console, RoArm 3D view, LED colours, images). Dialogs live in the top
+   layer outside the filter and get it themselves (shell/dialogs.css). */
+html[data-theme="dark"] {
+	background: #fff;
+	filter: invert(0.93) hue-rotate(180deg);
+	color-scheme: light;
+}
+html[data-theme="dark"] img {
+	filter: invert(1) hue-rotate(180deg);
+}

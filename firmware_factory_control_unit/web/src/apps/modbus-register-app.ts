@@ -2,7 +2,6 @@
 // written (not the outputs and commands while the IEC 61131 program is the control source).
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import "../styles.css";
 import "../register-panel.ts";
 import { REGIONS } from "../../generated/register-map.ts";
 import { fetchRegisters, writeHolding, type RegisterValues } from "../core/registers.ts";

@@ -15,7 +15,7 @@ export type StatusKind = "ok" | "busy" | "warning" | "error" | "idle";
 export interface AppStatus {
 	text: string;
 	kind: StatusKind;
-	/** Free content after the state: chips, counters (classes sb-chip, sb-warn, sb-right in styles.css). */
+	/** Free content after the state: chips, counters (classes sb-chip, sb-warn, sb-right in shell/shell.css). */
 	extra?: TemplateResult | null;
 }
 

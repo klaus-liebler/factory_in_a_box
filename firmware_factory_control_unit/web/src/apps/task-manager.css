@@ -1,0 +1,4 @@
+/* Task manager (task-manager-app.ts): the CPU column with its sparkline (ui/charts.ts). */
+.cpu-cell { display: flex; align-items: center; gap: 6px; }
+.cpu-sparkline { width: 56px; flex-shrink: 0; }
+.cpu-sparkline .ui-spark, .cpu-sparkline .ui-spark-empty { height: 18px; }

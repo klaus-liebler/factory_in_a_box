@@ -4,7 +4,6 @@
 // StealthChop amplitude, speed - as curves, to see what a setting does.
 import { LitElement, html, nothing } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
-import "../styles.css";
 import "./stepper-lab.css";
 import { stepper } from "../../generated/ws-protocol.js";
 import { wsRequest } from "../ws-client.js";
@@ -12,7 +11,7 @@ import type { DashboardApp } from "../shell/dashboard-app.js";
 import { setAppStatus } from "../shell/status-bar.js";
 import { setAppRibbon } from "../shell/ribbon.ts";
 import { Poller } from "../core/poller.ts";
-import { drawLineChart } from "./line-chart.js";
+import { drawLineChart } from "../ui/line-chart.ts";
 import {
 	currentShare, decodeDrvStatus, decodePwmScale, delayUnitMs, fullStepsPerSecond, moveCurve, profileProblem, tstepOf, type Shape,
 } from "./stepper-lab-model.js";

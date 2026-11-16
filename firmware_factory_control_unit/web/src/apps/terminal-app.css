@@ -209,3 +209,6 @@ tr.lvl-4, tr.lvl-5 { background: #fef2f2; }
 .log-table.hide-5 tr.lvl-5 {
 	display: none;
 }
+
+/* the console is dark already: keep it under the dark theme's inversion */
+html[data-theme="dark"] .terminal-page .term { filter: invert(1) hue-rotate(180deg); }

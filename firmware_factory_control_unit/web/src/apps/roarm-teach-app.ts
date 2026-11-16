@@ -15,6 +15,7 @@ import { MockRoArmBackend, type RoArmBackend, type MissionStep, VACUUM_GPIO_ID, 
 import { WsRoArmBackend } from "./roarm-ws-backend.js";
 import { JOINT_NAMES, JOINT_COUNT, JOINT_LIMITS_RAD, centiDegToRad, radToCentiDeg } from "./roarm-kinematics.js";
 import { kindOf, setAppStatus } from "../shell/status-bar.js";
+import { setAppRibbon } from "../shell/ribbon.js";
 
 // import.meta.env.DEV ist Vites eingebautes Dev/Prod-Flag (true unter "npm run dev", false im
 // echten "vite build", der als index.html.br ins Firmware-Flash eincompiliert wird, s.
@@ -75,6 +76,26 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
 	protected willUpdate(): void {
 		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+		const playing = this.isPlaying;
+		setAppRibbon(this, [
+			{ id: "mission", label: "Mission", groups: [
+				{ label: "Datei", commands: [
+					{ id: "open", label: "Laden", icon: "open", disabled: playing, title: "Eine gespeicherte Mission laden", run: () => this.openLoadDialog() },
+					{ id: "save", label: "Speichern", icon: "save", disabled: playing || this.steps.length === 0, title: "Die Mission auf dem Gerät speichern", run: () => this.openSaveDialog() },
+				] },
+				{ label: "Ablauf", commands: [
+					{ id: "play", label: "Abspielen", icon: "run", disabled: playing || this.steps.length === 0, run: () => void this.playMission() },
+					{ id: "stop", label: "Stopp", icon: "stop", disabled: !playing, run: () => this.stopPlayback() },
+				] },
+				{ label: "Schritte", commands: [
+					{ id: "pose", label: "Pose", icon: "pose", disabled: playing, title: "Die aktuelle Pose als Schritt einfügen", run: () => this.addCurrentPoseAsStep(false) },
+					{ id: "waypoint", label: "Wegpunkt", icon: "pose", disabled: playing, title: "Die aktuelle Pose als Wegpunkt (durchfahren, nicht anhalten)", run: () => this.addCurrentPoseAsStep(true) },
+					{ id: "vac-on", label: "Vakuum ein", icon: "vacuum", size: "small", disabled: playing, run: () => this.addVacuumStep(true) },
+					{ id: "vac-off", label: "Vakuum aus", icon: "vacuum-off", size: "small", disabled: playing, run: () => this.addVacuumStep(false) },
+					{ id: "delay", label: `Warten ${this.newDelayMs} ms`, icon: "delay", size: "small", disabled: playing, run: () => this.addDelayStep() },
+				] },
+			] },
+		]);
 	}
 
 	protected createRenderRoot() {
@@ -375,9 +396,6 @@ export class RoArmTeachApp extends LitElement implements DashboardApp {
 	render() {
 		return html`
 			<div class="container roarm-container">
-				<section class="header-section app-panel">
-					<div class="panel-label">RoArm-M3 Teach</div>
-				</section>
 
 				<div class="roarm-layout">
 					<div class="panel-section roarm-controls-panel">

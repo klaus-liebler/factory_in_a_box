@@ -7,6 +7,7 @@ import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import type { DashboardApp } from "../../shell/dashboard-app.ts";
 import { setAppStatus } from "../../shell/status-bar.ts";
+import { setAppRibbon } from "../../shell/ribbon.ts";
 import type { PlcDevice } from "../ide/device.ts";
 import { fcuDevice, simulator } from "../ide/devices.ts";
 import { build, loadProject, parseProject, projectHash, type Project } from "../ide/project.ts";
@@ -178,6 +179,10 @@ export class HmiRuntimeApp extends LitElement implements DashboardApp {
 	}
 
 	// ---- rendering ----------------------------------------------------------------------------------------------
+	private get stale(): boolean {
+		return !!this.project && this.dev.projectHash !== 0 && this.dev.projectHash !== projectHash(this.project);
+	}
+
 	protected willUpdate(): void {
 		const d = this.dev;
 		const unacked = this.alarms.unacked;
@@ -185,8 +190,39 @@ export class HmiRuntimeApp extends LitElement implements DashboardApp {
 			text: d.connected ? `${d.label}: ${d.state}` : `${d.label} antwortet nicht`,
 			kind: !d.connected || d.state === "ERROR" ? "error" : unacked ? "warning" : d.state === "RUN" ? "ok" : "idle",
 			extra: html`${unacked ? html`<span class="sb-warn">🚨 ${unacked} unquittiert</span>` : nothing}
+				${this.stale ? html`<span class="sb-warn" title="Das Programm auf dem Gerät ist nicht aus diesem Projekt: Variablen können fehlen">⚠ Programm ≠ Projekt</span>` : nothing}
 				<span class="sb-chip">${this.source === "device" ? "Projekt vom FCU" : "Projekt dieses Browsers"}</span>`,
 		});
+		const page = this.pages.find((p) => p.id === this.pageId) ?? this.pages[0];
+		setAppRibbon(this, [
+			{ id: "operate", label: "Bedienen", groups: [
+				{ label: "Seiten", commands: this.pages.length
+					? this.pages.map((p) => ({ id: `page-${p.id}`, label: p.name, icon: "page" as const, active: p === page,
+						run: () => { this.pageId = p.id; this.savePrefs(); } }))
+					: [{ id: "none", label: "Keine Seiten", icon: "page" as const, disabled: true, run: () => undefined }] },
+				{ label: "Meldungen", commands: [
+					{ id: "alarms", label: "Meldeliste", icon: "alarm", active: this.showAlarms, run: () => (this.showAlarms = !this.showAlarms) },
+					{ id: "ack-all", label: "Alle quittieren", icon: "ack", disabled: unacked === 0, run: () => this.ack(null) },
+				] },
+				{ label: "Darstellung", commands: [
+					{ id: "present", label: "Präsentation", icon: "fullscreen", title: "Nur die Bedienseite im Vollbild", run: () => this.fullscreen() },
+				] },
+			] },
+			{ id: "connect", label: "Verbindung", groups: [
+				{ label: "Gerät", commands: [
+					{ id: "sim", label: "Simulator", icon: "simulator", active: d.kind === "simulator", run: () => this.selectDevice("sim") },
+					{ id: "fcu", label: "FCU", icon: "device", active: d.kind === "fcu", run: () => this.selectDevice("fcu") },
+				] },
+				{ label: "Projekt", commands: [
+					{ id: "src-browser", label: "Dieser Browser", icon: "open", active: this.source === "browser", title: "Das Projekt der IDE in diesem Browser", run: () => this.selectSource("browser") },
+					{ id: "src-device", label: "Vom FCU", icon: "from-device", active: this.source === "device", disabled: d.kind !== "fcu",
+						title: "Das beim letzten Laden auf der SD-Karte der FCU gespeicherte Projekt", run: () => this.selectSource("device") },
+					{ id: "reload", label: "Neu laden", icon: "refresh", size: "small", disabled: this.loading, run: () => void this.loadSource() },
+					{ id: "start-sim", label: "Im Simulator starten", icon: "download-run", size: "small",
+						disabled: d.kind !== "simulator" || !this.project, title: "Das Projekt übersetzen, in den Simulator laden und starten", run: () => void this.startSimulator() },
+				] },
+			] },
+		]);
 	}
 
 	render() {
@@ -194,31 +230,11 @@ export class HmiRuntimeApp extends LitElement implements DashboardApp {
 		const d = this.dev;
 		const page = this.pages.find((p) => p.id === this.pageId) ?? this.pages[0];
 		const list = this.alarms.list();
-		const stale = this.project && d.projectHash !== 0 && d.projectHash !== projectHash(this.project);
 		return html`
 			<div class="hmi-rt">
-				<div class="hmi-rt-bar">
-					<div class="hmi-tabs" role="tablist">
-						${this.pages.map((p) => html`<button class="hmi-tab ${p.id === page?.id ? "hmi-tab-active" : ""}" role="tab"
-							@click=${() => { this.pageId = p.id; this.savePrefs(); }}>${p.name}</button>`)}
-					</div>
-					<span class="hmi-grow"></span>
-					<span class="hmi-chip ${d.state === "RUN" ? "ok" : d.state === "ERROR" || !d.connected ? "bad" : ""}">${d.connected ? d.state : "offline"}</span>
-					${stale ? html`<span class="hmi-chip bad" title="Das Programm auf dem Gerät ist nicht aus diesem Projekt: Variablen können fehlen">Programm ≠ Projekt</span>` : nothing}
-					${d.state === "NO_PROGRAM" && d.kind === "simulator" && this.project
-						? html`<button class="hmi-small-btn on" @click=${() => void this.startSimulator()}>▶ Projekt im Simulator starten</button>` : nothing}
-					<select title="Gerät" @change=${(e: Event) => this.selectDevice((e.target as HTMLSelectElement).value)}>
-						<option value="sim" ?selected=${d.kind === "simulator"}>Simulator</option>
-						<option value="fcu" ?selected=${d.kind === "fcu"}>FCU</option>
-					</select>
-					<select title="Woher die Bedienseiten kommen" @change=${(e: Event) => this.selectSource((e.target as HTMLSelectElement).value as "browser" | "device")}>
-						<option value="browser" ?selected=${this.source === "browser"}>Projekt dieses Browsers</option>
-						<option value="device" ?selected=${this.source === "device"} ?disabled=${d.kind !== "fcu"}>Projekt vom FCU (SD-Karte)</option>
-					</select>
-					<button class="hmi-small-btn" title="Projekt neu laden" ?disabled=${this.loading} @click=${() => void this.loadSource()}>⟳</button>
-					<button class="hmi-small-btn ${this.showAlarms ? "on" : ""}" @click=${() => (this.showAlarms = !this.showAlarms)}>🚨 Meldungen${list.length ? ` (${list.length})` : ""}</button>
-					<button class="hmi-small-btn" title="Vollbild" @click=${() => this.fullscreen()}>⛶</button>
-				</div>
+				${d.state === "NO_PROGRAM" && d.kind === "simulator" && this.project ? html`
+					<div class="hmi-rt-hint">Im Simulator läuft kein Programm.
+						<button class="hmi-small-btn on" @click=${() => void this.startSimulator()}>▶ Projekt im Simulator starten</button></div>` : nothing}
 				<div class="hmi-rt-main">
 					<div class="hmi-rt-page">
 						${this.loading ? html`<div class="hmi-empty">Projekt wird vom Gerät geladen …</div>`

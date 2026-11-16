@@ -99,11 +99,15 @@ Loslassen der Endwert. Auf der FCU kommen also nicht alle Zwischenwerte an, der 
 
 ## Laufzeit
 
-- **Gerät:** Simulator dieses Browsers oder FCU. Steht im Simulator kein Programm, startet „▶ Projekt im
-  Simulator starten“ das Projekt.
+Der Arbeitsbereich *Bedienen & Beobachten*; seine Befehle stehen im Ribbon: Reiter **Bedienen** (die Seiten,
+Meldeliste ein/aus, Alle quittieren, Präsentation = nur die Seite im Vollbild) und **Verbindung** (Gerät,
+Projektquelle, Neu laden, Im Simulator starten).
+
+- **Gerät:** Simulator dieses Browsers oder FCU. Steht im Simulator kein Programm, bietet ein Hinweis über
+  der Seite „▶ Projekt im Simulator starten“ an.
 - **Projekt:** das dieses Browsers (der aktuelle Stand der IDE) oder das auf der SD-Karte
   der FCU (beim letzten „Laden“ gespeichert). So braucht ein Bedien-PC keine IDE und kein Projekt: Er holt
-  es von der FCU. ⟳ lädt neu.
+  es von der FCU.
 - **Meldeliste:** alle Meldungselemente aller Seiten (auch nicht angezeigter). Eine Meldung kommt, wenn ihre
   Variable TRUE wird, und bleibt in der Liste, solange sie ansteht **oder** nicht quittiert ist (Zustände
   wie `VDI3814.NC`). Sortierung: unquittierte zuerst, dann nach Klasse, dann neueste zuerst. Quittieren
@@ -113,7 +117,7 @@ Loslassen der Endwert. Auf der FCU kommen also nicht alle Zwischenwerte an, der 
   quittiert; die letzten 200 Ereignisse).
 - **Linienschreiber** zeichnen auf, solange die Laufzeit oder die SPS-Seite sichtbar ist, mit 10 Hz und
   höchstens 2000 Punkten je Element, auch für nicht angezeigte Seiten.
-- Gerätezustand und unquittierte Meldungen stehen in der Statusleiste; ⛶ schaltet auf Vollbild.
+- Gerätezustand, unquittierte Meldungen und „Programm ≠ Projekt“ stehen in der Statusleiste.
 
 **Management-Grenzen (bewusst, Stand dieser Umsetzung):** Meldeliste, Quittierzustand und Verläufe leben
 im **Browser**. Zwei Bediener-PCs haben zwei Meldelisten, eine Quittierung an einem PC wirkt am anderen

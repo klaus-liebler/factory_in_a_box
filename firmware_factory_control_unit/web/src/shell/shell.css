@@ -1,0 +1,264 @@
+/* The application window (app-shell.ts): title bar, workspace switcher and ribbon, working area, status
+   bar. Light like a desktop engineering program; the dark theme is the page-wide inversion in styles.css. */
+app-shell {
+	--shell-status-h: 26px;
+	--tb-h: 38px;
+	--rb-tabs-h: 30px;
+	--rb-groups-h: 92px;
+	--shell-header-h: calc(var(--tb-h) + var(--rb-tabs-h) + var(--rb-groups-h) + var(--shell-status-h));
+	--win-bg: #eceef1;
+	--win-panel: #f8f9fa;
+	--win-border: #d5d9df;
+	--win-text: #1f2937;
+	--win-muted: #6b7280;
+	--win-accent: #2563eb;
+	--win-hover: #e3e8ef;
+	--win-pressed: #d6e4fb;
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	height: 100dvh;
+	overflow: hidden;
+	font-family: "Segoe UI", system-ui, Roboto, Arial, sans-serif;
+	color: var(--win-text);
+	background: var(--win-bg);
+	user-select: none;
+}
+app-shell.shell-ribbon-collapsed {
+	--rb-groups-h: 0px;
+}
+app-shell button { font-family: inherit; }
+/* the window's own controls: not the apps' 34px buttons of styles.css */
+.tb button, .rb button, .ws-switcher-menu button, .rb-menu button {
+	height: auto;
+	font-weight: inherit;
+	transition: background-color 0.12s ease;
+}
+
+/* ---- title bar ---- */
+.tb {
+	flex: 0 0 var(--tb-h);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 8px;
+	background: linear-gradient(#f3f4f6, #e6e8ec);
+	border-bottom: 1px solid var(--win-border);
+}
+.tb-logo { display: flex; align-items: center; height: 28px; margin-right: 4px; }
+.tb-logo svg { height: 100%; width: auto; display: block; }
+.tb-quick { display: flex; gap: 2px; padding-right: 8px; border-right: 1px solid var(--win-border); }
+.tb .tb-btn {
+	height: 30px;
+}
+.tb-btn {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 30px;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 5px;
+	background: transparent;
+	cursor: pointer;
+}
+.tb-btn:hover { background: var(--win-hover); border-color: var(--win-border); }
+.tb-btn.tb-on { background: var(--win-pressed); border-color: #9ec0f5; }
+.tb-doc {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	height: 30px;
+	margin: 4px 0 0 6px;
+	padding: 0 16px;
+	align-self: flex-end;
+	background: #fff;
+	border: 1px solid var(--win-border);
+	border-bottom: none;
+	border-radius: 7px 7px 0 0;
+	flex: 0 1 auto;
+}
+.tb-doc-title { font-weight: 600; font-size: 14px; white-space: nowrap; }
+.tb-doc-host { font-size: 12px; color: var(--win-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tb-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.tb-conn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--win-muted); padding: 0 8px; white-space: nowrap; }
+.tb-dot { width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05); }
+.tb-conn-open .tb-dot { background: #22c55e; }
+.tb-conn-connecting .tb-dot { background: #f59e0b; }
+.tb-conn-closed .tb-dot { background: #ef4444; }
+.tb-conn-closed { color: #b91c1c; }
+.tb-badge {
+	position: absolute;
+	top: 1px;
+	right: 0;
+	min-width: 15px;
+	height: 15px;
+	padding: 0 3px;
+	border-radius: 8px;
+	background: #ef4444;
+	color: #fff;
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 15px;
+	box-sizing: border-box;
+}
+
+/* ---- ribbon ---- */
+.rb {
+	flex: 0 0 auto;
+	display: flex;
+	background: #fff;
+	border-bottom: 1px solid var(--win-border);
+	box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+	position: relative;
+	z-index: 2;
+}
+.rb-switcher {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 190px;
+	margin: 8px 10px 8px 8px;
+	padding: 0 12px;
+	border: 1px solid #c3c9d2;
+	border-radius: 4px;
+	background: linear-gradient(#fff, #f3f5f8);
+	cursor: pointer;
+	text-align: left;
+}
+.rb-switcher:hover { border-color: var(--win-accent); }
+.rb-switcher[aria-expanded="true"] { border-color: var(--win-accent); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15); }
+.rb-switcher-icon { display: flex; }
+.rb-switcher-name { flex: 1; font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.rb-caret { color: var(--win-muted); font-size: 12px; }
+.rb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rb-tabs { display: flex; gap: 2px; height: var(--rb-tabs-h); align-items: stretch; overflow-x: auto; scrollbar-width: none; }
+.rb-tab {
+	padding: 0 16px;
+	border: none;
+	border-bottom: 3px solid transparent;
+	background: none;
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: #4b5563;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.rb-tab:hover { color: var(--win-text); background: #f3f5f8; }
+.rb-tab-active { color: var(--win-text); border-bottom-color: #1f2937; }
+.rb-groups { display: flex; height: var(--rb-groups-h); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.rb-group {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	padding: 4px 6px 0;
+	border-right: 1px solid #e5e7eb;
+}
+.rb-group-body { flex: 1; display: flex; align-items: flex-start; gap: 2px; }
+.rb-group-caption {
+	height: 20px;
+	padding: 0 6px;
+	border: none;
+	background: none;
+	color: #4b5563;
+	font-size: 11px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	cursor: pointer;
+	white-space: nowrap;
+	border-radius: 3px;
+}
+.rb-group-caption:hover { background: var(--win-hover); color: var(--win-text); }
+.rb-cmd {
+	display: flex;
+	align-items: center;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: none;
+	color: var(--win-text);
+	cursor: pointer;
+}
+.rb-cmd:hover:not(:disabled) { background: var(--win-hover); border-color: var(--win-border); }
+.rb-cmd:active:not(:disabled) { background: var(--win-pressed); }
+.rb-cmd.rb-active { background: var(--win-pressed); border-color: #9ec0f5; }
+.rb-cmd:disabled { cursor: default; opacity: 0.38; filter: grayscale(0.8); }
+.rb-large { flex-direction: column; justify-content: flex-start; gap: 3px; width: 70px; min-height: 66px; padding: 4px 2px; }
+.rb-large .rb-label { font-size: 11.5px; line-height: 1.15; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.rb-smallcol { display: flex; flex-direction: column; gap: 1px; }
+.rb-small { gap: 6px; height: 22px; padding: 0 8px 0 4px; font-size: 12px; white-space: nowrap; }
+.icon { flex: 0 0 auto; display: block; }
+.rb-cmd:hover:not(:disabled) .icon { transform: translateY(-1px); }
+
+/* menus: the workspace switcher and the group menus */
+.ws-scrim { position: fixed; inset: 0; z-index: 40; }
+.ws-switcher-menu {
+	position: fixed;
+	top: calc(var(--tb-h) + var(--rb-tabs-h) + var(--rb-groups-h) - 6px);
+	left: 8px;
+	z-index: 41;
+	width: 340px;
+	max-height: calc(100vh - var(--tb-h) - 80px);
+	overflow-y: auto;
+	padding: 6px;
+	background: #fff;
+	border: 1px solid var(--win-border);
+	border-radius: 6px;
+	box-shadow: 0 14px 40px rgba(15, 23, 42, 0.22);
+}
+.ws-menu-group { padding: 8px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--win-muted); }
+.ws-menu-item, .rb-menu-item {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	padding: 6px 10px;
+	border: none;
+	border-radius: 5px;
+	background: none;
+	text-align: left;
+	cursor: pointer;
+	color: var(--win-text);
+}
+.ws-menu-item:hover, .rb-menu-item:hover:not(:disabled) { background: var(--win-hover); }
+.ws-menu-active { background: #eef4ff; }
+.ws-menu-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.ws-menu-title { font-weight: 600; font-size: 14px; }
+.ws-menu-desc { font-size: 12px; color: var(--win-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-menu-check { margin-left: auto; color: var(--win-accent); font-weight: 700; }
+.rb-menu {
+	position: fixed;
+	z-index: 41;
+	min-width: 220px;
+	padding: 4px;
+	background: #fff;
+	border: 1px solid var(--win-border);
+	border-radius: 6px;
+	box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2);
+}
+.rb-menu-item { font-size: 13px; gap: 10px; }
+.rb-menu-item:disabled { opacity: 0.4; cursor: default; }
+
+/* ---- working area ---- */
+.app-shell-content {
+	flex: 1 1 auto;
+	min-height: 0;
+	min-width: 0;
+	overflow: auto;
+	background: var(--win-bg);
+	user-select: text;
+}
+
+@media (max-width: 760px) {
+	app-shell { --tb-h: 40px; }
+	.tb-logo, .tb-conn, .tb-doc-host { display: none; }
+	.rb { flex-wrap: wrap; }
+	.rb-switcher { min-width: 0; margin: 6px; padding: 6px 10px; }
+	.rb-switcher-name { font-size: 12px; }
+	.rb-main { flex-basis: 100%; }
+}

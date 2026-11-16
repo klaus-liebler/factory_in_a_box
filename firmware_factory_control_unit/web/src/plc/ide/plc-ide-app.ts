@@ -7,6 +7,8 @@ import { customElement, query, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
 import { choiceDialog, confirmDialog, messageDialog, promptDialog } from "../../shell/dialogs.ts";
 import { setAppStatus, type StatusKind } from "../../shell/status-bar.ts";
+import { setAppRibbon } from "../../shell/ribbon.ts";
+import type { IconName } from "../../shell/icons.ts";
 import "../../styles.css";
 import "./plc-ide.css";
 import "./st-editor.ts";
@@ -201,6 +203,7 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		}
 		this.lastHalt = h;
 		this.publishStatus();
+		this.publishRibbon();
 	}
 
 	/** The state of the PLC and of the project in the application's status bar (shell/status-bar.ts). */
@@ -672,7 +675,6 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 		void this.tick;
 		return html`
 			<div class="ide">
-				${this.renderToolbar()}
 				<div class="ide-main">
 					${this.renderTree()}
 					<section class="ide-center">
@@ -685,49 +687,87 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 			</div>`;
 	}
 
-	private renderToolbar() {
-		const s = this.dev.state;
+	/** The IDE's commands in the application's ribbon (shell/ribbon.ts): project, online, debugging, panels. */
+	private publishRibbon(): void {
+		const d = this.dev;
+		const s = d.state;
 		const ok = this.lastBuild?.ok ?? false;
-		return html`
-			<div class="ide-toolbar" role="toolbar">
-				<div class="ide-tb-group">
-					<button title="Übersetzen (Strg+Umschalt+B)" @click=${() => this.doBuild(true)}>⚙ Übersetzen</button>
-				</div>
-				<div class="ide-tb-group">
-					<select title="Gerät" class="ide-device" @change=${(e: Event) => this.selectDevice((e.target as HTMLSelectElement).value)}>
-						<option value="sim" ?selected=${this.dev.kind === "simulator"}>Simulator (im Browser)</option>
-						<option value="fcu" ?selected=${this.dev.kind === "fcu"}>FCU (dieses Gerät)</option>
-					</select>
-					<button title="Projekt in den Simulator laden (SPS geht in STOP)" ?disabled=${!ok} @click=${() => this.download(false)}>⇩ Laden</button>
-					<button class="ide-primary" title="Übersetzen, laden und starten" ?disabled=${!ok} @click=${() => this.download(true)}>⇩▶ Laden &amp; Starten</button>
-				</div>
-				<div class="ide-tb-group">
-					<button title="Start (RUN)" ?disabled=${s !== "STOP"} @click=${() => this.dev.start()}>▶ Start</button>
-					<button title="Stop" ?disabled=${s !== "RUN" && s !== "HALTED"} @click=${() => this.dev.stop()}>■ Stop</button>
-					<button title=${this.dev.canSingleCycle ? "Ein Zyklus (in STOP)" : "Einzelne Zyklen: nur im Simulator"} ?disabled=${s !== "STOP" || !this.dev.canSingleCycle} @click=${() => this.dev.singleCycle()}>⏭ Zyklus</button>
-					<button title="Reset warm: Variablen auf Initialwerte" ?disabled=${s === "NO_PROGRAM"} @click=${() => this.dev.reset("warm")}>↺ Reset</button>
-				</div>
-				<div class="ide-tb-group" title="Debuggen: Haltepunkt per Klick auf die Zeilennummer">
-					<button title="Weiter (F5): bis zum nächsten Haltepunkt" ?disabled=${s !== "HALTED"} @click=${() => this.dev.continueRun()}>▶ Weiter</button>
-					<button title="Prozedurschritt (F10): die nächste Anweisung, Aufrufe laufen durch" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("over")}>⤼</button>
-					<button title="Einzelschritt (F11): in den Aufruf hinein" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("into")}>⤵</button>
-					<button title="Ausführen bis Rücksprung (Umschalt+F11)" ?disabled=${s !== "HALTED"} @click=${() => this.dev.step("out")}>⤴</button>
-					<button title="Alle Haltepunkte entfernen" ?disabled=${this.breakpointCount === 0} @click=${() => this.clearBreakpoints()}>○ Haltepunkte (${this.breakpointCount})</button>
-				</div>
-				${this.dev.hasControlSource ? html`
-				<div class="ide-tb-group" title="Wer schaltet die Ausgänge des FCU? Feldbus: Modbus, OPC UA, Web-UI. IEC 61131: das Programm (externe Schreibzugriffe werden abgewiesen).">
-					<span class="ide-tb-label">Ausgänge:</span>
-					<div class="ide-seg" role="group" aria-label="Steuerquelle">
-						<button class=${!this.dev.iec ? "on" : ""} ?disabled=${!this.dev.connected} @click=${() => this.dev.setSource(false)}>Feldbus</button>
-						<button class=${this.dev.iec ? "on" : ""} ?disabled=${!this.dev.connected} @click=${() => this.dev.setSource(true)}>IEC 61131</button>
-					</div>
-					<label class="ide-tb-check" title="Das Programm startet nach dem Einschalten von selbst"><input type="checkbox" .checked=${this.dev.autostart} ?disabled=${!this.dev.connected}
-						@change=${(e: Event) => this.dev.setAutostart((e.target as HTMLInputElement).checked)} /> Autostart</label>
-				</div>` : nothing}
-				<div class="ide-tb-group ide-tb-right">
-					<button title="Alle Force-Werte aufheben" ?disabled=${this.dev.forcedOnDevice === 0 || this.dev.leasedByOther} @click=${() => this.dev.unforceAll()}>⊘ Forces (${this.dev.forcedOnDevice})</button>
-				</div>
-			</div>`;
+		const halted = s !== "HALTED";
+		const panel = (id: Panel, label: string, ic: IconName) =>
+			({ id: `panel-${id}`, label, icon: ic, size: "small" as const, active: this.panel === id, run: () => (this.panel = id) });
+		const view = (v: View, label: string, ic: IconName, lib?: typeof this.lib) =>
+			({ id: `view-${v}${lib ?? ""}`, label, icon: ic, size: "small" as const, active: this.view === v && (!lib || this.lib === lib),
+				run: () => { this.view = v; if (lib) this.lib = lib; } });
+		setAppRibbon(this, [
+			{ id: "project", label: "Projekt", groups: [
+				{ label: "Erstellen", commands: [
+					{ id: "add", label: "Neues Objekt", icon: "new-object", title: "Programm, Funktionsbaustein, Funktion, Datentyp oder Variablenliste", run: () => this.openAdd() },
+					{ id: "folder", label: "Neuer Ordner", icon: "new-folder", run: () => void this.newFolder() },
+					{ id: "page", label: "Neue Bedien­seite", icon: "new-page", run: () => this.addHmiPage() },
+				] },
+				{ label: "Übersetzen", commands: [
+					{ id: "build", label: "Übersetzen", icon: "build", title: "Übersetzen (Strg+Umschalt+B)", run: () => this.doBuild(true) },
+				] },
+				{ label: "Datei", commands: [
+					{ id: "export", label: "Exportieren", icon: "export", title: "Projekt als Datei speichern", run: () => this.exportProject() },
+					{ id: "import", label: "Importieren", icon: "import", title: "Projektdatei laden", run: () => this.importProject() },
+					{ id: "from-device", label: "Vom Gerät", icon: "from-device", size: "small", disabled: !d.loadProject || !d.connected,
+						title: "Das beim letzten Laden auf dem Gerät (SD-Karte) gespeicherte Projekt holen", run: () => void this.projectFromDevice() },
+					{ id: "example", label: "Beispiel", icon: "example", size: "small", title: "Beispielprojekt laden", run: () => void this.resetToExample() },
+				] },
+			] },
+			{ id: "online", label: "Online", groups: [
+				{ label: "Gerät", commands: [
+					{ id: "sim", label: "Simulator", icon: "simulator", active: d.kind === "simulator", title: "Das Programm läuft im Browser (mit Anlagenmodell)", run: () => this.selectDevice("sim") },
+					{ id: "fcu", label: "FCU", icon: "device", active: d.kind === "fcu", title: "Dieses Gerät über die WebSocket-Verbindung", run: () => this.selectDevice("fcu") },
+				] },
+				{ label: "Laden", commands: [
+					{ id: "download", label: "Laden", icon: "download", disabled: !ok, title: "Projekt auf das Gerät laden (SPS geht in STOP)", run: () => void this.download(false) },
+					{ id: "download-run", label: "Laden & Starten", icon: "download-run", disabled: !ok, title: "Übersetzen, laden und starten", run: () => void this.download(true) },
+				] },
+				{ label: "Steuerung", commands: [
+					{ id: "run", label: "Start", icon: "run", disabled: s !== "STOP", title: "Start (RUN)", run: () => void d.start() },
+					{ id: "stop", label: "Stop", icon: "stop", disabled: s !== "RUN" && s !== "HALTED", run: () => void d.stop() },
+					{ id: "cycle", label: "Ein Zyklus", icon: "cycle", size: "small", disabled: s !== "STOP" || !d.canSingleCycle,
+						title: d.canSingleCycle ? "Ein Zyklus (in STOP)" : "Einzelne Zyklen: nur im Simulator", run: () => d.singleCycle() },
+					{ id: "reset", label: "Reset warm", icon: "reset", size: "small", disabled: s === "NO_PROGRAM", title: "Variablen auf Initialwerte", run: () => void d.reset("warm") },
+				] },
+				...(d.hasControlSource ? [{ label: "Ausgänge", commands: [
+					{ id: "fieldbus", label: "Feldbus", icon: "fieldbus" as IconName, active: !d.iec, disabled: !d.connected,
+						title: "Modbus, OPC UA und Web-UI schalten die Ausgänge", run: () => void d.setSource(false) },
+					{ id: "iec", label: "IEC 61131", icon: "iec" as IconName, active: d.iec, disabled: !d.connected,
+						title: "Das Programm schaltet die Ausgänge (externe Schreibzugriffe werden abgewiesen)", run: () => void d.setSource(true) },
+					{ id: "autostart", label: "Autostart", icon: "autostart" as IconName, active: d.autostart, disabled: !d.connected,
+						title: "Das Programm startet nach dem Einschalten von selbst", run: () => void d.setAutostart(!d.autostart) },
+				] }] : []),
+			] },
+			{ id: "debug", label: "Debuggen", groups: [
+				{ label: "Ausführen", commands: [
+					{ id: "continue", label: "Weiter", icon: "continue", disabled: halted, title: "Weiter (F5): bis zum nächsten Haltepunkt", run: () => void d.continueRun() },
+					{ id: "over", label: "Prozedur­schritt", icon: "step-over", disabled: halted, title: "F10: die nächste Anweisung, Aufrufe laufen durch", run: () => void d.step("over") },
+					{ id: "into", label: "Einzel­schritt", icon: "step-into", disabled: halted, title: "F11: in den Aufruf hinein", run: () => void d.step("into") },
+					{ id: "out", label: "Rück­sprung", icon: "step-out", disabled: halted, title: "Umschalt+F11: bis zum Rücksprung", run: () => void d.step("out") },
+				] },
+				{ label: "Haltepunkte", commands: [
+					{ id: "clear-bp", label: `Alle entfernen (${this.breakpointCount})`, icon: "breakpoint", disabled: this.breakpointCount === 0,
+						title: "Haltepunkte setzt ein Klick auf die Zeilennummer", run: () => this.clearBreakpoints() },
+				] },
+				{ label: "Forcen", commands: [
+					{ id: "unforce", label: `Forces aufheben (${d.forcedOnDevice})`, icon: "unforce", disabled: d.forcedOnDevice === 0 || d.leasedByOther,
+						title: "Alle geforcten Werte aufheben", run: () => d.unforceAll() },
+				] },
+			] },
+			{ id: "windows", label: "Fenster", groups: [
+				{ label: "Bereiche", commands: [
+					panel("messages", "Meldungen", "messages"), panel("watch", "Watch", "watch"), panel("log", "Geräteprotokoll", "log"),
+					panel("plant", "Anlage", "plant"), panel("stack", "Aufrufliste", "stack"), panel("xref", "Querverweise", "xref"),
+				] },
+				{ label: "Ansichten", commands: [
+					view("task", "Task-Konfiguration", "delay"), view("io", "I/O-Abbild", "registers"), view("hmi", "Visualisierung", "hmi"),
+					view("lib", "Standard", "example", "std"), view("lib", "VDI 3814", "pressure", "VDI3814"), view("lib", "Simulation", "simulator", "SIM"),
+				] },
+			] },
+		]);
 	}
 
 	// ---- graphical implementations (FBD, SFC) ---------------------------------------------------------
@@ -931,13 +971,6 @@ export class PlcIdeApp extends LitElement implements DashboardApp {
 						<span class="ide-node-icon">📚</span><span>${l === "std" ? "Standard" : l === "SIM" ? "Simulation (SIM)" : "VDI 3814"}</span>
 						<span class="ide-node-sub">${l === "std" ? "IEC 61131-3" : l === "SIM" ? "Realsimulatoren" : "GA-Funktionen"}</span>
 					</button>`)}
-				<div class="ide-tree-actions">
-					<button @click=${() => this.exportProject()} title="Projekt als Datei speichern">Export</button>
-					<button @click=${() => this.importProject()} title="Projektdatei laden">Import</button>
-					${this.dev.loadProject ? html`<button @click=${() => this.projectFromDevice()} ?disabled=${!this.dev.connected}
-						title="Das beim letzten Laden auf dem Gerät (SD-Karte) gespeicherte Projekt holen">Vom Gerät</button>` : ""}
-					<button @click=${() => this.resetToExample()} title="Beispielprojekt laden">Beispiel</button>
-				</div>
 			</nav>`;
 	}
 

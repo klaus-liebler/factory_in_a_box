@@ -6,6 +6,7 @@ import { registerWsProtocolListener, sendBinary, type WsProtocolListener } from 
 import { drawSparkline } from "./sparkline.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { kindOf, setAppStatus } from "../shell/status-bar.js";
+import { openWorkspace, setAppRibbon } from "../shell/ribbon.js";
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -39,7 +40,38 @@ function formatBytes(bytes: number): string {
 export class TaskManagerApp extends LitElement implements DashboardApp, WsProtocolListener {
 	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
 	protected willUpdate(): void {
-		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+		setAppStatus(this, { text: this.paused ? "Angehalten" : this.statusMessage, kind: this.paused ? "idle" : kindOf(this.statusVariant) });
+		setAppRibbon(this, [
+			{ id: "tasks", label: "Tasks", groups: [
+				{ label: "Daten", commands: [
+					{ id: "refresh", label: "Aktualisieren", icon: "refresh", title: "Threads und Pools jetzt abfragen", run: () => this.requestNow() },
+					{ id: "pause", label: this.paused ? "Fortsetzen" : "Anhalten", icon: this.paused ? "run" : "pause", active: this.paused,
+						title: "Die Abfrage im Sekundentakt anhalten", run: () => this.setPaused(!this.paused) },
+				] },
+				{ label: "Weitere", commands: [
+					{ id: "dash", label: "Dashboard", icon: "dashboard", run: () => openWorkspace("/") },
+					{ id: "system", label: "System", icon: "chip", run: () => openWorkspace("/system") },
+				] },
+			] },
+		]);
+	}
+
+	@state() private paused = false;
+
+	private requestNow(): void {
+		sendBinary(WsProtocol.tasks.TaskManagerRequest.encode({ requestId: 0 }));
+		sendBinary(WsProtocol.tasks.PoolListRequest.encode({ requestId: 0 }));
+	}
+
+	private setPaused(on: boolean): void {
+		this.paused = on;
+		if (on) {
+			this.stopped = true;
+			if (this.pollTimeoutHandle) clearTimeout(this.pollTimeoutHandle);
+		} else {
+			this.stopped = false;
+			this.scheduleNextPoll(0);
+		}
 	}
 
 	protected createRenderRoot() {
@@ -107,8 +139,9 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 	};
 
 	onShow(): void {
-		this.stopped = false;
 		this.unregisterWsListener = registerWsProtocolListener(WsProtocol.tasks.NAMESPACE_ID, this);
+		if (this.paused) return;
+		this.stopped = false;
 		this.scheduleNextPoll(0);
 	}
 
@@ -189,9 +222,6 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 	render() {
 		return html`
 			<div class="container">
-				<section class="header-section app-panel">
-					<div class="panel-label">Task Manager</div>
-				</section>
 
 				<div class="panel-section">
 					<div class="panel-label">Threads</div>

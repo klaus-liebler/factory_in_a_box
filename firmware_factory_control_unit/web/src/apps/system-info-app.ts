@@ -8,6 +8,7 @@ import * as buildInfo from "../../generated/build-info.js";
 import { I2C_ADDRESS_CANDIDATES } from "../i2c-device-names.js";
 import { i2cBusSections } from "../i2c-scan.js";
 import { kindOf, setAppStatus } from "../shell/status-bar.js";
+import { openWorkspace, setAppRibbon } from "../shell/ribbon.js";
 
 type SystemInfo = system.SystemInfoMessage.Payload;
 
@@ -91,6 +92,19 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
 	protected willUpdate(): void {
 		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+		setAppRibbon(this, [
+			{ id: "system", label: "System", groups: [
+				{ label: "Live-Daten", commands: [
+					{ id: "refresh", label: this.loading ? "Lädt …" : "Aktualisieren", icon: "refresh", disabled: this.loading,
+						title: "Uptime, Heap, Netzwerk, PHY und I²C neu lesen", run: () => void this.refresh() },
+				] },
+				{ label: "Weitere", commands: [
+					{ id: "tasks", label: "Task Manager", icon: "tasks", run: () => openWorkspace("/tasks") },
+					{ id: "power", label: "Power", icon: "power", run: () => openWorkspace("/power") },
+					{ id: "terminal", label: "Terminal", icon: "terminal", run: () => openWorkspace("/terminal") },
+				] },
+			] },
+		]);
 	}
 
 	protected createRenderRoot() {
@@ -200,9 +214,6 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 		const info = this.info;
 		return html`
 			<div class="container">
-				<section class="header-section app-panel">
-					<div class="panel-label">System</div>
-				</section>
 
 				<div class="region-grid">
 					<!-- Board/Hostname/Chip-UID/MAC/Zertifikat sind Compile-Zeit-Konstanten
@@ -247,12 +258,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 					</div>
 
 					<div class="panel-section">
-						<div class="panel-label">
-							Live Info - System
-							<button class="system-refresh-btn" @click=${() => this.refresh()} ?disabled=${this.loading}>
-								${this.loading ? "Lädt..." : "Aktualisieren"}
-							</button>
-						</div>
+						<div class="panel-label">Live Info - System</div>
 						${info
 							? html`
 									<table class="register-table kv-table">

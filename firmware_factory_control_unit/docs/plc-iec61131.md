@@ -1048,6 +1048,13 @@ full screen). Writes go through `PlcDevice.write` (the data segment between cycl
 subscription. Fixed on the way: the ST parser looped forever (out of memory) on a statement error before a
 VAR section, e.g. `USING` after the POU header - regression test in `compiler.test.ts`.
 
+**Web UI as a desktop application (2026-11-16).** The former menu entries of the web UI are *workspaces*
+(switcher top left, like the workspaces of a CAD program; the dashboard is the start workspace), each with a
+ribbon published by the app (`shell/ribbon.ts`). The IDE's toolbar of 10.2 is no longer a row in the page: its
+commands are the ribbon tabs Projekt (objects, folders, HMI pages, build, export/import, from the device,
+example), Online (simulator/FCU, download, RUN/STOP/cycle/reset, control source, autostart), Debuggen (continue,
+steps, breakpoints, forces) and Fenster (panels, views, libraries).
+
 ## 14. Decisions from the review and postponed points
 
 Review round 1 (2026-11-08):

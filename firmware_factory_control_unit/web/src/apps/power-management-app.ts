@@ -6,6 +6,7 @@ import { fetchRegisters, type RegisterValues } from "../registers.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { drawLineChart } from "./line-chart.js";
 import { kindOf, setAppStatus } from "../shell/status-bar.js";
+import { openWorkspace, setAppRibbon } from "../shell/ribbon.js";
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -55,6 +56,17 @@ export class PowerManagementApp extends LitElement implements DashboardApp {
 	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
 	protected willUpdate(): void {
 		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+		setAppRibbon(this, [
+			{ id: "power", label: "Messung", groups: [
+				{ label: "Zeitfenster", commands: DURATION_OPTIONS.map((o) => ({
+					id: `d${o.seconds}`, label: o.label, icon: "chart" as const, active: this.durationSeconds === o.seconds,
+					title: `Die letzten ${o.label} zeigen (aufgezeichnet werden immer bis zu 60 min)`, run: () => this.selectDuration(o.seconds),
+				})) },
+				{ label: "Versorgung", commands: [
+					{ id: "dash", label: "Dashboard", icon: "dashboard", title: "USB-PD und Gesamtzustand", run: () => openWorkspace("/") },
+				] },
+			] },
+		]);
 	}
 
 	protected createRenderRoot() {
@@ -161,23 +173,6 @@ export class PowerManagementApp extends LitElement implements DashboardApp {
 	render() {
 		return html`
 			<div class="container">
-				<section class="header-section app-panel">
-					<div class="panel-label">Power Management</div>
-				</section>
-
-				<div class="panel-section power-toolbar">
-					<span class="panel-label">Zeitfenster</span>
-					<div class="duration-buttons">
-						${DURATION_OPTIONS.map(
-							(opt) => html`
-								<button
-									class=${this.durationSeconds === opt.seconds ? "duration-btn duration-btn-active" : "duration-btn"}
-									@click=${() => this.selectDuration(opt.seconds)}
-								>${opt.label}</button>
-							`
-						)}
-					</div>
-				</div>
 
 				<div class="power-chart-grid">
 					<div class="panel-section power-chart-card">

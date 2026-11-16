@@ -20,6 +20,8 @@ import { analyse, complete, findCommand, matches, meantCommand, paramAt, sourceV
 import { wsRequest } from "../ws-client.js";
 import { clearLog, logEntries, MAX_LOG_LINES, subscribeLog, type LogEntry } from "../log-store.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
+import { setAppRibbon } from "../shell/ribbon.js";
+import type { IconName } from "../shell/icons.js";
 
 const PROMPT = "fcu> ";
 const MAX_CONSOLE_LINES = 2000;
@@ -411,6 +413,26 @@ export class TerminalApp extends LitElement implements DashboardApp {
 	}
 
 	// ---- view --------------------------------------------------------------------------------------
+	/** The commands in the application's ribbon (shell/ribbon.ts). */
+	protected willUpdate(): void {
+		setAppRibbon(this, [
+			{ id: "terminal", label: "Terminal", groups: [
+				{ label: "Konsole", commands: [
+					{ id: "focus", label: "Eingabe", icon: "keyboard", title: "Zur Eingabezeile ('help' listet die Kommandos)", run: () => this.inputElement?.focus() },
+					{ id: "clear-console", label: "Konsole leeren", icon: "clear", run: () => (this.lines = []) },
+				] },
+				{ label: "Log-Stufen", commands: LEVELS.map((l) => ({
+					id: `lvl${l.level}`, label: l.name, icon: (l.level >= system.LogLevel.LOG_ERROR ? "alarm" : l.level === system.LogLevel.LOG_WARN ? "bell" : "log") as IconName,
+					size: "small" as const, active: !this.hiddenLevels.has(l.level), title: `${l.name} zeigen/ausblenden`, run: () => this.toggleLevel(l.level),
+				})) },
+				{ label: "Log", commands: [
+					{ id: "autoscroll", label: "Auto-Scroll", icon: "step-into", active: this.autoScroll, run: () => this.toggleAutoScroll() },
+					{ id: "clear-log", label: "Log leeren", icon: "clear", title: "Alle Log-Zeilen dieses Browsers verwerfen", run: () => clearLog() },
+				] },
+			] },
+		]);
+	}
+
 	render() {
 		const before = this.input.slice(0, this.cursor);
 		const atCursor = this.input.slice(this.cursor, this.cursor + 1) || " ";

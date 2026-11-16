@@ -6,6 +6,7 @@ import { REGIONS } from "../../generated/register-map.js";
 import { fetchRegisters, writeHolding, type RegisterValues } from "../registers.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { kindOf, setAppStatus } from "../shell/status-bar.js";
+import { openWorkspace, setAppRibbon } from "../shell/ribbon.js";
 import { plc } from "../../generated/ws-protocol.js";
 import { wsRequest } from "../ws-client.js";
 
@@ -19,6 +20,36 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 			text: this.statusMessage, kind: kindOf(this.statusVariant),
 			extra: this.iec ? html`<span title="Das SPS-Programm schreibt die Ausgänge; schreibbar sind nur Parameter. Umschalten auf Feldbus in der SPS-Seite.">Steuerquelle IEC 61131: Ausgänge gesperrt</span>` : null,
 		});
+		setAppRibbon(this, [
+			{ id: "registers", label: "Register", groups: [
+				{ label: "Daten", commands: [
+					{ id: "refresh", label: "Aktualisieren", icon: "refresh", run: () => void this.poll() },
+					{ id: "pause", label: this.paused ? "Fortsetzen" : "Anhalten", icon: this.paused ? "run" : "pause", active: this.paused,
+						title: "Die Abfrage im Sekundentakt anhalten (Werte bleiben stehen)", run: () => this.setPaused(!this.paused) },
+				] },
+				{ label: "Bereiche", commands: REGIONS.map((r, i) => ({
+					id: `region-${i}`, label: r.title, icon: "registers" as const, size: "small" as const,
+					run: () => this.querySelectorAll("register-panel")[i]?.scrollIntoView({ behavior: "smooth", block: "start" }),
+				})) },
+				{ label: "Steuerquelle", commands: [
+					{ id: "to-plc", label: this.iec ? "IEC 61131 (SPS)" : "Feldbus", icon: this.iec ? "iec" : "fieldbus",
+						title: "Wer die Ausgänge schaltet - umschalten in der SPS-Entwicklung", run: () => openWorkspace("/plc") },
+				] },
+			] },
+		]);
+	}
+
+	@state() private paused = false;
+
+	private setPaused(on: boolean): void {
+		this.paused = on;
+		if (on) {
+			this.stopped = true;
+			if (this.pollTimeoutHandle) clearTimeout(this.pollTimeoutHandle);
+		} else {
+			this.stopped = false;
+			this.scheduleNextPoll(0);
+		}
 	}
 
 	/** The IEC 61131 program is the control source: only parameter registers are writable. */
@@ -39,6 +70,7 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 	// bleibt jetzt dauerhaft im DOM (s. app-shell.ts), Polling laeuft daher nur, waehrend diese
 	// App auch tatsaechlich sichtbar/aktiv ist.
 	onShow(): void {
+		if (this.paused) return;
 		this.stopped = false;
 		this.scheduleNextPoll(0);
 	}
@@ -106,9 +138,6 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 	render() {
 		return html`
 			<div class="container">
-				<section class="header-section app-panel">
-					<div class="panel-label">Register-Konsole</div>
-				</section>
 
 				<div class="region-grid" @write-register=${this.handleWriteRegister}>
 					${REGIONS.map(

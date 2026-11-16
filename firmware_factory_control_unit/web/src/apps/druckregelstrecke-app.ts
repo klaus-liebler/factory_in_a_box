@@ -29,6 +29,8 @@ import type { DashboardApp } from "../shell/dashboard-app.js";
 import { createDruckregelstreckeView, type DruckregelstreckeViewHandles, type ValveIndex } from "./druckregelstrecke-view.js";
 import { drawTrendChart, drawCharacteristicChart, type TrendSample, type CharacteristicCurve } from "./druckregelstrecke-charts.js";
 import { kindOf, setAppStatus } from "../shell/status-bar.js";
+import { setAppRibbon } from "../shell/ribbon.js";
+import type { IconName } from "../shell/icons.js";
 import {
 	PidController,
 	designController,
@@ -88,6 +90,29 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
 	protected willUpdate(): void {
 		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+		const mode = (m: Mode, label: string, ic: IconName) => ({ id: `mode-${m}`, label, icon: ic, active: this.mode === m, run: () => this.selectMode(m) });
+		setAppRibbon(this, [
+			{ id: "experiment", label: "Experiment", groups: [
+				{ label: "Betriebsart", commands: [
+					mode("free", "Freies Experiment", "chart"), mode("kennlinie", "Kennlinie", "pressure"),
+					mode("sprung", "Sprung­antwort", "step-into"), mode("regler", "Regler­betrieb", "build"),
+				] },
+				{ label: "Kennlinie", commands: [
+					{ id: "point", label: "Punkt übernehmen", icon: "add", disabled: this.mode !== "kennlinie" || !this.latestFeedback,
+						title: "Den aktuellen Betriebspunkt (Kompressorleistung, Höchstdruck) in die Kennlinie übernehmen", run: () => this.commitKennlinePoint() },
+				] },
+				{ label: "Sprungantwort", commands: [
+					{ id: "sprung-start", label: "Vorbereiten", icon: "run", size: "small", disabled: this.mode !== "sprung", title: "Kompressor auf den Vorher-Wert", run: () => this.sprungStart() },
+					{ id: "sprung-jump", label: "Sprung", icon: "step-out", size: "small", disabled: this.mode !== "sprung" || this.sprungPhase !== "before", title: "Sprung auf den Nachher-Wert, Aufzeichnung startet", run: () => this.sprungJump() },
+					{ id: "sprung-end", label: "Auswerten", icon: "chart", size: "small", disabled: this.mode !== "sprung" || this.sprungPhase !== "stepped", title: "Kompressor aus, Ks/Tu/T bestimmen", run: () => this.sprungEndAndAnalyze() },
+					{ id: "design", label: "Entwurf übernehmen", icon: "apply", disabled: !this.sprungResult, title: "Die entworfenen Reglerparameter übernehmen (Reglerbetrieb)", run: () => this.applyDesignResult() },
+				] },
+				{ label: "Regler", commands: [
+					{ id: "regler", label: this.reglerOn ? "Regler aus" : "Regler ein", icon: this.reglerOn ? "stop" : "run", active: this.reglerOn,
+						disabled: this.mode !== "regler", run: () => this.toggleRegler(!this.reglerOn) },
+				] },
+			] },
+		]);
 	}
 
 	protected createRenderRoot() {
@@ -407,26 +432,6 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 
 	// --- Rendering ---------------------------------------------------------------------------
 
-	private renderModeTabs() {
-		const tabs: { mode: Mode; label: string }[] = [
-			{ mode: "free", label: "Freies Experiment" },
-			{ mode: "kennlinie", label: "Kennlinie" },
-			{ mode: "sprung", label: "Sprungantwort" },
-			{ mode: "regler", label: "Reglerbetrieb" },
-		];
-		return html`
-			<div class="druckregel-mode-tabs">
-				${tabs.map(
-					(t) => html`
-						<button class=${this.mode === t.mode ? "druckregel-mode-tab druckregel-mode-tab-active" : "druckregel-mode-tab"} @click=${() => this.selectMode(t.mode)}>
-							${t.label}
-						</button>
-					`
-				)}
-			</div>
-		`;
-	}
-
 	private renderFreeMode() {
 		return html`
 			<div class="panel-section">
@@ -588,17 +593,12 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 	render() {
 		return html`
 			<div class="container druckregel-container">
-				<section class="header-section app-panel">
-					<div class="panel-label">Druckregelstrecke</div>
-				</section>
 
 				<div class="panel-section druckregel-view-card">
 					<div class="druckregel-view-container"></div>
 				</div>
 
-				${this.renderModeTabs()}
-
-				${this.mode === "free" ? this.renderFreeMode() : ""}
+					${this.mode === "free" ? this.renderFreeMode() : ""}
 				${this.mode === "kennlinie" ? this.renderKennlinieMode() : ""}
 				${this.mode === "sprung" ? this.renderSprungMode() : ""}
 				${this.mode === "regler" ? this.renderReglerMode() : ""}

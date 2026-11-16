@@ -20,7 +20,7 @@ plc-ide-app[hidden] {
 
 .ide {
 	display: grid;
-	grid-template-rows: auto minmax(0, 1fr) minmax(120px, 26%);
+	grid-template-rows: minmax(0, 1fr) minmax(120px, 26%);
 	height: calc(100vh - var(--shell-header-h, 131px) - 23px);
 	min-height: 560px;
 	border: 1px solid var(--ui-color-border);
@@ -74,26 +74,6 @@ plc-ide-app[hidden] {
 }
 
 /* ---- toolbar ---------------------------------------------------------------------------------- */
-.ide-toolbar {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px 10px;
-	align-items: center;
-	padding: 8px 10px;
-	border-bottom: 1px solid var(--ui-color-border);
-	background: var(--ui-color-bg-subtle);
-}
-.ide-tb-group {
-	display: flex;
-	gap: 4px;
-	align-items: center;
-}
-.ide-tb-right {
-	margin-left: auto;
-}
-.ide-device {
-	min-width: 170px;
-}
 
 /* ---- main: tree | center ------------------------------------------------------------------------ */
 .ide-main {
@@ -176,18 +156,6 @@ plc-ide-app[hidden] {
 }
 .ide .ide-add:hover {
 	background: color-mix(in srgb, var(--ide-accent) 10%, transparent);
-}
-.ide-tree-actions {
-	margin-top: auto;
-	display: flex;
-	gap: 4px;
-	padding: 8px 4px 2px;
-	border-top: 1px solid var(--ui-color-border);
-}
-.ide-tree-actions button {
-	flex: 1;
-	padding: 3px 4px;
-	font-size: 12px;
 }
 
 .ide-dot {
@@ -874,20 +842,6 @@ plc-st-editor {
 }
 
 /* ---- device (FCU): control source, autostart, offline --------------------------------------- */
-.ide-tb-label {
-	font-size: 12px;
-	color: var(--ui-color-text-muted);
-}
-.ide-tb-check {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	font-size: 13px;
-	margin-left: 4px;
-}
-.ide-tb-group .ide-seg {
-	margin-left: 0;
-}
 .ide-dot-offline {
 	background: #9ca3af;
 	box-shadow: 0 0 0 2px #e5e7eb;

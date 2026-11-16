@@ -10,6 +10,7 @@ import { stepper } from "../../generated/ws-protocol.js";
 import { wsRequest } from "../ws-client.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { setAppStatus } from "../shell/status-bar.js";
+import { setAppRibbon } from "../shell/ribbon.js";
 import { drawLineChart } from "./line-chart.js";
 import {
 	currentShare, decodeDrvStatus, decodePwmScale, delayUnitMs, fullStepsPerSecond, moveCurve, profileProblem, tstepOf, type Shape,
@@ -68,6 +69,31 @@ export class StepperLabApp extends LitElement implements DashboardApp {
 			kind: !s ? "error" : s.homing || s.moving ? "busy" : s.tmcOk ? "ok" : "warning",
 			extra: this.message ? html`<span class="sb-chip">${this.message}</span>` : null,
 		});
+		const selectAxis = (a: number) => {
+			this.axis = a;
+			this.status = null;
+			void this.loadSettings();
+		};
+		setAppRibbon(this, [
+			{ id: "axis", label: "Achse", groups: [
+				{ label: "Achse", commands: [0, 1].map((a) => ({ id: `axis${a}`, label: `Stepper ${a + 1}`, icon: "stepper" as const, active: this.axis === a, run: () => selectAxis(a) })) },
+				{ label: "Betrieb", commands: [
+					{ id: "manual", label: "Handbetrieb", icon: "keyboard", active: s?.manual ?? false, disabled: !s,
+						title: "Die Register-Ziele (Modbus, OPC UA, SPS) ruhen, diese Seite fährt die Achse", run: () => void this.setManual(!(s?.manual ?? false)) },
+				] },
+				{ label: "Fahren", commands: [
+					{ id: "minus", label: `−${this.move.steps}`, icon: "left", disabled: !this.settings, title: "Fahrt rückwärts (Vollschritte, Profil der Seite)", run: () => void this.drive(-1) },
+					{ id: "plus", label: `+${this.move.steps}`, icon: "right", disabled: !this.settings, title: "Fahrt vorwärts", run: () => void this.drive(1) },
+					{ id: "stop", label: "Stopp", icon: "stop", disabled: !s, run: () => void this.stop() },
+				] },
+				{ label: "Referenz", commands: [
+					{ id: "home", label: "Referenzfahrt", icon: "home", disabled: !s || s.homing, title: "Sensorlose Referenzfahrt (StallGuard) mit den Parametern der Seite", run: () => void this.startHoming() },
+				] },
+				{ label: "Parameter", commands: [
+					{ id: "apply", label: "Übernehmen", icon: "apply", disabled: !this.settings || this.busy, title: "TMC2209-Einstellungen und Fahrprofil schreiben", run: () => void this.apply() },
+				] },
+			] },
+		]);
 	}
 
 	onShow(): void {

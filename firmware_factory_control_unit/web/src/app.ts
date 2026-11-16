@@ -1,8 +1,9 @@
-// Entry-Point: baut die Dashboard-Shell auf und haengt die Apps ein (Reihenfolge der
-// RegisterApp()-Aufrufe bestimmt die Reihenfolge in der Sidebar). Kein Login -- jede App spricht
-// bei Bedarf schlankes HTTP/Fetch (s. api.ts); daneben laeuft dauerhaft die WebSocket-Verbindung
-// (s. ws-client.ts) fuer Server-Push-Daten (u. a. das Firmware-Log, s. log-store.ts und die Terminal-App).
+// Entry point: builds the application window (shell/app-shell.ts) and registers the apps as workspaces;
+// the order of the RegisterApp() calls is the order in the workspace switcher, grouped by its section.
+// The first workspace ("/", the dashboard) is shown at the start. Next to them the WebSocket connection
+// (ws-client.ts) runs for the pushed data (e.g. the firmware log, log-store.ts).
 import "./shell/app-shell.js";
+import "./apps/overview-app.js";
 import "./apps/modbus-register-app.js";
 import "./apps/power-management-app.js";
 import "./apps/system-info-app.js";
@@ -19,17 +20,20 @@ import { startLogStore } from "./log-store.js";
 
 document.addEventListener("DOMContentLoaded", () => {
 	const shell = document.querySelector("app-shell") as AppShell;
+	const add = (path: string, title: string, icon: Parameters<AppShell["RegisterApp"]>[2], tag: string, group: string, description: string) =>
+		shell.RegisterApp(path, title, icon, document.createElement(tag), { group, description });
 
-	shell.RegisterApp("/", "Register", "🔧", document.createElement("modbus-register-app"));
-	shell.RegisterApp("/power", "Power Management", "⚡", document.createElement("power-management-app"));
-	shell.RegisterApp("/system", "System", "🖥️", document.createElement("system-info-app"));
-	shell.RegisterApp("/roarm-teach", "RoArm Teach", "🦾", document.createElement("roarm-teach-app"));
-	shell.RegisterApp("/tasks", "Task Manager", "📋", document.createElement("task-manager-app"));
-	shell.RegisterApp("/druckregelstrecke", "Druckregelstrecke", "🌬️", document.createElement("druckregelstrecke-app"));
-	shell.RegisterApp("/steppers", "Schrittmotoren", "⚙️", document.createElement("stepper-lab-app"));
-	shell.RegisterApp("/plc", "SPS (IEC 61131)", "🧩", document.createElement("plc-ide-app"));
-	shell.RegisterApp("/hmi", "Bedienen & Beobachten", "🖥", document.createElement("hmi-runtime-app"));
-	shell.RegisterApp("/terminal", "Terminal", "⌨️", document.createElement("terminal-app"));
+	add("/", "Dashboard", "dashboard", "overview-app", "Übersicht", "Systemzustand auf einen Blick");
+	add("/plc", "SPS-Entwicklung", "plc", "plc-ide-app", "Automatisierung", "IEC 61131-3: ST, FUP, AS, Visualisierung");
+	add("/hmi", "Bedienen & Beobachten", "hmi", "hmi-runtime-app", "Automatisierung", "Bedienseiten, Meldungen, Linienschreiber");
+	add("/registers", "Register", "registers", "modbus-register-app", "Anlage", "Modbus-Register lesen und schreiben");
+	add("/druckregelstrecke", "Druckregelstrecke", "pressure", "druckregelstrecke-app", "Anlage", "Kennlinie, Sprungantwort, Reglerentwurf");
+	add("/steppers", "Schrittmotoren", "stepper", "stepper-lab-app", "Anlage", "Achsen fahren, referenzieren, parametrieren");
+	add("/roarm-teach", "RoArm Teach", "robot", "roarm-teach-app", "Anlage", "Roboterarm teachen und Missionen abspielen");
+	add("/system", "System", "chip", "system-info-app", "Gerät", "Board, Build, Netzwerk, I²C");
+	add("/power", "Power Management", "power", "power-management-app", "Gerät", "Spannung, Strom, Leistung im Verlauf");
+	add("/tasks", "Task Manager", "tasks", "task-manager-app", "Gerät", "Threads, CPU-Last, Stacks, Speicherpools");
+	add("/terminal", "Terminal", "terminal", "terminal-app", "Gerät", "Testkommandos und Firmware-Log");
 
 	shell.Start();
 	startLogStore();

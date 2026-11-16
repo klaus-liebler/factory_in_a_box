@@ -1,77 +1,40 @@
+// Task manager: the firmware's threads (priority, stack, CPU load with a short history) and memory pools.
+// The requests only send; the answers arrive as pushed messages of the "tasks" namespace.
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "../styles.css";
-import * as WsProtocol from "../../generated/ws-protocol.js";
-import { registerWsProtocolListener, sendBinary, type WsProtocolListener } from "../ws-client.js";
-import { drawSparkline } from "./sparkline.js";
-import type { DashboardApp } from "../shell/dashboard-app.js";
-import { kindOf, setAppStatus } from "../shell/status-bar.js";
-import { openWorkspace, setAppRibbon } from "../shell/ribbon.js";
+import * as WsProtocol from "../../generated/ws-protocol.ts";
+import { registerWsProtocolListener, sendBinary, type WsProtocolListener } from "../ws-client.ts";
+import { drawSparkline } from "./sparkline.ts";
+import type { DashboardApp } from "../shell/dashboard-app.ts";
+import { setAppStatus } from "../shell/status-bar.ts";
+import { openWorkspace, setAppRibbon } from "../shell/ribbon.ts";
+import { Poller, pollingGroup } from "../core/poller.ts";
+import { cString, formatBytes } from "../core/format.ts";
 
-const POLL_INTERVAL_MS = 1000;
-
-// ~40 Sekunden Verlauf bei 1s-Poll-Intervall -- lang genug, um einen Lasttrend zu erkennen, ohne
-// den Ringpuffer unnoetig aufzublaehen (reine Diagnose-Seite, keine Langzeit-Historie noetig).
+// ~40 s of history at one answer per second: enough to see a trend.
 const CPU_HISTORY_LENGTH = 40;
 
-// cpuPermille ist 0..1000 (0.0%..100.0%, s. schema/best_binary_buffers/tasks.cs) -- fester
-// Skalen-Maximalwert fuer die Sparkline, s. deren Klassenkommentar zur Begruendung.
+// cpuPermille is 0..1000 (schema/best_binary_buffers/tasks.cs): a fixed scale for the sparkline.
 const CPU_SPARKLINE_MAX_PERMILLE = 1000;
 
-// Ab diesen Anteilen des Stack-Puffers (High-Water-Mark / Groesse) faerbt sich die Stack-Spalte
-// ein -- macht eine drohende Stack-Ueberlauf-Situation auf einen Blick sichtbar, statt nur eine
-// Zahlenliste zu zeigen.
+// From these shares of the stack (high-water mark / size) the stack column is coloured.
 const STACK_WARNING_RATIO = 0.8;
 const STACK_ERROR_RATIO = 0.95;
 
-// tasks.TaskInfo.name ist ein fest 32 Byte grosses, null-gepolstertes ASCII-Feld (s.
-// schema/best_binary_buffers/tasks.cs) -- hier auf den Teil vor dem ersten Null-Byte gekuerzt.
-function decodeName(bytes: number[]): string {
-	const end = bytes.indexOf(0);
-	const slice = end === -1 ? bytes : bytes.slice(0, end);
-	return String.fromCharCode(...slice);
-}
-
-function formatBytes(bytes: number): string {
-	return `${(bytes / 1024).toFixed(2)} KiB`;
-}
-
 @customElement("task-manager-app")
 export class TaskManagerApp extends LitElement implements DashboardApp, WsProtocolListener {
-	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
 	protected willUpdate(): void {
-		setAppStatus(this, { text: this.paused ? "Angehalten" : this.statusMessage, kind: this.paused ? "idle" : kindOf(this.statusVariant) });
+		setAppStatus(this, this.poller.status("Warte auf Antwort …"));
 		setAppRibbon(this, [
 			{ id: "tasks", label: "Tasks", groups: [
-				{ label: "Daten", commands: [
-					{ id: "refresh", label: "Aktualisieren", icon: "refresh", title: "Threads und Pools jetzt abfragen", run: () => this.requestNow() },
-					{ id: "pause", label: this.paused ? "Fortsetzen" : "Anhalten", icon: this.paused ? "run" : "pause", active: this.paused,
-						title: "Die Abfrage im Sekundentakt anhalten", run: () => this.setPaused(!this.paused) },
-				] },
+				pollingGroup(this.poller, "Threads und Pools"),
 				{ label: "Weitere", commands: [
 					{ id: "dash", label: "Dashboard", icon: "dashboard", run: () => openWorkspace("/") },
 					{ id: "system", label: "System", icon: "chip", run: () => openWorkspace("/system") },
 				] },
 			] },
 		]);
-	}
-
-	@state() private paused = false;
-
-	private requestNow(): void {
-		sendBinary(WsProtocol.tasks.TaskManagerRequest.encode({ requestId: 0 }));
-		sendBinary(WsProtocol.tasks.PoolListRequest.encode({ requestId: 0 }));
-	}
-
-	private setPaused(on: boolean): void {
-		this.paused = on;
-		if (on) {
-			this.stopped = true;
-			if (this.pollTimeoutHandle) clearTimeout(this.pollTimeoutHandle);
-		} else {
-			this.stopped = false;
-			this.scheduleNextPoll(0);
-		}
 	}
 
 	protected createRenderRoot() {
@@ -81,26 +44,23 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 	@state() private tasks: WsProtocol.tasks.TaskInfo[] = [];
 	@state() private pools: WsProtocol.tasks.PoolInfo[] = [];
 	@state() private freeHeapBytes = 0;
-	@state() private statusMessage = "Warte auf Verbindung...";
-	@state() private statusVariant: "warning" | "success" | "error" = "warning";
 
-	// Die allererste Antwort nach dem Oeffnen der Seite hat noch keinen Vorwert fuer die
-	// CPU-Last-Berechnung (s. task_monitor.cpp) -- cpuPermille ist dann fuer JEDEN Task 0, was
-	// sich nicht von einem tatsaechlich untaetigen Thread unterscheiden liesse. Deshalb wird die
-	// CPU-Spalte erst ab der zweiten Antwort angezeigt.
+	// The first answer after opening has no previous value for the CPU load (task_monitor.cpp): every
+	// cpuPermille is 0 then. The CPU column is shown from the second answer on.
 	@state() private receivedCount = 0;
 
-	private pollTimeoutHandle?: ReturnType<typeof setTimeout>;
-	private stopped = true;
+	private readonly poller = new Poller(this, () => {
+		sendBinary(WsProtocol.tasks.TaskManagerRequest.encode({ requestId: 0 }));
+		sendBinary(WsProtocol.tasks.PoolListRequest.encode({ requestId: 0 }));
+	}, 1000);
 
-	// Schluessel: Thread-Name (stabil ueber die Laufzeit) -- persistiert bewusst ueber onShow()/
-	// onHide()-Zyklen hinweg (wie "samples" bei power-management-app.ts), damit ein kurzer Abstecher
-	// auf eine andere Seite und zurueck nicht die ganze Verlaufskurve verwirft.
+	// Key: the thread name (stable at run time); kept across onShow()/onHide() so a short visit elsewhere
+	// keeps the curves.
 	private readonly cpuHistory = new Map<string, number[]>();
 
 	private unregisterWsListener: (() => void) | null = null;
 
-	// WsProtocolListener fuer den tasks-Namespace -- nur zwischen onShow() und onHide() registriert.
+	// listener of the tasks namespace, registered between onShow() and onHide()
 	onWsMessage(messageTypeId: number, view: DataView): void {
 		switch (messageTypeId) {
 			case WsProtocol.tasks.TaskListMessage.TYPE_ID:
@@ -109,28 +69,23 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 			case WsProtocol.tasks.PoolListMessage.TYPE_ID:
 				this.onPoolList(WsProtocol.tasks.PoolListMessage.decode(view, 0));
 				return;
-			default:
-				console.debug(`WebSocket: unbekannte tasks-Nachricht typeId=${messageTypeId}`);
 		}
 	}
 
 	private readonly onTaskList = (payload: WsProtocol.tasks.TaskListMessage.Payload) => {
 		this.tasks = payload.items;
 		this.receivedCount++;
-		// Die allererste Antwort hat kein sinnvolles cpuPermille (s. Kommentar bei receivedCount) --
-		// erst ab der zweiten Antwort in die Historie aufnehmen, sonst faengt jede Sparkline mit
-		// einem irrefuehrenden 0%-Punkt an.
+		// the first answer has no meaningful cpuPermille (see receivedCount): no history point from it
 		if (this.receivedCount >= 2) {
 			for (const task of payload.items) {
-				const name = decodeName(task.name);
+				const name = cString(task.name);
 				const history = this.cpuHistory.get(name) ?? [];
 				history.push(task.cpuPermille);
 				while (history.length > CPU_HISTORY_LENGTH) history.shift();
 				this.cpuHistory.set(name, history);
 			}
 		}
-		this.statusMessage = `Verbunden -- zuletzt aktualisiert ${new Date().toLocaleTimeString("de-DE")}`;
-		this.statusVariant = "success";
+		this.poller.ok();
 	};
 
 	private readonly onPoolList = (payload: WsProtocol.tasks.PoolListMessage.Payload) => {
@@ -140,27 +95,13 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 
 	onShow(): void {
 		this.unregisterWsListener = registerWsProtocolListener(WsProtocol.tasks.NAMESPACE_ID, this);
-		if (this.paused) return;
-		this.stopped = false;
-		this.scheduleNextPoll(0);
+		this.poller.start();
 	}
 
 	onHide(): void {
-		this.stopped = true;
+		this.poller.stop();
 		this.unregisterWsListener?.();
 		this.unregisterWsListener = null;
-		if (this.pollTimeoutHandle) {
-			clearTimeout(this.pollTimeoutHandle);
-		}
-	}
-
-	private scheduleNextPoll(delayMs: number) {
-		if (this.stopped) return;
-		this.pollTimeoutHandle = setTimeout(() => {
-			sendBinary(WsProtocol.tasks.TaskManagerRequest.encode({ requestId: 0 }));
-			sendBinary(WsProtocol.tasks.PoolListRequest.encode({ requestId: 0 }));
-			this.scheduleNextPoll(POLL_INTERVAL_MS);
-		}, delayMs);
 	}
 
 	private renderStackCell(task: WsProtocol.tasks.TaskInfo) {
@@ -196,7 +137,7 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 			ratio >= STACK_ERROR_RATIO ? "status-text status-error" : ratio >= STACK_WARNING_RATIO ? "status-text status-warning" : "";
 		return html`
 			<tr>
-				<td>${decodeName(pool.name)}</td>
+				<td>${cString(pool.name)}</td>
 				<td>${pool.free}</td>
 				<td title="der geringste freie Stand seit dem Start (beim wolfSSL-Pool: seine Spitzenlast)">${pool.minFree}</td>
 				<td>${pool.capacity}</td>
@@ -214,7 +155,7 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 		canvases.forEach((canvas, i) => {
 			const task = this.tasks[i];
 			if (!task) return;
-			const history = this.cpuHistory.get(decodeName(task.name)) ?? [];
+			const history = this.cpuHistory.get(cString(task.name)) ?? [];
 			drawSparkline(canvas, history, { max: CPU_SPARKLINE_MAX_PERMILLE });
 		});
 	}
@@ -250,7 +191,7 @@ export class TaskManagerApp extends LitElement implements DashboardApp, WsProtoc
 											${this.tasks.map(
 												(task) => html`
 													<tr>
-														<td>${decodeName(task.name)}</td>
+														<td>${cString(task.name)}</td>
 														<td>${task.priority}</td>
 														<td>${this.renderStackCell(task)}</td>
 														<td>${this.renderCpuCell(task)}</td>

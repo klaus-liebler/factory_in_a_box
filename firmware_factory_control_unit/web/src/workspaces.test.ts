@@ -34,6 +34,7 @@ import { appRibbonOf } from "./shell/ribbon.ts";
 import type { DashboardApp } from "./shell/dashboard-app.ts";
 import "./apps/overview-app.ts";
 import "./apps/modbus-register-app.ts";
+import "./apps/actuator-test-app.ts";
 import "./apps/power-management-app.ts";
 import "./apps/system-info-app.ts";
 import "./apps/task-manager-app.ts";
@@ -48,6 +49,7 @@ import "./plc/hmi/hmi-runtime-app.ts";
 const WORKSPACES: [string, boolean][] = [
 	["overview-app", true],
 	["modbus-register-app", true],
+	["actuator-test-app", true],
 	["power-management-app", true],
 	["system-info-app", true],
 	["task-manager-app", true],

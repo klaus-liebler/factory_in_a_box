@@ -1,36 +1,32 @@
-// Druckregelstrecke: Uebersichtsseite fuer den pneumatischen Versuchsaufbau (Kompressor ->
-// Druckspeicher -> 3 Ventile -> Verbraucher, s. schema/register_map/Motor.cs, Pressure.cs,
-// Valve.cs) MIT den vier Betriebsmodi aus docs/druckregelstrecke-modes.md (Freies Experiment,
-// Kennlinie, Sprungantwort, Reglerbetrieb). Analog zu roarm-teach-app.ts (das die WebGL-Ansicht
-// aus roarm-3d-view.ts einhaengt) bindet diese Datei die SVG-Ansicht aus
-// druckregelstrecke-view.ts ein; die Anlagengrafik bleibt in JEDEM Modus sichtbar/bedienbar
-// (Ventile per Klick, Kompressor ueber sein Bedientableau), darunter wechselt nur die
-// modusspezifische Auswerte-/Bedien-UI. Aller Modus-State (Kennlinien-Punkte,
-// Sprungantwort-Aufzeichnung/-Ergebnis, Reglereinstellungen) lebt bewusst HIER auf App-Ebene
-// (s. docs/druckregelstrecke-modes.md, "Offene Punkte") statt in isolierten Unterkomponenten,
-// damit z.B. der Sprungantwort-Entwurfsassistent seine Ergebnisse direkt in den
-// Reglerbetrieb-Modus uebernehmen kann.
+// Druckregelstrecke: the pneumatic test rig (compressor -> pressure vessel -> 3 valves -> consumers,
+// schema/register_map/Motor.cs, Pressure.cs, Valve.cs) with the four modes of docs/druckregelstrecke-modes.md
+// (free experiment, characteristic, step response, closed loop). Like roarm-teach-app.ts mounts the WebGL view,
+// this app mounts the SVG schematic of druckregelstrecke-view.ts; it stays visible and operable in every mode
+// (valves by click, compressor by its panel), below it the mode's own evaluation/operation UI. All mode state
+// (characteristic points, step recording and result, controller settings) lives here at app level, so the step
+// response's design assistant can hand its result to the closed-loop mode.
 //
-// Zwei parallele Datenquellen: die REST-Registerabfrage (fetchRegisters(), 1Hz, wie schon vorher)
-// treibt weiterhin die SVG-Anlagengrafik; die NEUE pneumatics.PressureControlFeedback-WS-Nachricht
-// (500ms, s. ws-client.ts/schema/best_binary_buffers/pneumatics.cs) speist die Trend-Ringpuffer,
-// die Kennlinien-Laufzeit-Maximum-Verfolgung, die Sprungantwort-Aufzeichnung UND den
-// clientseitigen Regler -- fuer all das waere 1Hz zu grob bzw. das volle Mehrpaket-
-// "/api/registers" pro Regelzyklus unnoetig schwer (s. docs/druckregelstrecke-modes.md,
-// "Offene Punkte").
+// A direct-operation page (core/direct-operation.ts): it writes the compressor and valve registers itself, which
+// only works while the fieldbus is the control source.
+//
+// Two data sources: the register poll (1 Hz) drives the schematic; the pushed
+// pneumatics.PressureControlFeedback (500 ms, schema/best_binary_buffers/pneumatics.cs) feeds the trend buffer,
+// the characteristic's running maximum, the step recording and the client-side controller - 1 Hz would be too
+// coarse for those.
 import { LitElement, html } from "lit";
 import { customElement, state, query } from "lit/decorators.js";
 import "../styles.css";
-import { REGIONS, type RegisterDef } from "../../generated/register-map.js";
-import { pneumatics } from "../../generated/ws-protocol.js";
-import { fetchRegisters, writeHolding, type RegisterValues } from "../registers.js";
-import { registerWsProtocolListener, type WsProtocolListener } from "../ws-client.js";
-import type { DashboardApp } from "../shell/dashboard-app.js";
-import { createDruckregelstreckeView, type DruckregelstreckeViewHandles, type ValveIndex } from "./druckregelstrecke-view.js";
-import { drawTrendChart, drawCharacteristicChart, type TrendSample, type CharacteristicCurve } from "./druckregelstrecke-charts.js";
-import { kindOf, setAppStatus } from "../shell/status-bar.js";
-import { setAppRibbon } from "../shell/ribbon.js";
-import type { IconName } from "../shell/icons.js";
+import { pneumatics } from "../../generated/ws-protocol.ts";
+import { fetchRegisters, register, regValue, type RegisterValues } from "../core/registers.ts";
+import { Poller } from "../core/poller.ts";
+import { DirectOperation } from "../core/direct-operation.ts";
+import { registerWsProtocolListener, type WsProtocolListener } from "../ws-client.ts";
+import type { DashboardApp } from "../shell/dashboard-app.ts";
+import { createDruckregelstreckeView, type DruckregelstreckeViewHandles, type ValveIndex } from "./druckregelstrecke-view.ts";
+import { drawTrendChart, drawCharacteristicChart, type TrendSample, type CharacteristicCurve } from "./druckregelstrecke-charts.ts";
+import { setAppStatus } from "../shell/status-bar.ts";
+import { setAppRibbon } from "../shell/ribbon.ts";
+import type { IconName } from "../shell/icons.ts";
 import {
 	PidController,
 	designController,
@@ -42,9 +38,8 @@ import {
 	type TSummeVariant,
 	type ChrOvershoot,
 	type ChrBehavior,
-} from "./druckregelstrecke-controller.js";
+} from "./druckregelstrecke-controller.ts";
 
-const POLL_INTERVAL_MS = 1000;
 const CONTROLLER_CYCLE_MS = 500;
 const TREND_WINDOW_SEC = 60;
 const CURVE_PALETTE = ["#2a78d6", "#e08a1e", "#16a34a", "#b91c1c", "#7c3aed", "#0891b2", "#be185d", "#4d7c0f"];
@@ -52,28 +47,13 @@ const CURVE_PALETTE = ["#2a78d6", "#e08a1e", "#16a34a", "#b91c1c", "#7c3aed", "#
 type Mode = "free" | "kennlinie" | "sprung" | "regler";
 type SprungPhase = "idle" | "before" | "stepped" | "analyzed";
 
-function findRegister(name: string): RegisterDef {
-	for (const region of REGIONS) {
-		const reg = region.registers.find((r) => r.name === name);
-		if (reg) return reg;
-	}
-	throw new Error(`Register ${name} nicht in register-map.ts gefunden`);
-}
+const PRESSURE_REG = register("PRESSURE_RAW");
+const COMPRESSOR_PWM_REG = register("COMPRESSOR_PWM");
+const VALVE_REGS = [register("VALVE1"), register("VALVE2"), register("VALVE3")] as const;
 
-const PRESSURE_REG = findRegister("PRESSURE_RAW");
-const COMPRESSOR_PWM_REG = findRegister("COMPRESSOR_PWM");
-const VALVE_REGS: readonly [RegisterDef, RegisterDef, RegisterDef] = [findRegister("VALVE1"), findRegister("VALVE2"), findRegister("VALVE3")];
-
-// Zuletzt gewaehlte Leistung beim erneuten Einschalten des Kompressors ueber den Bedientableau-
-// Kippschalter -- ohne das wuerde ein "Aus"-Klick (Leistung -> 0) den Regler unbrauchbar machen,
-// sobald man wieder einschaltet (Regler stuende dann wieder auf 0, "an" waere ohne PWM aber ein
-// Widerspruch).
+// The power used when the compressor is switched on again with the panel's toggle - without it, "off"
+// (power 0) followed by "on" would switch on with power 0.
 const DEFAULT_COMPRESSOR_PWM_ON = 500;
-
-function readRegister(values: RegisterValues, reg: RegisterDef): number | undefined {
-	const source = reg.bank === "holding" ? values.holding : values.input;
-	return source[reg.address];
-}
 
 function valveComboKey(p: pneumatics.PressureControlFeedback.Payload): string {
 	return `${p.valve1Open ? 1 : 0}${p.valve2Open ? 1 : 0}${p.valve3Open ? 1 : 0}`;
@@ -89,7 +69,7 @@ function valveComboLabel(key: string): string {
 export class DruckregelstreckeApp extends LitElement implements DashboardApp, WsProtocolListener {
 	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
 	protected willUpdate(): void {
-		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+		setAppStatus(this, this.direct.error ? { text: this.direct.error, kind: "error" } : this.poller.status("Lade Messwerte …"));
 		const mode = (m: Mode, label: string, ic: IconName) => ({ id: `mode-${m}`, label, icon: ic, active: this.mode === m, run: () => this.selectMode(m) });
 		setAppRibbon(this, [
 			{ id: "experiment", label: "Experiment", groups: [
@@ -126,12 +106,10 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 	@query(".characteristic-canvas") private kennlinieCanvas?: HTMLCanvasElement;
 
 	@state() private values: RegisterValues = { holding: [], input: [] };
-	@state() private statusMessage = "Lade Messwerte...";
-	@state() private statusVariant: "warning" | "success" | "error" = "warning";
 	@state() private mode: Mode = "free";
 
-	private pollTimeoutHandle?: ReturnType<typeof setTimeout>;
-	private stopped = true;
+	private readonly poller = new Poller(this, () => this.poll(), 1000);
+	private readonly direct = new DirectOperation(this, () => this.poller.refresh());
 	private lastNonZeroPwm = DEFAULT_COMPRESSOR_PWM_ON;
 
 	// --- Gemeinsame Messwert-Quelle (pneumatics.PressureControlFeedback, s. Dateikommentar) ---
@@ -172,15 +150,13 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 	private lastControllerTickMs = 0;
 
 	onShow(): void {
-		this.stopped = false;
 		this.ensureView();
-		this.scheduleNextPoll(0);
+		this.poller.start();
 		this.unregisterWsListener = registerWsProtocolListener(pneumatics.NAMESPACE_ID, this);
 	}
 
 	onHide(): void {
-		this.stopped = true;
-		if (this.pollTimeoutHandle) clearTimeout(this.pollTimeoutHandle);
+		this.poller.stop();
 		this.unregisterWsListener?.();
 		this.unregisterWsListener = null;
 		// Sicherheitsabschaltung: ein laufender clientseitiger Regelkreis soll nicht unsichtbar
@@ -202,34 +178,19 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 		this.pushStateToView();
 	}
 
-	private scheduleNextPoll(delayMs: number): void {
-		if (this.stopped) return;
-		this.pollTimeoutHandle = setTimeout(() => {
-			void this.poll().finally(() => this.scheduleNextPoll(POLL_INTERVAL_MS));
-		}, delayMs);
-	}
-
 	private async poll(): Promise<void> {
-		try {
-			this.values = await fetchRegisters();
-			const pwm = readRegister(this.values, COMPRESSOR_PWM_REG);
-			if (pwm) this.lastNonZeroPwm = pwm;
-			const now = new Date().toLocaleTimeString("de-DE");
-			this.statusMessage = `Verbunden -- zuletzt aktualisiert ${now}`;
-			this.statusVariant = "success";
-		} catch (error) {
-			console.error("Druckregelstrecke-Abfrage fehlgeschlagen", error);
-			this.statusMessage = "Verbindungsproblem zur Control-Unit";
-			this.statusVariant = "error";
-		}
+		this.values = await fetchRegisters();
+		const pwm = regValue(this.values, COMPRESSOR_PWM_REG);
+		if (pwm) this.lastNonZeroPwm = pwm;
+		await this.direct.refresh();
 	}
 
 	private pushStateToView(): void {
 		if (!this.view) return;
 		this.view.setState({
-			pressureRaw: readRegister(this.values, PRESSURE_REG) ?? 0,
-			valveOpen: VALVE_REGS.map((reg) => (readRegister(this.values, reg) ?? 0) !== 0) as [boolean, boolean, boolean],
-			compressorPwmPromille: readRegister(this.values, COMPRESSOR_PWM_REG) ?? 0,
+			pressureRaw: regValue(this.values, PRESSURE_REG) ?? 0,
+			valveOpen: VALVE_REGS.map((reg) => (regValue(this.values, reg) ?? 0) !== 0) as [boolean, boolean, boolean],
+			compressorPwmPromille: regValue(this.values, COMPRESSOR_PWM_REG) ?? 0,
 		});
 	}
 
@@ -283,18 +244,18 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 
 	private toggleValve(index: ValveIndex): void {
 		const reg = VALVE_REGS[index];
-		const current = readRegister(this.values, reg) ?? 0;
-		void writeHolding(reg.address, current !== 0 ? 0 : 1).then(() => this.poll());
+		const current = regValue(this.values, reg) ?? 0;
+		void this.direct.write(reg, current !== 0 ? 0 : 1);
 	}
 
 	private toggleCompressor(): void {
-		const current = readRegister(this.values, COMPRESSOR_PWM_REG) ?? 0;
+		const current = regValue(this.values, COMPRESSOR_PWM_REG) ?? 0;
 		const next = current !== 0 ? 0 : this.lastNonZeroPwm;
-		void writeHolding(COMPRESSOR_PWM_REG.address, next).then(() => this.poll());
+		void this.direct.write(COMPRESSOR_PWM_REG, next);
 	}
 
 	private setCompressorPower(promille: number): void {
-		void writeHolding(COMPRESSOR_PWM_REG.address, promille).then(() => this.poll());
+		void this.direct.write(COMPRESSOR_PWM_REG, promille);
 	}
 
 	private selectMode(mode: Mode): void {
@@ -330,14 +291,14 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 	// --- Sprungantwort ---------------------------------------------------------------------
 
 	private sprungStart(): void {
-		void writeHolding(COMPRESSOR_PWM_REG.address, this.sprungBeforePermille).then(() => this.poll());
+		void this.direct.write(COMPRESSOR_PWM_REG, this.sprungBeforePermille);
 		this.sprungPhase = "before";
 		this.sprungRecording = null;
 		this.sprungResult = null;
 	}
 
 	private sprungJump(): void {
-		void writeHolding(COMPRESSOR_PWM_REG.address, this.sprungAfterPermille).then(() => this.poll());
+		void this.direct.write(COMPRESSOR_PWM_REG, this.sprungAfterPermille);
 		this.sprungJumpAtMs = Date.now();
 		this.sprungRecording = [];
 		this.sprungPhase = "stepped";
@@ -352,7 +313,7 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 	// die daran anschliessende Annahme T≈Tg (Wendetangenten-Ausgleichszeit) fuer Chien-Hrones-
 	// Reswick.
 	private sprungEndAndAnalyze(): void {
-		void writeHolding(COMPRESSOR_PWM_REG.address, 0).then(() => this.poll());
+		void this.direct.write(COMPRESSOR_PWM_REG, 0);
 		const recording = this.sprungRecording;
 		this.sprungRecording = null;
 		this.sprungPhase = "analyzed";
@@ -412,7 +373,7 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 			this.reglerIntervalHandle = setInterval(() => this.reglerTick(), CONTROLLER_CYCLE_MS);
 		} else {
 			this.controller = null;
-			void writeHolding(COMPRESSOR_PWM_REG.address, 0).then(() => this.poll());
+			void this.direct.write(COMPRESSOR_PWM_REG, 0);
 		}
 	}
 
@@ -422,7 +383,7 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 		const dtSec = (now - this.lastControllerTickMs) / 1000;
 		this.lastControllerTickMs = now;
 		const output = this.controller.step(this.sollwertRaw, this.latestFeedback.pressureRaw, dtSec);
-		void writeHolding(COMPRESSOR_PWM_REG.address, output);
+		void this.direct.write(COMPRESSOR_PWM_REG, output, false);
 	}
 
 	private updateReglerSettings(patch: Partial<ControllerSettings>): void {
@@ -593,7 +554,7 @@ export class DruckregelstreckeApp extends LitElement implements DashboardApp, Ws
 	render() {
 		return html`
 			<div class="container druckregel-container">
-
+				${this.direct.bar()}
 				<div class="panel-section druckregel-view-card">
 					<div class="druckregel-view-container"></div>
 				</div>

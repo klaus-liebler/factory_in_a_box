@@ -4,6 +4,7 @@
 // (ws-client.ts) runs for the pushed data (e.g. the firmware log, log-store.ts).
 import "./shell/app-shell.js";
 import "./apps/overview-app.js";
+import "./apps/actuator-test-app.ts";
 import "./apps/modbus-register-app.js";
 import "./apps/power-management-app.js";
 import "./apps/system-info-app.js";
@@ -26,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	add("/", "Dashboard", "dashboard", "overview-app", "Übersicht", "Systemzustand auf einen Blick");
 	add("/plc", "SPS-Entwicklung", "plc", "plc-ide-app", "Automatisierung", "IEC 61131-3: ST, FUP, AS, Visualisierung");
 	add("/hmi", "Bedienen & Beobachten", "hmi", "hmi-runtime-app", "Automatisierung", "Bedienseiten, Meldungen, Linienschreiber");
+	add("/actuators", "Aktorentest", "actuator", "actuator-test-app", "Anlage", "Förderband, Kompressor, Ventile, Beleuchtung direkt bedienen");
 	add("/registers", "Register", "registers", "modbus-register-app", "Anlage", "Modbus-Register lesen und schreiben");
 	add("/druckregelstrecke", "Druckregelstrecke", "pressure", "druckregelstrecke-app", "Anlage", "Kennlinie, Sprungantwort, Reglerentwurf");
 	add("/steppers", "Schrittmotoren", "stepper", "stepper-lab-app", "Anlage", "Achsen fahren, referenzieren, parametrieren");

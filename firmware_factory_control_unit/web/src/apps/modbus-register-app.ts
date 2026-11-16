@@ -1,32 +1,66 @@
+// The register console: every region of the register map with its live values; holding registers can be
+// written (not the outputs and commands while the IEC 61131 program is the control source).
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "../styles.css";
-import "../register-panel.js";
-import { REGIONS } from "../../generated/register-map.js";
-import { fetchRegisters, writeHolding, type RegisterValues } from "../registers.js";
-import type { DashboardApp } from "../shell/dashboard-app.js";
-import { kindOf, setAppStatus } from "../shell/status-bar.js";
-import { openWorkspace, setAppRibbon } from "../shell/ribbon.js";
-import { plc } from "../../generated/ws-protocol.js";
-import { wsRequest } from "../ws-client.js";
-
-const POLL_INTERVAL_MS = 1000;
+import "../register-panel.ts";
+import { REGIONS } from "../../generated/register-map.ts";
+import { fetchRegisters, writeHolding, type RegisterValues } from "../core/registers.ts";
+import { Poller, pollingGroup } from "../core/poller.ts";
+import { fetchPlcStatus, isIec } from "../core/plc.ts";
+import type { DashboardApp } from "../shell/dashboard-app.ts";
+import { setAppStatus } from "../shell/status-bar.ts";
+import { openWorkspace, setAppRibbon } from "../shell/ribbon.ts";
 
 @customElement("modbus-register-app")
 export class ModbusRegisterApp extends LitElement implements DashboardApp {
-	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
+	@state() private values: RegisterValues = { holding: [], input: [] };
+	/** The IEC 61131 program is the control source: only parameter registers are writable. */
+	@state() private iec = false;
+	/** The last refused write (shown in the status bar until the next successful one). */
+	@state() private writeError: string | null = null;
+	private readonly poller = new Poller(this, () => this.poll(), 1000);
+
+	protected createRenderRoot() {
+		return this;
+	}
+
+	onShow(): void {
+		this.poller.start();
+	}
+
+	onHide(): void {
+		this.poller.stop();
+	}
+
+	private async poll(): Promise<void> {
+		this.values = await fetchRegisters();
+		this.iec = isIec(await fetchPlcStatus());
+	}
+
+	private async handleWriteRegister(ev: Event): Promise<void> {
+		const { address, value } = (ev as CustomEvent<{ address: number; value: number }>).detail;
+		try {
+			await writeHolding(address, value);
+			this.writeError = null;
+			this.poller.refresh();
+		} catch {
+			// refused although offered: the control source may have changed to IEC since the last poll
+			const iec = this.iec || isIec(await fetchPlcStatus().catch(() => null));
+			this.iec = iec;
+			this.writeError = iec ? `Register ${address} nicht geschrieben: das SPS-Programm ist Steuerquelle (nur Parameter schreibbar)` : `Register ${address} nicht geschrieben`;
+		}
+	}
+
 	protected willUpdate(): void {
+		const status = this.writeError ? { text: this.writeError, kind: "error" as const } : this.poller.status("Lade Register …");
 		setAppStatus(this, {
-			text: this.statusMessage, kind: kindOf(this.statusVariant),
-			extra: this.iec ? html`<span title="Das SPS-Programm schreibt die Ausgänge; schreibbar sind nur Parameter. Umschalten auf Feldbus in der SPS-Seite.">Steuerquelle IEC 61131: Ausgänge gesperrt</span>` : null,
+			...status,
+			extra: this.iec ? html`<span title="Das SPS-Programm schreibt die Ausgänge; schreibbar sind nur Parameter. Umschalten auf Feldbus in der SPS-Entwicklung oder im Aktorentest.">Steuerquelle IEC 61131: Ausgänge gesperrt</span>` : null,
 		});
 		setAppRibbon(this, [
 			{ id: "registers", label: "Register", groups: [
-				{ label: "Daten", commands: [
-					{ id: "refresh", label: "Aktualisieren", icon: "refresh", run: () => void this.poll() },
-					{ id: "pause", label: this.paused ? "Fortsetzen" : "Anhalten", icon: this.paused ? "run" : "pause", active: this.paused,
-						title: "Die Abfrage im Sekundentakt anhalten (Werte bleiben stehen)", run: () => this.setPaused(!this.paused) },
-				] },
+				pollingGroup(this.poller, "die Register"),
 				{ label: "Bereiche", commands: REGIONS.map((r, i) => ({
 					id: `region-${i}`, label: r.title, icon: "registers" as const, size: "small" as const,
 					run: () => this.querySelectorAll("register-panel")[i]?.scrollIntoView({ behavior: "smooth", block: "start" }),
@@ -39,119 +73,13 @@ export class ModbusRegisterApp extends LitElement implements DashboardApp {
 		]);
 	}
 
-	@state() private paused = false;
-
-	private setPaused(on: boolean): void {
-		this.paused = on;
-		if (on) {
-			this.stopped = true;
-			if (this.pollTimeoutHandle) clearTimeout(this.pollTimeoutHandle);
-		} else {
-			this.stopped = false;
-			this.scheduleNextPoll(0);
-		}
-	}
-
-	/** The IEC 61131 program is the control source: only parameter registers are writable. */
-	@state() private iec = false;
-
-	protected createRenderRoot() {
-		return this;
-	}
-
-	@state() private values: RegisterValues = { holding: [], input: [] };
-	@state() private statusMessage = "Lade Register...";
-	@state() private statusVariant: "warning" | "success" | "error" = "warning";
-
-	private pollTimeoutHandle?: ReturnType<typeof setTimeout>;
-	private stopped = true;
-
-	// Ersetzt connectedCallback()/disconnectedCallback() als Start/Stop-Signal: das Element
-	// bleibt jetzt dauerhaft im DOM (s. app-shell.ts), Polling laeuft daher nur, waehrend diese
-	// App auch tatsaechlich sichtbar/aktiv ist.
-	onShow(): void {
-		if (this.paused) return;
-		this.stopped = false;
-		this.scheduleNextPoll(0);
-	}
-
-	onHide(): void {
-		this.stopped = true;
-		if (this.pollTimeoutHandle) {
-			clearTimeout(this.pollTimeoutHandle);
-		}
-	}
-
-	private scheduleNextPoll(delayMs: number) {
-		if (this.stopped) {
-			return;
-		}
-		this.pollTimeoutHandle = setTimeout(() => {
-			void this.poll().finally(() => this.scheduleNextPoll(POLL_INTERVAL_MS));
-		}, delayMs);
-	}
-
-	// Bewusst NIE ueberlappend: der naechste Poll wird erst geplant, NACHDEM dieser
-	// abgeschlossen ist (siehe scheduleNextPoll), statt per setInterval fest im Takt zu
-	// feuern -- vermeidet mehrere gleichzeitig ausstehende Requests auf derselben (einzigen)
-	// WebSocket-Verbindung.
-	private async poll() {
-		try {
-			this.values = await fetchRegisters();
-			const status = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.StatusRequest.encode({ requestId }), plc.StatusResponse);
-			this.iec = status.source === plc.ControlSource.Iec;
-			const now = new Date().toLocaleTimeString("de-DE");
-			this.statusMessage = `Verbunden -- zuletzt aktualisiert ${now}`;
-			this.statusVariant = "success";
-		} catch (error) {
-			console.error("Register-Abfrage fehlgeschlagen", error);
-			this.statusMessage = "Verbindungsproblem zur Control-Unit";
-			this.statusVariant = "error";
-		}
-	}
-
-	private async handleWriteRegister(ev: Event) {
-		const { address, value } = (ev as CustomEvent<{ address: number; value: number }>).detail;
-		try {
-			await writeHolding(address, value);
-			await this.poll();
-		} catch (error) {
-			console.error("Schreiben fehlgeschlagen", error);
-			// refused although offered: the control source changed to IEC since the last poll
-			this.statusMessage = this.iec || (await this.iecNow())
-				? `Register ${address} nicht geschrieben: das SPS-Programm ist Steuerquelle (nur Parameter schreibbar)`
-				: `Register ${address} nicht geschrieben`;
-			this.statusVariant = "error";
-		}
-	}
-
-	private async iecNow(): Promise<boolean> {
-		try {
-			const s = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.StatusRequest.encode({ requestId }), plc.StatusResponse);
-			this.iec = s.source === plc.ControlSource.Iec;
-		} catch {
-			/* keep what we knew */
-		}
-		return this.iec;
-	}
-
 	render() {
 		return html`
 			<div class="container">
-
 				<div class="region-grid" @write-register=${this.handleWriteRegister}>
-					${REGIONS.map(
-						(region) => html`
-							<register-panel
-								.region=${region}
-								.holdingValues=${this.values.holding}
-								.inputValues=${this.values.input}
-								.iecControlled=${this.iec}
-							></register-panel>
-						`
-					)}
+					${REGIONS.map((region) => html`
+						<register-panel .region=${region} .holdingValues=${this.values.holding} .inputValues=${this.values.input} .iecControlled=${this.iec}></register-panel>`)}
 				</div>
-			</div>
-		`;
+			</div>`;
 	}
 }

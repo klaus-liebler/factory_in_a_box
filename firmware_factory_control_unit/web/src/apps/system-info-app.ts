@@ -1,55 +1,25 @@
+// System: board identity and build (compile-time constants from build-info.ts), and the live system
+// information - uptime, network, Ethernet PHY diagnostics, I2C scans - refreshed every 10 s while shown.
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "../styles.css";
-import { system } from "../../generated/ws-protocol.js";
-import { wsRequest } from "../ws-client.js";
-import type { DashboardApp } from "../shell/dashboard-app.js";
-import * as buildInfo from "../../generated/build-info.js";
-import { I2C_ADDRESS_CANDIDATES } from "../i2c-device-names.js";
-import { i2cBusSections } from "../i2c-scan.js";
-import { kindOf, setAppStatus } from "../shell/status-bar.js";
-import { openWorkspace, setAppRibbon } from "../shell/ribbon.js";
-
-type SystemInfo = system.SystemInfoMessage.Payload;
+import type { system } from "../../generated/ws-protocol.ts";
+import type { DashboardApp } from "../shell/dashboard-app.ts";
+import * as buildInfo from "../../generated/build-info.ts";
+import { I2C_ADDRESS_CANDIDATES } from "../i2c-device-names.ts";
+import { i2cBusSections } from "../i2c-scan.ts";
+import { setAppStatus } from "../shell/status-bar.ts";
+import { openWorkspace, setAppRibbon } from "../shell/ribbon.ts";
+import { Poller, pollingGroup } from "../core/poller.ts";
+import { dateTimeOfEpoch, formatUptime } from "../core/format.ts";
+import { fetchSystemInfo, RESET_CAUSE_NAMES, type SystemInfo } from "../core/system.ts";
 
 function formatOctets(bytes: readonly number[]): string {
 	return bytes.join(".");
 }
 
-// Muss zu ResetCause in src/boot.hpp passen.
-const RESET_CAUSE_LABELS: Record<number, string> = {
-	0: "Unbekannt",
-	1: "Independent Watchdog",
-	2: "Window Watchdog",
-	3: "Software",
-	4: "Low-Power",
-	5: "Brown-Out",
-	6: "Reset-Pin / Power-On",
-};
-
-function formatUptime(totalSeconds: number): string {
-	const days = Math.floor(totalSeconds / 86400);
-	const hours = Math.floor((totalSeconds % 86400) / 3600);
-	const minutes = Math.floor((totalSeconds % 3600) / 60);
-	const seconds = totalSeconds % 60;
-	const parts: string[] = [];
-	if (days > 0) parts.push(`${days} d`);
-	if (days > 0 || hours > 0) parts.push(`${hours} h`);
-	if (days > 0 || hours > 0 || minutes > 0) parts.push(`${minutes} min`);
-	parts.push(`${seconds} s`);
-	return parts.join(" ");
-}
-
-// Alle Zeitpunkte kommen als Unix-Epoch-Sekunden (int64-tauglich, s. builder/GitInfo.cs) --
-// hier und NUR hier, am Anzeigeort, in die lokale Zeitzone des Browsers umgerechnet
-// (toLocaleString() nutzt implizit Intl mit der System-/Browser-Zeitzone).
-function formatEpochSeconds(epochSeconds: number): string {
-	return new Date(epochSeconds * 1000).toLocaleString("de-DE");
-}
-
-// LAN8742-Bitmasken (s. Datenblatt LAN8742A, Register 1/17/31) -- Firmware liefert die
-// Register nur noch roh (s. net::phy_diagnostics() in src/network.cpp), das Parsen/Interpretieren
-// passiert bewusst hier, client-seitig.
+// LAN8742 bit masks (LAN8742A data sheet, registers 1/17/31): the firmware sends the raw registers
+// (net::phy_diagnostics() in src/network.cpp), they are interpreted here.
 const LAN8742_BSR_LINK_STATUS = 0x0004;
 const LAN8742_PHYSCSR_AUTONEGO_DONE = 0x1000;
 const LAN8742_PHYSCSR_HCDSPEEDMASK = 0x001c;
@@ -89,15 +59,11 @@ function cableTypeLabel(tcsr: number): string {
 
 @customElement("system-info-app")
 export class SystemInfoApp extends LitElement implements DashboardApp {
-	/** The state goes to the application's status bar (shell/status-bar.ts), not into the page. */
 	protected willUpdate(): void {
-		setAppStatus(this, { text: this.statusMessage, kind: kindOf(this.statusVariant) });
+		setAppStatus(this, this.poller.status("Lade Systemdaten …"));
 		setAppRibbon(this, [
 			{ id: "system", label: "System", groups: [
-				{ label: "Live-Daten", commands: [
-					{ id: "refresh", label: this.loading ? "Lädt …" : "Aktualisieren", icon: "refresh", disabled: this.loading,
-						title: "Uptime, Heap, Netzwerk, PHY und I²C neu lesen", run: () => void this.refresh() },
-				] },
+				pollingGroup(this.poller, "Uptime, Netzwerk, PHY und I²C"),
 				{ label: "Weitere", commands: [
 					{ id: "tasks", label: "Task Manager", icon: "tasks", run: () => openWorkspace("/tasks") },
 					{ id: "power", label: "Power", icon: "power", run: () => openWorkspace("/power") },
@@ -112,41 +78,14 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 	}
 
 	@state() private info: SystemInfo | null = null;
-	@state() private statusMessage = "Lade Systemdaten...";
-	@state() private statusVariant: "warning" | "success" | "error" = "warning";
-	@state() private loading = false;
+	private readonly poller = new Poller(this, async () => void (this.info = await fetchSystemInfo()), 10_000);
 
-	private shown = false;
-
-	// Kein Polling wie bei den anderen beiden Apps: Systemdaten aendern sich kaum, ein einmaliger
-	// Fetch beim Oeffnen (+ manueller "Aktualisieren"-Button) genuegt.
 	onShow(): void {
-		if (this.shown) return;
-		this.shown = true;
-		void this.refresh();
+		this.poller.start();
 	}
 
 	onHide(): void {
-		// Nichts zu stoppen -- kein Poll-Timer.
-	}
-
-	private async refresh() {
-		this.loading = true;
-		try {
-			this.info = await wsRequest(
-				system.NAMESPACE_ID,
-				(requestId) => system.SystemInfoRequest.encode({ requestId }),
-				system.SystemInfoMessage,
-			);
-			this.statusMessage = `Verbunden -- zuletzt aktualisiert ${new Date().toLocaleTimeString("de-DE")}`;
-			this.statusVariant = "success";
-		} catch (error) {
-			console.error("Systemdaten-Abfrage fehlgeschlagen", error);
-			this.statusMessage = "Verbindungsproblem zur Control-Unit";
-			this.statusVariant = "error";
-		} finally {
-			this.loading = false;
-		}
+		this.poller.stop();
 	}
 
 	private row(name: string, value: string | number) {
@@ -229,8 +168,8 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 								${this.row("Ethernet-MAC", buildInfo.DEVICE_ETH_MAC)}
 								${this.row("USB-NCM-MAC", buildInfo.DEVICE_USB_NCM_MAC)}
 								${this.row("TLS-Zertifikat-Aussteller", buildInfo.DEVICE_CERT_ISSUER)}
-								${this.row("Zertifikat ausgestellt am", formatEpochSeconds(buildInfo.DEVICE_CERT_ISSUED_AT_EPOCH))}
-								${this.row("Zertifikat gültig bis", formatEpochSeconds(buildInfo.DEVICE_CERT_VALID_UNTIL_EPOCH))}
+								${this.row("Zertifikat ausgestellt am", dateTimeOfEpoch(buildInfo.DEVICE_CERT_ISSUED_AT_EPOCH))}
+								${this.row("Zertifikat gültig bis", dateTimeOfEpoch(buildInfo.DEVICE_CERT_VALID_UNTIL_EPOCH))}
 							</tbody>
 						</table>
 					</div>
@@ -251,8 +190,8 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 								${this.row("Branch", buildInfo.GIT_BRANCH)}
 								${this.row("Tag", buildInfo.GIT_TAG)}
 								${this.row("Arbeitsverzeichnis", buildInfo.GIT_IS_DIRTY ? "geaendert (dirty)" : "sauber")}
-								${this.row("Letzter Commit", formatEpochSeconds(buildInfo.GIT_COMMIT_DATE_EPOCH))}
-								${this.row("Gebaut am", formatEpochSeconds(buildInfo.BUILD_TIMESTAMP_EPOCH))}
+								${this.row("Letzter Commit", dateTimeOfEpoch(buildInfo.GIT_COMMIT_DATE_EPOCH))}
+								${this.row("Gebaut am", dateTimeOfEpoch(buildInfo.BUILD_TIMESTAMP_EPOCH))}
 							</tbody>
 						</table>
 					</div>
@@ -265,7 +204,7 @@ export class SystemInfoApp extends LitElement implements DashboardApp {
 										<tbody>
 											${this.row("Uptime", formatUptime(info.uptimeSeconds))}
 											${this.row("Freier Heap", `${(info.freeHeapBytes / 1024).toFixed(1)} KiB`)}
-											${this.row("Letzter Reset", RESET_CAUSE_LABELS[info.resetCauseCode] ?? "Unbekannt")}
+											${this.row("Letzter Reset", RESET_CAUSE_NAMES[info.resetCauseCode] ?? "Unbekannt")}
 										</tbody>
 									</table>
 								`

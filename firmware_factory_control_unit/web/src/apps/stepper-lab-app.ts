@@ -10,7 +10,8 @@ import { stepper } from "../../generated/ws-protocol.js";
 import { wsRequest } from "../ws-client.js";
 import type { DashboardApp } from "../shell/dashboard-app.js";
 import { setAppStatus } from "../shell/status-bar.js";
-import { setAppRibbon } from "../shell/ribbon.js";
+import { setAppRibbon } from "../shell/ribbon.ts";
+import { Poller } from "../core/poller.ts";
 import { drawLineChart } from "./line-chart.js";
 import {
 	currentShare, decodeDrvStatus, decodePwmScale, delayUnitMs, fullStepsPerSecond, moveCurve, profileProblem, tstepOf, type Shape,
@@ -48,8 +49,7 @@ export class StepperLabApp extends LitElement implements DashboardApp {
 	@state() private message = "";
 	@state() private busy = false;
 	private history: Sample[][] = [[], []];
-	private timer: ReturnType<typeof setTimeout> | null = null;
-	private shown = false;
+	private readonly poller = new Poller(this, () => this.poll(), POLL_MS);
 	@query("#c-cs") private cCs?: HTMLCanvasElement;
 	@query("#c-sg") private cSg?: HTMLCanvasElement;
 	@query("#c-pwm") private cPwm?: HTMLCanvasElement;
@@ -97,15 +97,12 @@ export class StepperLabApp extends LitElement implements DashboardApp {
 	}
 
 	onShow(): void {
-		this.shown = true;
 		void this.loadSettings();
-		void this.poll();
+		this.poller.start();
 	}
 
 	onHide(): void {
-		this.shown = false;
-		if (this.timer) clearTimeout(this.timer);
-		this.timer = null;
+		this.poller.stop();
 	}
 
 	private get micro(): number {
@@ -193,7 +190,6 @@ export class StepperLabApp extends LitElement implements DashboardApp {
 	}
 
 	private async poll(): Promise<void> {
-		if (!this.shown) return;
 		const axis = this.axis;
 		try {
 			const s = await wsRequest(NS, (requestId) => stepper.StatusRequest.encode({ requestId, axis }), stepper.StatusResponse);
@@ -205,10 +201,10 @@ export class StepperLabApp extends LitElement implements DashboardApp {
 					speed: fullStepsPerSecond(s.tstep) });
 				while (h.length && h[0].t < Date.now() / 1000 - HISTORY_S) h.shift();
 			}
-		} catch {
+		} catch (e) {
 			this.status = null;
+			throw e;
 		}
-		if (this.shown) this.timer = setTimeout(() => void this.poll(), POLL_MS);
 	}
 
 	protected updated(): void {

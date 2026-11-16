@@ -9,16 +9,19 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <span>
+
 #include "network.hpp"
+#include "ws_protocol.hh"
 
 namespace fcu::plc::project {
 
 /// The largest project source the device keeps.
 inline constexpr std::uint32_t max_bytes = 512 * 1024;
 
-/// Network thread: queue a PutProjectRequest / GetProjectRequest (the whole message). false: not one
-/// of them.
-bool post(net::Server::SessionId id, std::uint16_t type, const std::uint8_t* data, std::size_t len) noexcept;
+/// Network thread: queue a PutProjectRequest / GetProjectRequest (`frame`: the whole message); the I/O
+/// thread answers. false: not one of them.
+bool post(net::Server::SessionId id, WsProtocol::Responder& reply, std::span<const std::uint8_t> frame) noexcept;
 
 /// I/O thread, every cycle: answer the queued requests.
 void cycle() noexcept;

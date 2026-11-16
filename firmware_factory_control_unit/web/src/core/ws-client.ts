@@ -1,19 +1,22 @@
 // Bidirectional binary WebSocket connection to the server (see docs/websocket-protocol.md, rtoos
 // rtos/net/https_server.hpp) - the only channel for ongoing data exchange between browser and firmware; HTTP
-// GET only loads this page once. Every binary frame carries exactly one message with a 4-byte header
-// (namespaceId/messageTypeId, see ws-protocol/*.json); decode() of the generated types in
-// web/generated/ws-protocol.ts expects the COMPLETE frame including the header plus offset=0.
+// GET only loads this page once. Every binary frame carries exactly one message with an 8-byte header
+// (namespaceId, messageTypeId, correlationId, flags; see schema/best_binary_buffers/*.cs); decode() of the
+// generated types in web/generated/ws-protocol.ts expects the COMPLETE frame including the header plus offset=0.
 //
 // This module is pure, app-neutral transport - it knows no concrete message type:
 // - Incoming messages are passed on by their namespaceId only, to the ONE WsProtocolListener registered for
 // it (registerWsProtocolListener()). Decoding, dispatching within the app and handling unknown messageTypeIds
 // is the job of the app that owns the namespace (e.g. roarm -> WsRoArmBackend, tasks -> task-manager-app.ts).
-// - Request/response (wsRequest()): the generated payload of every request and response message carries
-// requestId (uint16, right after the 4-byte header) as its FIRST field. Matching a response to the waiting
-// promise therefore needs only requestId plus the expected (namespaceId, TYPE_ID) given by the caller -
-// responses to pending wsRequest() calls do not reach the namespace listener.
+// - Request/response (wsRequest()): the request carries a correlationId (never 0) in its header, the device
+// copies it into the response. Matching a response to the waiting promise needs nothing but that - responses
+// to pending wsRequest() calls do not reach the namespace listener. A request the device cannot serve gets an
+// error reply (flag FLAG_ERROR: code + message) with the same correlationId: the promise rejects at once with
+// WsErrorReply instead of running into the timeout.
 // - Fire-and-forget (events such as roarm.JointJogTarget, polls such as tasks.TaskManagerRequest):
 // sendBinary().
+
+import { decodeError, FLAG_ERROR, type FrameHeader, HEADER_SIZE, readHeader } from "../../generated/ws-protocol.ts";
 
 // Reconnect backoff deliberately simple and fixed (no exponential backoff): in normal operation the board is
 // permanently reachable in the same network; a short fixed interval restores the connection quickly after a
@@ -30,8 +33,7 @@ const CONNECT_WAIT_TIMEOUT_MS = 10000;
 /** Implemented by an app for ITS namespace (see registerWsProtocolListener()). */
 export interface WsProtocolListener {
 	/* Every incoming message of the registered namespace, except responses to pending wsRequest() calls. 'view'
-	   covers the complete frame including the 4-byte header (can be passed directly to the generated
-	   decode(view, 0)). */
+	   covers the complete frame including the header (can be passed directly to the generated decode(view, 0)). */
 	onWsMessage(messageTypeId: number, view: DataView): void;
 }
 
@@ -39,6 +41,16 @@ export interface WsProtocolListener {
 export interface WsResponseType<TPayload> {
 	readonly TYPE_ID: number;
 	decode(view: DataView, offset: number): TPayload;
+}
+
+/** The device's error reply to a request (see ErrorCode in the generated protocol). */
+export class WsErrorReply extends Error {
+	constructor(
+		readonly code: number,
+		readonly deviceMessage: string,
+	) {
+		super(`Gerät meldet Fehler ${code}: ${deviceMessage}`);
+	}
 }
 
 function wsUrl(): string {
@@ -50,7 +62,7 @@ let socket: WebSocket | null = null;
  *  nothing at all received since it was sent means a dead connection - a device that hangs or lost
  *  its link sends no TCP close, the socket would stay "open" for minutes. */
 let messagesReceived = 0;
-let nextRequestId = 1;
+let lastCorrelationId = 0;
 
 /** The connection for the status bar: connecting (also between two attempts), open, or closed
  *  (it was open and was lost; the next attempt follows after RECONNECT_DELAY_MS). */
@@ -74,9 +86,15 @@ export function onWsStateChange(listener: () => void): () => void {
 let openWaiters: Array<() => void> = [];
 const listeners = new Map<number, WsProtocolListener>(); // key = namespaceId
 const pendingRequests = new Map<
-	number, // key = requestId
-	{ namespaceId: number; typeId: number; resolve: (view: DataView) => void; timer: number }
+	number, // key = correlationId
+	{ namespaceId: number; typeId: number; resolve: (view: DataView) => void; reject: (error: Error) => void; timer: number }
 >();
+
+/** 1..65535 - 0 means "no correlation" (events, pushes). */
+function nextCorrelationId(): number {
+	lastCorrelationId = (lastCorrelationId % 0xffff) + 1;
+	return lastCorrelationId;
+}
 
 function isOpen(): boolean {
 	return socket !== null && socket.readyState === WebSocket.OPEN;
@@ -107,29 +125,34 @@ function hexDump(data: ArrayBuffer): string {
 	return Array.from(new Uint8Array(data), (b) => b.toString(16).padStart(2, "0")).join(" ");
 }
 
-// requestId is at the same place in EVERY response (first field after the 4-byte header, see the file
-// comment). true = the message was the expected response and is consumed.
-function tryResolvePendingRequest(view: DataView, namespaceId: number, messageTypeId: number): boolean {
-	if (view.byteLength < 6) return false;
-	const requestId = view.getUint16(4, true);
-	const pending = pendingRequests.get(requestId);
-	if (!pending || pending.namespaceId !== namespaceId || pending.typeId !== messageTypeId) return false;
-	pendingRequests.delete(requestId);
+// true = the message answers a pending request (response or error reply) and is consumed.
+function tryResolvePendingRequest(view: DataView, header: FrameHeader): boolean {
+	if (header.correlationId === 0) return false;
+	const pending = pendingRequests.get(header.correlationId);
+	if (!pending) return false;
+	pendingRequests.delete(header.correlationId);
 	clearTimeout(pending.timer);
-	pending.resolve(view);
+	if (header.flags & FLAG_ERROR) {
+		const error = decodeError(view);
+		pending.reject(new WsErrorReply(error.code, error.message));
+	} else if (header.namespaceId !== pending.namespaceId || header.messageTypeId !== pending.typeId) {
+		pending.reject(new Error(`WS-Antwort vom falschen Typ: ${header.namespaceId}/${header.messageTypeId}, erwartet ${pending.namespaceId}/${pending.typeId}`));
+	} else {
+		pending.resolve(view);
+	}
 	return true;
 }
 
 function handleMessage(data: ArrayBuffer): void {
-	if (data.byteLength < 4) {
-		console.warn(`[diag] WS frame too short for even the 4-byte header: ${data.byteLength} bytes, hex=${hexDump(data)}`);
+	if (data.byteLength < HEADER_SIZE) {
+		console.warn(`[diag] WS frame too short for even the header: ${data.byteLength} bytes, hex=${hexDump(data)}`);
 		return;
 	}
 	const view = new DataView(data);
-	const namespaceId = view.getUint16(0, true);
-	const messageTypeId = view.getUint16(2, true);
+	const header = readHeader(view);
+	const { namespaceId, messageTypeId } = header;
 
-	if (tryResolvePendingRequest(view, namespaceId, messageTypeId)) return;
+	if (tryResolvePendingRequest(view, header)) return;
 
 	const listener = listeners.get(namespaceId);
 	if (!listener) {
@@ -209,13 +232,13 @@ function waitForOpen(timeoutMs: number): Promise<void> {
 	});
 }
 
-/* Request/response with generic requestId matching (see the file comment). 'encode' gets the requestId to use
-   (to be put into the payload object) and must return the finished frame bytes; 'response' is the generated
-   response type in namespace 'namespaceId'. If the connection is not open yet, waits up to
-   CONNECT_WAIT_TIMEOUT_MS for it to open. */
+/* Request/response matched by the correlationId (see the file comment). 'encode' gets the correlationId to use
+   (the second argument of the generated encode()) and must return the finished frame bytes; 'response' is the
+   generated response type in namespace 'namespaceId'. Rejects with WsErrorReply if the device answers with an
+   error. If the connection is not open yet, waits up to CONNECT_WAIT_TIMEOUT_MS for it to open. */
 export async function wsRequest<TPayload>(
 	namespaceId: number,
-	encode: (requestId: number) => Uint8Array,
+	encode: (correlationId: number) => Uint8Array,
 	response: WsResponseType<TPayload>,
 	timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<TPayload> {
@@ -225,19 +248,19 @@ export async function wsRequest<TPayload>(
 			reject(new Error("WebSocket nicht verbunden"));
 			return;
 		}
-		const requestId = nextRequestId++ & 0xffff;
-		const bytes = encode(requestId);
+		const correlationId = nextCorrelationId();
+		const bytes = encode(correlationId);
 		const receivedBefore = messagesReceived;
 		const sentOn = socket;
 		const timer = window.setTimeout(() => {
-			pendingRequests.delete(requestId);
+			pendingRequests.delete(correlationId);
 			// nothing at all from the device since the request: the connection is dead - close it, so
 			// the status bar says so and the reconnect starts (a device that only skips this answer
 			// keeps its connection)
 			if (messagesReceived === receivedBefore && sentOn) abandon(sentOn);
 			reject(new Error("Zeitüberschreitung bei WS-Anfrage"));
 		}, timeoutMs);
-		pendingRequests.set(requestId, {
+		pendingRequests.set(correlationId, {
 			namespaceId,
 			typeId: response.TYPE_ID,
 			resolve: (view) => {
@@ -247,6 +270,7 @@ export async function wsRequest<TPayload>(
 					reject(error as Error);
 				}
 			},
+			reject,
 			timer,
 		});
 		socket!.send(bytes);

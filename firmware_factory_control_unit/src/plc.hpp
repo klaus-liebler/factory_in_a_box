@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 #include "network.hpp"
 #include "ws_protocol.hh"
@@ -53,7 +54,8 @@ bool command(WsProtocol::plc::PlcCommand c) noexcept;
 /// Network thread: a WebSocket closed - its debug lease ends, its forced values stay.
 void session_closed(net::Server::SessionId id) noexcept;
 
-/// WebSocket messages of the namespace "plc" (network thread).
-void on_message(net::Server::SessionId id, std::uint16_t type, const std::uint8_t* data, std::size_t len) noexcept;
+/// WebSocket messages of the namespace "plc" (network thread; `frame`: header included). Requests that change
+/// the PLC are queued for the PLC thread, which answers through the outbox.
+void on_message(net::Server::SessionId id, WsProtocol::Responder& reply, std::span<const std::uint8_t> frame) noexcept;
 
 }  // namespace fcu::plc

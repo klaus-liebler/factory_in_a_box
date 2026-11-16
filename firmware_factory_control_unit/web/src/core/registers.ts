@@ -12,13 +12,13 @@ export interface RegisterValues {
 }
 
 export async function fetchRegisters(): Promise<RegisterValues> {
-	const resp = await wsRequest(modbus.NAMESPACE_ID, (requestId) => modbus.GetRegistersRequest.encode({ requestId }), modbus.RegistersMessage);
+	const resp = await wsRequest(modbus.NAMESPACE_ID, (correlationId) => modbus.GetRegistersRequest.encode({}, correlationId), modbus.RegistersMessage);
 	return { holding: resp.holding, input: resp.input };
 }
 
 /** Writes one holding register by address; throws when the device refuses (e.g. IEC 61131 is the control source). */
 export async function writeHolding(address: number, value: number): Promise<void> {
-	const resp = await wsRequest(modbus.NAMESPACE_ID, (requestId) => modbus.WriteHoldingRequest.encode({ requestId, address, value }), modbus.WriteHoldingResponse);
+	const resp = await wsRequest(modbus.NAMESPACE_ID, (correlationId) => modbus.WriteHoldingRequest.encode({ address, value }, correlationId), modbus.WriteHoldingResponse);
 	if (!resp.success) throw new Error(`Schreiben von Holding-Register ${address} fehlgeschlagen`);
 }
 

@@ -9,6 +9,7 @@
 
 #include "network.hpp"
 #include "system.hpp"
+#include "ws_protocol.hh"
 
 namespace fcu::io {
 
@@ -42,7 +43,8 @@ void events(std::uint32_t bits) noexcept;
 
 /// A message of the stepper test bench (ws::stepper, network thread): handled in the next cycle,
 /// answered through the outbox.
-void stepper_post(net::Server::SessionId session, std::span<const std::uint8_t> message) noexcept;
+/// `reply` only for refusing it here (queue full).
+void stepper_post(net::Server::SessionId session, WsProtocol::Responder& reply, std::span<const std::uint8_t> message) noexcept;
 
 /// The boot scan of an I2C bus: 128 bits, bit n = a device answered at address n.
 /// The I2C buses by role (their numbers differ per revision: hw::i2c_tof2_bus, hw::i2c_supply_bus).

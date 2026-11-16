@@ -19,11 +19,17 @@
 
 namespace fcu::terminal {
 
-/// Network thread: queue a command line of session `id` with the client's request id.
-void post(net::Server::SessionId id, std::uint16_t request_id, std::span<const char> line) noexcept;
+enum class Posted : std::uint8_t {
+    queued,   ///< the I/O thread answers
+    full,     ///< the queue is full: nothing queued, the caller answers
+    invalid,  ///< no such lookup: nothing queued, the caller answers
+};
 
-/// Network thread: queue lookup number `lookup` (terminal_catalog::Lookup); false: no such lookup.
-bool post_lookup(net::Server::SessionId id, std::uint16_t request_id, std::uint8_t lookup) noexcept;
+/// Network thread: queue a command line of session `id`; `correlation` from the request's frame header.
+Posted post(net::Server::SessionId id, std::uint16_t correlation, std::span<const char> line) noexcept;
+
+/// Network thread: queue lookup number `lookup` (terminal_catalog::Lookup).
+Posted post_lookup(net::Server::SessionId id, std::uint16_t correlation, std::uint8_t lookup) noexcept;
 
 /// I/O thread, every cycle: run the queued commands.
 void cycle() noexcept;

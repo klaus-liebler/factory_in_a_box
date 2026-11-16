@@ -50,8 +50,8 @@ export class TaskManagerApp extends LitElement implements WorkspaceApp, WsProtoc
 	@state() private receivedCount = 0;
 
 	private readonly poller = new Poller(this, () => {
-		sendBinary(WsProtocol.tasks.TaskManagerRequest.encode({ requestId: 0 }));
-		sendBinary(WsProtocol.tasks.PoolListRequest.encode({ requestId: 0 }));
+		sendBinary(WsProtocol.tasks.TaskManagerRequest.encode({}, 0));
+		sendBinary(WsProtocol.tasks.PoolListRequest.encode({}, 0));
 	}, 1000);
 
 	// Key: the thread name (stable at run time); kept across onShow()/onHide() so a short visit elsewhere

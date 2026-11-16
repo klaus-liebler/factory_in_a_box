@@ -115,8 +115,8 @@ export class StepperLabApp extends LitElement implements WorkspaceApp {
 	// ---- device ----------------------------------------------------------------------------------
 	private async loadSettings(): Promise<void> {
 		try {
-			const r = await wsRequest(NS, (requestId) => stepper.SettingsRequest.encode({ requestId, axis: this.axis, write: false,
-				settings: this.settings ?? DEFAULT_SETTINGS, profile: this.profile() }), stepper.SettingsResponse);
+			const r = await wsRequest(NS, (correlationId) => stepper.SettingsRequest.encode({ axis: this.axis, write: false,
+				settings: this.settings ?? DEFAULT_SETTINGS, profile: this.profile() }, correlationId), stepper.SettingsResponse);
 			this.settings = r.settings;
 			const m = r.settings.microsteps || 16;
 			this.move = { ...this.move, startFs: r.profile.startHz / m, cruiseFs: r.profile.cruiseHz / m, accelFs: r.profile.accel / m,
@@ -140,7 +140,7 @@ export class StepperLabApp extends LitElement implements WorkspaceApp {
 		if (problem) return this.say(problem);
 		this.busy = true;
 		try {
-			const r = await wsRequest(NS, (requestId) => stepper.SettingsRequest.encode({ requestId, axis: this.axis, write: true, settings: this.settings!, profile: p }),
+			const r = await wsRequest(NS, (correlationId) => stepper.SettingsRequest.encode({ axis: this.axis, write: true, settings: this.settings!, profile: p }, correlationId),
 				stepper.SettingsResponse);
 			this.settings = r.settings;
 			this.say(r.ok ? "Einstellungen und Profil übernommen" : `Nicht übernommen: ${r.message}`);
@@ -161,7 +161,7 @@ export class StepperLabApp extends LitElement implements WorkspaceApp {
 
 	private setManual(on: boolean): Promise<void> {
 		return this.command(on ? "Handbetrieb an" : "Handbetrieb aus - die Register steuern wieder",
-			() => wsRequest(NS, (requestId) => stepper.ManualRequest.encode({ requestId, axis: this.axis, on }), stepper.ManualResponse));
+			() => wsRequest(NS, (correlationId) => stepper.ManualRequest.encode({ axis: this.axis, on }, correlationId), stepper.ManualResponse));
 	}
 
 	private async drive(sign: number): Promise<void> {
@@ -170,28 +170,28 @@ export class StepperLabApp extends LitElement implements WorkspaceApp {
 		const p = this.profile();
 		const problem = profileProblem({ startHz: p.startHz, cruiseHz: p.cruiseHz, accel: p.accel, shape: this.move.shape });
 		if (problem) return this.say(problem);
-		const s = await wsRequest(NS, (requestId) => stepper.SettingsRequest.encode({ requestId, axis: this.axis, write: true, settings: this.settings!, profile: p }),
+		const s = await wsRequest(NS, (correlationId) => stepper.SettingsRequest.encode({ axis: this.axis, write: true, settings: this.settings!, profile: p }, correlationId),
 			stepper.SettingsResponse).catch((e: Error) => ({ ok: false, message: e.message }));
 		if (!s.ok && !("settings" in s && s.message.includes("does not answer"))) return this.say(`Profil: ${s.message}`);
 		const steps = Math.round(sign * this.move.steps * this.micro);
 		return this.command(`Fahrt ${sign * this.move.steps} Vollschritte`,
-			() => wsRequest(NS, (requestId) => stepper.MoveRequest.encode({ requestId, axis: this.axis, steps }), stepper.MoveResponse));
+			() => wsRequest(NS, (correlationId) => stepper.MoveRequest.encode({ axis: this.axis, steps }, correlationId), stepper.MoveResponse));
 	}
 
 	private stop(): Promise<void> {
-		return this.command("Gestoppt", () => wsRequest(NS, (requestId) => stepper.StopRequest.encode({ requestId, axis: this.axis }), stepper.StopResponse));
+		return this.command("Gestoppt", () => wsRequest(NS, (correlationId) => stepper.StopRequest.encode({ axis: this.axis }, correlationId), stepper.StopResponse));
 	}
 
 	private startHoming(): Promise<void> {
 		const h = this.home;
-		return this.command("Referenzfahrt gestartet", () => wsRequest(NS, (requestId) => stepper.HomeRequest.encode({ requestId, axis: this.axis,
-			speed: h.speed, sgThrs: h.sgThrs, timeoutMs: h.timeoutMs }), stepper.HomeResponse));
+		return this.command("Referenzfahrt gestartet", () => wsRequest(NS, (correlationId) => stepper.HomeRequest.encode({ axis: this.axis,
+			speed: h.speed, sgThrs: h.sgThrs, timeoutMs: h.timeoutMs }, correlationId), stepper.HomeResponse));
 	}
 
 	private async poll(): Promise<void> {
 		const axis = this.axis;
 		try {
-			const s = await wsRequest(NS, (requestId) => stepper.StatusRequest.encode({ requestId, axis }), stepper.StatusResponse);
+			const s = await wsRequest(NS, (correlationId) => stepper.StatusRequest.encode({ axis }, correlationId), stepper.StatusResponse);
 			if (axis === this.axis) {
 				this.status = s;
 				const drv = decodeDrvStatus(s.drvStatus);

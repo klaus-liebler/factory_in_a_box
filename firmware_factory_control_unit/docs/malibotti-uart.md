@@ -22,8 +22,9 @@ Nachricht wird deshalb so gesendet:
 COBS( Nachricht | CRC-16 ) 0x00
 ```
 
-- **Nachricht**: dieselbe BestBinaryBuffers-Kodierung wie auf dem WebSocket, also Namespace-ID
-  und Typ-ID (je 2 Byte, little endian), dann die Felder. Das Schema steht in
+- **Nachricht**: dieselbe BestBinaryBuffers-Kodierung wie auf dem WebSocket, also der 8-Byte-Kopf
+  Namespace-ID, Typ-ID, Korrelations-ID, Flags (je 2 Byte, little endian; Korrelations-ID und
+  Flags sind hier 0, beide Nachrichten sind Events), dann die Felder. Das Schema steht in
   `schema/best_binary_buffers/malibotti.cs` (Namespace `malibotti`, ID 9). Der Generator erzeugt
   den C++-Code für beide Seiten: Das ESP-IDF-Projekt des Roboters bindet `ws_protocol.hh`
   ebenfalls ein, oder es generiert mit `--best-binary-buffer-schema-path` aus demselben Schema.

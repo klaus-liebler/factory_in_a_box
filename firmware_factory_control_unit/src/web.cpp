@@ -18,32 +18,43 @@ namespace {
 
 namespace ws = WsProtocol;
 using SessionId = net::Server::SessionId;
+using ws::Responder;
 
-void send(SessionId id, const std::uint8_t* data, std::size_t size) {
-    if (size == 0) {
-        // Encode() found its buffer too small: the client waits in vain - say so
-        RTOS_LOG_ERROR("ws: answer could not be encoded (buffer too small), client %u gets none", static_cast<unsigned>(id));
-        return;
-    }
-    (void)net::server.send(id, {reinterpret_cast<const std::byte*>(data), size});
+// ---- answering: directly (network thread) or through the outbox (other threads) ----------------------
+
+void* as_context(SessionId id) { return reinterpret_cast<void*>(static_cast<std::uintptr_t>(id)); }
+SessionId session_of(void* context) { return static_cast<SessionId>(reinterpret_cast<std::uintptr_t>(context)); }
+
+void log_too_small(SessionId id) {
+    // Encode() found its buffer too small: the client waits in vain - say so
+    RTOS_LOG_ERROR("ws: answer could not be encoded (buffer too small), client %u gets none", static_cast<unsigned>(id));
 }
+
+void send_direct(void* context, const std::uint8_t* data, std::size_t len) {
+    if (len == 0) return log_too_small(session_of(context));
+    (void)net::server.send(session_of(context), {reinterpret_cast<const std::byte*>(data), len});
+}
+
+void send_outbox(void* context, const std::uint8_t* data, std::size_t len) {
+    if (len == 0) return log_too_small(session_of(context));
+    (void)net::outbox.send(session_of(context), {reinterpret_cast<const std::byte*>(data), len});
+}
+
+// The network thread answers one request at a time: one buffer for every answer.
+std::array<std::uint8_t, net::max_ws_message> answer;
 
 // ---- modbus ---------------------------------------------------------------------------------
 
 // The register answer carries every register: its schema bounds (schema/best_binary_buffers/modbus.cs)
-// must hold the register map, and the message must fit a WebSocket message. Header 4, requestId 2,
-// two array lengths of 2 each, 2 bytes per register.
+// must hold the register map, and the message must fit a WebSocket message. Header, two array lengths
+// of 2 each, 2 bytes per register.
 static_assert(ws::modbus::RegistersMessage::RegistersMessage_MAX_SIZE >=
-                  4 + 2 + 2 * 2 + (register_map::holding_count + register_map::input_count) * 2,
+                  ws::HEADER_SIZE + 2 * 2 + (register_map::holding_count + register_map::input_count) * 2,
               "RegistersMessage too small for the register map: raise the bounds in modbus.cs");
 static_assert(ws::modbus::RegistersMessage::RegistersMessage_MAX_SIZE <= net::max_ws_message,
               "RegistersMessage larger than a WebSocket message");
 
-void get_registers(SessionId id, const std::uint8_t* data, std::size_t len) {
-    ws::modbus::GetRegistersRequest::Payload req{};
-    if (!ws::modbus::GetRegistersRequest::Decode(data, len, req)) {
-        return;
-    }
+void get_registers(Responder& reply, const ws::modbus::GetRegistersRequest::Payload&) {
     constexpr std::size_t holding_count = register_map::holding_count, input_count = register_map::input_count;
     std::array<std::uint16_t, holding_count> holding{};
     std::array<std::uint16_t, input_count> input{};
@@ -59,39 +70,22 @@ void get_registers(SessionId id, const std::uint8_t* data, std::size_t len) {
     for (const std::uint16_t v : input) {
         pos += ws::modbus::EncodeRegistersMessageInputElement(v, input_bytes.data() + pos, input_bytes.size() - pos);
     }
-    ws::modbus::RegistersMessage::Payload resp{};
-    resp.requestId = req.requestId;
-    resp.holdingData = holding_bytes.data();
-    resp.holdingCount = holding_count;
-    resp.inputData = input_bytes.data();
-    resp.inputCount = input_count;
-    std::array<std::uint8_t, ws::modbus::RegistersMessage::RegistersMessage_MAX_SIZE> buf{};
-    send(id, buf.data(), ws::modbus::RegistersMessage::Encode(resp, buf.data(), buf.size()));
+    reply.Send(ws::modbus::RegistersMessage::Encode,
+               ws::modbus::RegistersMessage::Payload{.holdingData = holding_bytes.data(), .holdingCount = holding_count,
+                                                     .inputData = input_bytes.data(), .inputCount = input_count});
 }
 
-void write_holding(SessionId id, const std::uint8_t* data, std::size_t len) {
-    ws::modbus::WriteHoldingRequest::Payload req{};
-    if (!ws::modbus::WriteHoldingRequest::Decode(data, len, req)) {
-        return;
-    }
-    ws::modbus::WriteHoldingResponse::Payload resp{};
-    resp.requestId = req.requestId;
+void write_holding(Responder& reply, const ws::modbus::WriteHoldingRequest::Payload& req) {
     // the protocol path: the write filter refuses the program's outputs in IEC mode (plc.hpp)
-    resp.success = req.address < register_map::holding_count &&
-                   registers.write(req.address, {&req.value, 1}) == rtos::modbus::Exception::None;
-    std::array<std::uint8_t, ws::modbus::WriteHoldingResponse::WriteHoldingResponse_MAX_SIZE> buf{};
-    send(id, buf.data(), ws::modbus::WriteHoldingResponse::Encode(resp, buf.data(), buf.size()));
+    const bool ok = req.address < register_map::holding_count &&
+                    registers.write(req.address, {&req.value, 1}) == rtos::modbus::Exception::None;
+    reply.Send(ws::modbus::WriteHoldingResponse::Encode, ws::modbus::WriteHoldingResponse::Payload{.success = ok});
 }
 
 // ---- system ---------------------------------------------------------------------------------
 
-void system_info(SessionId id, const std::uint8_t* data, std::size_t len) {
-    ws::system::SystemInfoRequest::Payload req{};
-    if (!ws::system::SystemInfoRequest::Decode(data, len, req)) {
-        return;
-    }
+void system_info(Responder& reply, const ws::system::SystemInfoRequest::Payload&) {
     ws::system::SystemInfoMessage::Payload resp{};
-    resp.requestId = req.requestId;
     resp.uptimeSeconds = kernel.now() / 1000;
     resp.freeHeapBytes = 0;  // no heap
     const net::Status s = net::status();
@@ -118,27 +112,28 @@ void system_info(SessionId id, const std::uint8_t* data, std::size_t len) {
     }
     resp.i2cScansData = scans.data();
     resp.i2cScansCount = io::i2c_bus_count;
-    std::array<std::uint8_t, ws::system::SystemInfoMessage::SystemInfoMessage_MAX_SIZE> buf{};
-    send(id, buf.data(), ws::system::SystemInfoMessage::Encode(resp, buf.data(), buf.size()));
+    reply.Send(ws::system::SystemInfoMessage::Encode, resp);
 }
 
-// ---- terminal ---------------------------------------------------------------------------------
+// ---- terminal: queued for the I/O thread, which answers ------------------------------------------------
 
-void terminal_message(SessionId id, std::uint16_t type, const std::uint8_t* data, std::size_t len) {
-    namespace t = ws::terminal;
-    if (type == t::LookupRequest::TYPE_ID) {
-        t::LookupRequest::Payload q{};
-        if (!t::LookupRequest::Decode(data, len, q)) return;
-        if (!terminal::post_lookup(id, q.requestId, q.lookup)) {  // else the I/O thread answers
-            std::array<std::uint8_t, t::LookupResponse::LookupResponse_MAX_SIZE> buf{};
-            send(id, buf.data(), t::LookupResponse::Encode({.requestId = q.requestId, .ok = false, .values = ""}, buf.data(), buf.size()));
-        }
-    } else if (type == t::CommandRequest::TYPE_ID) {
-        t::CommandRequest::Payload q{};
-        if (!t::CommandRequest::Decode(data, len, q)) return;
-        terminal::post(id, q.requestId, {q.line, std::strlen(q.line)});  // the I/O thread answers
+void terminal_lookup(SessionId id, Responder& reply, const ws::terminal::LookupRequest::Payload& q) {
+    switch (terminal::post_lookup(id, reply.Request().correlationId, q.lookup)) {
+        case terminal::Posted::queued: break;
+        case terminal::Posted::full: reply.Error(ws::ErrorCode::Busy, "terminal busy"); break;
+        case terminal::Posted::invalid:
+            reply.Send(ws::terminal::LookupResponse::Encode, ws::terminal::LookupResponse::Payload{.ok = false, .values = ""});
+            break;
     }
 }
+
+void terminal_command(SessionId id, Responder& reply, const ws::terminal::CommandRequest::Payload& q) {
+    if (terminal::post(id, reply.Request().correlationId, {q.line, std::strlen(q.line)}) != terminal::Posted::queued) {
+        reply.Error(ws::ErrorCode::Busy, "terminal busy");
+    }
+}
+
+void unknown(Responder& reply) { reply.Error(ws::ErrorCode::UnknownMessage, "unknown message"); }
 
 // ---- log: every record to every browser, at once ------------------------------------------------------
 
@@ -211,50 +206,45 @@ void on_closed(void*, SessionId id) noexcept {
 }
 
 void on_message(void*, SessionId id, std::span<const std::byte> message, bool binary) noexcept {
-    if (!binary || message.size() < 4) {
+    const std::span<const std::uint8_t> frame{reinterpret_cast<const std::uint8_t*>(message.data()), message.size()};
+    ws::FrameHeader header{};
+    if (!binary || !ws::ReadHeader(frame.data(), frame.size(), header)) {
         return;
     }
-    const auto* data = reinterpret_cast<const std::uint8_t*>(message.data());
-    const std::size_t len = message.size();
-    const auto ns = static_cast<std::uint16_t>(data[0] | (data[1] << 8));
-    const auto type = static_cast<std::uint16_t>(data[2] | (data[3] << 8));
-    switch (ns) {
+    Responder reply(header, answer.data(), answer.size(), send_direct, as_context(id));
+    const auto dispatch = [&](auto decode, auto handler) { ws::Dispatch(reply, frame.data(), frame.size(), decode, handler); };
+    const std::uint16_t type = header.messageTypeId;
+    switch (header.namespaceId) {
         case ws::modbus::NAMESPACE_ID:
-            if (type == ws::modbus::GetRegistersRequest::TYPE_ID) {
-                get_registers(id, data, len);
-            } else if (type == ws::modbus::WriteHoldingRequest::TYPE_ID) {
-                write_holding(id, data, len);
-            }
-            break;
-        case ws::plc::NAMESPACE_ID:
-            if (!plc::project::post(id, type, data, len)) plc::on_message(id, type, data, len);  // the project: the I/O thread
-            break;
+            if (type == ws::modbus::GetRegistersRequest::TYPE_ID) return dispatch(ws::modbus::GetRegistersRequest::Decode, get_registers);
+            if (type == ws::modbus::WriteHoldingRequest::TYPE_ID) return dispatch(ws::modbus::WriteHoldingRequest::Decode, write_holding);
+            return unknown(reply);
         case ws::system::NAMESPACE_ID:
-            if (type == ws::system::SystemInfoRequest::TYPE_ID) {
-                system_info(id, data, len);
-            }
-            break;
-        case ws::terminal::NAMESPACE_ID:
-            terminal_message(id, type, data, len);
-            break;
-        case ws::roarm::NAMESPACE_ID:
-            roarm::post(id, {data, len});  // the I/O thread answers through the outbox
-            break;
-        case ws::stepper::NAMESPACE_ID:
-            io::stepper_post(id, {data, len});  // the I/O thread owns the TMC2209 UART and the step timers
-            break;
-        case ws::tasks::NAMESPACE_ID: {
-            std::array<std::uint8_t, net::max_ws_message> reply{};
-            const std::size_t n = task_monitor::handle_message(type, {data, len}, reply);
-            send(id, reply.data(), n);
-            break;
+            if (type == ws::system::SystemInfoRequest::TYPE_ID) return dispatch(ws::system::SystemInfoRequest::Decode, system_info);
+            return unknown(reply);
+        case ws::terminal::NAMESPACE_ID: {
+            const auto with_session = [id](auto handler) { return [id, handler](Responder& r, const auto& q) { handler(id, r, q); }; };
+            if (type == ws::terminal::LookupRequest::TYPE_ID) return dispatch(ws::terminal::LookupRequest::Decode, with_session(terminal_lookup));
+            if (type == ws::terminal::CommandRequest::TYPE_ID) return dispatch(ws::terminal::CommandRequest::Decode, with_session(terminal_command));
+            return unknown(reply);
         }
-        default: break;
+        case ws::plc::NAMESPACE_ID:
+            // the project (SD card): the I/O thread; everything else: the PLC module
+            if (!plc::project::post(id, reply, frame)) plc::on_message(id, reply, frame);
+            return;
+        case ws::roarm::NAMESPACE_ID: return roarm::post(id, reply, frame);        // the I/O thread answers
+        case ws::stepper::NAMESPACE_ID: return io::stepper_post(id, reply, frame);  // the I/O thread owns the TMC2209 UART
+        case ws::tasks::NAMESPACE_ID: return task_monitor::handle_message(reply, frame);
+        default: return unknown(reply);
     }
 }
 
 void broadcast_from_io(std::span<const std::uint8_t> message) noexcept {
     (void)net::outbox.broadcast({reinterpret_cast<const std::byte*>(message.data()), message.size()});
+}
+
+Responder responder_from_io(SessionId id, const ws::FrameHeader& request, std::span<std::uint8_t> buffer) noexcept {
+    return Responder(request, buffer.data(), buffer.size(), send_outbox, as_context(id));
 }
 
 }  // namespace fcu::web

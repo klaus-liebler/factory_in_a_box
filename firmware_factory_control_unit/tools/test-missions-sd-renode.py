@@ -120,7 +120,7 @@ def wait_log(text, seconds):
 
 
 try:
-    check("SD card mounted", wait_log("missions: SD card mounted", 60))
+    check("SD card mounted", wait_log("sd: SD card mounted", 60))
     check("DHCP lease", wait_log("dhcp: bound", 60))
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
@@ -141,13 +141,14 @@ try:
 
     def call(type_id, body, answer_type):
         req_id[0] += 1
-        net_test.ws_send(tls, struct.pack("<HHH", NS, type_id, req_id[0]) + body)
+        # header: namespace, type, correlation, flags (u16 each); the answer carries the correlation
+        net_test.ws_send(tls, struct.pack("<HHHH", NS, type_id, req_id[0], 0) + body)
         tls.settimeout(20)
         end = time.monotonic() + 20
         while time.monotonic() < end:
             opcode, p = reader.frame()
-            if opcode == 2 and len(p) >= 6 and struct.unpack_from("<HHH", p) == (NS, answer_type, req_id[0]):
-                return p[6:]
+            if opcode == 2 and len(p) >= 8 and struct.unpack_from("<HHHH", p) == (NS, answer_type, req_id[0], 0):
+                return p[8:]
         raise TimeoutError(f"no answer {answer_type}")
 
     def cstr(b, pos):

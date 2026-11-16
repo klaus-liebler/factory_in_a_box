@@ -158,8 +158,21 @@ def wait_log(text, seconds, after=0):
     return False
 
 
+HEADER = 8  # BestBinaryBuffers frame header: namespace, type, correlation, flags (u16 each)
+FLAG_ERROR = 1
+ERROR_UNKNOWN_MESSAGE, ERROR_MALFORMED, ERROR_BUSY = 1, 2, 3
+
+
+class WsError(Exception):
+    """A generic error reply (FLAG_ERROR) to a request."""
+
+    def __init__(self, code, message):
+        super().__init__(f"error reply {code}: {message}")
+        self.code = code
+
+
 class Ws:
-    """wss://device/ws with request/response by namespace and type id."""
+    """wss://device/ws with request/response matched by the correlation id of the frame header."""
 
     def __init__(self):
         ctx = ssl.create_default_context()
@@ -180,14 +193,21 @@ class Ws:
         self.req = 100
 
     def call(self, ns, type_id, body, answer_type, timeout=30):
+        """The payload of the answer (header: namespace, type, correlation, flags); WsError for an error reply."""
         self.req += 1
-        net_test.ws_send(self.tls, struct.pack("<HHH", ns, type_id, self.req) + body)
+        net_test.ws_send(self.tls, struct.pack("<HHHH", ns, type_id, self.req, 0) + body)
         self.tls.settimeout(timeout)
         end = time.monotonic() + timeout
         while time.monotonic() < end:
             opcode, p = self.reader.frame()
-            if opcode == 2 and len(p) >= 6 and struct.unpack_from("<HHH", p) == (ns, answer_type, self.req):
-                return p[6:]
+            if opcode != 2 or len(p) < HEADER or struct.unpack_from("<H", p, 4)[0] != self.req:
+                continue
+            a_ns, a_type, _, flags = struct.unpack_from("<HHHH", p)
+            if flags & FLAG_ERROR:
+                code = struct.unpack_from("<H", p, HEADER)[0]
+                raise WsError(code, cstr(p, HEADER + 2)[0])
+            if (a_ns, a_type) == (ns, answer_type):
+                return p[HEADER:]
         raise TimeoutError(f"no answer {ns}/{answer_type}")
 
     def close(self):
@@ -256,9 +276,9 @@ def watch_frames(ws, seconds):
             opcode, p = ws.reader.frame()
         except (TimeoutError, socket.timeout, ssl.SSLError):
             continue
-        if opcode == 2 and len(p) >= 13 and struct.unpack_from("<HH", p) == (PLC, 27):
-            generation, cycles, state, count = struct.unpack_from("<HIBH", p, 4)
-            out.append((generation, cycles, state, p[13:13 + count]))
+        if opcode == 2 and len(p) >= HEADER + 9 and struct.unpack_from("<HH", p) == (PLC, 27):
+            generation, cycles, state, count = struct.unpack_from("<HIBH", p, HEADER)
+            out.append((generation, cycles, state, p[HEADER + 9:HEADER + 9 + count]))
     return out
 
 
@@ -378,6 +398,18 @@ try:
     st = status(ws)
     check("status: NO_PROGRAM, fieldbus", st["state"] == "NO_PROGRAM" and not st["iec"], str(st))
     check("fieldbus mode: Modbus writes the conveyor", modbus_write(mb, CONVEYOR, 500) is None and holding(mb, CONVEYOR) == [500])
+
+    # a request that cannot be served gets an error reply with its correlation, not silence
+    def error_code(ns, type_id, body):
+        try:
+            ws.call(ns, type_id, body, 0xFFFF, timeout=5)
+        except WsError as e:
+            return e.code
+        return None
+    check("protocol: unknown PLC message -> error reply UnknownMessage", error_code(PLC, 999, b"") == ERROR_UNKNOWN_MESSAGE)
+    check("protocol: unknown namespace -> error reply UnknownMessage", error_code(4711, 1, b"") == ERROR_UNKNOWN_MESSAGE)
+    check("protocol: truncated UploadRequest -> error reply Malformed", error_code(PLC, 5, b"\x01") == ERROR_MALFORMED)
+    check("protocol: the connection still works", status(ws)["state"] == "NO_PROGRAM")
 
     # the same image, built for another register map (I/O map hash changed, CRC fixed up)
     foreign = bytearray(image)

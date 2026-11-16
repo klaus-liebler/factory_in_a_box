@@ -9,6 +9,7 @@
 #include "rtos/sync/message_queue.hpp"
 #include "sd_card.hpp"
 #include "system.hpp"
+#include "web.hpp"
 #include "ws_protocol.hh"
 
 namespace fcu::plc::project {
@@ -27,17 +28,13 @@ struct Request {
     std::array<std::uint8_t, ws::PutProjectRequest::PutProjectRequest_MAX_SIZE> data{};
 };
 rtos::MessageQueue<Kernel, Request, 2> requests{kernel};
-std::array<std::uint8_t, ws::GetProjectResponse::GetProjectResponse_MAX_SIZE> reply;
+std::array<std::uint8_t, ws::GetProjectResponse::GetProjectResponse_MAX_SIZE> answer;
 std::array<std::uint8_t, 1024> chunk;  ///< a GetProject chunk (static: not on the I/O thread's stack)
 
 std::uint32_t prepared = 0;  ///< the card (sd::generation()) /PLC was created on
 FX_FILE tmp{};
 bool writing = false;        ///< tmp is open: a PutProject is under way
 std::uint32_t written = 0;   ///< bytes of it in tmp
-
-void send(net::Server::SessionId id, std::size_t n) noexcept {
-    if (n > 0) (void)net::outbox.send(id, std::as_bytes(std::span(reply).first(n)));
-}
 
 /// The card mounted and /PLC on it; else why not.
 const char* ready() noexcept {
@@ -132,36 +129,46 @@ const char* get(std::uint32_t offset, std::span<std::uint8_t> out, std::uint32_t
     return e;
 }
 
+void put_project(WsProtocol::Responder& reply, const ws::PutProjectRequest::Payload& q) noexcept {
+    const char* e = put(q);
+    reply.Send(ws::PutProjectResponse::Encode, ws::PutProjectResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
+}
+
+void get_project(WsProtocol::Responder& reply, const ws::GetProjectRequest::Payload& q) noexcept {
+    std::uint32_t total = 0;
+    std::size_t got = 0;
+    const char* e = get(q.offset, chunk, total, got);
+    reply.Send(ws::GetProjectResponse::Encode,
+               ws::GetProjectResponse::Payload{.ok = e == nullptr, .totalBytes = total, .offset = q.offset, .dataData = chunk.data(),
+                                               .dataCount = got, .message = e ? e : ""});
+}
+
 void handle(const Request& r) noexcept {
-    const std::uint8_t* d = r.data.data();
-    const auto type = static_cast<std::uint16_t>(d[2] | (d[3] << 8));
-    if (type == ws::PutProjectRequest::TYPE_ID) {
-        ws::PutProjectRequest::Payload q{};
-        if (!ws::PutProjectRequest::Decode(d, r.size, q)) return;
-        const char* e = put(q);
-        send(r.session, ws::PutProjectResponse::Encode({.requestId = q.requestId, .ok = e == nullptr, .message = e ? e : ""},
-                                                       reply.data(), reply.size()));
-    } else if (type == ws::GetProjectRequest::TYPE_ID) {
-        ws::GetProjectRequest::Payload q{};
-        if (!ws::GetProjectRequest::Decode(d, r.size, q)) return;
-        std::uint32_t total = 0;
-        std::size_t got = 0;
-        const char* e = get(q.offset, chunk, total, got);
-        send(r.session, ws::GetProjectResponse::Encode({.requestId = q.requestId, .ok = e == nullptr, .totalBytes = total,
-                                                        .offset = q.offset, .dataData = chunk.data(), .dataCount = got,
-                                                        .message = e ? e : ""},
-                                                       reply.data(), reply.size()));
+    WsProtocol::FrameHeader h{};
+    if (!WsProtocol::ReadHeader(r.data.data(), r.size, h)) return;
+    WsProtocol::Responder reply = web::responder_from_io(r.session, h, answer);
+    if (h.messageTypeId == ws::PutProjectRequest::TYPE_ID) {
+        WsProtocol::Dispatch(reply, r.data.data(), r.size, ws::PutProjectRequest::Decode, put_project);
+    } else {
+        WsProtocol::Dispatch(reply, r.data.data(), r.size, ws::GetProjectRequest::Decode, get_project);
     }
 }
 
 }  // namespace
 
-bool post(net::Server::SessionId id, std::uint16_t type, const std::uint8_t* data, std::size_t len) noexcept {
+bool post(net::Server::SessionId id, WsProtocol::Responder& reply, std::span<const std::uint8_t> frame) noexcept {
+    const std::uint16_t type = reply.Request().messageTypeId;
     if (type != ws::PutProjectRequest::TYPE_ID && type != ws::GetProjectRequest::TYPE_ID) return false;
-    Request r{.session = id, .size = static_cast<std::uint16_t>(len)};
-    if (len < 4 || len > r.data.size()) return true;  // ours, but malformed: no answer
-    std::memcpy(r.data.data(), data, len);
-    if (!requests.try_send(r)) RTOS_LOG_WARN("plc: project request queue full, request dropped");
+    Request r{.session = id, .size = static_cast<std::uint16_t>(frame.size())};
+    if (frame.size() > r.data.size()) {
+        reply.Error(WsProtocol::ErrorCode::Malformed, "frame too large");
+        return true;
+    }
+    std::memcpy(r.data.data(), frame.data(), frame.size());
+    if (!requests.try_send(r)) {
+        RTOS_LOG_WARN("plc: project request queue full, request dropped");
+        reply.Error(WsProtocol::ErrorCode::Busy, "project request queue full");
+    }
     return true;
 }
 

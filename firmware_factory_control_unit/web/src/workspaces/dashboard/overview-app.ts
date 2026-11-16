@@ -48,8 +48,8 @@ export class OverviewApp extends LitElement implements WorkspaceApp {
 	private readonly pollers = [
 		this.registerPoll,
 		new Poller(this, () => {
-			sendBinary(tasks.TaskManagerRequest.encode({ requestId: 0 }));
-			sendBinary(tasks.PoolListRequest.encode({ requestId: 0 }));
+			sendBinary(tasks.TaskManagerRequest.encode({}, 0));
+			sendBinary(tasks.PoolListRequest.encode({}, 0));
 		}, 2000),
 		new Poller(this, async () => void (this.plcStatus = await fetchPlcStatus().catch(() => null)), 2000),
 		new Poller(this, async () => void (this.info = await fetchSystemInfo()), 10_000),

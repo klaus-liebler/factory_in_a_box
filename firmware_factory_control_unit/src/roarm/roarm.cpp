@@ -206,120 +206,105 @@ struct Request {
 };
 rtos::MessageQueue<Kernel, Request, 3> requests{kernel};
 
-std::array<std::uint8_t, net::max_ws_message> reply;
+std::array<std::uint8_t, net::max_ws_message> answer;
 std::array<std::uint8_t, net::max_ws_message> build;
 
-void send(net::Server::SessionId id, std::size_t n) {
-    if (n > 0) {
-        (void)net::outbox.send(id, std::as_bytes(std::span(reply).first(n)));
+using WsProtocol::Responder;
+
+void start_teach_mode(Responder& reply, const ws::StartTeachModeRequest::Payload&) {
+    const bool ok = !running && !plc::iec_controls();  // IEC mode: the program moves the arm
+    teach_mode = teach_mode || ok;
+    reply.Send(ws::StartTeachModeResponse::Encode, ws::StartTeachModeResponse::Payload{.success = ok});
+}
+
+void stop_teach_mode(Responder& reply, const ws::StopTeachModeRequest::Payload&) {
+    teach_mode = false;
+    reply.Send(ws::StopTeachModeResponse::Encode, ws::StopTeachModeResponse::Payload{.success = true});
+}
+
+void joint_jog(Responder&, const ws::JointJogTarget::Payload& q) {
+    if (!teach_mode || running) return;
+    Joints t{};
+    for (int i = 0; i < joint_count; ++i) t[i] = clamp_joint(i, centideg_to_rad(q.jointAnglesCentiDeg[i]));
+    tracker.set_targets(t);
+}
+
+void cartesian_jog(Responder&, const ws::CartesianJogTarget::Payload& q) {
+    if (!teach_mode || running) return;
+    auto ik = inverse({static_cast<double>(q.xMm), static_cast<double>(q.yMm), static_cast<double>(q.zMm),
+                       centideg_to_rad(q.pitchCentiDeg), centideg_to_rad(q.rollCentiDeg), centideg_to_rad(q.gripperCentiDeg)});
+    if (!ik.reachable) return;
+    for (int i = 0; i < joint_count; ++i) ik.joints[i] = clamp_joint(i, ik.joints[i]);
+    tracker.set_targets(ik.joints);
+}
+
+void list_missions(Responder& reply, const ws::ListMissionsRequest::Payload&) {
+    std::array<MissionSummary, 32> list{};
+    const std::size_t count = missions::list(list);
+    std::size_t pos = 0, n = 0;
+    for (; n < count; ++n) {
+        const ws::MissionSummary::Payload item{.missionIndex = list[n].index, .name = list[n].name.data()};
+        const std::size_t next = ws::AppendListMissionsResponseMissionsMissionSummaryElement(item, build.data(), pos, build.size());
+        if (next == 0) break;  // full: the rest of the list is cut
+        pos = next;
     }
+    reply.Send(ws::ListMissionsResponse::Encode,
+               ws::ListMissionsResponse::Payload{.missionsData = build.data(), .missionsCount = n, .missionsDataSize = pos});
+}
+
+void get_mission(Responder& reply, const ws::GetMissionRequest::Payload& q) {
+    ws::GetMissionResponse::Payload p{.found = false, .missionIndex = q.missionIndex,
+                                      .name = "", .stepsData = nullptr, .stepsCount = 0, .stepsDataSize = 0};
+    ws::Mission::Payload m{};
+    const std::size_t size = running ? 0 : missions::load(q.missionIndex, mission_buffer);
+    if (size != 0 && ws::Mission::Decode(mission_buffer.data(), size, m)) {
+        p.found = true;
+        p.name = m.name;
+        p.stepsData = m.stepsData;
+        p.stepsCount = m.stepsCount;
+        p.stepsDataSize = m.stepsDataSize;
+    }
+    reply.Send(ws::GetMissionResponse::Encode, p);
+}
+
+void save_mission(Responder& reply, const ws::SaveMissionRequest::Payload& q) {
+    const bool ok = missions::save(q.missionIndex, q.name, {q.stepsData, q.stepsDataSize}, q.stepsCount);
+    reply.Send(ws::SaveMissionResponse::Encode,
+               ws::SaveMissionResponse::Payload{.success = ok, .errorCode = static_cast<std::int16_t>(ok ? 0 : -1)});
+}
+
+void delete_mission(Responder& reply, const ws::DeleteMissionRequest::Payload& q) {
+    reply.Send(ws::DeleteMissionResponse::Encode, ws::DeleteMissionResponse::Payload{.success = missions::remove(q.missionIndex)});
+}
+
+void mission_gpio_list(Responder& reply, const ws::GetMissionGpioListRequest::Payload&) {
+    std::size_t pos = 0;
+    for (const char* name : mission_gpio_names) {
+        const std::size_t l = std::strlen(name) + 1;
+        std::memcpy(build.data() + pos, name, l);
+        pos += l;
+    }
+    reply.Send(ws::GetMissionGpioListResponse::Encode,
+               ws::GetMissionGpioListResponse::Payload{.namesData = build.data(), .namesCount = mission_gpio_names.size(),
+                                                       .namesDataSize = pos});
 }
 
 void handle(const Request& r) {
-    const std::uint8_t* d = r.data.data();
-    const std::size_t len = r.size;
-    const auto type = static_cast<std::uint16_t>(d[2] | (d[3] << 8));
-    switch (type) {
-        case ws::StartTeachModeRequest::TYPE_ID: {
-            ws::StartTeachModeRequest::Payload q{};
-            if (!ws::StartTeachModeRequest::Decode(d, len, q)) return;
-            const bool ok = !running && !plc::iec_controls();  // IEC mode: the program moves the arm
-            teach_mode = teach_mode || ok;
-            send(r.session, ws::StartTeachModeResponse::Encode({.requestId = q.requestId, .success = ok}, reply.data(), reply.size()));
-            return;
-        }
-        case ws::StopTeachModeRequest::TYPE_ID: {
-            ws::StopTeachModeRequest::Payload q{};
-            if (!ws::StopTeachModeRequest::Decode(d, len, q)) return;
-            teach_mode = false;
-            send(r.session, ws::StopTeachModeResponse::Encode({.requestId = q.requestId, .success = true}, reply.data(), reply.size()));
-            return;
-        }
-        case ws::JointJogTarget::TYPE_ID: {
-            ws::JointJogTarget::Payload q{};
-            if (!ws::JointJogTarget::Decode(d, len, q) || !teach_mode || running) return;
-            Joints t{};
-            for (int i = 0; i < joint_count; ++i) t[i] = clamp_joint(i, centideg_to_rad(q.jointAnglesCentiDeg[i]));
-            tracker.set_targets(t);
-            return;
-        }
-        case ws::CartesianJogTarget::TYPE_ID: {
-            ws::CartesianJogTarget::Payload q{};
-            if (!ws::CartesianJogTarget::Decode(d, len, q) || !teach_mode || running) return;
-            auto ik = inverse({static_cast<double>(q.xMm), static_cast<double>(q.yMm), static_cast<double>(q.zMm),
-                               centideg_to_rad(q.pitchCentiDeg), centideg_to_rad(q.rollCentiDeg),
-                               centideg_to_rad(q.gripperCentiDeg)});
-            if (!ik.reachable) return;
-            for (int i = 0; i < joint_count; ++i) ik.joints[i] = clamp_joint(i, ik.joints[i]);
-            tracker.set_targets(ik.joints);
-            return;
-        }
-        case ws::ListMissionsRequest::TYPE_ID: {
-            ws::ListMissionsRequest::Payload q{};
-            if (!ws::ListMissionsRequest::Decode(d, len, q)) return;
-            std::array<MissionSummary, 32> list{};
-            const std::size_t count = missions::list(list);
-            std::size_t pos = 0, n = 0;
-            for (; n < count; ++n) {
-                const ws::MissionSummary::Payload item{.missionIndex = list[n].index, .name = list[n].name.data()};
-                const std::size_t next = ws::AppendListMissionsResponseMissionsMissionSummaryElement(item, build.data(), pos, build.size());
-                if (next == 0) break;  // full: the rest of the list is cut
-                pos = next;
-            }
-            send(r.session, ws::ListMissionsResponse::Encode({.requestId = q.requestId, .missionsData = build.data(),
-                                                              .missionsCount = n, .missionsDataSize = pos},
-                                                             reply.data(), reply.size()));
-            return;
-        }
-        case ws::GetMissionRequest::TYPE_ID: {
-            ws::GetMissionRequest::Payload q{};
-            if (!ws::GetMissionRequest::Decode(d, len, q)) return;
-            ws::GetMissionResponse::Payload p{.requestId = q.requestId, .found = false, .missionIndex = q.missionIndex,
-                                              .name = "", .stepsData = nullptr, .stepsCount = 0, .stepsDataSize = 0};
-            ws::Mission::Payload m{};
-            const std::size_t size = running ? 0 : missions::load(q.missionIndex, mission_buffer);
-            if (size != 0 && ws::Mission::Decode(mission_buffer.data(), size, m)) {
-                p.found = true;
-                p.name = m.name;
-                p.stepsData = m.stepsData;
-                p.stepsCount = m.stepsCount;
-                p.stepsDataSize = m.stepsDataSize;
-            }
-            send(r.session, ws::GetMissionResponse::Encode(p, reply.data(), reply.size()));
-            return;
-        }
-        case ws::SaveMissionRequest::TYPE_ID: {
-            ws::SaveMissionRequest::Payload q{};
-            if (!ws::SaveMissionRequest::Decode(d, len, q)) return;
-            const bool ok = missions::save(q.missionIndex, q.name, {q.stepsData, q.stepsDataSize}, q.stepsCount);
-            send(r.session, ws::SaveMissionResponse::Encode({.requestId = q.requestId, .success = ok,
-                                                             .errorCode = static_cast<std::int16_t>(ok ? 0 : -1)},
-                                                            reply.data(), reply.size()));
-            return;
-        }
-        case ws::DeleteMissionRequest::TYPE_ID: {
-            ws::DeleteMissionRequest::Payload q{};
-            if (!ws::DeleteMissionRequest::Decode(d, len, q)) return;
-            const bool ok = missions::remove(q.missionIndex);
-            send(r.session, ws::DeleteMissionResponse::Encode({.requestId = q.requestId, .success = ok}, reply.data(), reply.size()));
-            return;
-        }
-        case ws::GetMissionGpioListRequest::TYPE_ID: {
-            ws::GetMissionGpioListRequest::Payload q{};
-            if (!ws::GetMissionGpioListRequest::Decode(d, len, q)) return;
-            std::size_t pos = 0;
-            for (const char* name : mission_gpio_names) {
-                const std::size_t l = std::strlen(name) + 1;
-                std::memcpy(build.data() + pos, name, l);
-                pos += l;
-            }
-            send(r.session, ws::GetMissionGpioListResponse::Encode({.requestId = q.requestId, .namesData = build.data(),
-                                                                    .namesCount = mission_gpio_names.size(),
-                                                                    .namesDataSize = pos},
-                                                                   reply.data(), reply.size()));
-            return;
-        }
-        default: return;
+    WsProtocol::FrameHeader header{};
+    if (!WsProtocol::ReadHeader(r.data.data(), r.size, header)) return;
+    Responder reply = web::responder_from_io(r.session, header, answer);
+    const auto on = [&](auto decode, auto handler) { WsProtocol::Dispatch(reply, r.data.data(), r.size, decode, handler); };
+    switch (header.messageTypeId) {
+        case ws::StartTeachModeRequest::TYPE_ID: return on(ws::StartTeachModeRequest::Decode, start_teach_mode);
+        case ws::StopTeachModeRequest::TYPE_ID: return on(ws::StopTeachModeRequest::Decode, stop_teach_mode);
+        case ws::JointJogTarget::TYPE_ID: return on(ws::JointJogTarget::Decode, joint_jog);
+        case ws::CartesianJogTarget::TYPE_ID: return on(ws::CartesianJogTarget::Decode, cartesian_jog);
+        case ws::ListMissionsRequest::TYPE_ID: return on(ws::ListMissionsRequest::Decode, list_missions);
+        case ws::GetMissionRequest::TYPE_ID: return on(ws::GetMissionRequest::Decode, get_mission);
+        case ws::SaveMissionRequest::TYPE_ID: return on(ws::SaveMissionRequest::Decode, save_mission);
+        case ws::DeleteMissionRequest::TYPE_ID: return on(ws::DeleteMissionRequest::Decode, delete_mission);
+        case ws::GetMissionGpioListRequest::TYPE_ID: return on(ws::GetMissionGpioListRequest::Decode, mission_gpio_list);
+        default: return reply.Error(WsProtocol::ErrorCode::UnknownMessage, "unknown message");
     }
 }
 
@@ -376,14 +361,16 @@ void cycle(std::uint32_t now) noexcept {
     pose_broadcast(now);
 }
 
-void post(net::Server::SessionId id, std::span<const std::uint8_t> message) noexcept {
-    if (message.size() < 4 || message.size() > net::max_ws_message) {
+void post(net::Server::SessionId id, WsProtocol::Responder& reply, std::span<const std::uint8_t> message) noexcept {
+    if (message.size() > net::max_ws_message) {
+        reply.Error(WsProtocol::ErrorCode::Malformed, "frame too large");
         return;
     }
     Request r{.session = id, .size = static_cast<std::uint16_t>(message.size())};
     std::memcpy(r.data.data(), message.data(), message.size());
     if (!requests.try_send(r)) {
         RTOS_LOG_WARN("RoArm: request queue full, message dropped");
+        reply.Error(WsProtocol::ErrorCode::Busy, "RoArm request queue full");
     }
 }
 

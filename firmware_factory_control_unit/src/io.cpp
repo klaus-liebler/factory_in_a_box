@@ -1,9 +1,11 @@
 // The I/O cycle (see io.hpp).
 #include "io.hpp"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstring>
+#include <tuple>
 
 #include "boot.hpp"
 #include "hardware.hpp"
@@ -346,6 +348,12 @@ struct LabRequest {
     std::array<std::uint8_t, 64> data{};
 };
 rtos::MessageQueue<Kernel, LabRequest, 4> lab_requests{kernel};
+// every request of the bench fits a LabRequest
+static_assert(std::max({wst::SettingsRequest::SettingsRequest_MAX_SIZE, wst::ManualRequest::ManualRequest_MAX_SIZE,
+                        wst::MoveRequest::MoveRequest_MAX_SIZE, wst::StopRequest::StopRequest_MAX_SIZE,
+                        wst::HomeRequest::HomeRequest_MAX_SIZE, wst::StatusRequest::StatusRequest_MAX_SIZE}) <=
+                  std::tuple_size_v<decltype(LabRequest::data)>,
+              "a stepper request does not fit LabRequest::data");
 
 /// `f(stepper, dir pin, start-homing register, set target)` for axis i.
 template <class F>
@@ -354,23 +362,18 @@ auto with_axis(std::size_t i, F f) {
     return f(stepper2, pins::stepper2_dir, rm::holding::stepper2_start_homing, [](std::int32_t v) { rm::set_stepper2_target(registers, v); });
 }
 
-/// `encode`: the generated Encode() of the response message (its namespace is no type).
-template <class Encode, class Payload>
-void lab_reply(net::Server::SessionId session, Encode encode, const Payload& p) noexcept {
-    std::array<std::uint8_t, 256> buf{};  // every response of ws::stepper is smaller
-    const std::size_t n = encode(p, buf.data(), buf.size());
-    if (n > 0) (void)net::outbox.send(session, std::as_bytes(std::span(buf).first(n)));
-}
+std::array<std::uint8_t, 256> lab_answer;  // every response of ws::stepper is smaller
 
 void lab_handle(const LabRequest& r) noexcept {
-    const std::uint8_t* d = r.data.data();
-    const std::size_t len = r.size;
-    const auto type = static_cast<std::uint16_t>(d[2] | (d[3] << 8));
+    using WsProtocol::Responder;
+    WsProtocol::FrameHeader header{};
+    if (!WsProtocol::ReadHeader(r.data.data(), r.size, header)) return;
+    Responder reply = web::responder_from_io(r.session, header, lab_answer);
+    const auto on = [&](auto decode, auto handler) { WsProtocol::Dispatch(reply, r.data.data(), r.size, decode, handler); };
     namespace tm = dev::tmc2209;
-    switch (type) {
-        case wst::SettingsRequest::TYPE_ID: {
-            wst::SettingsRequest::Payload q{};
-            if (!wst::SettingsRequest::Decode(d, len, q) || q.axis > 1) return;
+    switch (header.messageTypeId) {
+        case wst::SettingsRequest::TYPE_ID: return on(wst::SettingsRequest::Decode, [&](Responder& respond, const wst::SettingsRequest::Payload& q) {
+            if (q.axis > 1) return respond.Error(WsProtocol::ErrorCode::Malformed, "no such axis");
             const std::size_t i = q.axis;
             const char* e = nullptr;
             if (q.write) {
@@ -382,13 +385,11 @@ void lab_handle(const LabRequest& r) noexcept {
                     return apply_settings(i, q.settings);
                 });
             }
-            lab_reply(r.session, wst::SettingsResponse::Encode, wst::SettingsResponse::Payload{.requestId = q.requestId, .ok = e == nullptr, .message = e ? e : "",
+            respond.Send(wst::SettingsResponse::Encode, wst::SettingsResponse::Payload{.ok = e == nullptr, .message = e ? e : "",
                                                           .settings = tmc_settings[i], .profile = profiles[i]});
-            break;
-        }
-        case wst::ManualRequest::TYPE_ID: {
-            wst::ManualRequest::Payload q{};
-            if (!wst::ManualRequest::Decode(d, len, q) || q.axis > 1) return;
+        });
+        case wst::ManualRequest::TYPE_ID: return on(wst::ManualRequest::Decode, [&](Responder& respond, const wst::ManualRequest::Payload& q) {
+            if (q.axis > 1) return respond.Error(WsProtocol::ErrorCode::Malformed, "no such axis");
             const std::size_t i = q.axis;
             if (!q.on && manual[i]) {
                 // the register control again: from where the axis is (no jump back to an old target)
@@ -396,12 +397,10 @@ void lab_handle(const LabRequest& r) noexcept {
             }
             manual[i] = q.on;
             RTOS_LOG_INFO("stepper %u: %s", static_cast<unsigned>(i + 1), q.on ? "manual control (web page)" : "register control again");
-            lab_reply(r.session, wst::ManualResponse::Encode, wst::ManualResponse::Payload{.requestId = q.requestId, .ok = true, .message = ""});
-            break;
-        }
-        case wst::MoveRequest::TYPE_ID: {
-            wst::MoveRequest::Payload q{};
-            if (!wst::MoveRequest::Decode(d, len, q) || q.axis > 1) return;
+            respond.Send(wst::ManualResponse::Encode, wst::ManualResponse::Payload{.ok = true, .message = ""});
+        });
+        case wst::MoveRequest::TYPE_ID: return on(wst::MoveRequest::Decode, [&](Responder& respond, const wst::MoveRequest::Payload& q) {
+            if (q.axis > 1) return respond.Error(WsProtocol::ErrorCode::Malformed, "no such axis");
             const std::size_t i = q.axis;
             const char* e = with_axis(i, [&](auto& s, pins::Pin dir, std::uint16_t, auto) -> const char* {
                 if (!manual[i]) return "manual control is off";
@@ -410,12 +409,10 @@ void lab_handle(const LabRequest& r) noexcept {
                 move(s, dir, q.steps);
                 return nullptr;
             });
-            lab_reply(r.session, wst::MoveResponse::Encode, wst::MoveResponse::Payload{.requestId = q.requestId, .ok = e == nullptr, .message = e ? e : ""});
-            break;
-        }
-        case wst::StopRequest::TYPE_ID: {
-            wst::StopRequest::Payload q{};
-            if (!wst::StopRequest::Decode(d, len, q) || q.axis > 1) return;
+            respond.Send(wst::MoveResponse::Encode, wst::MoveResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
+        });
+        case wst::StopRequest::TYPE_ID: return on(wst::StopRequest::Decode, [&](Responder& respond, const wst::StopRequest::Payload& q) {
+            if (q.axis > 1) return respond.Error(WsProtocol::ErrorCode::Malformed, "no such axis");
             const std::size_t i = q.axis;
             with_axis(i, [&](auto& s, pins::Pin, std::uint16_t start_reg, auto) {
                 s.stop();
@@ -428,12 +425,10 @@ void lab_handle(const LabRequest& r) noexcept {
                     RTOS_LOG_WARN("stepper %u: homing aborted (web page)", static_cast<unsigned>(i + 1));
                 }
             });
-            lab_reply(r.session, wst::StopResponse::Encode, wst::StopResponse::Payload{.requestId = q.requestId, .ok = true});
-            break;
-        }
-        case wst::HomeRequest::TYPE_ID: {
-            wst::HomeRequest::Payload q{};
-            if (!wst::HomeRequest::Decode(d, len, q) || q.axis > 1) return;
+            respond.Send(wst::StopResponse::Encode, wst::StopResponse::Payload{.ok = true});
+        });
+        case wst::HomeRequest::TYPE_ID: return on(wst::HomeRequest::Decode, [&](Responder& respond, const wst::HomeRequest::Payload& q) {
+            if (q.axis > 1) return respond.Error(WsProtocol::ErrorCode::Malformed, "no such axis");
             const std::size_t i = q.axis;
             const char* e = with_axis(i, [&](auto& s, pins::Pin, std::uint16_t start_reg, auto) -> const char* {
                 if (s.moving() || homing_active[i]) return "the axis is moving";
@@ -443,12 +438,10 @@ void lab_handle(const LabRequest& r) noexcept {
                 registers.set_holding(start_reg, 1);  // homing() starts it, as a write by Modbus would
                 return nullptr;
             });
-            lab_reply(r.session, wst::HomeResponse::Encode, wst::HomeResponse::Payload{.requestId = q.requestId, .ok = e == nullptr, .message = e ? e : ""});
-            break;
-        }
-        case wst::StatusRequest::TYPE_ID: {
-            wst::StatusRequest::Payload q{};
-            if (!wst::StatusRequest::Decode(d, len, q) || q.axis > 1) return;
+            respond.Send(wst::HomeResponse::Encode, wst::HomeResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
+        });
+        case wst::StatusRequest::TYPE_ID: return on(wst::StatusRequest::Decode, [&](Responder& respond, const wst::StatusRequest::Payload& q) {
+            if (q.axis > 1) return respond.Error(WsProtocol::ErrorCode::Malformed, "no such axis");
             const std::size_t i = q.axis;
             auto& t = tmc[i];
             const auto drv = t.read(tm::drv_status);
@@ -457,7 +450,6 @@ void lab_handle(const LabRequest& r) noexcept {
             const auto pwm = t.read(tm::pwm_scale);
             const auto gs = t.read(tm::gstat);
             wst::StatusResponse::Payload p{};
-            p.requestId = q.requestId;
             p.tmcOk = drv && sg && ts && pwm && gs;
             with_axis(i, [&](auto& s, pins::Pin, std::uint16_t, auto) {
                 p.position = s.position();
@@ -476,10 +468,9 @@ void lab_handle(const LabRequest& r) noexcept {
             p.pwmScale = pwm.value_or(0);
             p.gstat = static_cast<std::uint8_t>(gs.value_or(0));
             p.uptimeMs = kernel.now();
-            lab_reply(r.session, wst::StatusResponse::Encode, p);
-            break;
-        }
-        default: break;
+            respond.Send(wst::StatusResponse::Encode, p);
+        });
+        default: return reply.Error(WsProtocol::ErrorCode::UnknownMessage, "unknown message");
     }
 }
 
@@ -738,11 +729,17 @@ void cycle(std::uint32_t now) noexcept {
     pneumatics_broadcast(now);
 }
 
-void stepper_post(net::Server::SessionId session, std::span<const std::uint8_t> message) noexcept {
-    if (message.size() < 4 || message.size() > LabRequest{}.data.size()) return;
+void stepper_post(net::Server::SessionId session, WsProtocol::Responder& reply, std::span<const std::uint8_t> message) noexcept {
+    if (message.size() > LabRequest{}.data.size()) {
+        reply.Error(WsProtocol::ErrorCode::Malformed, "frame too large");
+        return;
+    }
     LabRequest r{.session = session, .size = static_cast<std::uint8_t>(message.size())};
     std::memcpy(r.data.data(), message.data(), message.size());
-    if (!lab_requests.try_send(r)) RTOS_LOG_WARN("steppers: request queue full, message dropped");
+    if (!lab_requests.try_send(r)) {
+        RTOS_LOG_WARN("steppers: request queue full, message dropped");
+        reply.Error(WsProtocol::ErrorCode::Busy, "stepper request queue full");
+    }
 }
 
 std::span<const std::uint8_t, 16> i2c_scan(I2cBus bus) noexcept { return scans[static_cast<std::size_t>(bus)]; }

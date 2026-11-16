@@ -8,6 +8,7 @@
 #include <span>
 
 #include "system.hpp"
+#include "ws_protocol.hh"
 
 namespace fcu::task_monitor {
 
@@ -15,8 +16,8 @@ namespace fcu::task_monitor {
 void add(Kernel::Thread& thread, std::span<std::byte> stack) noexcept;
 inline constexpr std::byte paint{0xA5};
 
-/// Answer a tasks message (header included) into `reply`; returns the reply size (0: none).
-std::size_t handle_message(std::uint16_t type, std::span<const std::uint8_t> message, std::span<std::uint8_t> reply) noexcept;
+/// Network thread: answer a tasks message (`frame`: header included).
+void handle_message(WsProtocol::Responder& reply, std::span<const std::uint8_t> frame) noexcept;
 
 /// Bytes of `stack` ever used (from the deepest touched byte).
 [[nodiscard]] std::size_t stack_used(std::span<const std::byte> stack) noexcept;

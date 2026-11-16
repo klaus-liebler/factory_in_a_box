@@ -15,6 +15,7 @@
 #include "rtos/sync/message_queue.hpp"
 #include "system.hpp"
 #include "task_monitor.hpp"
+#include "web.hpp"
 #include "ws_protocol.hh"
 
 namespace fcu::plc {
@@ -332,7 +333,7 @@ enum class Kind : std::uint8_t { control, upload, commit, write, force, unforce,
 struct Request {
     SessionId session{};
     bool terminal = false;  ///< from the terminal: the result goes to the log, no response
-    std::uint16_t request_id = 0;
+    WsProtocol::FrameHeader request{};  ///< the request's frame header, for the answer
     Kind kind = Kind::control;
     ws::PlcCommand command{};
     std::uint32_t total = 0, offset = 0, crc = 0, address = 0;
@@ -568,7 +569,7 @@ const char* commit(const Request& r) noexcept {
 
 void handle(const Request& r) noexcept {
     std::array<std::uint8_t, 256> buf{};  // the responses: a flag and a message of at most 120 bytes
-    const auto out = [&](std::size_t n) { reply(r.session, std::span(buf).first(n)); };
+    WsProtocol::Responder respond = web::responder_from_io(r.session, r.request, buf);
     // the debug lease: another browser that forces may be watched, not overruled (the terminal may)
     const SessionId holder = lease.load();
     const char* leased = !r.terminal && holder != no_session && holder != r.session
@@ -583,43 +584,43 @@ void handle(const Request& r) noexcept {
                                    iec.load() ? "IEC 61131" : "fieldbus", autostart ? "on" : "off");
                 break;
             }
-            out(ws::ControlResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            respond.Send(ws::ControlResponse::Encode, ws::ControlResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
             break;
         }
         case Kind::upload: {
             const char* e = leased ? leased : upload(r);
-            out(ws::UploadResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            respond.Send(ws::UploadResponse::Encode, ws::UploadResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
             break;
         }
         case Kind::commit: {
             const char* e = commit(r);
-            out(ws::CommitResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            respond.Send(ws::CommitResponse::Encode, ws::CommitResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
             break;
         }
         case Kind::write: {
             const bool ok = leased == nullptr && machine.loaded() && r.address + r.length <= machine.data_size();
             if (ok) std::memcpy(&machine.data()[r.address], r.bytes.data(), r.length);
-            out(ws::WriteResponse::Encode({.requestId = r.request_id, .ok = ok}, buf.data(), buf.size()));
+            respond.Send(ws::WriteResponse::Encode, ws::WriteResponse::Payload{.ok = ok});
             break;
         }
         case Kind::force: {
             const char* e = leased ? leased : force(r);
-            out(ws::ForceResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            respond.Send(ws::ForceResponse::Encode, ws::ForceResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
             break;
         }
         case Kind::unforce: {
             const char* e = leased ? leased : unforce(r);
-            out(ws::UnforceResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            respond.Send(ws::UnforceResponse::Encode, ws::UnforceResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
             break;
         }
         case Kind::breakpoints: {
             const char* e = leased ? leased : set_breakpoints(r);
-            out(ws::BreakpointsResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            respond.Send(ws::BreakpointsResponse::Encode, ws::BreakpointsResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
             break;
         }
         case Kind::watch: {  // watching needs no lease: every browser may watch
             const char* e = watch(r);
-            out(ws::WatchResponse::Encode({.requestId = r.request_id, .ok = e == nullptr, .message = e ? e : ""}, buf.data(), buf.size()));
+            respond.Send(ws::WatchResponse::Encode, ws::WatchResponse::Payload{.ok = e == nullptr, .message = e ? e : ""});
             break;
         }
     }
@@ -742,89 +743,97 @@ bool external_write_allowed(std::uint16_t reg) noexcept {
     return !iec_controls() || rm::holding_kind(reg) == RegisterKind::parameter;
 }
 
-void on_message(SessionId id, std::uint16_t type, const std::uint8_t* d, std::size_t len) noexcept {
-    const auto send = [id](std::span<const std::uint8_t> b) {
-        if (!b.empty()) (void)net::server.send(id, std::as_bytes(b));
+void on_message(SessionId id, WsProtocol::Responder& reply, std::span<const std::uint8_t> frame) noexcept {
+    using WsProtocol::ErrorCode;
+    using WsProtocol::Responder;
+    // a request for the PLC thread: queued with the request's header, the PLC thread answers
+    const auto queue = [&](Request&& r) {
+        r.session = id;
+        r.request = reply.Request();
+        if (!post(r)) reply.Error(ErrorCode::Busy, "PLC request queue full");
     };
-    if (type == ws::StatusRequest::TYPE_ID) {
-        ws::StatusRequest::Payload q{};
-        if (!ws::StatusRequest::Decode(d, len, q)) return;
-        const ws::StatusResponse::Payload p{
-            .requestId = q.requestId, .state = state.load(), .source = iec_controls() ? ws::ControlSource::Iec : ws::ControlSource::Fieldbus,
-            .autostart = autostart, .cycleMs = 50, .cycles = cycles.load(), .lastInstructions = last_instructions.load(),
-            .maxInstructions = max_instructions.load(), .imageBytes = machine.loaded() ? image_bytes : 0,
-            .projectHash = machine.loaded() ? machine.project_hash() : 0, .ioMapHash = machine.loaded() ? machine.io_map_hash() : 0,
-            .trap = trap.load(), .trapCode = trap_code.load(), .trapPc = trap_pc.load(),
-            .maxImageBytes = static_cast<std::uint32_t>(image_ram.size()), .dataBytes = static_cast<std::uint32_t>(data.size()), .forces = force_count.load(),
-            .leasedByOther = lease.load() != no_session && lease.load() != id};
-        std::array<std::uint8_t, ws::StatusResponse::StatusResponse_MAX_SIZE> buf{};
-        send(std::span(buf).first(ws::StatusResponse::Encode(p, buf.data(), buf.size())));
-    } else if (type == ws::ControlRequest::TYPE_ID) {
-        ws::ControlRequest::Payload q{};
-        if (!ws::ControlRequest::Decode(d, len, q)) return;
-        post({.session = id, .request_id = q.requestId, .kind = Kind::control, .command = q.command});
-    } else if (type == ws::UploadRequest::TYPE_ID) {
-        ws::UploadRequest::Payload q{};
-        if (!ws::UploadRequest::Decode(d, len, q) || q.dataCount > 1024) return;
-        Request r{.session = id, .request_id = q.requestId, .kind = Kind::upload, .total = q.totalBytes, .offset = q.offset,
-                  .length = static_cast<std::uint16_t>(q.dataCount)};
-        std::memcpy(r.bytes.data(), q.dataData, q.dataCount);
-        post(r);
-    } else if (type == ws::CommitRequest::TYPE_ID) {
-        ws::CommitRequest::Payload q{};
-        if (!ws::CommitRequest::Decode(d, len, q)) return;
-        post({.session = id, .request_id = q.requestId, .kind = Kind::commit, .total = q.totalBytes, .crc = q.crc});
-    } else if (type == ws::WriteRequest::TYPE_ID) {
-        ws::WriteRequest::Payload q{};
-        if (!ws::WriteRequest::Decode(d, len, q) || q.dataCount > 64) return;
-        Request r{.session = id, .request_id = q.requestId, .kind = Kind::write, .address = q.address,
-                  .length = static_cast<std::uint16_t>(q.dataCount)};
-        std::memcpy(r.bytes.data(), q.dataData, q.dataCount);
-        post(r);
-    } else if (type == ws::ForceRequest::TYPE_ID) {
-        ws::ForceRequest::Payload q{};
-        if (!ws::ForceRequest::Decode(d, len, q) || q.dataCount > 8) return;
-        Request r{.session = id, .request_id = q.requestId, .kind = Kind::force, .address = q.address,
-                  .length = static_cast<std::uint16_t>(q.dataCount)};
-        std::memcpy(r.bytes.data(), q.dataData, q.dataCount);
-        post(r);
-    } else if (type == ws::UnforceRequest::TYPE_ID) {
-        ws::UnforceRequest::Payload q{};
-        if (!ws::UnforceRequest::Decode(d, len, q)) return;
-        post({.session = id, .request_id = q.requestId, .kind = Kind::unforce, .address = q.address});
-    } else if (type == ws::WatchRequest::TYPE_ID) {
-        ws::WatchRequest::Payload q{};
-        if (!ws::WatchRequest::Decode(d, len, q) || q.addressesCount != q.lengthsCount || q.addressesCount > 128) return;
-        Request r{.session = id, .request_id = q.requestId, .kind = Kind::watch, .address = q.generation,
-                  .length = static_cast<std::uint16_t>(q.addressesCount)};
-        std::memcpy(r.bytes.data(), q.addressesData, q.addressesCount * 4);  // little-endian, as the wire
-        std::memcpy(r.bytes.data() + q.addressesCount * 4, q.lengthsData, q.lengthsCount * 2);
-        post(r);
-    } else if (type == ws::BreakpointsRequest::TYPE_ID) {
-        ws::BreakpointsRequest::Payload q{};
-        if (!ws::BreakpointsRequest::Decode(d, len, q) || q.offsetsCount > 64) return;
-        Request r{.session = id, .request_id = q.requestId, .kind = Kind::breakpoints, .length = static_cast<std::uint16_t>(q.offsetsCount)};
-        std::memcpy(r.bytes.data(), q.offsetsData, q.offsetsCount * 4);  // little-endian u32, as the VM's
-        post(r);
-    } else if (type == ws::HaltRequest::TYPE_ID) {
-        ws::HaltRequest::Payload q{};
-        if (!ws::HaltRequest::Decode(d, len, q)) return;
-        // while HALTED the PLC thread does not touch the context (it waits for continue or a step)
-        const bool halted = state.load() == ws::PlcState::Halted && machine.halted(0);
-        std::array<std::uint32_t, vm::call_depth> returns{};
-        std::uint32_t depth = 0;
-        std::uint32_t pc = 0;
-        if (halted) {
-            const vm::Context& c = machine.context(0);
-            depth = std::min<std::uint32_t>(c.depth, vm::call_depth);
-            for (std::uint32_t i = 0; i < depth; ++i) returns[i] = c.calls[i].return_pc;
-            pc = c.pc;
-        }
-        const ws::HaltResponse::Payload p{.requestId = q.requestId, .halted = halted, .reason = halted ? halt_reason.load() : std::uint8_t{0},
-                                          .pc = pc, .returnPcsData = reinterpret_cast<const std::uint8_t*>(returns.data()),
-                                          .returnPcsCount = depth};
-        std::array<std::uint8_t, ws::HaltResponse::HaltResponse_MAX_SIZE> buf{};
-        send(std::span(buf).first(ws::HaltResponse::Encode(p, buf.data(), buf.size())));
+    const auto on = [&](auto decode, auto handler) { WsProtocol::Dispatch(reply, frame.data(), frame.size(), decode, handler); };
+    const auto too_many = [](Responder& r) { r.Error(ErrorCode::Malformed, "too many values"); };
+    switch (reply.Request().messageTypeId) {
+        case ws::StatusRequest::TYPE_ID:
+            return on(ws::StatusRequest::Decode, [&](Responder& r, const ws::StatusRequest::Payload&) {
+                r.Send(ws::StatusResponse::Encode,
+                       ws::StatusResponse::Payload{
+                           .state = state.load(), .source = iec_controls() ? ws::ControlSource::Iec : ws::ControlSource::Fieldbus,
+                           .autostart = autostart, .cycleMs = 50, .cycles = cycles.load(), .lastInstructions = last_instructions.load(),
+                           .maxInstructions = max_instructions.load(), .imageBytes = machine.loaded() ? image_bytes : 0,
+                           .projectHash = machine.loaded() ? machine.project_hash() : 0, .ioMapHash = machine.loaded() ? machine.io_map_hash() : 0,
+                           .trap = trap.load(), .trapCode = trap_code.load(), .trapPc = trap_pc.load(),
+                           .maxImageBytes = static_cast<std::uint32_t>(image_ram.size()), .dataBytes = static_cast<std::uint32_t>(data.size()),
+                           .forces = force_count.load(), .leasedByOther = lease.load() != no_session && lease.load() != id});
+            });
+        case ws::ControlRequest::TYPE_ID:
+            return on(ws::ControlRequest::Decode, [&](Responder&, const ws::ControlRequest::Payload& q) {
+                queue({.kind = Kind::control, .command = q.command});
+            });
+        case ws::UploadRequest::TYPE_ID:
+            return on(ws::UploadRequest::Decode, [&](Responder& r, const ws::UploadRequest::Payload& q) {
+                if (q.dataCount > 1024) return too_many(r);
+                Request req{.kind = Kind::upload, .total = q.totalBytes, .offset = q.offset, .length = static_cast<std::uint16_t>(q.dataCount)};
+                std::memcpy(req.bytes.data(), q.dataData, q.dataCount);
+                queue(std::move(req));
+            });
+        case ws::CommitRequest::TYPE_ID:
+            return on(ws::CommitRequest::Decode, [&](Responder&, const ws::CommitRequest::Payload& q) {
+                queue({.kind = Kind::commit, .total = q.totalBytes, .crc = q.crc});
+            });
+        case ws::WriteRequest::TYPE_ID:
+            return on(ws::WriteRequest::Decode, [&](Responder& r, const ws::WriteRequest::Payload& q) {
+                if (q.dataCount > 64) return too_many(r);
+                Request req{.kind = Kind::write, .address = q.address, .length = static_cast<std::uint16_t>(q.dataCount)};
+                std::memcpy(req.bytes.data(), q.dataData, q.dataCount);
+                queue(std::move(req));
+            });
+        case ws::ForceRequest::TYPE_ID:
+            return on(ws::ForceRequest::Decode, [&](Responder& r, const ws::ForceRequest::Payload& q) {
+                if (q.dataCount > 8) return too_many(r);
+                Request req{.kind = Kind::force, .address = q.address, .length = static_cast<std::uint16_t>(q.dataCount)};
+                std::memcpy(req.bytes.data(), q.dataData, q.dataCount);
+                queue(std::move(req));
+            });
+        case ws::UnforceRequest::TYPE_ID:
+            return on(ws::UnforceRequest::Decode, [&](Responder&, const ws::UnforceRequest::Payload& q) {
+                queue({.kind = Kind::unforce, .address = q.address});
+            });
+        case ws::WatchRequest::TYPE_ID:
+            return on(ws::WatchRequest::Decode, [&](Responder& r, const ws::WatchRequest::Payload& q) {
+                if (q.addressesCount != q.lengthsCount || q.addressesCount > 128) return too_many(r);
+                Request req{.kind = Kind::watch, .address = q.generation, .length = static_cast<std::uint16_t>(q.addressesCount)};
+                std::memcpy(req.bytes.data(), q.addressesData, q.addressesCount * 4);  // little-endian, as the wire
+                std::memcpy(req.bytes.data() + q.addressesCount * 4, q.lengthsData, q.lengthsCount * 2);
+                queue(std::move(req));
+            });
+        case ws::BreakpointsRequest::TYPE_ID:
+            return on(ws::BreakpointsRequest::Decode, [&](Responder& r, const ws::BreakpointsRequest::Payload& q) {
+                if (q.offsetsCount > 64) return too_many(r);
+                Request req{.kind = Kind::breakpoints, .length = static_cast<std::uint16_t>(q.offsetsCount)};
+                std::memcpy(req.bytes.data(), q.offsetsData, q.offsetsCount * 4);  // little-endian u32, as the VM's
+                queue(std::move(req));
+            });
+        case ws::HaltRequest::TYPE_ID:
+            return on(ws::HaltRequest::Decode, [&](Responder& r, const ws::HaltRequest::Payload&) {
+                // while HALTED the PLC thread does not touch the context (it waits for continue or a step)
+                const bool halted = state.load() == ws::PlcState::Halted && machine.halted(0);
+                std::array<std::uint32_t, vm::call_depth> returns{};
+                std::uint32_t depth = 0;
+                std::uint32_t pc = 0;
+                if (halted) {
+                    const vm::Context& c = machine.context(0);
+                    depth = std::min<std::uint32_t>(c.depth, vm::call_depth);
+                    for (std::uint32_t i = 0; i < depth; ++i) returns[i] = c.calls[i].return_pc;
+                    pc = c.pc;
+                }
+                r.Send(ws::HaltResponse::Encode,
+                       ws::HaltResponse::Payload{.halted = halted, .reason = halted ? halt_reason.load() : std::uint8_t{0}, .pc = pc,
+                                                 .returnPcsData = reinterpret_cast<const std::uint8_t*>(returns.data()),
+                                                 .returnPcsCount = depth});
+            });
+        default: return reply.Error(ErrorCode::UnknownMessage, "unknown message");
     }
 }
 

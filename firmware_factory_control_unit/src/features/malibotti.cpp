@@ -64,14 +64,13 @@ void receive(std::uint32_t now) noexcept {
     for (std::size_t n; (n = uart.read(chunk)) > 0;) {
         for (std::size_t i = 0; i < n; ++i) {
             const auto frame = decoder.push(static_cast<std::uint8_t>(chunk[i]));
-            if (!frame || frame->size() < 4) {
+            WsProtocol::FrameHeader h{};
+            if (!frame || !WsProtocol::ReadHeader(frame->data(), frame->size(), h)) {
                 continue;
             }
             const auto* d = frame->data();
-            const auto ns = static_cast<std::uint16_t>(d[0] | (d[1] << 8));
-            const auto type = static_cast<std::uint16_t>(d[2] | (d[3] << 8));
             ws::Status::Payload s{};
-            if (ns != ws::NAMESPACE_ID || type != ws::Status::TYPE_ID || !ws::Status::Decode(d, frame->size(), s)) {
+            if (h.namespaceId != ws::NAMESPACE_ID || h.messageTypeId != ws::Status::TYPE_ID || !ws::Status::Decode(d, frame->size(), s)) {
                 continue;
             }
             status = s;

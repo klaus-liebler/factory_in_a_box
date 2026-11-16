@@ -5,7 +5,7 @@ import { wsRequest } from "./ws-client.ts";
 export type SystemInfo = system.SystemInfoMessage.Payload;
 
 export function fetchSystemInfo(): Promise<SystemInfo> {
-	return wsRequest(system.NAMESPACE_ID, (requestId) => system.SystemInfoRequest.encode({ requestId }), system.SystemInfoMessage);
+	return wsRequest(system.NAMESPACE_ID, (correlationId) => system.SystemInfoRequest.encode({}, correlationId), system.SystemInfoMessage);
 }
 
 /** The reset causes (enum ResetCause in src/boot.hpp). */

@@ -114,7 +114,7 @@ export class TerminalApp extends LitElement implements WorkspaceApp {
 	private fetchLookup(id: number): Promise<TerminalValue[]> {
 		const pending = this.lookupsPending.get(id);
 		if (pending) return pending;
-		const promise = wsRequest(terminal.NAMESPACE_ID, (requestId) => terminal.LookupRequest.encode({ requestId, lookup: id }), terminal.LookupResponse)
+		const promise = wsRequest(terminal.NAMESPACE_ID, (correlationId) => terminal.LookupRequest.encode({ lookup: id }, correlationId), terminal.LookupResponse)
 			.then((r) => {
 				if (!r.ok) throw new Error(`the device does not know lookup '${TERMINAL_LOOKUPS[id]?.name}'`);
 				const values = r.values
@@ -187,7 +187,7 @@ export class TerminalApp extends LitElement implements WorkspaceApp {
 		}
 		this.busy = true;
 		try {
-			const r = await wsRequest(terminal.NAMESPACE_ID, (requestId) => terminal.CommandRequest.encode({ requestId, line: trimmed }), terminal.CommandResponse);
+			const r = await wsRequest(terminal.NAMESPACE_ID, (correlationId) => terminal.CommandRequest.encode({ line: trimmed }, correlationId), terminal.CommandResponse);
 			if (r.output.length > 0) this.print(r.output, r.ok ? "output" : "error");
 		} catch (e) {
 			this.print(`error: ${(e as Error).message}`, "error");

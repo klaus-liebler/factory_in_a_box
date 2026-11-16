@@ -153,7 +153,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 		const offsets = d.breakpointOffsets();
 		void (async () => {
 			try {
-				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.BreakpointsRequest.encode({ requestId, offsets }), plc.BreakpointsResponse);
+				const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.BreakpointsRequest.encode({ offsets }, correlationId), plc.BreakpointsResponse);
 				if (!r.ok) this.note("error", `breakpoints: ${r.message}`);
 			} catch (e) {
 				this.note("error", `breakpoints: ${(e as Error).message}`);
@@ -174,7 +174,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 
 	/** HALTED: where (the program counter and the call chain) -> the call stack. */
 	private async readHalt(): Promise<void> {
-		const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.HaltRequest.encode({ requestId }), plc.HaltResponse);
+		const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.HaltRequest.encode({}, correlationId), plc.HaltResponse);
 		const d = this.debugger();
 		if (!r.halted || !d) {
 			this.halt = null;
@@ -274,8 +274,8 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 		this.generation = (this.generation + 1) & 0xffff;
 		this.watched = w;
 		this.lastValues = Date.now();
-		const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.WatchRequest.encode({ requestId, generation: this.generation,
-			addresses: w?.addresses ?? [], lengths: w?.lengths ?? [] }), plc.WatchResponse);
+		const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.WatchRequest.encode({ generation: this.generation,
+			addresses: w?.addresses ?? [], lengths: w?.lengths ?? [] }, correlationId), plc.WatchResponse);
 		if (!r.ok) this.note("warn", `watch: ${r.message}`);
 	}
 
@@ -293,7 +293,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 		this.timer = setTimeout(() => void this.poll(), POLL_MS);
 		if (this.busy) return;
 		try {
-			const s = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.StatusRequest.encode({ requestId }), plc.StatusResponse);
+			const s = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.StatusRequest.encode({}, correlationId), plc.StatusResponse);
 			this.connected = true;
 			this.state = STATE[s.state] ?? "NO_PROGRAM";
 			this.iec = s.source === plc.ControlSource.Iec;
@@ -331,7 +331,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 
 	private async control(command: plc.PlcCommand, what: string): Promise<boolean> {
 		try {
-			const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.ControlRequest.encode({ requestId, command }), plc.ControlResponse);
+			const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.ControlRequest.encode({ command }, correlationId), plc.ControlResponse);
 			if (!r.ok) this.note("error", `${what}: ${r.message}`);
 			else this.note("info", what);
 			return r.ok;
@@ -350,13 +350,13 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 			this.note("info", `download: ${img.length} bytes`);
 			for (let offset = 0; offset < img.length; offset += CHUNK) {
 				const data = Array.from(img.subarray(offset, offset + CHUNK));
-				const u = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.UploadRequest.encode({ requestId, totalBytes: img.length, offset, data }), plc.UploadResponse);
+				const u = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.UploadRequest.encode({ totalBytes: img.length, offset, data }, correlationId), plc.UploadResponse);
 				if (!u.ok) {
 					this.note("error", `download refused: ${u.message}`);
 					return false;
 				}
 			}
-			const c = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.CommitRequest.encode({ requestId, totalBytes: img.length, crc: crc32(img) }), plc.CommitResponse, COMMIT_TIMEOUT_MS);
+			const c = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.CommitRequest.encode({ totalBytes: img.length, crc: crc32(img) }, correlationId), plc.CommitResponse, COMMIT_TIMEOUT_MS);
 			if (!c.ok) {
 				this.note("error", `download refused: ${c.message}`);
 				return false;
@@ -415,7 +415,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 		const bytes = new Uint8Array(sizeOf(s.type));
 		writeValue(bytes, { addr: 0, type: s.type }, v);
 		try {
-			const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.WriteRequest.encode({ requestId, address: s.addr, data: Array.from(bytes) }), plc.WriteResponse);
+			const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.WriteRequest.encode({ address: s.addr, data: Array.from(bytes) }, correlationId), plc.WriteResponse);
 			this.note(r.ok ? "info" : "error", `write ${path} := ${String(v)}${r.ok ? "" : " refused"}`);
 			return r.ok;
 		} catch (e) {
@@ -430,7 +430,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 		try {
 			for (let offset = 0; offset < bytes.length; offset += CHUNK) {
 				const data = Array.from(bytes.subarray(offset, offset + CHUNK));
-				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.PutProjectRequest.encode({ requestId, totalBytes: bytes.length, offset, data }), plc.PutProjectResponse);
+				const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.PutProjectRequest.encode({ totalBytes: bytes.length, offset, data }, correlationId), plc.PutProjectResponse);
 				if (!r.ok) {
 					this.note("warn", `project source not stored on the device: ${r.message}`);
 					return false;
@@ -449,7 +449,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 			const parts: number[] = [];
 			let total = 1;
 			while (parts.length < total) {
-				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.GetProjectRequest.encode({ requestId, offset: parts.length }), plc.GetProjectResponse);
+				const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.GetProjectRequest.encode({ offset: parts.length }, correlationId), plc.GetProjectResponse);
 				if (!r.ok) {
 					this.note("warn", `no project from the device: ${r.message}`);
 					return null;
@@ -484,7 +484,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 		const key = path.toUpperCase();
 		try {
 			if (v === null) {
-				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.UnforceRequest.encode({ requestId, address: s.addr }), plc.UnforceResponse);
+				const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.UnforceRequest.encode({ address: s.addr }, correlationId), plc.UnforceResponse);
 				if (!r.ok) return this.note("error", `unforce ${path}: ${r.message}`);
 				this.forces.delete(key);
 				this.note("info", `unforce ${path}`);
@@ -492,7 +492,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 				const bytes = new Uint8Array(sizeOf(s.type));
 				writeValue(bytes, { addr: 0, type: s.type }, v);
 				if (bytes.length > 8) return this.note("error", `force ${path}: only scalar variables (at most 8 bytes)`);
-				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.ForceRequest.encode({ requestId, address: s.addr, data: Array.from(bytes) }), plc.ForceResponse);
+				const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.ForceRequest.encode({ address: s.addr, data: Array.from(bytes) }, correlationId), plc.ForceResponse);
 				if (!r.ok) return this.note("error", `force ${path}: ${r.message}`);
 				this.forces.set(key, v);
 				this.note("warn", `force ${path} := ${String(v)}`);
@@ -506,7 +506,7 @@ export class FcuDevice extends EventTarget implements PlcDevice {
 	unforceAll(): void {
 		void (async () => {
 			try {
-				const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.UnforceRequest.encode({ requestId, address: 0xffffffff }), plc.UnforceResponse);
+				const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.UnforceRequest.encode({ address: 0xffffffff }, correlationId), plc.UnforceResponse);
 				if (!r.ok) return this.note("error", `release the forces: ${r.message}`);
 				this.forces.clear();
 				this.note("info", "every forced value released");

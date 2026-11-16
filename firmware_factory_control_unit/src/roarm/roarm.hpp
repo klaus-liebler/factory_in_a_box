@@ -13,6 +13,7 @@
 #include <span>
 
 #include "network.hpp"
+#include "ws_protocol.hh"
 
 namespace fcu::roarm {
 
@@ -20,6 +21,7 @@ void setup() noexcept;
 void cycle(std::uint32_t now) noexcept;
 
 /// Network thread: queue a roarm message of session `id` (the whole message, header included).
-void post(net::Server::SessionId id, std::span<const std::uint8_t> message) noexcept;
+/// The I/O thread answers through the outbox; `reply` only for refusing it here (queue full).
+void post(net::Server::SessionId id, WsProtocol::Responder& reply, std::span<const std::uint8_t> message) noexcept;
 
 }  // namespace fcu::roarm

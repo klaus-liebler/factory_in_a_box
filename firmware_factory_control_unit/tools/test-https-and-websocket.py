@@ -89,26 +89,22 @@ def test_https(host: str, port: int, ssl_ctx: ssl.SSLContext) -> None:
     print("  HTTPS OK (TLS handshake + RSA certificate verified, SPA shell served)")
 
 
-def _encode_task_manager_request(request_id: int) -> bytes:
-    # [namespaceId u16 LE][typeId u16 LE][requestId u16 LE] -- TaskManagerRequest has no further
-    # fields (see schema/best_binary_buffers/tasks.cs), matches TaskManagerRequest_MAX_SIZE = 6.
-    return struct.pack("<HHH", TASKS_NAMESPACE_ID, TASK_MANAGER_REQUEST_TYPE_ID, request_id)
+def _encode_task_manager_request(correlation_id: int) -> bytes:
+    # header [namespaceId][typeId][correlationId][flags] (u16 LE each) -- TaskManagerRequest has no
+    # fields (see schema/best_binary_buffers/tasks.cs), matches TaskManagerRequest_MAX_SIZE = 8.
+    return struct.pack("<HHHH", TASKS_NAMESPACE_ID, TASK_MANAGER_REQUEST_TYPE_ID, correlation_id, 0)
 
 
-def _decode_task_list_message(data: bytes, expected_request_id: int) -> list[dict]:
-    if len(data) < 4:
+def _decode_task_list_message(data: bytes, expected_correlation_id: int) -> list[dict]:
+    if len(data) < 8:
         raise ValueError(f"frame too short for a header: {len(data)} bytes")
-    namespace_id, type_id = struct.unpack_from("<HH", data, 0)
-    if namespace_id != TASKS_NAMESPACE_ID or type_id != TASK_LIST_MESSAGE_TYPE_ID:
-        raise ValueError(f"unexpected frame namespaceId={namespace_id} typeId={type_id} "
+    namespace_id, type_id, correlation_id, flags = struct.unpack_from("<HHHH", data, 0)
+    if namespace_id != TASKS_NAMESPACE_ID or type_id != TASK_LIST_MESSAGE_TYPE_ID or flags != 0:
+        raise ValueError(f"unexpected frame namespaceId={namespace_id} typeId={type_id} flags={flags} "
                           f"(expected tasks.TaskListMessage = {TASKS_NAMESPACE_ID}/{TASK_LIST_MESSAGE_TYPE_ID})")
-    pos = 4
-    if len(data) < pos + 2:
-        raise ValueError("frame too short for requestId")
-    request_id, = struct.unpack_from("<H", data, pos)
-    pos += 2
-    if request_id != expected_request_id:
-        raise ValueError(f"requestId mismatch: sent {expected_request_id}, got {request_id} back")
+    if correlation_id != expected_correlation_id:
+        raise ValueError(f"correlation mismatch: sent {expected_correlation_id}, got {correlation_id} back")
+    pos = 8
     if len(data) < pos + 2:
         raise ValueError("frame too short for items count prefix")
     count, = struct.unpack_from("<H", data, pos)

@@ -53,7 +53,7 @@ export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 		try {
 			const resp = await wsRequest(
 				roarm.NAMESPACE_ID,
-				(requestId) => roarm.StartTeachModeRequest.encode({ requestId }),
+				(correlationId) => roarm.StartTeachModeRequest.encode({}, correlationId),
 				roarm.StartTeachModeResponse,
 			);
 			return resp.success;
@@ -66,7 +66,7 @@ export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 		try {
 			const resp = await wsRequest(
 				roarm.NAMESPACE_ID,
-				(requestId) => roarm.StopTeachModeRequest.encode({ requestId }),
+				(correlationId) => roarm.StopTeachModeRequest.encode({}, correlationId),
 				roarm.StopTeachModeResponse,
 			);
 			return resp.success;
@@ -112,7 +112,7 @@ export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 		try {
 			const resp = await wsRequest(
 				roarm.NAMESPACE_ID,
-				(requestId) => roarm.GetMissionGpioListRequest.encode({ requestId }),
+				(correlationId) => roarm.GetMissionGpioListRequest.encode({}, correlationId),
 				roarm.GetMissionGpioListResponse,
 			);
 			return resp.names;
@@ -125,7 +125,7 @@ export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 		try {
 			const resp = await wsRequest(
 				roarm.NAMESPACE_ID,
-				(requestId) => roarm.ListMissionsRequest.encode({ requestId }),
+				(correlationId) => roarm.ListMissionsRequest.encode({}, correlationId),
 				roarm.ListMissionsResponse,
 			);
 			return resp.missions.map((m) => ({ missionIndex: m.missionIndex, name: m.name }));
@@ -138,7 +138,7 @@ export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 		try {
 			const resp = await wsRequest(
 				roarm.NAMESPACE_ID,
-				(requestId) => roarm.GetMissionRequest.encode({ requestId, missionIndex }),
+				(correlationId) => roarm.GetMissionRequest.encode({ missionIndex }, correlationId),
 				roarm.GetMissionResponse,
 			);
 			if (!resp.found) return null;
@@ -152,7 +152,7 @@ export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 		try {
 			const resp = await wsRequest(
 				roarm.NAMESPACE_ID,
-				(requestId) => roarm.SaveMissionRequest.encode({ requestId, missionIndex, name, steps }),
+				(correlationId) => roarm.SaveMissionRequest.encode({ missionIndex, name, steps }, correlationId),
 				roarm.SaveMissionResponse,
 			);
 			return { success: resp.success, errorCode: resp.errorCode };
@@ -165,7 +165,7 @@ export class WsRoArmBackend implements RoArmBackend, WsProtocolListener {
 		try {
 			const resp = await wsRequest(
 				roarm.NAMESPACE_ID,
-				(requestId) => roarm.DeleteMissionRequest.encode({ requestId, missionIndex }),
+				(correlationId) => roarm.DeleteMissionRequest.encode({ missionIndex }, correlationId),
 				roarm.DeleteMissionResponse,
 			);
 			return resp.success;

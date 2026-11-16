@@ -31,7 +31,7 @@ void fill(std::uint8_t (&out)[N], const char* text) noexcept {
     std::strncpy(reinterpret_cast<char*>(out), text, N - 1);
 }
 
-std::size_t tasks(std::uint16_t request_id, std::span<std::uint8_t> reply) noexcept {
+void tasks(WsProtocol::Responder& reply, const ws::TaskManagerRequest::Payload&) noexcept {
     const std::uint32_t now = board::CycleCounter::now();
     const std::uint32_t wall = sampled ? now - last_sample : 0;
     std::array<std::uint8_t, KernelConfig::max_threads * ws::TaskListMessageItems_ELEMENT_SIZE> items{};
@@ -55,11 +55,10 @@ std::size_t tasks(std::uint16_t request_id, std::span<std::uint8_t> reply) noexc
     }
     last_sample = now;
     sampled = true;
-    const ws::TaskListMessage::Payload p{.requestId = request_id, .itemsData = items.data(), .itemsCount = count};
-    return ws::TaskListMessage::Encode(p, reply.data(), reply.size());
+    reply.Send(ws::TaskListMessage::Encode, ws::TaskListMessage::Payload{.itemsData = items.data(), .itemsCount = count});
 }
 
-std::size_t pools(std::uint16_t request_id, std::span<std::uint8_t> reply) noexcept {
+void pools(WsProtocol::Responder& reply, const ws::PoolListRequest::Payload&) noexcept {
     std::array<ws::PoolInfo, 2> info{};
     const net::PoolUse packets = net::packet_pool_use();
     fill(info[0].name, "Packets (buffers)");
@@ -76,9 +75,8 @@ std::size_t pools(std::uint16_t request_id, std::span<std::uint8_t> reply) noexc
     for (const auto& i : info) {
         pos += ws::EncodePoolListMessagePoolsElement(i, data.data() + pos, data.size() - pos);
     }
-    const ws::PoolListMessage::Payload p{.requestId = request_id, .poolsData = data.data(), .poolsCount = info.size(),
-                                         .freeHeapBytes = 0};
-    return ws::PoolListMessage::Encode(p, reply.data(), reply.size());
+    reply.Send(ws::PoolListMessage::Encode,
+               ws::PoolListMessage::Payload{.poolsData = data.data(), .poolsCount = info.size(), .freeHeapBytes = 0});
 }
 
 }  // namespace
@@ -94,16 +92,12 @@ std::size_t stack_used(std::span<const std::byte> stack) noexcept {
     return static_cast<std::size_t>(stack.end() - untouched);
 }
 
-std::size_t handle_message(std::uint16_t type, std::span<const std::uint8_t> m, std::span<std::uint8_t> reply) noexcept {
-    if (type == ws::TaskManagerRequest::TYPE_ID) {
-        ws::TaskManagerRequest::Payload q{};
-        return ws::TaskManagerRequest::Decode(m.data(), m.size(), q) ? tasks(q.requestId, reply) : 0;
+void handle_message(WsProtocol::Responder& reply, std::span<const std::uint8_t> frame) noexcept {
+    switch (reply.Request().messageTypeId) {
+        case ws::TaskManagerRequest::TYPE_ID: return WsProtocol::Dispatch(reply, frame.data(), frame.size(), ws::TaskManagerRequest::Decode, tasks);
+        case ws::PoolListRequest::TYPE_ID: return WsProtocol::Dispatch(reply, frame.data(), frame.size(), ws::PoolListRequest::Decode, pools);
+        default: return reply.Error(WsProtocol::ErrorCode::UnknownMessage, "unknown message");
     }
-    if (type == ws::PoolListRequest::TYPE_ID) {
-        ws::PoolListRequest::Payload q{};
-        return ws::PoolListRequest::Decode(m.data(), m.size(), q) ? pools(q.requestId, reply) : 0;
-    }
-    return 0;
 }
 
 }  // namespace fcu::task_monitor

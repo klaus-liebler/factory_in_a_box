@@ -14,6 +14,7 @@
 #include "rtos/terminal/terminal.hpp"
 #include "system.hpp"
 #include "terminal_commands.hh"
+#include "web.hpp"
 #include "ws_protocol.hh"
 
 namespace fcu::terminal {
@@ -367,42 +368,42 @@ void lookup(cat::Lookup l, Out& o) {
 using Request = rtos::terminal::Request<net::Server::SessionId, cat::Lookup, 200>;  // ws CommandRequest.line
 rtos::MessageQueue<Kernel, Request, 4> requests{kernel};
 
-void reply(const Request& r, std::span<const std::uint8_t> message) {
-    if (!message.empty()) {
-        (void)net::outbox.send(r.session, std::as_bytes(message));
-    }
-}
-
 void run(const Request& r) {
     Out out;
     std::array<std::uint8_t, max_message> buf{};
+    // request_id of the rtoos request: the correlation of the request's frame header
+    const WsProtocol::FrameHeader request{.namespaceId = ws::NAMESPACE_ID,
+                                          .messageTypeId = r.lookup ? ws::LookupRequest::TYPE_ID : ws::CommandRequest::TYPE_ID,
+                                          .correlationId = r.request_id, .flags = 0};
+    WsProtocol::Responder reply = web::responder_from_io(r.session, request, buf);
     if (r.lookup) {
         lookup(*r.lookup, out);
-        const ws::LookupResponse::Payload p{.requestId = r.request_id, .ok = true, .values = out.c_str()};
-        reply(r, std::span(buf).first(ws::LookupResponse::Encode(p, buf.data(), buf.size())));
+        reply.Send(ws::LookupResponse::Encode, ws::LookupResponse::Payload{.ok = true, .values = out.c_str()});
         return;
     }
     const bool ok = rtos::terminal::execute(r.text(), cat::commands, handlers, out);
-    const ws::CommandResponse::Payload p{.requestId = r.request_id, .ok = ok, .output = out.c_str()};
-    reply(r, std::span(buf).first(ws::CommandResponse::Encode(p, buf.data(), buf.size())));
+    reply.Send(ws::CommandResponse::Encode, ws::CommandResponse::Payload{.ok = ok, .output = out.c_str()});
 }
 
 }  // namespace
 
-void post(net::Server::SessionId id, std::uint16_t request_id, std::span<const char> line) noexcept {
-    if (!requests.try_send(Request::command(id, request_id, line))) {
+Posted post(net::Server::SessionId id, std::uint16_t correlation, std::span<const char> line) noexcept {
+    if (!requests.try_send(Request::command(id, correlation, line))) {
         RTOS_LOG_WARN("terminal: command queue full, command dropped");
+        return Posted::full;
     }
+    return Posted::queued;
 }
 
-bool post_lookup(net::Server::SessionId id, std::uint16_t request_id, std::uint8_t lookup) noexcept {
+Posted post_lookup(net::Server::SessionId id, std::uint16_t correlation, std::uint8_t lookup) noexcept {
     if (lookup >= cat::lookup_count) {
-        return false;
+        return Posted::invalid;
     }
-    if (!requests.try_send({.session = id, .request_id = request_id, .lookup = static_cast<cat::Lookup>(lookup)})) {
+    if (!requests.try_send({.session = id, .request_id = correlation, .lookup = static_cast<cat::Lookup>(lookup)})) {
         RTOS_LOG_WARN("terminal: command queue full, lookup dropped");
+        return Posted::full;
     }
-    return true;
+    return Posted::queued;
 }
 
 void cycle() noexcept {

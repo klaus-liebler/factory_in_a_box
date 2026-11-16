@@ -9,7 +9,7 @@ export type PlcStatus = plc.StatusResponse.Payload;
 export const PLC_STATE_NAMES = ["Kein Programm", "STOP", "RUN", "Fehler", "Angehalten"] as const;
 
 export function fetchPlcStatus(): Promise<PlcStatus> {
-	return wsRequest(plc.NAMESPACE_ID, (requestId) => plc.StatusRequest.encode({ requestId }), plc.StatusResponse);
+	return wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.StatusRequest.encode({}, correlationId), plc.StatusResponse);
 }
 
 export function isIec(s: PlcStatus | null): boolean {
@@ -20,6 +20,6 @@ export function isIec(s: PlcStatus | null): boolean {
  *  program). Throws with the device's reason when it refuses (e.g. another browser is debugging). */
 export async function setControlSource(iec: boolean): Promise<void> {
 	const command = iec ? plc.PlcCommand.SourceIec : plc.PlcCommand.SourceFieldbus;
-	const r = await wsRequest(plc.NAMESPACE_ID, (requestId) => plc.ControlRequest.encode({ requestId, command }), plc.ControlResponse);
+	const r = await wsRequest(plc.NAMESPACE_ID, (correlationId) => plc.ControlRequest.encode({ command }, correlationId), plc.ControlResponse);
 	if (!r.ok) throw new Error(r.message);
 }

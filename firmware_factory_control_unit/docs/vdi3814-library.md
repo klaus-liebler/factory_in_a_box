@@ -1,8 +1,8 @@
 # Bibliothek VDI3814 – GA-Funktionen als Funktionsbausteine
 
 Die Bibliothek setzt die GA-Funktionen der **VDI 3814 Blatt 4.3:2022** (Spalten der GA-Funktionsliste)
-als IEC-61131-3-Bausteine für die SPS der FCU um. Quelltext: `web/src/plc/ide/vdi3814-lib.ts` (ST),
-Tests: `web/src/plc/ide/vdi3814-lib.test.ts` (jede hier genannte Grenzfall-Aussage mit „getestet“ ist dort
+als IEC-61131-3-Bausteine für die SPS der FCU um. Quelltext: `web_packages/plc/src/ide/vdi3814-lib.ts` (ST),
+Tests: `web_packages/plc/src/ide/vdi3814-lib.test.ts` (jede hier genannte Grenzfall-Aussage mit „getestet“ ist dort
 abgesichert).
 
 Die Richtlinie beschreibt *was* eine Funktion leistet, nicht *wie*. Dieses Dokument legt die konkrete

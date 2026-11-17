@@ -22,7 +22,7 @@ TAP adapter "rtoos-tap" (rtoos/emulation/renode/setup-tap.ps1); over wss:// (WsP
   cmake --build --preset rev3 && python tools/test-plc-renode.py
   cmake --build --preset rev1 && python tools/test-plc-renode.py --revision 1
 
-The image comes from `npm run plc:corpus` (web/src/plc/renode-fixture.test.ts). Exit code 0 = pass.
+The image comes from `npm run plc:corpus` (web_packages/plc/src-fcu/renode-fixture.test.ts). Exit code 0 = pass.
 """
 import argparse
 import base64

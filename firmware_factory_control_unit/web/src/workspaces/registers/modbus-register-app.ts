@@ -7,9 +7,9 @@ import { REGIONS } from "../../../generated/register-map.ts";
 import { fetchRegisters, writeHolding, type RegisterValues } from "../../core/registers.ts";
 import { Poller, pollingGroup } from "../../core/poller.ts";
 import { fetchPlcStatus, isIec } from "../../core/plc.ts";
-import type { WorkspaceApp } from "../../shell/workspace-app.ts";
-import { setAppStatus } from "../../shell/status-bar.ts";
-import { openWorkspace, setAppRibbon } from "../../shell/ribbon.ts";
+import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
+import { openWorkspace, setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
 
 @customElement("modbus-register-app")
 export class ModbusRegisterApp extends LitElement implements WorkspaceApp {

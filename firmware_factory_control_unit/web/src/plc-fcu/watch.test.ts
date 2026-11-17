@@ -1,7 +1,7 @@
 // Watch subscriptions (docs/plc-iec61131.md 10.3): the variables the IDE shows become few ranges of the
 // data segment within the device's limits (128 ranges, 1024 bytes).
 import { describe, expect, it } from "vitest";
-import { WATCH_MAX_BYTES, WATCH_MAX_RANGES, watchRanges } from "./device.ts";
+import { WATCH_MAX_BYTES, WATCH_MAX_RANGES, watchRanges } from "./fcu-device.ts";
 
 describe("watch ranges", () => {
 	it("merges overlapping and close variables, keeps distant ones apart", () => {

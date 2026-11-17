@@ -35,14 +35,26 @@ Einmalig nach dem Checkout:
 
 ```
 dotnet build builder
-npm install --prefix web
+npm install
 ```
 
 (`dotnet build` legt `builder/appsettings.json` aus der Vorlage an, falls sie fehlt, s. Abschnitt
-8. `npm install` muss im `web/`-Verzeichnis laufen -- es gibt bewusst kein npm-Workspace-Root mehr
-(s. Abschnitt 4); es installiert `web/`s Dependencies inkl. `vite`/`terser`/`html-minifier-terser`
-nach `web/node_modules/`, wo `WebAppBuildService` sowie
-`web/build-tools/vite-plugin-single-file-firmware-asset.ts` sie zur Laufzeit erwarten.)
+8. `npm install` laeuft im Projektverzeichnis `firmware_factory_control_unit/`: das ist der
+npm-Workspace-Root der beiden Web-Apps (`web/`, `web_sim/`) und ihrer gemeinsamen Pakete
+(`web_packages/ui-shell`, `web_packages/plc`), s. Abschnitt 4. Die Abhaengigkeiten landen
+hochgezogen in `firmware_factory_control_unit/node_modules/`; `WebAppBuildService` sucht `vite`
+wie Node selbst im App-Verzeichnis und dessen Elternverzeichnissen.)
+
+### Web-App ohne Hardware
+
+```
+dotnet run --project builder -- BuildSimulationWebApp    # -> web_sim/dist/ (statische Seite)
+```
+
+Erzeugt die Registerkarte (`GenerateRegisterAccessFiles`, kein Board noetig) und baut `web_sim/`:
+SPS-Entwicklung und HMI mit dem Simulator, ohne FCU. `web_sim/dist/` ist eine statische Seite mit
+relativen Pfaden und Hash-Routing (`#/hmi`) -- sie laeuft aus jedem Verzeichnis jedes Webservers,
+ohne Rewrite-Regel.
 
 ### Gesamt-Pipelines
 
@@ -221,9 +233,16 @@ bewusst TypeScript -- sie implementieren ein Vite-Plugin, das `web/vite.config.t
 Vite lädt die Plugin-Datei dabei selbst (natives TypeScript-Type-Stripping, keine
 Zusatzabhängigkeit wie `ts-node`/`tsx`).
 
-Alle fuer den Web-Build noetigen npm-Abhaengigkeiten liegen direkt in `web/package.json`
-(`vite`, `html-minifier-terser`, `terser` usw.). Es gibt bewusst kein npm-Workspace-Root mehr;
-Install und Build laufen ausschliesslich im `web/`-Verzeichnis.
+`firmware_factory_control_unit/package.json` ist der npm-Workspace-Root: `web/` (die Web-App im
+Flash der FCU), `web_sim/` (dieselbe SPS ohne Hardware, statische Seite) und die gemeinsamen Pakete
+`web_packages/ui-shell` (`@fiab/ui-shell`: Anwendungsfenster, Ribbon, Dialoge, Design-System) und
+`web_packages/plc` (`@fiab/plc`: Compiler, VM, IDE, Simulator, HMI). Die Pakete exportieren ihre
+TypeScript-Quellen direkt (`"exports": {"./*": "./src/*"}`), es gibt keinen Paket-Build. Die
+Workspaces sorgen dafuer, dass `lit` nur einmal installiert und gebundelt wird. Die App gibt den
+Paketen, was geraetespezifisch ist: die Registerkarte (`configureRegisterMap`), das Geraet neben dem
+Simulator (`registerRemoteDevice`, in `web/` die FCU) und Logo/Verbindung/Hostname der Shell
+(`AppShell.Start(config)`). Jede Abhaengigkeit steht in der `package.json` des Workspaces, der sie
+benutzt. `npm test` bzw. `npm run typecheck` im Root laufen ueber alle Workspaces.
 
 ## 5. Verzeichnisstrukturen
 
@@ -237,9 +256,14 @@ firmware_factory_control_unit/
 ├── generated/                     # gitignored: device_ids.hh, gitconstants.hh, firmware_constants.hh,
 │                                  # board_info.json, register_map.hpp,
 │                                  # register_map_opcua.hpp, ws_protocol.hh, terminal_commands.hh
-├── web/
+├── package.json                  # npm-Workspace-Root (web, web_sim, web_packages/*), s. Abschnitt 4
+├── web/                          # Web-App im Flash der FCU
 │   ├── src/                      # kein generated/, kein register-map.ts mehr darunter
 │   └── generated/                 # gitignored: build-info.ts, register-map.ts, ws-protocol.ts
+├── web_sim/                      # Web-App ohne Hardware (SPS + HMI im Simulator), dist/ gitignored
+├── web_packages/
+│   ├── ui-shell/                 # @fiab/ui-shell
+│   └── plc/                      # @fiab/plc
 ├── build/                         # komplett gitignored (CMake-Output + generierte Assets)
 │   ├── .last-board-id             # "letztes bekanntes Board"-Cache, s. Abschnitt 2
 │   ├── assets/                    # device_certificate.der, device_key.der, index.html.br

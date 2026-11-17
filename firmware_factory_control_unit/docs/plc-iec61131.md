@@ -41,7 +41,7 @@ safety PLC (no SIL claim).
  │  FBD editor (SVG)    SFC editor (SVG)         │ ───────▶ │  WS /ws       debug messages       │
  │  Project tree, I/O view, watch, debug control │  WSS     │  Modbus / OPC UA (write filter)    │
  │                                               │ ◀──────▶ │                                    │
- │ Compiler (web/src/plc/compiler, DOM-free)     │          │ PLC threads (prio 11..13, pool)    │
+ │ Compiler (web_packages/plc/src/compiler, DOM-free)     │          │ PLC threads (prio 11..13, pool)    │
  │  ST parser ─┐                                 │          │  PLC VM: image, data, debug        │
  │  FBD → AST ─┼─▶ semantics ─▶ IR ─▶ bytecode   │          │  process image in/out              │
  │  SFC → AST ─┘                 + debug info    │          │                                    │
@@ -65,7 +65,7 @@ Principles:
      core, the opcode table (single source of truth). Generic, host-testable, usable by other rtoos
      devices.
    - Firmware (`src/plc.*`): binding to the register map, control source, natives of the FCU library.
-   - Web UI (`web/src/plc/`): compiler (in its own DOM-free subfolder `web/src/plc/compiler/`,
+   - Web UI (`web_packages/plc/src/`): compiler (in its own DOM-free subfolder `web_packages/plc/src/compiler/`,
      which runs in vitest and Node too), TS VM/simulator, editors, debugger. Part of the existing
      web build, no separate npm package.
 
@@ -346,7 +346,7 @@ Access to device functions that are more than "write a register" ([§6.3](#63-re
 The list is not final; it grows with the register schema. Implemented (P2): `FCU_StepperHome`
 (Axis, Execute → Done/Busy/Error/ErrorID: 2 timeout, 3 TMC2209 silent, 16#100 no such axis) and
 `FCU_RoArmRunMission` (Index, Execute → …, ErrorID 1 no such mission, 2 teach mode, 3 unreadable,
-4 another mission running), in `web/src/plc/ide/fcu-lib.ts`. They write reserved globals
+4 another mission running), in `web_packages/plc/src/ide/fcu-lib.ts`. They write reserved globals
 (`__Stepper1StartHoming`, …; `__` names are only allowed in library files) that the image binds with
 kind *command*. The idle value 0 is also the answer "done": a block takes 0 as success only after it
 has seen its own start value in the register (otherwise, with the fieldbus as control source, the
@@ -565,12 +565,12 @@ device").
   task: PC, SP, frame chain, stack area) are separate; no static state in the VM.
 - The opcode table (name, number, operands, stack effect) lives in rtoos (`rtoos/include/rtos/plc/`)
   and is the single source for: C++ dispatch, TS VM, TS assembler/disassembler, ISA documentation.
-  rtoos generates the TS file with a Python tool (as in `rtoos/tools`) to `web/src/plc/generated/`;
+  rtoos generates the TS file with a Python tool (as in `rtoos/tools`) to `web_packages/plc/src/generated/`;
   a test checks both sides against the same table version (ISA version in the image header).
 
 ## 9. Compiler (TypeScript)
 
-Part of the web UI in `web/src/plc/compiler/` (decided, F6). It is DOM-free (enforced by its own
+Part of the web UI in `web_packages/plc/src/compiler/` (decided, F6). It is DOM-free (enforced by its own
 `tsconfig` without `lib: dom` for that folder), so it runs in the IDE, in vitest and in Node
 (e.g. for the differential tests with the rtoos host VM).
 
@@ -599,7 +599,7 @@ golden files.
 
 ### 10.1 Where the IDE comes from
 
-The IDE is a page ("PLC") of the existing web UI (`web/src/plc/`, same build, same shell/router).
+The IDE is a page ("PLC") of the existing web UI (`web_packages/plc/src/`, same build, same shell/router).
 The web UI today is a brotli-compressed single-file app (`index.html.br`, ~514 KB
 uncompressed). The IDE (editors + compiler + simulator) is put into its **own chunk** of the same
 Vite build, loaded only when the PLC page is opened (`/plc-ide.js`, embedded like `index.html.br`),
@@ -790,8 +790,8 @@ Per the project rules (CLAUDE.md, regression tests binding):
 
 | Level | Where | What |
 |---|---|---|
-| Compiler | `web/src/plc/compiler`, vitest | parser (positive/negative), semantics errors, golden images, debug mapping |
-| TS VM | `web/src/plc`, vitest | ISA tests per opcode, standard library |
+| Compiler | `web_packages/plc/src/compiler`, vitest | parser (positive/negative), semantics errors, golden images, debug mapping |
+| TS VM | `web_packages/plc/src`, vitest | ISA tests per opcode, standard library |
 | **Differential** | rtoos host test + vitest | shared test corpus `plc-corpus/*.st` with input sequences; the TS VM and C++ VM must produce byte-identical traces (variable values per cycle) |
 | C++ VM | rtoos `ctest --preset host` | ISA, bounds/budget/error stops, breakpoint/step, image checks (corrupt CRC, wrong I/O hash, unknown native) |
 | Runtime on the target | rtoos self-test in QEMU + Renode (`arm`, `arm-h743`) | thread, cycle coupling, overrun detection, measured VM speed (instructions, not cycles: the emulators only count instructions) |
@@ -821,9 +821,9 @@ P1 can be developed entirely without hardware (host + browser).
 
 **P1 result (2026-11-09).** Instruction set: `rtoos/tools/plc_isa.py` (155 opcodes), documented with the image format and
 the verifier in `rtoos/docs/plc.md`. C++ VM: `rtoos/src/plc/vm.cpp` (~13.5 KB on the Cortex-M33/M7). TypeScript:
-`web/src/plc/` (compiler in `compiler/`, VM `vm.ts`, image writer `image.ts`). Tests: 29 C++ and 26 TypeScript VM tests
+`web_packages/plc/src/` (compiler in `compiler/`, VM `vm.ts`, image writer `image.ts`). Tests: 29 C++ and 26 TypeScript VM tests
 with the same cases, 37 compiler tests, and the differential corpus of 66 programs (26 written by hand in
-`web/src/plc/corpus/`, 40 from a seeded random generator) whose traces the C++ VM reproduces byte for byte
+`web_packages/plc/src/corpus/`, 40 from a seeded random generator) whose traces the C++ VM reproduces byte for byte
 (`npm run plc:corpus` regenerates `rtoos/tests/plc_corpus/`). A deliberately broken rounding in the C++ VM makes the
 corpus fail, so it does detect differences. STRING is not implemented (P7).
 
@@ -1066,7 +1066,7 @@ Review round 1 (2026-11-08):
 | F2 | Who may switch the control source? | web UI and terminal only; read-only over Modbus/OPC UA, RUN/STOP too | [§6.2](#62-control-source-switch) |
 | F3 | Modbus exception on a blocked write | 0x02 ILLEGAL DATA ADDRESS | [§6.2](#62-control-source-switch) |
 | F5 | RoArm part of the switch? | yes: no teach mode in IEC mode, missions through `FCU_RoArmRunMission` | [§6.2](#62-control-source-switch), [§5.6](#56-fcu-library) |
-| F6 | Where do the compiler/IDE live? | not a separate package: `web/src/plc/` (compiler in `web/src/plc/compiler/`), VM in rtoos | [§2](#2-overall-architecture), [§9](#9-compiler-typescript) |
+| F6 | Where do the compiler/IDE live? | not a separate package: `web_packages/plc/src/` (compiler in `web_packages/plc/src/compiler/`), VM in rtoos | [§2](#2-overall-architecture), [§9](#9-compiler-typescript) |
 
 Review round 2 (2026-11-08):
 

@@ -7,7 +7,7 @@
 //
 // The steppers have their own per-axis manual mode in the firmware (stepper-lab-app.ts) and do not need it.
 import { html, nothing, type ReactiveController, type ReactiveControllerHost, type TemplateResult } from "lit";
-import { confirmDialog } from "../shell/dialogs.ts";
+import { confirmDialog } from "@fiab/ui-shell/shell/dialogs.ts";
 import { fetchPlcStatus, isIec, PLC_STATE_NAMES, setControlSource, type PlcStatus } from "./plc.ts";
 import { writeRegister } from "./registers.ts";
 import type { RegisterDef } from "../../generated/register-map.ts";

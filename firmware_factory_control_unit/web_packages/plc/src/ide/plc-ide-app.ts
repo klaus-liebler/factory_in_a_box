@@ -5,10 +5,10 @@
 import { LitElement, html, nothing, svg } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
-import { choiceDialog, confirmDialog, messageDialog, promptDialog } from "../../shell/dialogs.ts";
-import { setAppStatus, type StatusKind } from "../../shell/status-bar.ts";
-import { setAppRibbon } from "../../shell/ribbon.ts";
-import type { IconName } from "../../shell/icons.ts";
+import { choiceDialog, confirmDialog, messageDialog, promptDialog } from "@fiab/ui-shell/shell/dialogs.ts";
+import { setAppStatus, type StatusKind } from "@fiab/ui-shell/shell/status-bar.ts";
+import { setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
+import type { IconName } from "@fiab/ui-shell/shell/icons.ts";
 import "./plc-ide.css";
 import "./st-editor.ts";
 import "./fbd-editor.ts";
@@ -20,7 +20,7 @@ import { KEYWORDS } from "../compiler/lexer.ts";
 import { elemOf, typeName, type Type } from "../compiler/types.ts";
 import type { Symbol } from "../compiler/compiler.ts";
 import type * as A from "../compiler/ast.ts";
-import type { WorkspaceApp } from "../../shell/workspace-app.ts";
+import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
 import { IO_VARS } from "./io-list.ts";
 import {
 	addObject, boxesFor, build, crossReferences, objectTree, type CrossRef,
@@ -30,7 +30,7 @@ import {
 import type { FbdPou } from "./fbd.ts";
 import { sfcWalk, type SfcPou } from "./sfc.ts";
 import type { PlcDevice } from "./device.ts";
-import { fcuDevice, simulator } from "./devices.ts";
+import { remoteDevice, simulator } from "./devices.ts";
 import { newPage, type HmiPage } from "../hmi/hmi.ts";
 import { sampleTrends } from "../hmi/hmi-trends.ts";
 import "../hmi/hmi-editor.ts";
@@ -108,7 +108,8 @@ export class PlcIdeApp extends LitElement implements WorkspaceApp {
 	@query("#decl-editor") private declEditor?: StEditor;
 
 	private sim = simulator;
-	private fcu = fcuDevice;
+	/** The registered device (the FCU app: the FCU); null: only the simulator. */
+	private fcu = remoteDevice();
 	/** The HMI page in the editor (view "hmi"). */
 	@state() private hmiPage = "";
 	/** The library shown (view "lib"). */
@@ -131,13 +132,13 @@ export class PlcIdeApp extends LitElement implements WorkspaceApp {
 			if (this.shown) sampleTrends(this.sim, this.project.hmi ?? []);
 			this.tick++;
 		});
-		this.fcu.addEventListener("update", () => {
-			if (this.shown) sampleTrends(this.fcu, this.project.hmi ?? []);
+		this.fcu?.addEventListener("update", () => {
+			if (this.shown && this.fcu) sampleTrends(this.fcu, this.project.hmi ?? []);
 			this.tick++;
 		});
 		this.selectedId = this.firstProgram().id;
 		this.lastBuild = build(this.project);
-		this.fcu.attach(this.lastBuild.result);
+		this.fcu?.attach(this.lastBuild.result);
 		// a link to a view: /plc?view=fbd
 		const view = new URLSearchParams(window.location.search).get("view");
 		if (view === "prg" || view === "io" || view === "lib" || view === "task" || view === "hmi") this.view = view;
@@ -163,7 +164,7 @@ export class PlcIdeApp extends LitElement implements WorkspaceApp {
 	}
 
 	private selectDevice(kind: string): void {
-		const next = kind === "fcu" ? this.fcu : this.sim;
+		const next = kind === "fcu" && this.fcu ? this.fcu : this.sim;
 		if (next === this.dev) return;
 		this.dev.deactivate();
 		this.dev = next;
@@ -281,7 +282,7 @@ export class PlcIdeApp extends LitElement implements WorkspaceApp {
 		const b = build(this.project);
 		this.lastBuild = b;
 		if (b.result.debug) this.lastGoodDebug = b.result.debug;
-		this.fcu.attach(b.result);
+		this.fcu?.attach(b.result);
 		if (explicit) {
 			const errors = b.located.filter((l) => l.diagnostic.severity === "error").length + this.problemCount(b);
 			const warnings = b.located.length - errors;
@@ -718,7 +719,7 @@ export class PlcIdeApp extends LitElement implements WorkspaceApp {
 			{ id: "online", label: "Online", groups: [
 				{ label: "Gerät", commands: [
 					{ id: "sim", label: "Simulator", icon: "simulator", active: d.kind === "simulator", title: "Das Programm läuft im Browser (mit Anlagenmodell)", run: () => this.selectDevice("sim") },
-					{ id: "fcu", label: "FCU", icon: "device", active: d.kind === "fcu", title: "Dieses Gerät über die WebSocket-Verbindung", run: () => this.selectDevice("fcu") },
+					...(this.fcu ? [{ id: "fcu", label: this.fcu.label, icon: "device" as const, active: d.kind === "fcu", title: "Dieses Gerät über die WebSocket-Verbindung", run: () => this.selectDevice("fcu") }] : []),
 				] },
 				{ label: "Laden", commands: [
 					{ id: "download", label: "Laden", icon: "download", disabled: !ok, title: "Projekt auf das Gerät laden (SPS geht in STOP)", run: () => void this.download(false) },

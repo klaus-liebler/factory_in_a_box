@@ -7,6 +7,7 @@ build
 /generated/
 /web/generated/
 /web/dist/
+/web_sim/dist/
 node_modules/
 
 # builder/ -- appsettings.json enthaelt persoenliche Maschinenpfade und ist gitignored, getrackt

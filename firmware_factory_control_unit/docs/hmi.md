@@ -8,7 +8,7 @@ Managementfunktionen). Sie besteht aus
 - der **Laufzeit** als eigene Seite der Web-UI (*Bedienen & Beobachten*, `/hmi`): die Seiten bedienen, mit
   Meldeliste und Linienschreibern, auch im Vollbild auf einem Bedien-PC.
 
-Code: `web/src/plc/hmi/` (`hmi.ts` Modell, `hmi-view.ts` Darstellung, `hmi-editor.ts`,
+Code: `web_packages/plc/src/hmi/` (`hmi.ts` Modell, `hmi-view.ts` Darstellung, `hmi-editor.ts`,
 `hmi-runtime-app.ts`, `hmi-trends.ts`), Tests `hmi.test.ts`, `hmi-view.test.ts`.
 
 ## Speicherung

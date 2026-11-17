@@ -30,8 +30,8 @@ const { noopView } = vi.hoisted(() => ({ noopView: () => new Proxy({}, { get: ()
 vi.mock("./roarm/roarm-3d-view.ts", async (importOriginal) => ({ ...(await importOriginal<object>()), createRoArm3DView: noopView }));
 vi.mock("./druckregelstrecke/druckregelstrecke-view.ts", async (importOriginal) => ({ ...(await importOriginal<object>()), createDruckregelstreckeView: noopView }));
 
-import { appRibbonOf } from "../shell/ribbon.ts";
-import type { WorkspaceApp } from "../shell/workspace-app.ts";
+import { appRibbonOf } from "@fiab/ui-shell/shell/ribbon.ts";
+import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
 import "./dashboard/overview-app.ts";
 import "./registers/modbus-register-app.ts";
 import "./actuators/actuator-test-app.ts";
@@ -42,8 +42,9 @@ import "./druckregelstrecke/druckregelstrecke-app.ts";
 import "./steppers/stepper-lab-app.ts";
 import "./terminal/terminal-app.ts";
 import "./roarm/roarm-teach-app.ts";
-import "../plc/ide/plc-ide-app.ts";
-import "../plc/hmi/hmi-runtime-app.ts";
+import "../plc-fcu/setup.ts";
+import "@fiab/plc/ide/plc-ide-app.ts";
+import "@fiab/plc/hmi/hmi-runtime-app.ts";
 
 /** tag, does it poll the device while shown */
 const WORKSPACES: [string, boolean][] = [

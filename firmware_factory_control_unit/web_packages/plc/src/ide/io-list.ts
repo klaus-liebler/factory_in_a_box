@@ -1,4 +1,5 @@
-// The I/O variables of the IEC program, derived from the register map (generated/register-map.ts):
+// The I/O variables of the IEC program, derived from the register map (the FCU: web/generated/register-map.ts,
+// handed over with configureRegisterMap() before anything else of the PLC is used):
 // global variables that the image binds to registers (docs/plc-iec61131.md section 6.1). The device
 // copies the input registers into them before each cycle and the outputs into the holding registers
 // after it; the simulator's plant model reads and writes them directly.
@@ -7,8 +8,28 @@
 // parameters read-only %I variables; command registers (handshakes the firmware answers in the same
 // register) are no I/O variables - a cyclic output would overwrite the answers. They are bound to
 // reserved globals (__Stepper1StartHoming, ...) that only the FCU library blocks use (fcu-lib.ts).
-import { REGIONS, REGISTER_MAP_HASH, type RegisterDef } from "../../../generated/register-map.ts";
 import type { IoBindingDef } from "../compiler/compiler.ts";
+
+/** A register of the map, as far as the PLC needs it (generated/register-map.ts's RegisterDef fits). */
+export interface RegisterDef {
+	name: string;
+	address: number;
+	bank: "input" | "holding" | string;
+	display: string;
+	description?: string;
+	unit?: string;
+	signed?: boolean;
+	min?: number;
+	max?: number;
+	combine?: { count: number };
+	/** holding registers; absent: output */
+	kind?: "output" | "parameter" | "command" | string;
+}
+
+export interface RegisterRegion {
+	title: string;
+	registers: readonly RegisterDef[];
+}
 
 export type IoDirection = "input" | "output";
 
@@ -67,18 +88,28 @@ function ioVar(def: RegisterDef, region: string): IoVar | null {
 	};
 }
 
-export const IO_VARS: readonly IoVar[] = REGIONS.flatMap((r) => r.registers.map((d) => ioVar(d, r.title)).filter((v): v is IoVar => v !== null))
-	.sort((a, b) => (a.direction === b.direction ? a.register - b.register : a.direction === "input" ? -1 : 1));
+/** The I/O variables (empty until configureRegisterMap()). */
+export let IO_VARS: readonly IoVar[] = [];
+/** The command registers (empty until configureRegisterMap()). */
+export let COMMAND_VARS: readonly CommandVar[] = [];
+let mapHash = 0;
 
-export const COMMAND_VARS: readonly CommandVar[] = REGIONS.flatMap((r) => r.registers)
-	.filter((d) => d.kind === "command")
-	.map((d): CommandVar => {
-		const type = typeOf(d);
-		if (type === null || type === "BOOL") throw new Error(`command register ${d.name}: needs a 16- or 32-bit integer`);
-		const bits = type === "DINT" || type === "UDINT" ? 32 : 16;
-		return { name: `__${iecName(d.name)}`, type, bits, signed: type === "INT" || type === "DINT", register: d.address };
-	})
-	.sort((a, b) => a.register - b.register);
+/** Sets the register map the PLC works with: the I/O variables, the command registers and the layout hash
+ *  the images carry. Called once at the start, before the IDE, the simulator or the compiler use them. */
+export function configureRegisterMap(regions: readonly RegisterRegion[], hash: number): void {
+	IO_VARS = regions.flatMap((r) => r.registers.map((d) => ioVar(d, r.title)).filter((v): v is IoVar => v !== null))
+		.sort((a, b) => (a.direction === b.direction ? a.register - b.register : a.direction === "input" ? -1 : 1));
+	COMMAND_VARS = regions.flatMap((r) => r.registers)
+		.filter((d) => d.kind === "command")
+		.map((d): CommandVar => {
+			const type = typeOf(d);
+			if (type === null || type === "BOOL") throw new Error(`command register ${d.name}: needs a 16- or 32-bit integer`);
+			const bits = type === "DINT" || type === "UDINT" ? 32 : 16;
+			return { name: `__${iecName(d.name)}`, type, bits, signed: type === "INT" || type === "DINT", register: d.address };
+		})
+		.sort((a, b) => a.register - b.register);
+	mapHash = hash >>> 0;
+}
 
 export const IO_FILE = "I/O";
 
@@ -112,8 +143,8 @@ export function ioBindings(): IoBindingDef[] {
 	];
 }
 
-/** The register map's layout hash (generated, the same as register_map::map_hash in the firmware): the
+/** The register map's layout hash (the FCU: generated, the same as register_map::map_hash in the firmware): the
  *  image carries it, the device refuses an image built for another map. */
 export function ioMapHash(): number {
-	return REGISTER_MAP_HASH >>> 0;
+	return mapHash;
 }

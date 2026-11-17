@@ -4,6 +4,9 @@
 // ribbon of the active workspace (its tabs, groups and commands, published by the app through
 // shell/ribbon.ts, plus the shell's "Ansicht" tab), the working area and the status bar.
 //
+// Nothing here knows the device: the app passes what the title and status bar show (connection, notifications,
+// host, logo) as a ShellConfig to Start(). The first registered workspace is the home workspace.
+//
 // Every app element is created once by app.ts and mounted into .app-shell-content imperatively; render()
 // never binds anything into that container, so lit leaves the apps alone however often the shell renders,
 // and an app keeps its state while another workspace is shown (only "hidden" changes).
@@ -15,11 +18,6 @@ import { hasWorkspaceLifecycle } from "./workspace-app.ts";
 import { appStatusOf, onAppStatusChange } from "./status-bar.ts";
 import { appRibbonOf, onAppRibbonChange, openWorkspace, type RibbonCommand, type RibbonGroup, type RibbonTab } from "./ribbon.ts";
 import { icon, type IconName } from "./icons.ts";
-import { onWsStateChange, wsState } from "../core/ws-client.ts";
-import { logEntries, subscribeLog } from "../core/log-store.ts";
-import { system } from "../../generated/ws-protocol.ts";
-import { DEVICE_HOSTNAME } from "../../generated/build-info.ts";
-import logoSvg from "../assets/factory-control-unit-logo.svg?raw";
 import "./shell.css";
 
 /** A workspace: an app with its place in the switcher. */
@@ -27,6 +25,40 @@ export interface WorkspaceDef {
 	/** The switcher's section ("Übersicht", "Automatisierung", ...). */
 	group: string;
 	description: string;
+}
+
+export type ConnectionState = "open" | "connecting" | "closed";
+
+/** A connection shown in the title and status bar (the FCU app: the WebSocket to the device). */
+export interface ShellConnection {
+	state(): ConnectionState;
+	onChange(cb: () => void): void;
+	/** Tooltip, e.g. "WebSocket-Verbindung zur Control Unit". */
+	title: string;
+}
+
+/** The bell in the title bar: counts events (e.g. log warnings) until its workspace is opened. */
+export interface ShellNotifications {
+	/** Events that are already there at the start. */
+	initial(): number;
+	/** cb(n): n new events. */
+	subscribe(cb: (n: number) => void): void;
+	/** The workspace that shows them; opening it clears the count. */
+	path: string;
+	/** Tooltip for n unseen events (0: none). */
+	title(n: number): string;
+}
+
+/** What the application window shows about the product and the device. */
+export interface ShellConfig {
+	/** "Factory Control Unit": the logo's tooltip and the end of the page title. */
+	productName: string;
+	/** The logo as SVG markup. */
+	logoSvg?: string;
+	/** Shown next to the workspace in the title bar, e.g. "factory-box-303537.local". */
+	hostLabel?: string;
+	connection?: ShellConnection;
+	notifications?: ShellNotifications;
 }
 
 interface AppEntry extends RouteDef, WorkspaceDef {
@@ -52,8 +84,10 @@ export class AppShell extends LitElement {
 	@state() private collapsed = AppShell.load(RIBBON_KEY, sessionStorage) === "1";
 	@state() private dark = AppShell.loadDark();
 	@state() private fullscreen = false;
-	/** Warnings and errors in the firmware log since the user last looked at it (Terminal). */
-	@state() private unseenWarnings = 0;
+	/** Notifications (the FCU: warnings and errors in the firmware log) since their workspace was last shown. */
+	@state() private unseen = 0;
+
+	private config: ShellConfig = { productName: "" };
 
 	private entries: AppEntry[] = [];
 	private router?: Router;
@@ -107,8 +141,9 @@ export class AppShell extends LitElement {
 		this.entries.push({ path, title, icon: "", iconName, element, ...ws });
 	}
 
-	public Start(): void {
-		onWsStateChange(() => this.requestUpdate());
+	public Start(config: ShellConfig): void {
+		this.config = config;
+		config.connection?.onChange(() => this.requestUpdate());
 		onAppStatusChange(() => this.requestUpdate());
 		onAppRibbonChange(() => this.requestUpdate());
 		document.addEventListener("fullscreenchange", () => (this.fullscreen = !!document.fullscreenElement));
@@ -118,13 +153,13 @@ export class AppShell extends LitElement {
 				this.groupMenu = null;
 			}
 		});
-		const isWarning = (level: number) => level >= system.LogLevel.LOG_WARN;
-		subscribeLog((added) => {
-			if (this.activePath === "/terminal") return;
-			const n = added.filter((e) => isWarning(e.level)).length;
-			if (n) this.unseenWarnings += n;
-		});
-		this.unseenWarnings = logEntries().filter((e) => isWarning(e.level)).length;
+		const notes = config.notifications;
+		if (notes) {
+			notes.subscribe((n) => {
+				if (this.activePath !== notes.path && n) this.unseen += n;
+			});
+			this.unseen = notes.initial();
+		}
 		this.router = new Router(this.entries.map(({ path, title, icon }) => ({ path, title, icon })));
 		this.router.addEventListener("change", () => this.sync());
 		this.requestUpdate();
@@ -146,9 +181,9 @@ export class AppShell extends LitElement {
 		this.activePath = next.path;
 		this.switcherOpen = false;
 		this.groupMenu = null;
-		if (next.path === "/terminal") this.unseenWarnings = 0;
+		if (next.path === this.config.notifications?.path) this.unseen = 0;
 		for (const entry of this.entries) if (entry.element !== this.activeElement) entry.element.hidden = true;
-		document.title = `${next.title} – Factory Control Unit`;
+		document.title = this.config.productName ? `${next.title} – ${this.config.productName}` : next.title;
 	}
 
 	private go(path: string): void {
@@ -161,6 +196,11 @@ export class AppShell extends LitElement {
 		document.documentElement.dataset.theme = this.dark ? "dark" : "light";
 	}
 
+	/** The first registered workspace. */
+	private get home(): AppEntry | undefined {
+		return this.entries[0];
+	}
+
 	// ---- ribbon --------------------------------------------------------------------------------------------
 	/** The shell's own tab, after the workspace's tabs. */
 	private viewTab(): RibbonTab {
@@ -168,7 +208,7 @@ export class AppShell extends LitElement {
 			id: "shell-view", label: "Ansicht",
 			groups: [
 				{ label: "Navigation", commands: [
-					{ id: "home", label: "Dashboard", icon: "dashboard", run: () => this.go("/"), disabled: this.activePath === "/" },
+					...(this.home ? [{ id: "home", label: this.home.title, icon: this.home.iconName, run: () => this.go(this.home!.path), disabled: this.activePath === this.home.path }] : []),
 					{ id: "back", label: "Zurück", icon: "left", size: "small", run: () => history.back() },
 					{ id: "forward", label: "Vor", icon: "right", size: "small", run: () => history.forward() },
 				] },
@@ -285,26 +325,31 @@ export class AppShell extends LitElement {
 			</div>`;
 	}
 
+	private static connText(s: ConnectionState): string {
+		return s === "open" ? "verbunden" : s === "connecting" ? "verbinde …" : "getrennt";
+	}
+
 	private renderTitleBar(entry: AppEntry | undefined) {
-		const ws = wsState();
-		const wsText = ws === "open" ? "verbunden" : ws === "connecting" ? "verbinde …" : "getrennt";
+		const { productName, logoSvg, hostLabel, connection, notifications } = this.config;
+		const ws = connection?.state();
+		const home = this.home;
 		return html`
 			<header class="tb">
-				<span class="tb-logo" title="Factory Control Unit">${unsafeHTML(logoSvg)}</span>
+				${logoSvg ? html`<span class="tb-logo" title=${productName}>${unsafeHTML(logoSvg)}</span>` : nothing}
 				<div class="tb-quick">
-					<button class="tb-btn" title="Dashboard" @click=${() => this.go("/")}>${icon("home", 20)}</button>
+					${home ? html`<button class="tb-btn" title=${home.title} @click=${() => this.go(home.path)}>${icon("home", 20)}</button>` : nothing}
 					<button class="tb-btn" title="Zurück" @click=${() => history.back()}>${icon("left", 18)}</button>
 					<button class="tb-btn" title="Vor" @click=${() => history.forward()}>${icon("right", 18)}</button>
 				</div>
-				<div class="tb-doc" title="${entry?.title ?? ""} · ${DEVICE_HOSTNAME}.local">
+				<div class="tb-doc" title="${entry?.title ?? ""}${hostLabel ? ` · ${hostLabel}` : ""}">
 					${entry ? icon(entry.iconName, 18) : nothing}
 					<span class="tb-doc-title">${entry?.title ?? ""}</span>
-					<span class="tb-doc-host">${DEVICE_HOSTNAME}.local</span>
+					${hostLabel ? html`<span class="tb-doc-host">${hostLabel}</span>` : nothing}
 				</div>
 				<div class="tb-right">
-					<span class="tb-conn tb-conn-${ws}" title="WebSocket-Verbindung zur Control Unit"><span class="tb-dot"></span>${wsText}</span>
-					<button class="tb-btn tb-bell" title=${this.unseenWarnings ? `${this.unseenWarnings} neue Warnungen/Fehler im Firmware-Log` : "Firmware-Log"}
-						@click=${() => this.go("/terminal")}>${icon("bell", 20)}${this.unseenWarnings ? html`<span class="tb-badge">${this.unseenWarnings > 99 ? "99+" : this.unseenWarnings}</span>` : nothing}</button>
+					${connection && ws ? html`<span class="tb-conn tb-conn-${ws}" title=${connection.title}><span class="tb-dot"></span>${AppShell.connText(ws)}</span>` : nothing}
+					${notifications ? html`<button class="tb-btn tb-bell" title=${notifications.title(this.unseen)}
+						@click=${() => this.go(notifications.path)}>${icon("bell", 20)}${this.unseen ? html`<span class="tb-badge">${this.unseen > 99 ? "99+" : this.unseen}</span>` : nothing}</button>` : nothing}
 					<button class="tb-btn" title=${this.dark ? "Helle Darstellung" : "Dunkle Darstellung"} @click=${() => this.setDark(!this.dark)}>${icon("theme", 20)}</button>
 					<button class="tb-btn ${this.fullscreen ? "tb-on" : ""}" title="Vollbild" @click=${() => this.toggleFullscreen()}>${icon("fullscreen", 20)}</button>
 				</div>
@@ -312,12 +357,12 @@ export class AppShell extends LitElement {
 	}
 
 	private renderStatusBar() {
-		const ws = wsState();
-		const wsText = ws === "open" ? "verbunden" : ws === "connecting" ? "verbinde …" : "getrennt";
+		const connection = this.config.connection;
+		const ws = connection?.state();
 		const status = appStatusOf(this.activeElement);
 		return html`
 			<footer class="shell-status" role="status">
-				<span class="sb-ws sb-ws-${ws}" title="WebSocket-Verbindung zur Control Unit"><span class="sb-dot"></span>${wsText}</span>
+				${connection && ws ? html`<span class="sb-ws sb-ws-${ws}" title=${connection.title}><span class="sb-dot"></span>${AppShell.connText(ws)}</span>` : nothing}
 				${status && status.text ? html`<span class="sb-mode sb-mode-${status.kind}">${status.text}</span>` : ""}
 				${status?.extra ?? ""}
 			</footer>`;

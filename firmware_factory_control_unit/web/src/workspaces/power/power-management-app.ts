@@ -5,10 +5,10 @@ import { customElement, state, query } from "lit/decorators.js";
 import "./power-management.css";
 import { fetchRegisters, regValue } from "../../core/registers.ts";
 import { Poller } from "../../core/poller.ts";
-import type { WorkspaceApp } from "../../shell/workspace-app.ts";
-import { drawLineChart } from "../../ui/line-chart.ts";
-import { setAppStatus } from "../../shell/status-bar.ts";
-import { openWorkspace, setAppRibbon } from "../../shell/ribbon.ts";
+import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import { drawLineChart } from "@fiab/ui-shell/ui/line-chart.ts";
+import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
+import { openWorkspace, setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
 
 // The longest selectable window is also the buffer size: up to 60 minutes are always kept, so switching to a
 // longer window shows more history at once.

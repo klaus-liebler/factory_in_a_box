@@ -1,0 +1,14 @@
+{
+  "name": "fcu-web",
+  "private": true,
+  "description": "npm workspaces of the web applications (web/: on the FCU, web_sim/: simulation only) and their shared packages (web_packages/)",
+  "workspaces": [
+    "web",
+    "web_sim",
+    "web_packages/*"
+  ],
+  "scripts": {
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}

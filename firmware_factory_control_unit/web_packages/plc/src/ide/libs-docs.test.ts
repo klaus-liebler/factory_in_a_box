@@ -49,7 +49,7 @@ for (const [ns, source, file] of [["VDI3814", vdi3814LibSource(), "vdi3814-libra
 }
 
 it("the example of sim-library.md compiles", () => {
-	const m = /```iecst\n([\s\S]*?)```/.exec(doc("sim-library.md"));
+	const m = /```iecst\r?\n([\s\S]*?)```/.exec(doc("sim-library.md"));
 	expect(m).not.toBeNull();
 	const r = compile(deviceSources("PLC_PRG", m![1]), undefined, { io: ioBindings(), ioMapHash: ioMapHash() });
 	expect(r.ok, r.diagnostics.map(formatDiagnostic).join("\n")).toBe(true);

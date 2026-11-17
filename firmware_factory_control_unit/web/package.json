@@ -10,12 +10,13 @@
     "build:analyze": "vite build --mode analyze",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "plc:corpus": "node tools/plc-corpus.mjs",
-    "typecheck:plc": "tsc --noEmit -p src/plc"
+    "plc:corpus": "node tools/plc-corpus.mjs"
   },
   "dependencies": {
     "lit": "^3.3.2",
-    "ogl": "^1.0.11"
+    "ogl": "^1.0.11",
+    "@fiab/ui-shell": "*",
+    "@fiab/plc": "*"
   },
   "devDependencies": {
     "@klaus-liebler/vite-firmware-single-file": "file:../../../npm-packages/@klaus-liebler/vite-firmware-single-file",

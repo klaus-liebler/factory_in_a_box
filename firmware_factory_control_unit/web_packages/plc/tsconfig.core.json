@@ -1,0 +1,12 @@
+{
+	// The PLC compiler and VM run in the browser, in vitest and in Node: no DOM (docs/plc-iec61131.md section 2).
+	// `npm run typecheck` checks with this config that nothing outside the IDE (src/ide/) and the HMI (src/hmi/)
+	// uses a browser API.
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["esnext"],
+		"types": ["node"]
+	},
+	"include": ["src/**/*.ts"],
+	"exclude": ["src/ide/**", "src/hmi/**"]
+}

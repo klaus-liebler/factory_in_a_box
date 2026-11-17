@@ -1,0 +1,28 @@
+{
+  "name": "@fiab/plc",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IEC 61131-3 PLC of the Factory Control Unit in the browser: compiler, VM, IDE (ST, FBD, SFC), simulator with plant model, HMI. The device (the FCU) and the register map are handed in by the app.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.core.json"
+  },
+  "dependencies": {
+    "@fiab/ui-shell": "*"
+  },
+  "peerDependencies": {
+    "lit": "^3.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.7",
+    "happy-dom": "^18.0.1",
+    "@types/node": "^22.0.0",
+    "lit": "^3.3.2"
+  }
+}

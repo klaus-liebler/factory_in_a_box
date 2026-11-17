@@ -5,12 +5,12 @@
 // the project from the FCU, compiles it for the variable addresses and shows the pages.
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { WorkspaceApp } from "../../shell/workspace-app.ts";
-import { setAppStatus } from "../../shell/status-bar.ts";
-import { setAppRibbon } from "../../shell/ribbon.ts";
-import { clock } from "../../core/format.ts";
+import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
+import { setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
+import { clock } from "@fiab/ui-shell/ui/format.ts";
 import type { PlcDevice } from "../ide/device.ts";
-import { fcuDevice, simulator } from "../ide/devices.ts";
+import { remoteDevice, simulator } from "../ide/devices.ts";
 import { build, loadProject, parseProject, projectHash, type Project } from "../ide/project.ts";
 import { AlarmList, PRIO_NAMES, prioColor, type HmiElement, type HmiPage } from "./hmi.ts";
 import { sampleTrends } from "./hmi-trends.ts";
@@ -35,13 +35,14 @@ export class HmiRuntimeApp extends LitElement implements WorkspaceApp {
 		super();
 		try {
 			const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as { device?: string; source?: string; page?: string };
-			if (p.device === "fcu") this.dev = fcuDevice;
-			if (p.source === "device") this.source = "device";
+			const remote = remoteDevice();
+			if (p.device === "fcu" && remote) this.dev = remote;
+			if (p.source === "device" && this.dev.kind === "fcu") this.source = "device";
 			if (p.page) this.pageId = p.page;
 		} catch {
 			// defaults
 		}
-		for (const d of [simulator, fcuDevice]) d.addEventListener("update", () => this.onUpdate(d));
+		for (const d of [simulator, remoteDevice()]) d?.addEventListener("update", () => this.onUpdate(d));
 	}
 
 	protected createRenderRoot() {
@@ -118,7 +119,7 @@ export class HmiRuntimeApp extends LitElement implements WorkspaceApp {
 	}
 
 	private selectDevice(kind: string): void {
-		const next = kind === "fcu" ? fcuDevice : simulator;
+		const next = (kind === "fcu" && remoteDevice()) || simulator;
 		if (next === this.dev) return;
 		this.dev.deactivate();
 		this.dev = next;
@@ -211,12 +212,12 @@ export class HmiRuntimeApp extends LitElement implements WorkspaceApp {
 			{ id: "connect", label: "Verbindung", groups: [
 				{ label: "Gerät", commands: [
 					{ id: "sim", label: "Simulator", icon: "simulator", active: d.kind === "simulator", run: () => this.selectDevice("sim") },
-					{ id: "fcu", label: "FCU", icon: "device", active: d.kind === "fcu", run: () => this.selectDevice("fcu") },
+					...(remoteDevice() ? [{ id: "fcu", label: remoteDevice()!.label, icon: "device" as const, active: d.kind === "fcu", run: () => this.selectDevice("fcu") }] : []),
 				] },
 				{ label: "Projekt", commands: [
 					{ id: "src-browser", label: "Dieser Browser", icon: "open", active: this.source === "browser", title: "Das Projekt der IDE in diesem Browser", run: () => this.selectSource("browser") },
-					{ id: "src-device", label: "Vom FCU", icon: "from-device", active: this.source === "device", disabled: d.kind !== "fcu",
-						title: "Das beim letzten Laden auf der SD-Karte der FCU gespeicherte Projekt", run: () => this.selectSource("device") },
+					...(remoteDevice() ? [{ id: "src-device", label: "Vom FCU", icon: "from-device" as const, active: this.source === "device", disabled: d.kind !== "fcu",
+						title: "Das beim letzten Laden auf der SD-Karte der FCU gespeicherte Projekt", run: () => this.selectSource("device") }] : []),
 					{ id: "reload", label: "Neu laden", icon: "refresh", size: "small", disabled: this.loading, run: () => void this.loadSource() },
 					{ id: "start-sim", label: "Im Simulator starten", icon: "download-run", size: "small",
 						disabled: d.kind !== "simulator" || !this.project, title: "Das Projekt übersetzen, in den Simulator laden und starten", run: () => void this.startSimulator() },

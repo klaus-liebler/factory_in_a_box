@@ -9,7 +9,7 @@ import { BOXES, CONVERSIONS, catalog, networkTypes, newId, pinKey, pinsOf, type 
 import { evalBox, parseLive } from "./fbd-live.ts";
 import { pathOf, routeWires, type Rect } from "./fbd-route.ts";
 import { IO_VARS, type IoVar } from "./io-list.ts";
-import { confirmDialog } from "../../shell/dialogs.ts";
+import { confirmDialog } from "@fiab/ui-shell/shell/dialogs.ts";
 
 /** What a network's insert buttons offer: [E]ingänge, [V]erarbeitung, [A]usgänge. */
 type InsertKind = "E" | "V" | "A";
@@ -25,12 +25,13 @@ interface InsertItem {
 }
 
 // ---- the FCU's sensors and actuators (generated from the register map, io-list.ts) ---------------------
-const IO_BY_NAME = new Map(IO_VARS.map((v) => [v.name.toUpperCase(), v]));
+let ioByName: { vars: readonly IoVar[]; map: Map<string, IoVar> } | null = null;
 const UNIT_SHORT: Record<string, string> = { Promille: "‰", Prozent: "%", "0.01deg": "0,01°", C: "°C" };
 
 /** The I/O variable an input/output node is bound to (its expression is just the name). */
 function ioOf(text: string): IoVar | undefined {
-	return IO_BY_NAME.get(text.trim().toUpperCase());
+	if (ioByName?.vars !== IO_VARS) ioByName = { vars: IO_VARS, map: new Map(IO_VARS.map((v) => [v.name.toUpperCase(), v])) };
+	return ioByName.map.get(text.trim().toUpperCase());
 }
 
 function unitOf(v: IoVar | undefined): string {

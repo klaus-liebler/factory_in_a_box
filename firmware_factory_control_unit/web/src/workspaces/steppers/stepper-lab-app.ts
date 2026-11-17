@@ -7,11 +7,11 @@ import { customElement, query, state } from "lit/decorators.js";
 import "./stepper-lab.css";
 import { stepper } from "../../../generated/ws-protocol.ts";
 import { wsRequest } from "../../core/ws-client.ts";
-import type { WorkspaceApp } from "../../shell/workspace-app.ts";
-import { setAppStatus } from "../../shell/status-bar.ts";
-import { setAppRibbon } from "../../shell/ribbon.ts";
+import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
+import { setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
 import { Poller } from "../../core/poller.ts";
-import { drawLineChart } from "../../ui/line-chart.ts";
+import { drawLineChart } from "@fiab/ui-shell/ui/line-chart.ts";
 import {
 	currentShare, decodeDrvStatus, decodePwmScale, delayUnitMs, fullStepsPerSecond, moveCurve, profileProblem, tstepOf, type Shape,
 } from "./stepper-lab-model.ts";

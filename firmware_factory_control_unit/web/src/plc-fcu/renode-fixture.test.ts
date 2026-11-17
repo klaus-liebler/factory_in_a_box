@@ -6,11 +6,11 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { compile } from "./compiler/compiler.ts";
-import { formatDiagnostic } from "./compiler/diagnostics.ts";
-import { crc32 } from "./image.ts";
-import { ioBindings, ioMapHash } from "./ide/io-list.ts";
-import { deviceSources } from "./ide/project.ts";
+import { compile } from "@fiab/plc/compiler/compiler.ts";
+import { formatDiagnostic } from "@fiab/plc/compiler/diagnostics.ts";
+import { crc32 } from "@fiab/plc/image.ts";
+import { ioBindings, ioMapHash } from "@fiab/plc/ide/io-list.ts";
+import { deviceSources } from "@fiab/plc/ide/project.ts";
 
 const OUT_DIR = path.resolve(import.meta.dirname, "../../../tools/plc-renode");
 const UPDATE = process.env.PLC_CORPUS_UPDATE === "1";

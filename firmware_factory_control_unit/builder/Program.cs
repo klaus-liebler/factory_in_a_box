@@ -110,6 +110,16 @@ namespace Builder
 			["--config", Path.Combine(ctx.WebRoot, "vite.config.ts")],
 			Path.Combine(Stm32BuildContext.AssetsDir, "index.html.br"));
 
+		// Die Web-App ohne Hardware (web_sim/: SPS-Entwicklung und HMI mit dem Simulator) als statische
+		// Seite nach web_sim/dist/. Braucht nur die Registerkarte, kein Board und keine Zertifikate.
+		[BuildStep]
+		public static void BuildSimulationWebApp(IBuildContextStm32 ctx)
+		{
+			BuildStepRunner.Invoke(ctx, GenerateRegisterAccessFiles);
+			var simDir = Path.Combine(ctx.RootDir, "web_sim");
+			WebAppBuildService.Run(ctx, ["--config", Path.Combine(simDir, "vite.config.ts")], Path.Combine(simDir, "dist", "index.html"), simDir);
+		}
+
 		[BuildStep]
 		public static void BuildFirmware(IBuildContextStm32 ctx) => CmakeFirmwareBuildService.Run(ctx);
 

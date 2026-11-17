@@ -9,6 +9,7 @@
 // A command is a large button (icon over label), a small one (three per column), or a toggle (`active`).
 // Every group's caption opens a menu with all its commands (also the ones a narrow window hides).
 import type { IconName } from "./icons.ts";
+import { currentPath, workspaceUrl } from "./router.ts";
 
 export interface RibbonCommand {
 	id: string;
@@ -62,7 +63,7 @@ export function onAppRibbonChange(listener: () => void): () => void {
 
 /** Switches the workspace (an app's path), e.g. from a dashboard tile or a ribbon command. */
 export function openWorkspace(path: string): void {
-	if (window.location.pathname === path) return;
-	window.history.pushState(null, "", path);
+	if (currentPath() === path) return;
+	window.history.pushState(null, "", workspaceUrl(path));
 	window.dispatchEvent(new PopStateEvent("popstate"));
 }

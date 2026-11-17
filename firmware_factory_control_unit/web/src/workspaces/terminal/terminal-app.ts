@@ -18,9 +18,9 @@ import { TERMINAL_COMMANDS, TERMINAL_LOOKUPS, type TerminalCommand, type Termina
 import { analyse, complete, findCommand, matches, meantCommand, paramAt, sourceValues, type Word } from "./command-line.ts";
 import { wsRequest } from "../../core/ws-client.ts";
 import { clearLog, logEntries, MAX_LOG_LINES, subscribeLog, type LogEntry } from "../../core/log-store.ts";
-import type { WorkspaceApp } from "../../shell/workspace-app.ts";
-import { setAppRibbon } from "../../shell/ribbon.ts";
-import type { IconName } from "../../shell/icons.ts";
+import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import { setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
+import type { IconName } from "@fiab/ui-shell/shell/icons.ts";
 
 const PROMPT = "fcu> ";
 const MAX_CONSOLE_LINES = 2000;

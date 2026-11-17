@@ -1,10 +1,10 @@
-// Entry point: builds the application window (shell/app-shell.ts) and registers the apps as workspaces;
+// Entry point: builds the application window (@fiab/ui-shell, shell/app-shell.ts) and registers the apps as workspaces;
 // the order of the RegisterApp() calls is the order in the workspace switcher, grouped by its section.
 // The first workspace ("/", the dashboard) is shown at the start. Next to them the WebSocket connection
 // (ws-client.ts) runs for the pushed data (e.g. the firmware log, log-store.ts).
-import "./ui/base.css";
-import "./ui/components.css";
-import "./shell/app-shell.ts";
+import "@fiab/ui-shell/ui/base.css";
+import "@fiab/ui-shell/ui/components.css";
+import "@fiab/ui-shell/shell/app-shell.ts";
 import "./workspaces/dashboard/overview-app.ts";
 import "./workspaces/actuators/actuator-test-app.ts";
 import "./workspaces/registers/modbus-register-app.ts";
@@ -14,12 +14,18 @@ import "./workspaces/roarm/roarm-teach-app.ts";
 import "./workspaces/tasks/task-manager-app.ts";
 import "./workspaces/druckregelstrecke/druckregelstrecke-app.ts";
 import "./workspaces/terminal/terminal-app.ts";
-import "./plc/ide/plc-ide-app.ts";
-import "./plc/hmi/hmi-runtime-app.ts";
+import "./plc-fcu/setup.ts";
+import "@fiab/plc/ide/plc-ide-app.ts";
+import "@fiab/plc/hmi/hmi-runtime-app.ts";
 import "./workspaces/steppers/stepper-lab-app.ts";
-import type { AppShell } from "./shell/app-shell.ts";
-import { startWebSocketClient } from "./core/ws-client.ts";
-import { startLogStore } from "./core/log-store.ts";
+import type { AppShell } from "@fiab/ui-shell/shell/app-shell.ts";
+import { onWsStateChange, startWebSocketClient, wsState } from "./core/ws-client.ts";
+import { logEntries, startLogStore, subscribeLog } from "./core/log-store.ts";
+import { system } from "../generated/ws-protocol.ts";
+import { DEVICE_HOSTNAME } from "../generated/build-info.ts";
+import logoSvg from "@fiab/ui-shell/assets/factory-control-unit-logo.svg?raw";
+
+const isWarning = (level: number) => level >= system.LogLevel.LOG_WARN;
 
 document.addEventListener("DOMContentLoaded", () => {
 	const shell = document.querySelector("app-shell") as AppShell;
@@ -39,7 +45,18 @@ document.addEventListener("DOMContentLoaded", () => {
 	add("/tasks", "Task Manager", "tasks", "task-manager-app", "Gerät", "Threads, CPU-Last, Stacks, Speicherpools");
 	add("/terminal", "Terminal", "terminal", "terminal-app", "Gerät", "Testkommandos und Firmware-Log");
 
-	shell.Start();
+	shell.Start({
+		productName: "Factory Control Unit",
+		logoSvg,
+		hostLabel: `${DEVICE_HOSTNAME}.local`,
+		connection: { state: wsState, onChange: (cb) => void onWsStateChange(cb), title: "WebSocket-Verbindung zur Control Unit" },
+		notifications: {
+			initial: () => logEntries().filter((e) => isWarning(e.level)).length,
+			subscribe: (cb) => void subscribeLog((added) => cb(added.filter((e) => isWarning(e.level)).length)),
+			path: "/terminal",
+			title: (n) => (n ? `${n} neue Warnungen/Fehler im Firmware-Log` : "Firmware-Log"),
+		},
+	});
 	startLogStore();
 	startWebSocketClient();
 });

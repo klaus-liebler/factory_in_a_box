@@ -37,7 +37,7 @@ async function setup() {
 	b.id = "B";
 	shell.RegisterApp("/", "Dashboard", "dashboard", a, { group: "Übersicht", description: "Start" });
 	shell.RegisterApp("/b", "Zweites", "plc", b, { group: "Automatisierung", description: "Zweiter Arbeitsbereich" });
-	shell.Start();
+	shell.Start({ productName: "Test" });
 	await shell.updateComplete;
 	await tick();
 	await shell.updateComplete;

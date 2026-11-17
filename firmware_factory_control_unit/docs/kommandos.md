@@ -155,13 +155,13 @@ Es gibt vier Ebenen. Keine braucht echte Hardware außer der letzten.
 ### 5.1 Web-App und SPS-Compiler (Sekunden)
 
 ```
-cd web
-npm test                 # alle vitest-Tests (Compiler, VM, IDE, Editoren, Stepper-Modell)
-npm run typecheck        # TypeScript der ganzen Web-App
-npm run typecheck:plc    # TypeScript des SPS-Teils (strenger)
-npx vitest run src/plc/ide/ide.test.ts     # eine einzelne Testdatei
-npm run dev              # Web-App im Browser entwickeln (ohne Gerät)
-npm run plc:corpus       # Testkorpus und Renode-Testimage der SPS neu erzeugen (nach Compiler-Änderungen)
+npm install              # einmal im Workspace-Root (firmware_factory_control_unit/): web, web_sim, web_packages/*
+npm test                 # alle vitest-Tests aller Workspaces (Compiler, VM, IDE, Editoren, Shell, Apps)
+npm run typecheck        # TypeScript aller Workspaces (die SPS zusätzlich ohne DOM: web_packages/plc/tsconfig.core.json)
+cd web_packages/plc && npx vitest run src/ide/ide.test.ts   # eine einzelne Testdatei
+cd web && npm run dev              # Web-App der FCU im Browser entwickeln (Proxy zum Gerät)
+cd web && npm run plc:corpus       # Testkorpus und Renode-Testimage der SPS neu erzeugen (nach Compiler-Änderungen)
+cd web_sim && npm run dev          # Web-App ohne Hardware (SPS-Entwicklung + HMI im Simulator)
 ```
 
 ### 5.2 rtoos auf dem PC (Host-Tests, etwa eine halbe Minute)

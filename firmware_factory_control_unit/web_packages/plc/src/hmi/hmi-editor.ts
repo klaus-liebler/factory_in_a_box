@@ -4,7 +4,9 @@
 // is a "change" event with all pages; undo/redo keep the last 50 states.
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { confirmDialog } from "../../shell/dialogs.ts";
+import { confirmDialog } from "@fiab/ui-shell/shell/dialogs.ts";
+import { openWorkspace } from "@fiab/ui-shell/shell/ribbon.ts";
+import { workspaceUrl } from "@fiab/ui-shell/shell/router.ts";
 import type { DebugInfo } from "../compiler/compiler.ts";
 import type { PlcDevice } from "../ide/device.ts";
 import {
@@ -230,8 +232,8 @@ export class HmiEditor extends LitElement {
 				<span class="hmi-sep"></span>
 				<button class="hmi-small-btn ${this.live ? "on" : ""}" title="Die Seite bedienen wie zur Laufzeit (mit dem Gerät der IDE)"
 					@click=${() => { this.live = !this.live; this.selected = new Set(); }}>${this.live ? "✎ Bearbeiten" : "▶ Bedienen"}</button>
-				<a class="hmi-small-btn" href="/hmi" title="Die Laufzeit-Oberfläche (eigene Seite, auch auf einem Bedien-PC)"
-					@click=${(e: Event) => { e.preventDefault(); history.pushState(null, "", "/hmi"); dispatchEvent(new PopStateEvent("popstate")); }}>Laufzeit öffnen ↗</a>
+				<a class="hmi-small-btn" href=${workspaceUrl("/hmi")} title="Die Laufzeit-Oberfläche (eigene Seite, auch auf einem Bedien-PC)"
+					@click=${(e: Event) => { e.preventDefault(); openWorkspace("/hmi"); }}>Laufzeit öffnen ↗</a>
 			</div>`;
 	}
 

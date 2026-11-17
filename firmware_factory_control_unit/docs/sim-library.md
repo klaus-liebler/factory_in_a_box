@@ -3,7 +3,7 @@
 Funktionsbausteine, die das dynamische Verhalten realer Betriebsmittel nachbilden: Sie bilden physikalische
 Größen an den Eingängen auf physikalische Größen an den Ausgängen ab. Ein Programm kann damit seine
 Anlage selbst simulieren, im Browser-Simulator **und** auf der FCU (virtuelle Inbetriebnahme, Unterricht
-ohne Hardware). Quelltext `web/src/plc/ide/sim-lib.ts`, Tests `web/src/plc/ide/sim-lib.test.ts` (gegen
+ohne Hardware). Quelltext `web_packages/plc/src/ide/sim-lib.ts`, Tests `web_packages/plc/src/ide/sim-lib.test.ts` (gegen
 analytische Lösungen und Energie-/Massenbilanzen).
 
 Namensraum `SIM` (`m : SIM.MOTOR;` oder `USING SIM;`), in der FBD-Palette unter „Simulation · …“.

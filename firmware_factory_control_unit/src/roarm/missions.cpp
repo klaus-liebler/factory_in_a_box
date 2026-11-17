@@ -19,7 +19,9 @@ using sd::fx;
 std::uint32_t prepared = 0;  ///< the card (sd::generation()) the directory was set up on
 constexpr const char* directory = "/MISSIONS";
 
-std::array<std::uint8_t, max_mission_bytes> scratch;  // encoded mission (save)
+// encoded mission (save, and the whole file while listing -- both only run from the roarm request
+// handlers, never concurrently)
+std::array<std::uint8_t, max_mission_bytes> scratch;
 std::array<CHAR, FX_MAX_LONG_NAME_LEN + 1> entry_name;
 
 std::array<char, 16> filename(std::uint16_t index, const char* extension = "msn") noexcept {
@@ -119,10 +121,11 @@ std::size_t list(std::span<MissionSummary> out) noexcept {
     std::size_t n = 0;
     for (std::size_t i = 0; i < found; ++i) {
         const std::uint16_t index = out[i].index;
-        std::array<std::uint8_t, max_name + 8> header{};
-        const std::size_t got = load(index, header);  // the name comes first
+        // Whole file, not just its beginning: Decode() checks the byte-length prefix of the steps list
+        // against the data actually present, so a truncated read would be rejected.
+        const std::size_t got = load(index, scratch);
         WsProtocol::roarm::Mission::Payload p{};
-        if (got == 0 || !WsProtocol::roarm::Mission::Decode(header.data(), got, p)) {
+        if (got == 0 || !WsProtocol::roarm::Mission::Decode(scratch.data(), got, p)) {
             continue;
         }
         out[n] = MissionSummary{};

@@ -30,9 +30,35 @@ public sealed class Stm32BuildContext : Stm32BuildContextBase
 
     protected override IBuilderAppSettingsStm32 Stm32Settings => BuilderSettings.Current;
 
-    // Die CMake-Presets heissen nach der Board-Revision (src/hal/<revision>); ohne --preset die
-    // Revision der Platine, die es real gibt (Revision 1; Revision 2 wird nicht gefertigt).
-    protected override string DefaultPreset => "rev1";
+    // Die CMake-Presets heissen nach der Board-Revision (src/hal/<revision>). Ohne --preset folgt
+    // das Preset dem Board (--board bzw. build/.last-board-id): boardTypeName muss
+    // "FactoryControlUnit" sein, die Major-Version von boardTypeVersion ist die Revision
+    // (1.x.y -> rev1, 3.x.y -> rev3; ohne Eintrag im Board-Archiv gilt DefaultBoardTypeVersion).
+    // Ist gar kein Board bekannt, die Revision der Platine, die es real gibt (Revision 1).
+    protected override string DefaultPreset => PresetForBoard(BoardArchiveContext.ResolveBoardId(ExplicitBoardId, BoardIdCacheFile));
+
+    private const string FallbackPreset = "rev1";
+
+    private string PresetForBoard(string? boardId)
+    {
+        if (boardId is null)
+        {
+            return FallbackPreset;
+        }
+        if (BoardTypeName != BuilderSettings.Current.BoardDefaults.DefaultBoardTypeName)
+        {
+            throw new InvalidOperationException(
+                $"Board {boardId} hat boardTypeName \"{BoardTypeName}\" -- dafuer gibt es kein Preset. " +
+                "Preset mit --preset angeben oder boardTypeName im Board-Archiv korrigieren.");
+        }
+        var major = BoardTypeVersion.Split('.')[0];
+        if (!int.TryParse(major, out var revision) || revision < 1)
+        {
+            throw new InvalidOperationException(
+                $"Board {boardId}: boardTypeVersion \"{BoardTypeVersion}\" ergibt keine Revision (erwartet z.B. \"1.0.0\").");
+        }
+        return $"rev{revision}";
+    }
 
     public override string WebGeneratedDir => _webGeneratedDir;
     public override string FirmwareGeneratedDir => _coreGeneratedDir;

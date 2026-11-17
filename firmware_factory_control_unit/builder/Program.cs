@@ -120,22 +120,30 @@ namespace Builder
 		public static void PipelineLazy(IBuildContextStm32 ctx)
 		{
 			BuildStepRunner.Invoke(ctx, PrepareContextWithRealHardware);
-			BuildStepRunner.Invoke(ctx, GenerateCertificatesLazy);
-			BuildStepRunner.Invoke(ctx, GenerateDeviceArtifacts);
-			BuildStepRunner.Invoke(ctx, GenerateRegisterAccessFiles);
-			BuildStepRunner.Invoke(ctx, GenerateBestBinaryBufferFiles);
-			BuildStepRunner.Invoke(ctx, GenerateTerminalFiles);
-			BuildStepRunner.Invoke(ctx, ReadGitStatusAndGenerateFiles);
-			BuildStepRunner.Invoke(ctx, CopyGeneratedFilesToBuildDirectory);
-			BuildStepRunner.Invoke(ctx, BuildWebApp);
-			BuildStepRunner.Invoke(ctx, BuildFirmware);
+			GenerateAllAndBuild(ctx, GenerateCertificatesLazy);
+		}
+
+		// Wie PipelineLazy, aber ohne angeschlossene Hardware: Board aus --board, sonst das zuletzt
+		// angeschlossene (build/.last-board-id); das Preset folgt ohne --preset dessen board_type
+		// (s. Stm32BuildContext.DefaultPreset).
+		[BuildStep]
+		public static void PipelineLastBoard(IBuildContextStm32 ctx)
+		{
+			BuildStepRunner.Invoke(ctx, PrepareContextWithCommandLineArguments);
+			GenerateAllAndBuild(ctx, GenerateCertificatesLazy);
 		}
 
 		[BuildStep]
 		public static void PipelineForced(IBuildContextStm32 ctx)
 		{
 			BuildStepRunner.Invoke(ctx, PrepareContextWithRealHardware);
-			BuildStepRunner.Invoke(ctx, GenerateCertificatesForced);
+			GenerateAllAndBuild(ctx, GenerateCertificatesForced);
+		}
+
+		private static void GenerateAllAndBuild(IBuildContextStm32 ctx, Action<IBuildContextStm32> generateCertificates)
+		{
+			Console.WriteLine($"Board {ctx.BoardUid} ({ctx.BoardTypeName} {ctx.BoardTypeVersion}), Preset {ctx.Preset}");
+			BuildStepRunner.Invoke(ctx, generateCertificates);
 			BuildStepRunner.Invoke(ctx, GenerateDeviceArtifacts);
 			BuildStepRunner.Invoke(ctx, GenerateRegisterAccessFiles);
 			BuildStepRunner.Invoke(ctx, GenerateBestBinaryBufferFiles);

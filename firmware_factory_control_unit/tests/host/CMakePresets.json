@@ -1,0 +1,37 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "host",
+      "displayName": "Host unit tests of the application code (GCC 16)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../../build/host-tests",
+      "toolchainFile": "${sourceDir}/../../rtoos/cmake/gcc-host.cmake",
+      "cacheVariables": {
+        "RTOS_GCC_ROOT": "C:/opt/msys64/ucrt64",
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "environment": {
+        "PATH": "C:/opt/msys64/ucrt64/bin;$penv{PATH}"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "host",
+      "configurePreset": "host",
+      "targets": [
+        "fcu_host_tests"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "host",
+      "configurePreset": "host",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

@@ -56,6 +56,10 @@ SPS-Entwicklung und HMI mit dem Simulator, ohne FCU. `web_sim/dist/` ist eine st
 relativen Pfaden und Hash-Routing (`#/hmi`) -- sie laeuft aus jedem Verzeichnis jedes Webservers,
 ohne Rewrite-Regel.
 
+Bereitstellung auf https://liebler.iui.hs-osnabrueck.de/factorycontrol/ (nginx, statisch aus
+`/var/www/html/factorycontrol`, ohne Passwort): `web_sim/deploy/deploy.ps1` baut, laedt hoch, spielt ein und
+prueft (`-OhneBauen`, `-NurBauen`, `-Zurueck` fuer die vorige Version, die als `~/factorycontrol.vorher` bleibt).
+
 ### Gesamt-Pipelines
 
 ```

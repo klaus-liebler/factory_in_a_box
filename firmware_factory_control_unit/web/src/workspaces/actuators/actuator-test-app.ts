@@ -5,9 +5,9 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "./actuator-test.css";
-import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
-import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
-import { openWorkspace, setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
+import type { WorkspaceApp } from "@klaus-liebler/ui-shell/shell/workspace-app.ts";
+import { setAppStatus } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
+import { openWorkspace, setAppRibbon } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
 import { Poller, pollingGroup } from "../../core/poller.ts";
 import { DirectOperation } from "../../core/direct-operation.ts";
 import { fetchRegisters, register, regBool, regValue, type RegisterValues } from "../../core/registers.ts";

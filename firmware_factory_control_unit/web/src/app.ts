@@ -1,10 +1,10 @@
-// Entry point: builds the application window (@fiab/ui-shell, shell/app-shell.ts) and registers the apps as workspaces;
+// Entry point: builds the application window (@klaus-liebler/ui-shell, shell/app-shell.ts) and registers the apps as workspaces;
 // the order of the RegisterApp() calls is the order in the workspace switcher, grouped by its section.
 // The first workspace ("/", the dashboard) is shown at the start. Next to them the WebSocket connection
 // (ws-client.ts) runs for the pushed data (e.g. the firmware log, log-store.ts).
-import "@fiab/ui-shell/ui/base.css";
-import "@fiab/ui-shell/ui/components.css";
-import "@fiab/ui-shell/shell/app-shell.ts";
+import "@klaus-liebler/ui-shell/ui/base.css";
+import "@klaus-liebler/ui-shell/ui/components.css";
+import "@klaus-liebler/ui-shell/shell/app-shell.ts";
 import "./workspaces/dashboard/overview-app.ts";
 import "./workspaces/actuators/actuator-test-app.ts";
 import "./workspaces/registers/modbus-register-app.ts";
@@ -18,12 +18,12 @@ import "./plc-fcu/setup.ts";
 import "@fiab/plc/ide/plc-ide-app.ts";
 import "@fiab/plc/hmi/hmi-runtime-app.ts";
 import "./workspaces/steppers/stepper-lab-app.ts";
-import type { AppShell } from "@fiab/ui-shell/shell/app-shell.ts";
+import type { AppShell } from "@klaus-liebler/ui-shell/shell/app-shell.ts";
 import { onWsStateChange, startWebSocketClient, wsState } from "./core/ws-client.ts";
 import { logEntries, startLogStore, subscribeLog } from "./core/log-store.ts";
 import { system } from "../generated/ws-protocol.ts";
 import { DEVICE_HOSTNAME } from "../generated/build-info.ts";
-import logoSvg from "@fiab/ui-shell/assets/factory-control-unit-logo.svg?raw";
+import logoSvg from "./assets/factory-control-unit-logo.svg?raw";
 
 const isWarning = (level: number) => level >= system.LogLevel.LOG_WARN;
 

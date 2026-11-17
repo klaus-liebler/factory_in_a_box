@@ -9,9 +9,9 @@
 //
 // A task that only sends (the answer comes as a pushed message) calls `poller.ok()` when it arrives.
 import type { ReactiveController, ReactiveControllerHost } from "lit";
-import type { AppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
-import type { RibbonGroup } from "@fiab/ui-shell/shell/ribbon.ts";
-import { clock } from "@fiab/ui-shell/ui/format.ts";
+import type { AppStatus } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
+import type { RibbonGroup } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
+import { clock } from "@klaus-liebler/ui-shell/ui/format.ts";
 
 /** The ribbon group "Daten" of a polling workspace: refresh now, pause/resume (all its pollers together). */
 export function pollingGroup(pollers: Poller | readonly Poller[], what = "die Werte"): RibbonGroup {

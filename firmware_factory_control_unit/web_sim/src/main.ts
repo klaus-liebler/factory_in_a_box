@@ -4,12 +4,12 @@
 // program written here runs unchanged on the device.
 //
 // A static site for any web server: hash routing ("#/hmi"), the projects stay in the browser (localStorage).
-import "@fiab/ui-shell/ui/base.css";
-import "@fiab/ui-shell/ui/components.css";
-import "@fiab/ui-shell/shell/app-shell.ts";
-import { useHashRouting } from "@fiab/ui-shell/shell/router.ts";
-import type { AppShell } from "@fiab/ui-shell/shell/app-shell.ts";
-import logoSvg from "@fiab/ui-shell/assets/factory-control-unit-logo.svg?raw";
+import "@klaus-liebler/ui-shell/ui/base.css";
+import "@klaus-liebler/ui-shell/ui/components.css";
+import "@klaus-liebler/ui-shell/shell/app-shell.ts";
+import { useHashRouting } from "@klaus-liebler/ui-shell/shell/router.ts";
+import type { AppShell } from "@klaus-liebler/ui-shell/shell/app-shell.ts";
+import logoSvg from "../../web/src/assets/factory-control-unit-logo.svg?raw";
 import "./register-map.ts";
 import "@fiab/plc/ide/plc-ide-app.ts";
 import "@fiab/plc/hmi/hmi-runtime-app.ts";

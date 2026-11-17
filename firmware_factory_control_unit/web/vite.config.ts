@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, searchForWorkspaceRoot } from "vite";
 import fs from "node:fs";
 import path from "node:path";
 import { visualizer } from "rollup-plugin-visualizer";
@@ -55,12 +55,16 @@ export default defineConfig(({ mode }) => {
 			}),
 			!isAnalyze && singleFileFirmwareAssetPlugin("index.html.br", ASSETS_DIR),
 		].filter(Boolean),
+		// @klaus-liebler/ui-shell kommt per file:-Link aus npm-packages: lit nur einmal buendeln und
+		// dem Dev-Server die Dateien ausserhalb des Workspaces erlauben
+		resolve: { dedupe: ["lit", "lit-html", "@lit/reactive-element"] },
 		build: {
 			target: "esnext"
 		},
 		server: {
 			host: "localhost",
 			port: 5173,
+			fs: { allow: [searchForWorkspaceRoot(process.cwd()), path.join(import.meta.dirname, "..", "..", "..", "npm-packages")] },
 			https: httpsConfig,
 			proxy: {
 				"/api": {

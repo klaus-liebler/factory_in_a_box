@@ -6,7 +6,7 @@
 import type { DebugInfo } from "../compiler/compiler.ts";
 import { ELEM, elemOf, type Type } from "../compiler/types.ts";
 import type { Value } from "../ide/values.ts";
-import { COLORS } from "@fiab/ui-shell/ui/colors.ts";
+import { COLORS } from "@klaus-liebler/ui-shell/ui/colors.ts";
 
 export type HmiKind = "button" | "switch" | "knob" | "slider" | "digital" | "gauge" | "bar" | "trend" | "led" | "label" | "alarm";
 

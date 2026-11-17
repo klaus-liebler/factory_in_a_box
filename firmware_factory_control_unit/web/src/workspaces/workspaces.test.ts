@@ -30,8 +30,8 @@ const { noopView } = vi.hoisted(() => ({ noopView: () => new Proxy({}, { get: ()
 vi.mock("./roarm/roarm-3d-view.ts", async (importOriginal) => ({ ...(await importOriginal<object>()), createRoArm3DView: noopView }));
 vi.mock("./druckregelstrecke/druckregelstrecke-view.ts", async (importOriginal) => ({ ...(await importOriginal<object>()), createDruckregelstreckeView: noopView }));
 
-import { appRibbonOf } from "@fiab/ui-shell/shell/ribbon.ts";
-import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import { appRibbonOf } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
+import type { WorkspaceApp } from "@klaus-liebler/ui-shell/shell/workspace-app.ts";
 import "./dashboard/overview-app.ts";
 import "./registers/modbus-register-app.ts";
 import "./actuators/actuator-test-app.ts";

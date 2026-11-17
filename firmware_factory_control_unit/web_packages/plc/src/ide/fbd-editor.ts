@@ -9,7 +9,7 @@ import { BOXES, CONVERSIONS, catalog, networkTypes, newId, pinKey, pinsOf, type 
 import { evalBox, parseLive } from "./fbd-live.ts";
 import { pathOf, routeWires, type Rect } from "./fbd-route.ts";
 import { IO_VARS, type IoVar } from "./io-list.ts";
-import { confirmDialog } from "@fiab/ui-shell/shell/dialogs.ts";
+import { confirmDialog } from "@klaus-liebler/ui-shell/shell/dialogs.ts";
 
 /** What a network's insert buttons offer: [E]ingänge, [V]erarbeitung, [A]usgänge. */
 type InsertKind = "E" | "V" | "A";

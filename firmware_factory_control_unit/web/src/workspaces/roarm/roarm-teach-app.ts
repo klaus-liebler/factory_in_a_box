@@ -7,14 +7,14 @@
 import { LitElement, html } from "lit";
 import { customElement, state, query } from "lit/decorators.js";
 import "./roarm-teach.css";
-import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import type { WorkspaceApp } from "@klaus-liebler/ui-shell/shell/workspace-app.ts";
 import { roarm } from "../../../generated/ws-protocol.ts";
 import { createRoArm3DView, type RoArm3DHandles } from "./roarm-3d-view.ts";
 import { MockRoArmBackend, type RoArmBackend, type MissionStep, VACUUM_GPIO_ID, FOLDED_REST_POSE_CENTIDEG } from "./roarm-backend.ts";
 import { WsRoArmBackend } from "./roarm-ws-backend.ts";
 import { JOINT_NAMES, JOINT_COUNT, JOINT_LIMITS_RAD, centiDegToRad, radToCentiDeg } from "./roarm-kinematics.ts";
-import { kindOf, setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
-import { setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
+import { kindOf, setAppStatus } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
+import { setAppRibbon } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
 
 // import.meta.env.DEV is Vite's built-in dev/prod flag (true under "npm run dev", false in the real "vite
 // build" that is compiled into the firmware flash as index.html.br, see docs/build-process.md) - no manual

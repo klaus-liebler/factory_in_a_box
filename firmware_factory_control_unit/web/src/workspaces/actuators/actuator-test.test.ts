@@ -35,10 +35,10 @@ vi.mock("../../core/plc.ts", async (importOriginal) => ({
 		dev.iec = iec;
 	},
 }));
-vi.mock("@fiab/ui-shell/shell/dialogs.ts", () => ({ confirmDialog: async () => dev.confirm }));
+vi.mock("@klaus-liebler/ui-shell/shell/dialogs.ts", () => ({ confirmDialog: async () => dev.confirm }));
 
 import { register } from "../../core/registers.ts";
-import { appStatusOf } from "@fiab/ui-shell/shell/status-bar.ts";
+import { appStatusOf } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
 import "./actuator-test-app.ts";
 import type { ActuatorTestApp } from "./actuator-test-app.ts";
 

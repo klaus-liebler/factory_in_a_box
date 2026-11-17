@@ -5,10 +5,10 @@
 import { LitElement, html, nothing, svg } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
-import { choiceDialog, confirmDialog, messageDialog, promptDialog } from "@fiab/ui-shell/shell/dialogs.ts";
-import { setAppStatus, type StatusKind } from "@fiab/ui-shell/shell/status-bar.ts";
-import { setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
-import type { IconName } from "@fiab/ui-shell/shell/icons.ts";
+import { choiceDialog, confirmDialog, messageDialog, promptDialog } from "@klaus-liebler/ui-shell/shell/dialogs.ts";
+import { setAppStatus, type StatusKind } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
+import { setAppRibbon } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
+import type { IconName } from "@klaus-liebler/ui-shell/shell/icons.ts";
 import "./plc-ide.css";
 import "./st-editor.ts";
 import "./fbd-editor.ts";
@@ -20,7 +20,7 @@ import { KEYWORDS } from "../compiler/lexer.ts";
 import { elemOf, typeName, type Type } from "../compiler/types.ts";
 import type { Symbol } from "../compiler/compiler.ts";
 import type * as A from "../compiler/ast.ts";
-import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import type { WorkspaceApp } from "@klaus-liebler/ui-shell/shell/workspace-app.ts";
 import { IO_VARS } from "./io-list.ts";
 import {
 	addObject, boxesFor, build, crossReferences, objectTree, type CrossRef,

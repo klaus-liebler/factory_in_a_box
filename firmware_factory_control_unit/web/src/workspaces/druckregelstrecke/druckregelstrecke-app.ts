@@ -21,13 +21,13 @@ import { fetchRegisters, register, regValue, type RegisterValues } from "../../c
 import { Poller } from "../../core/poller.ts";
 import { DirectOperation } from "../../core/direct-operation.ts";
 import { registerWsProtocolListener, type WsProtocolListener } from "../../core/ws-client.ts";
-import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import type { WorkspaceApp } from "@klaus-liebler/ui-shell/shell/workspace-app.ts";
 import { createDruckregelstreckeView, type DruckregelstreckeViewHandles, type ValveIndex } from "./druckregelstrecke-view.ts";
 import { drawTrendChart, drawCharacteristicChart, type TrendSample, type CharacteristicCurve } from "./druckregelstrecke-charts.ts";
-import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
-import { setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
-import { SERIES } from "@fiab/ui-shell/ui/colors.ts";
-import type { IconName } from "@fiab/ui-shell/shell/icons.ts";
+import { setAppStatus } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
+import { setAppRibbon } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
+import { SERIES } from "@klaus-liebler/ui-shell/ui/colors.ts";
+import type { IconName } from "@klaus-liebler/ui-shell/shell/icons.ts";
 import {
 	PidController,
 	designController,

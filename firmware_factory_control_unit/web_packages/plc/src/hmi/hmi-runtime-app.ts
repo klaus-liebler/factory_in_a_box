@@ -5,10 +5,10 @@
 // the project from the FCU, compiles it for the variable addresses and shows the pages.
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
-import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
-import { setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
-import { clock } from "@fiab/ui-shell/ui/format.ts";
+import type { WorkspaceApp } from "@klaus-liebler/ui-shell/shell/workspace-app.ts";
+import { setAppStatus } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
+import { setAppRibbon } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
+import { clock } from "@klaus-liebler/ui-shell/ui/format.ts";
 import type { PlcDevice } from "../ide/device.ts";
 import { remoteDevice, simulator } from "../ide/devices.ts";
 import { build, loadProject, parseProject, projectHash, type Project } from "../ide/project.ts";

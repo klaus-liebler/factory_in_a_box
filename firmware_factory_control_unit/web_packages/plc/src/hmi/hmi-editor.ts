@@ -4,9 +4,9 @@
 // is a "change" event with all pages; undo/redo keep the last 50 states.
 import { LitElement, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { confirmDialog } from "@fiab/ui-shell/shell/dialogs.ts";
-import { openWorkspace } from "@fiab/ui-shell/shell/ribbon.ts";
-import { workspaceUrl } from "@fiab/ui-shell/shell/router.ts";
+import { confirmDialog } from "@klaus-liebler/ui-shell/shell/dialogs.ts";
+import { openWorkspace } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
+import { workspaceUrl } from "@klaus-liebler/ui-shell/shell/router.ts";
 import type { DebugInfo } from "../compiler/compiler.ts";
 import type { PlcDevice } from "../ide/device.ts";
 import {

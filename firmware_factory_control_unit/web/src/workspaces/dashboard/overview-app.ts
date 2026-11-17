@@ -4,13 +4,13 @@
 // second, tasks every 2 s, PLC status every 2 s, system information every 10 s.
 import { LitElement, html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
-import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
-import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
-import { openWorkspace, setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
-import { icon, type IconName } from "@fiab/ui-shell/shell/icons.ts";
+import type { WorkspaceApp } from "@klaus-liebler/ui-shell/shell/workspace-app.ts";
+import { setAppStatus } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
+import { openWorkspace, setAppRibbon } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
+import { icon, type IconName } from "@klaus-liebler/ui-shell/shell/icons.ts";
 import { fetchRegisters, healthProblems, regValue, type RegisterValues } from "../../core/registers.ts";
 import { Poller, pollingGroup } from "../../core/poller.ts";
-import { cString, clock, formatUptime } from "@fiab/ui-shell/ui/format.ts";
+import { cString, clock, formatUptime } from "@klaus-liebler/ui-shell/ui/format.ts";
 import { fetchPlcStatus, isIec, PLC_STATE_NAMES, type PlcStatus } from "../../core/plc.ts";
 import { fetchSystemInfo, RESET_CAUSE_NAMES, type SystemInfo } from "../../core/system.ts";
 import { system, tasks } from "../../../generated/ws-protocol.ts";
@@ -18,8 +18,8 @@ import { registerWsProtocolListener, sendBinary } from "../../core/ws-client.ts"
 import { logEntries, subscribeLog, type LogEntry } from "../../core/log-store.ts";
 import * as buildInfo from "../../../generated/build-info.ts";
 import { i2cBusSections } from "../../core/i2c-scan.ts";
-import { ring, sparkline } from "@fiab/ui-shell/ui/charts.ts";
-import { COLORS } from "@fiab/ui-shell/ui/colors.ts";
+import { ring, sparkline } from "@klaus-liebler/ui-shell/ui/charts.ts";
+import { COLORS } from "@klaus-liebler/ui-shell/ui/colors.ts";
 import "./overview.css";
 
 const HISTORY = 120;

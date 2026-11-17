@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Poller } from "./poller.ts";
 import { healthProblems, regBool, register, regValue, type RegisterValues } from "./registers.ts";
-import { cString, formatBytes, formatUptime } from "@fiab/ui-shell/ui/format.ts";
+import { cString, formatBytes, formatUptime } from "@klaus-liebler/ui-shell/ui/format.ts";
 
 const host = () => ({ addController: vi.fn(), removeController: vi.fn(), requestUpdate: vi.fn(), updateComplete: Promise.resolve(true) });
 

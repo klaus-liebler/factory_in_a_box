@@ -3,7 +3,7 @@
 // The simulation-only app: it starts without any device, offers only the simulator (no FCU command in the
 // ribbons of the IDE and the HMI runtime), routes by hash and runs the example project in the simulator.
 import { describe, expect, it } from "vitest";
-import { appRibbonOf } from "@fiab/ui-shell/shell/ribbon.ts";
+import { appRibbonOf } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
 import { remoteDevice, simulator } from "@fiab/plc/ide/devices.ts";
 import { build, exampleProject } from "@fiab/plc/ide/project.ts";
 import { IO_VARS } from "@fiab/plc/ide/io-list.ts";

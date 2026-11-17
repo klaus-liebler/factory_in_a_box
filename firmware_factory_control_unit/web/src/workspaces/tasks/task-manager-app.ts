@@ -5,12 +5,12 @@ import { customElement, state } from "lit/decorators.js";
 import "./task-manager.css";
 import * as WsProtocol from "../../../generated/ws-protocol.ts";
 import { registerWsProtocolListener, sendBinary, type WsProtocolListener } from "../../core/ws-client.ts";
-import { sparkline } from "@fiab/ui-shell/ui/charts.ts";
-import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
-import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
-import { openWorkspace, setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
+import { sparkline } from "@klaus-liebler/ui-shell/ui/charts.ts";
+import type { WorkspaceApp } from "@klaus-liebler/ui-shell/shell/workspace-app.ts";
+import { setAppStatus } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
+import { openWorkspace, setAppRibbon } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
 import { Poller, pollingGroup } from "../../core/poller.ts";
-import { cString, formatBytes } from "@fiab/ui-shell/ui/format.ts";
+import { cString, formatBytes } from "@klaus-liebler/ui-shell/ui/format.ts";
 
 // ~40 s of history at one answer per second: enough to see a trend.
 const CPU_HISTORY_LENGTH = 40;

@@ -15,7 +15,7 @@
   "dependencies": {
     "lit": "^3.3.2",
     "ogl": "^1.0.11",
-    "@fiab/ui-shell": "*",
+    "@klaus-liebler/ui-shell": "file:../../../npm-packages/@klaus-liebler/ui-shell",
     "@fiab/plc": "*"
   },
   "devDependencies": {

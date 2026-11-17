@@ -3,14 +3,14 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import type { system } from "../../../generated/ws-protocol.ts";
-import type { WorkspaceApp } from "@fiab/ui-shell/shell/workspace-app.ts";
+import type { WorkspaceApp } from "@klaus-liebler/ui-shell/shell/workspace-app.ts";
 import * as buildInfo from "../../../generated/build-info.ts";
 import { I2C_ADDRESS_CANDIDATES } from "../../core/i2c-device-names.ts";
 import { i2cBusSections } from "../../core/i2c-scan.ts";
-import { setAppStatus } from "@fiab/ui-shell/shell/status-bar.ts";
-import { openWorkspace, setAppRibbon } from "@fiab/ui-shell/shell/ribbon.ts";
+import { setAppStatus } from "@klaus-liebler/ui-shell/shell/status-bar.ts";
+import { openWorkspace, setAppRibbon } from "@klaus-liebler/ui-shell/shell/ribbon.ts";
 import { Poller, pollingGroup } from "../../core/poller.ts";
-import { dateTimeOfEpoch, formatUptime } from "@fiab/ui-shell/ui/format.ts";
+import { dateTimeOfEpoch, formatUptime } from "@klaus-liebler/ui-shell/ui/format.ts";
 import { fetchSystemInfo, RESET_CAUSE_NAMES, type SystemInfo } from "../../core/system.ts";
 
 function formatOctets(bytes: readonly number[]): string {

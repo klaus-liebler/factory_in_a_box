@@ -11,7 +11,7 @@ import {
 	fraction, KIND_INFO, LED_COLORS, place, PRIO_NAMES, prioColor, quantize, resize, toNumber, toValue, TrendBuffer, type HmiElement, type HmiKind, type HmiPage,
 } from "./hmi.ts";
 import { trendOf } from "./hmi-trends.ts";
-import { COLORS } from "@fiab/ui-shell/ui/colors.ts";
+import { COLORS } from "@klaus-liebler/ui-shell/ui/colors.ts";
 import "./hmi.css";
 
 /** The drag type of a new element from the palette. */

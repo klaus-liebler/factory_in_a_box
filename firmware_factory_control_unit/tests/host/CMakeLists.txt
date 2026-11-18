@@ -9,6 +9,10 @@ project(fcu_host_tests LANGUAGES C CXX)
 
 set(FCU_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
+# as the firmware (and rtoos, which sets it only in its own scope): C++26 with contracts
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(RTOS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(${FCU_DIR}/rtoos rtoos)
 
@@ -30,6 +34,7 @@ FetchContent_MakeAvailable(googletest)
 add_executable(fcu_host_tests
     missions_test.cpp
     ethercat_sii_test.cpp  # src/ethercat_sii.hpp, header only
+    ethercat_registers_test.cpp  # src/ethercat_registers.hpp, header only
     sim/sd_card_sim.cpp
     ${FCU_DIR}/src/roarm/missions.cpp)
 # stubs/ first: replaces board/fcu.hpp and system.hpp (hardware, kernel instance) for the code under test

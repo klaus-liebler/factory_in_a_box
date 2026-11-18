@@ -53,6 +53,15 @@ PDI_NAMES = {0x04: "digital I/O", 0x05: "Beckhoff SPI", 0x80: "SPI (LAN9252 comp
              0x82: "SPI, EtherCAT Direct Mapped"}
 STATION = 0x1001
 
+# register access over EtherCAT (src/ethercat_registers.hpp): request/response areas in process RAM
+RA_REQUEST, RA_RESPONSE, RA_HEADER, RA_MAX_COUNT = 0x1000, 0x1100, 8, 64
+READ_HOLDING, READ_INPUT, WRITE_HOLDING = 0x03, 0x04, 0x10  # Modbus function codes
+MODBUS_EXCEPTIONS = {1: "illegal function", 2: "illegal data address - or refused: the PLC owns the outputs",
+                     3: "illegal data value", 4: "server device failure"}
+# registers of docs/generated/modbus-registers.md used here
+WS2812_CH1_PATTERN, WS2812_CH2_PATTERN = 100, 101  # holding: strip pattern (0 off, 1 red, ...), single LED palette
+FW_VERSION_MAJOR = 7  # input: major, minor
+
 
 class MasterError(Exception):
     pass
@@ -155,7 +164,7 @@ class SimEsc:
     PDI_POLL = 0.05
 
     def __init__(self, pdi: int = 0x82):
-        self.reg = bytearray(0x1000)
+        self.reg = bytearray(0x3000)  # registers 0x0000.., process RAM 0x1000.. (8 KB)
         self.reg[0x0000:0x0009] = bytes([0xC0, 0x01, 0x53, 0x92, 8, 8, 8, 0x0F, 0xFC])  # type, rev, build, ...
         self.reg[0x0140] = pdi
         self.sii = build_sii(pdi, 0)
@@ -164,6 +173,9 @@ class SimEsc:
         self.reg[0x0502:0x0504] = struct.pack("<H", (1 << 5) | (1 << 6))  # emulation, 8-byte reads
         self.mac = b"\x00\x11\x22\x33\x44\x55"
         self.al_control_written: float | None = None  # time of the master's write the firmware has not read yet
+        self.holding, self.input = [0] * 120, [0] * 262  # the register map's sizes (holding 20..111, input 0..261)
+        self.input[FW_VERSION_MAJOR:FW_VERSION_MAJOR + 2] = [1, 0]
+        self.last_sequence = 0
 
     def u16(self, a): return struct.unpack("<H", self.reg[a:a + 2])[0]
 
@@ -201,6 +213,33 @@ class SimEsc:
         return True
 
     def firmware_cycle(self) -> None:
+        self.serve_registers()
+        self.serve_al()
+
+    def serve_registers(self) -> None:
+        """serve_registers() of the firmware (ethercat_registers.hpp: execute())."""
+        sequence = self.u16(RA_REQUEST)
+        if sequence in (0, self.last_sequence):
+            return
+        self.last_sequence = sequence
+        function, start, count = self.reg[RA_REQUEST + 2], self.u16(RA_REQUEST + 4), self.u16(RA_REQUEST + 6)
+        table = self.input if function == READ_INPUT else self.holding
+        values, exception = [], 0
+        if function not in (READ_HOLDING, READ_INPUT, WRITE_HOLDING):
+            exception = 1
+        elif not 1 <= count <= RA_MAX_COUNT:
+            exception = 3
+        elif start + count > len(table):
+            exception = 2
+        elif function == WRITE_HOLDING:
+            self.holding[start:start + count] = struct.unpack(f"<{count}H", self.reg[RA_REQUEST + 8:RA_REQUEST + 8 + 2 * count])
+        else:
+            values = table[start:start + count]
+        self.reg[RA_RESPONSE + 2:RA_RESPONSE + 8] = struct.pack("<BBHH", function, exception, start, count)
+        self.reg[RA_RESPONSE + 8:RA_RESPONSE + 8 + 2 * len(values)] = struct.pack(f"<{len(values)}H", *values)
+        self.reg[RA_RESPONSE:RA_RESPONSE + 2] = struct.pack("<H", sequence)
+
+    def serve_al(self) -> None:
         """serve_al() of the firmware, one I/O cycle after the master's write: reads AL control (the
         mailbox is free again) and acknowledges the state."""
         if self.al_control_written is None or time.monotonic() - self.al_control_written < self.PDI_POLL:
@@ -248,10 +287,13 @@ class Master:
     def __init__(self, link, verbose: bool = False):
         self.link, self.verbose, self.index = link, verbose, 0
 
-    def _do(self, cmd: int, adp: int, ado: int, data: bytes, timeout: float = 0.1) -> Datagram:
+    def _do(self, cmd: int, adp: int, ado: int, data: bytes, timeout: float = 0.25) -> Datagram:
+        # The ESC answers within microseconds, but a USB adapter and Npcap now and then hold a received
+        # frame back for 100 ms and more: several attempts with a generous timeout; a late answer to
+        # an earlier attempt has the same index and counts, one to an older datagram is skipped.
         self.index = (self.index + 1) & 0xFF
         frame = build_frame(self.link.mac, [Datagram(cmd, adp, ado, data, self.index)])
-        for _ in range(3):
+        for _ in range(5):
             reply = self.link.transact(frame, timeout)
             if reply is None:
                 continue
@@ -389,6 +431,40 @@ class Master:
         print(f"  -> {STATE_NAMES[want]}: no answer within {timeout} s (AL status still {self.r16(REG['al_status']):#06x})")
         return False
 
+    # 5. register access (src/ethercat_registers.hpp): the Modbus register map, in any AL state
+    def register_request(self, function: int, start: int, count: int, values: list[int] | None = None,
+                         timeout: float = 1.0) -> list[int]:
+        values = values or []
+        if not 1 <= count <= RA_MAX_COUNT:
+            raise MasterError(f"1..{RA_MAX_COUNT} registers per request")
+        sequence = self.r16(RA_RESPONSE) % 0xFFFF + 1  # never 0, never the last one
+        self.write(RA_REQUEST + 2, struct.pack(f"<BBHH{len(values)}H", function, 0, start, count, *values))
+        self.write(RA_REQUEST, struct.pack("<H", sequence))  # last: the trigger
+        deadline = time.monotonic() + timeout
+        while True:
+            answered, _, exception, _, _ = struct.unpack("<HBBHH", self.read(RA_RESPONSE, RA_HEADER))
+            if answered == sequence:
+                break
+            if time.monotonic() > deadline:
+                raise MasterError(f"register request: no answer within {timeout} s - does the firmware serve "
+                                  "register access (serve_registers(), EtherCAT Direct Mapped)?")
+            time.sleep(0.005)
+        if exception:
+            raise MasterError(f"register request {function:#04x} {start}..{start + count - 1}: Modbus exception "
+                              f"{exception} ({MODBUS_EXCEPTIONS.get(exception, '?')})")
+        if function in (READ_HOLDING, READ_INPUT):
+            return list(struct.unpack(f"<{count}H", self.read(RA_RESPONSE + RA_HEADER, 2 * count)))
+        return []
+
+    def read_holding(self, start: int, count: int = 1) -> list[int]:
+        return self.register_request(READ_HOLDING, start, count)
+
+    def read_input(self, start: int, count: int = 1) -> list[int]:
+        return self.register_request(READ_INPUT, start, count)
+
+    def write_holding(self, start: int, values: list[int]) -> None:
+        self.register_request(WRITE_HOLDING, start, len(values), values)
+
 
 # ---- commands ---------------------------------------------------------------------------------------
 def run(args) -> int:
@@ -403,6 +479,31 @@ def run(args) -> int:
             return 0 if m.print_sii(m.read_sii()) else 1
         if args.command == "state":
             return 0 if m.request_state(args.state) else 1
+        if args.command == "regs":
+            if args.op == "write":
+                m.write_holding(args.start, args.values)
+                print(f"holding {args.start}..{args.start + len(args.values) - 1} := {args.values}")
+            else:
+                read = m.read_input if args.op == "input" else m.read_holding
+                for i, v in enumerate(read(args.start, args.count)):
+                    print(f"{args.op} {args.start + i}: {v} ({v:#06x})")
+            return 0
+        if args.command == "blink":
+            # strip (CH1) pattern 1 = red, single LED (CH2) palette 1 = red; 0 = off
+            on = False
+            try:
+                n = 0
+                while args.cycles == 0 or n < 2 * args.cycles:
+                    on = not on
+                    m.write_holding(WS2812_CH1_PATTERN, [args.pattern if on else 0, args.colour if on else 0])
+                    print(time.strftime("%H:%M:%S"), "LEDs", "on" if on else "off", flush=True)
+                    n += 1
+                    time.sleep(args.interval)
+            except KeyboardInterrupt:
+                pass
+            m.write_holding(WS2812_CH1_PATTERN, [0, 0])
+            print("LEDs off")
+            return 0
         if args.command == "watch":
             last = None
             while True:
@@ -428,6 +529,8 @@ def run(args) -> int:
         refused = not m.request_state("boot")
         print(f"  BOOT {'refused as expected' if refused else 'accepted - the test firmware should refuse it'}")
         ok = ok and refused
+        major, minor = m.read_input(FW_VERSION_MAJOR, 2)
+        print(f"register access: firmware version {major}.{minor} (input registers {FW_VERSION_MAJOR}..{FW_VERSION_MAJOR + 1})")
         print("RESULT:", "PASS" if ok else "FAIL")
         return 0 if ok else 1
     except MasterError as e:
@@ -447,6 +550,20 @@ def main() -> int:
     st = sub.add_parser("state", help="request an AL state")
     st.add_argument("state", choices=list(STATES))
     sub.add_parser("watch", help="print DL and AL status changes (Ctrl+C ends)")
+    rg = sub.add_parser("regs", help="read/write the Modbus register map over EtherCAT (docs/generated/modbus-registers.md)")
+    rg_ops = rg.add_subparsers(dest="op", required=True)
+    for name in ("holding", "input"):
+        r = rg_ops.add_parser(name, help=f"read {name} registers")
+        r.add_argument("start", type=int)
+        r.add_argument("count", type=int, nargs="?", default=1)
+    w = rg_ops.add_parser("write", help="write holding registers")
+    w.add_argument("start", type=int)
+    w.add_argument("values", type=lambda s: int(s, 0), nargs="+")
+    bl = sub.add_parser("blink", help="RGB LEDs on/off over EtherCAT (holding 100/101; Ctrl+C ends, LEDs off)")
+    bl.add_argument("--interval", type=float, default=1.0, help="seconds per on/off phase (default 1)")
+    bl.add_argument("--cycles", type=int, default=0, help="on/off cycles, 0 = until Ctrl+C")
+    bl.add_argument("--pattern", type=int, default=1, help="strip pattern when on (1 red, 2 yellow, 3 green, 4 blue/white)")
+    bl.add_argument("--colour", type=int, default=1, help="single LED palette index when on (1 red, 2 green, 3 blue, ...)")
     sub.add_parser("test", help="end to end: scan, SII, INIT -> PRE-OP -> SAFE-OP -> OP -> INIT, BOOT refused")
     args = ap.parse_args()
     if args.list:

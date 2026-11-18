@@ -13,8 +13,11 @@
 // setup() finds the map by BYTE_TEST (87654321h at 0x064 or at 0x3064).
 #include "ethercat_test.hpp"
 
+#include <algorithm>
 #include <array>
+#include <span>
 
+#include "ethercat_registers.hpp"
 #include "ethercat_sii.hpp"
 #include "hardware.hpp"
 #include "pins.hpp"
@@ -363,6 +366,49 @@ void serve_al() noexcept {
     RTOS_LOG_INFO("ethercat: AL state %s -> %s", state_name(status), state_name(wanted));
 }
 
+// ---- register access over EtherCAT (ethercat_registers.hpp): the Modbus register map -------------
+namespace ra = register_access;
+std::uint16_t last_sequence = 0;
+std::uint32_t register_requests = 0;
+
+void esc_read_bytes(std::uint16_t address, std::span<std::uint8_t> out) noexcept {
+    for (std::size_t i = 0; i < out.size(); i += 4) {
+        const auto n = static_cast<unsigned>(std::min<std::size_t>(4, out.size() - i));
+        const std::uint32_t v = esc_read(static_cast<std::uint16_t>(address + i), n);
+        for (unsigned j = 0; j < n; ++j) out[i + j] = static_cast<std::uint8_t>(v >> (8 * j));
+    }
+}
+
+void esc_write_bytes(std::uint16_t address, std::span<const std::uint8_t> in) noexcept {
+    for (std::size_t i = 0; i < in.size(); i += 4) {
+        const auto n = static_cast<unsigned>(std::min<std::size_t>(4, in.size() - i));
+        std::uint32_t v = 0;
+        for (unsigned j = 0; j < n; ++j) v |= std::uint32_t{in[i + j]} << (8 * j);
+        esc_write(static_cast<std::uint16_t>(address + i), n, v);
+    }
+}
+
+/// One request per I/O cycle: a new sequence number at 0x1000 triggers it; the response is written
+/// with its sequence number last. Only EtherCAT Direct Mapped (process RAM by address).
+void serve_registers() noexcept {
+    if (!direct_mapped) return;
+    const auto sequence = static_cast<std::uint16_t>(esc_read(ra::request_address, 2));
+    if (sequence == 0 || sequence == last_sequence) return;
+    ra::Area request{};
+    esc_read_bytes(ra::request_address, std::span(request).first(ra::header_bytes));
+    const std::size_t values = ra::request_value_bytes(request);
+    esc_read_bytes(ra::request_address + ra::header_bytes, std::span(request).subspan(ra::header_bytes, values));
+    ra::Area response{};
+    ra::execute(request, ::registers, response);
+    esc_write_bytes(ra::response_address + 2, std::span<const std::uint8_t>(response).subspan(2, ra::response_bytes(response) - 2));
+    esc_write(ra::response_address, 2, sequence);
+    last_sequence = sequence;
+    if (register_requests++ == 0) {
+        RTOS_LOG_INFO("ethercat: first register request from the master - function 0x%02x, start %u, count %u, exception %u",
+                      response[2], ra::get16(response, 4), ra::get16(response, 6), response[3]);
+    }
+}
+
 void watch_links() noexcept {
     const auto dl = static_cast<std::uint16_t>(esc_read(dl_status, 2));
     if (dl != last_dl) {
@@ -467,9 +513,11 @@ void cycle(std::uint32_t now) noexcept {
         log_configured();
         esc_write(run_led_override, 1, run_led_off);
         scan_phys();
+        last_sequence = static_cast<std::uint16_t>(esc_read(register_access::request_address, 2));  // no stale request
         last_phy_poll = now;
     }
     serve_al();
+    serve_registers();
     watch_links();
     watch_phys(now);
 }

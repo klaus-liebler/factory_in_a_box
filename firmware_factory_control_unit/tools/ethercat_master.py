@@ -14,8 +14,8 @@ datagram by datagram, and prints every step - so a bring-up problem shows where 
   4. AL state machine: INIT -> PRE-OP -> SAFE-OP -> OP -> INIT, each acknowledged by the firmware
 
 Transport: raw Ethernet frames (EtherType 0x88A4) through Npcap and scapy. Connect a PC network
-port directly to the FCU's EtherCAT port A (port 0, "IN"; on revision 1 port B is strapped to fixed
-100 Mbit/s full duplex without auto MDI-X).
+port directly to the FCU's EtherCAT port A (port 0, "IN"); a straight cable is fine (the firmware sets
+both PHYs to autonegotiation with Auto-MDIX, also port B, which revision 1 straps to fixed 100FD).
 
   pip install scapy           (Npcap must be installed - Windows)
   python tools/ethercat_master.py --list
@@ -148,7 +148,11 @@ def list_ifaces() -> None:
 class SimEsc:
     """A simulated LAN9253 with what src/ethercat_test.cpp does behind it: EEPROM emulation from the
     same SII image, AL state requests acknowledged (BOOT refused). Checks the master's sequences
-    without hardware; it answers at once (the firmware within 50 ms)."""
+    without hardware. Like the real one, AL control (0x0120) is a mailbox (ESC configuration 0x0141
+    bit 0 = 0, DS00003421 note 8): after a write the master cannot write it again (working counter 0)
+    until the firmware has read it - and the firmware polls only every I/O cycle (50 ms)."""
+
+    PDI_POLL = 0.05
 
     def __init__(self, pdi: int = 0x82):
         self.reg = bytearray(0x1000)
@@ -159,27 +163,33 @@ class SimEsc:
         self.reg[0x0130:0x0132] = struct.pack("<H", 1)
         self.reg[0x0502:0x0504] = struct.pack("<H", (1 << 5) | (1 << 6))  # emulation, 8-byte reads
         self.mac = b"\x00\x11\x22\x33\x44\x55"
+        self.al_control_written: float | None = None  # time of the master's write the firmware has not read yet
 
     def u16(self, a): return struct.unpack("<H", self.reg[a:a + 2])[0]
 
     def transact(self, frame: bytes, timeout: float) -> bytes | None:
+        self.firmware_cycle()
         out = []
         for d in parse_frame(frame):
             data, wkc = d.data, 0
             addressed = d.cmd in (BRD, BWR) or (d.cmd in (APRD, APWR) and d.adp == 0) or \
                 (d.cmd in (FPRD, FPWR) and d.adp == self.u16(0x0010))
             if addressed:
-                wkc = 1
                 if d.cmd in (BRD, APRD, FPRD):
-                    data = bytes(self.reg[d.ado:d.ado + len(d.data)])
+                    data, wkc = bytes(self.reg[d.ado:d.ado + len(d.data)]), 1
                 else:
-                    self.write(d.ado, d.data)
+                    wkc = 1 if self.write(d.ado, d.data) else 0
             out.append(Datagram(d.cmd, (d.adp + 1) & 0xFFFF if d.cmd in (APRD, APWR) else d.adp, d.ado, data, d.index, wkc))
         reply = bytearray(build_frame(self.mac, out))
         reply[6] |= 0x02
         return bytes(reply)
 
-    def write(self, a: int, data: bytes) -> None:
+    def write(self, a: int, data: bytes) -> bool:
+        """False: not written (AL control still unread by the PDI)."""
+        if a <= 0x0120 < a + len(data):
+            if self.al_control_written is not None:
+                return False
+            self.al_control_written = time.monotonic()
         self.reg[a:a + len(data)] = data
         if a <= 0x0502 < a + len(data) and len(data) >= 2:  # EEPROM command
             cmd = (self.u16(0x0502) >> 8) & 7
@@ -188,16 +198,23 @@ class SimEsc:
                 words = [self.sii[w + i] if w + i < len(self.sii) else 0xFFFF for i in range(4)]
                 self.reg[0x0508:0x0510] = struct.pack("<4H", *words)
             self.reg[0x0502:0x0504] = struct.pack("<H", (1 << 5) | (1 << 6))  # done, not busy
-        if a <= 0x0120 < a + len(data):
-            want = self.reg[0x0120] & 0x0F
-            if want == 3:
-                self.reg[0x0130:0x0132] = struct.pack("<H", (self.reg[0x0130] & 0x0F) | 0x10)
-                self.reg[0x0134:0x0136] = struct.pack("<H", 0x0011)
-            elif want in STATE_NAMES:
-                self.reg[0x0130:0x0132] = struct.pack("<H", want)
+        return True
+
+    def firmware_cycle(self) -> None:
+        """serve_al() of the firmware, one I/O cycle after the master's write: reads AL control (the
+        mailbox is free again) and acknowledges the state."""
+        if self.al_control_written is None or time.monotonic() - self.al_control_written < self.PDI_POLL:
+            return
+        self.al_control_written = None
+        want = self.reg[0x0120] & 0x0F
+        if want == 3:
+            self.reg[0x0130:0x0132] = struct.pack("<H", (self.reg[0x0130] & 0x0F) | 0x10)
+            self.reg[0x0134:0x0136] = struct.pack("<H", 0x0011)
+        elif want in STATE_NAMES:
+            self.reg[0x0130:0x0132] = struct.pack("<H", want)
 
 
-# ---- the SII image of the firmware (same as build_sii() in src/ethercat_test.cpp) ------------------
+# ---- the SII image of the firmware (same as sii::make() in src/ethercat_sii.hpp) -------------------
 def config_crc(words: list[int]) -> int:
     crc = 0xFF
     for i in range(14):
@@ -341,16 +358,29 @@ class Master:
         return crc_ok
 
     # 4. AL state machine
+    def write_al_control(self, value: int, timeout: float = 1.0) -> None:
+        """AL control is a mailbox (Device Emulation off): working counter 0 as long as the firmware
+        has not read the previous request (it polls every 50 ms) - write again until it takes it."""
+        deadline = time.monotonic() + timeout
+        while True:
+            d = self._do(FPWR, STATION, REG["al_control"], struct.pack("<H", value))
+            if d.wkc == 1:
+                return
+            if time.monotonic() > deadline:
+                raise MasterError(f"AL control {value:#06x}: working counter {d.wkc} for {timeout} s - "
+                                  "the firmware does not read AL control (serve_al())")
+            time.sleep(0.01)
+
     def request_state(self, name: str, timeout: float = 2.0) -> bool:
         want = STATES[name]
-        self.write(REG["al_control"], struct.pack("<H", want))
+        self.write_al_control(want)
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             al = self.r16(REG["al_status"])
             if al & 0x10:
                 code = self.r16(REG["al_status_code"])
                 print(f"  -> {STATE_NAMES.get(want)}: refused, AL status {al:#06x}, code {code:#06x}")
-                self.write(REG["al_control"], struct.pack("<H", (al & 0x0F) | 0x10))  # acknowledge the error
+                self.write_al_control((al & 0x0F) | 0x10)  # acknowledge the error
                 return False
             if al & 0x0F == want:
                 print(f"  -> {STATE_NAMES[want]}: ok")

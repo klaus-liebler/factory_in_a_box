@@ -29,6 +29,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(fcu_host_tests
     missions_test.cpp
+    ethercat_sii_test.cpp  # src/ethercat_sii.hpp, header only
     sim/sd_card_sim.cpp
     ${FCU_DIR}/src/roarm/missions.cpp)
 # stubs/ first: replaces board/fcu.hpp and system.hpp (hardware, kernel instance) for the code under test

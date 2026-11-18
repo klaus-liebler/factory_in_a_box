@@ -5,7 +5,8 @@
 // - SPI by GPIO on the QUADSPI/OCTOSPI lines (READ 03h, WRITE 02h; LAN9253 DS00003421 9.2),
 //   EtherCAT core registers through ECAT_CSR_DATA/ECAT_CSR_CMD (11.13.1, PDI 0x80) or directly
 //   (EtherCAT Direct Mapped, PDI 0x82: revision 3's straps) - which one is found at the start
-// - at the start: reset released, BYTE_TEST/ID_REV/HW_CFG and the ESC's type and settings logged
+// - at the start: reset released, BYTE_TEST/ID_REV/HW_CFG logged; the ESC's type and settings once
+//   READY is set, i.e. after the reload of the emulated configuration area (no other access before)
 // - every I/O cycle: the EEPROM commands of the ESC answered from a small SII image in RAM (the
 //   board has no EEPROM: EEPROM emulation, 12.2), the AL state requests of the master acknowledged,
 //   link changes per port logged

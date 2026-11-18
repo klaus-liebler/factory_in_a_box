@@ -14,8 +14,8 @@
 #include "ethercat_test.hpp"
 
 #include <array>
-#include <cstring>
 
+#include "ethercat_sii.hpp"
 #include "hardware.hpp"
 #include "pins.hpp"
 #include "system.hpp"
@@ -164,55 +164,142 @@ constexpr std::uint16_t esc_type = 0x0000, esc_revision = 0x0001, esc_build = 0x
 constexpr std::uint16_t eeprom_busy = 1u << 15, eeprom_emulation = 1u << 5, eeprom_8_bytes = 1u << 6;
 constexpr unsigned cmd_read = 1, cmd_write = 2, cmd_reload = 4;
 
-// ---- the emulated EEPROM: the slave information interface (SII, ETG.2010) ------------------------
-// Test identity: no ETG vendor ID of our own yet - vendor 0 marks it as a lab device.
-constexpr std::uint32_t vendor_id = 0x0000'0000, product_code = 0x0000'9253, revision_no = 1;
-constexpr char device_name[] = "FCU EtherCAT test";
+// ---- PHY registers through the ESC's MII management (11.16.53-58), a link diagnosis --------------
+// PHY A at address 0 or 2 (device mode), PHY B at 1 (10.1.1): addresses 0..3 are scanned.
+constexpr std::uint16_t mii_control = 0x0510, mii_phy_address = 0x0512, mii_register = 0x0513, mii_data = 0x0514,
+                        mii_pdi_access = 0x0517;
+constexpr std::uint16_t mii_busy = 1u << 15, mii_command_error = 1u << 14, mii_read_error = 1u << 13, mii_cmd_read = 0x0100,
+                        mii_cmd_write = 0x0200;
+// PHY registers (10.2.18)
+constexpr std::uint8_t phy_basic_control = 0, phy_basic_status = 1, phy_id_msb = 2, phy_id_lsb = 3, phy_mode_control_status = 17,
+                       phy_an_advertisement = 4, phy_special_modes = 18, phy_special_control_status_ind = 27,
+                       phy_special_control_status = 31;
+constexpr std::uint16_t bmsr_link = 1u << 2, bmsr_an_complete = 1u << 5, energy_on = 1u << 1;
 
-std::array<std::uint16_t, 128> sii{};  ///< 2 Kbit; written by the master stays until the reset
-
-/// CRC-8 of the ESC configuration area (words 0..6): polynomial x^8+x^2+x+1, initial FFh.
-std::uint8_t config_crc(const std::array<std::uint16_t, 128>& w) noexcept {
-    std::uint8_t crc = 0xFF;
-    for (int i = 0; i < 14; ++i) {
-        crc ^= static_cast<std::uint8_t>(w[static_cast<std::size_t>(i / 2)] >> (8 * (i % 2)));
-        for (int b = 0; b < 8; ++b) crc = static_cast<std::uint8_t>((crc & 0x80) != 0 ? (crc << 1) ^ 0x07 : crc << 1);
+bool mii_idle() noexcept {
+    for (int i = 0; i < 1000; ++i) {
+        if ((esc_read(mii_control, 2) & mii_busy) == 0) return true;
     }
-    return crc;
+    return false;
 }
 
-/// The image: configuration area with the PDI settings the straps selected (EEPROM emulation must
-/// not change the PDI type or the SPI select polarity, 13.4), identity, a name and a general category.
-void build_sii(std::uint8_t pdi, std::uint8_t pdi_cfg) noexcept {
-    sii.fill(0);
-    sii[0] = pdi;                // PDI control (0x0140); ESC configuration (0x0141) 0: the PDI acknowledges AL states
-    sii[1] = pdi_cfg;            // PDI configuration (0x0150); SYNC/latch configuration (0x0151) 0
-    sii[7] = config_crc(sii);
-    sii[0x08] = static_cast<std::uint16_t>(vendor_id), sii[0x09] = static_cast<std::uint16_t>(vendor_id >> 16);
-    sii[0x0A] = static_cast<std::uint16_t>(product_code), sii[0x0B] = static_cast<std::uint16_t>(product_code >> 16);
-    sii[0x0C] = static_cast<std::uint16_t>(revision_no), sii[0x0D] = static_cast<std::uint16_t>(revision_no >> 16);
-    sii[0x3E] = 1;               // size: (2 Kbit / 1 Kbit) - 1
-    sii[0x3F] = 1;               // SII version
-    // category STRINGS (10): one string
-    std::size_t w = 0x40;
-    const std::size_t name_len = sizeof device_name - 1;
-    const std::size_t string_bytes = 2 + name_len;           // count, length, characters
-    const std::size_t string_words = (string_bytes + 1) / 2;
-    sii[w++] = 10;
-    sii[w++] = static_cast<std::uint16_t>(string_words);
-    std::array<std::uint8_t, 64> bytes{};
-    bytes[0] = 1;
-    bytes[1] = static_cast<std::uint8_t>(name_len);
-    std::memcpy(&bytes[2], device_name, name_len);
-    for (std::size_t i = 0; i < string_words; ++i) sii[w++] = static_cast<std::uint16_t>(bytes[2 * i] | (bytes[2 * i + 1] << 8));
-    // category GENERAL (30): group, image, order and name: string 1
-    sii[w++] = 30;
-    sii[w++] = 16;
-    sii[w] = 0x0001;             // group index 1, image index 0
-    sii[w + 1] = 0x0101;         // order index 1, name index 1
-    w += 16;
-    sii[w] = 0xFFFF;             // end
+/// One PHY register; -1: no answer (busy, invalid command, read error - no PHY at that address).
+std::int32_t mii_read(std::uint8_t phy, std::uint8_t reg) noexcept {
+    if (!mii_idle()) return -1;
+    esc_write(mii_phy_address, 1, phy);
+    esc_write(mii_register, 1, reg);
+    esc_write(mii_control, 2, mii_cmd_read);
+    if (!mii_idle()) return -1;
+    if ((esc_read(mii_control, 2) & (mii_command_error | mii_read_error)) != 0) {
+        esc_write(mii_control, 2, 0);  // command 00: clears the error bits
+        return -1;
+    }
+    return static_cast<std::int32_t>(esc_read(mii_data, 2));
 }
+
+bool mii_write(std::uint8_t phy, std::uint8_t reg, std::uint16_t value) noexcept {
+    if (!mii_idle()) return false;
+    esc_write(mii_phy_address, 1, phy);
+    esc_write(mii_register, 1, reg);
+    esc_write(mii_data, 2, value);
+    esc_write(mii_control, 2, mii_cmd_write);
+    if (!mii_idle()) return false;
+    if ((esc_read(mii_control, 2) & mii_command_error) != 0) {
+        esc_write(mii_control, 2, 0);
+        return false;
+    }
+    return true;
+}
+
+/// The PDI takes the MII management (it stays with the PDI: no master needs it for this test).
+bool mii_claim() noexcept {
+    esc_write(mii_pdi_access, 1, 1);
+    return (esc_read(mii_pdi_access, 1) & 1) != 0;
+}
+
+struct Phy {
+    std::uint8_t address;
+    std::uint16_t status;  ///< link, autonegotiation complete, ENERGYON - the last logged
+};
+std::array<Phy, 4> phys{};
+std::size_t phy_count = 0;
+std::uint32_t last_phy_poll = 0;
+
+/// Basic status twice: the link bit latches low until read (802.3 22.2.4.2.13).
+std::uint16_t phy_state(std::uint8_t address) noexcept {
+    (void)mii_read(address, phy_basic_status);
+    const std::int32_t bmsr = mii_read(address, phy_basic_status);
+    const std::int32_t mode = mii_read(address, phy_mode_control_status);
+    if (bmsr < 0 || mode < 0) return 0xFFFF;
+    return static_cast<std::uint16_t>((bmsr & (bmsr_link | bmsr_an_complete)) | ((mode & energy_on) != 0 ? 0x8000 : 0));
+}
+
+void log_phy_state(std::uint8_t address, std::uint16_t s) noexcept {
+    RTOS_LOG_INFO("ethercat: PHY %u - link %s, autonegotiation %s, %s", address, (s & bmsr_link) != 0 ? "up" : "down",
+                  (s & bmsr_an_complete) != 0 ? "complete" : "not complete",
+                  (s & 0x8000) != 0 ? "energy on the cable (link partner sends)" : "no energy on the cable");
+}
+
+/// Both ports alike, whatever the straps say: autonegotiation advertising only 100BASE-TX full
+/// duplex (EtherCAT), Auto-MDIX. On revision 1 the 100FD_B strap (ERRLED) sets PHY B to fixed
+/// 100 Mbit/s full duplex without Auto-MDIX (HW_CFG bits 24/26) - a negotiating PC adapter then
+/// gets no stable link. Through the PHY registers, since MI link detection and enhanced link
+/// detection are off (HW_CFG bit 24 description).
+void configure_phy(std::uint8_t a) noexcept {
+    (void)mii_write(a, phy_an_advertisement, 0x0101);           // 100BASE-TX full duplex, selector 802.3
+    (void)mii_write(a, phy_special_control_status_ind, 0xC000);  // AMDIXCTRL, AMDIXEN: Auto-MDIX (table 10-14)
+    (void)mii_write(a, phy_basic_control, 0x3300);               // 100 Mbit/s, autonegotiation on and restarted, full duplex
+}
+
+void scan_phys() noexcept {
+    if (!mii_claim()) {
+        RTOS_LOG_WARN("ethercat: MII management not available to the PDI (0x0510 0x%04lx, 0x0516 0x%02lx)",
+                      static_cast<unsigned long>(esc_read(mii_control, 2)), static_cast<unsigned long>(esc_read(0x0516, 1)));
+        return;
+    }
+    RTOS_LOG_INFO("ethercat: MII management 0x%04lx (PHY address offset %lu, MI link detection %s)",
+                  static_cast<unsigned long>(esc_read(mii_control, 2)), static_cast<unsigned long>((esc_read(mii_control, 2) >> 3) & 0x1F),
+                  (esc_read(mii_control, 2) & 0x4) != 0 ? "on" : "off");
+    for (std::uint8_t a = 0; a < 4; ++a) {
+        const std::int32_t id1 = mii_read(a, phy_id_msb);
+        if (id1 < 0 || id1 == 0xFFFF) continue;
+        const std::int32_t bmcr = mii_read(a, phy_basic_control);
+        RTOS_LOG_INFO("ethercat: PHY %u - ID 0x%04lx%04lx, basic control 0x%04lx (%s%s%s), status 0x%04lx", a, static_cast<unsigned long>(id1),
+                      static_cast<unsigned long>(mii_read(a, phy_id_lsb)), static_cast<unsigned long>(bmcr),
+                      (bmcr & (1 << 11)) != 0 ? "POWER DOWN, " : "", (bmcr & (1 << 14)) != 0 ? "LOOPBACK, " : "",
+                      (bmcr & (1 << 12)) != 0 ? "autonegotiation" : "fixed", static_cast<unsigned long>(mii_read(a, phy_basic_status)));
+        const std::int32_t modes = mii_read(a, phy_special_modes);
+        RTOS_LOG_INFO("ethercat: PHY %u - mode control/status 0x%04lx, special modes 0x%04lx (MODE %lu, address %lu), "
+                      "special control/status ind. 0x%04lx, special control/status 0x%04lx",
+                      a, static_cast<unsigned long>(mii_read(a, phy_mode_control_status)), static_cast<unsigned long>(modes),
+                      static_cast<unsigned long>((modes >> 5) & 7), static_cast<unsigned long>(modes & 0x1F),
+                      static_cast<unsigned long>(mii_read(a, phy_special_control_status_ind)),
+                      static_cast<unsigned long>(mii_read(a, phy_special_control_status)));
+        configure_phy(a);
+        if (phy_count < phys.size()) {
+            const auto s = phy_state(a);
+            phys[phy_count++] = Phy{a, s};
+            log_phy_state(a, s);
+        }
+    }
+    if (phy_count == 0) RTOS_LOG_WARN("ethercat: no PHY answers on the MII management (addresses 0..3)");
+}
+
+/// Once a second: link, autonegotiation and energy of the PHYs, logged on change.
+void watch_phys(std::uint32_t now) noexcept {
+    if (phy_count == 0 || now - last_phy_poll < 1000) return;
+    last_phy_poll = now;
+    for (std::size_t i = 0; i < phy_count; ++i) {
+        const auto s = phy_state(phys[i].address);
+        if (s != phys[i].status) {
+            log_phy_state(phys[i].address, s);
+            phys[i].status = s;
+        }
+    }
+}
+
+// ---- the emulated EEPROM: the slave information interface (SII, ethercat_sii.hpp) ----------------
+sii::Image image{};  ///< written by the master stays until the reset
 
 /// RUN LED off by override (11.16.23): with the RUNLED/EE_EMUL0 strap at 0 the pin is an active-high
 /// open-source output; on revision 1 it is wired straight to GND for the strap, and "off" keeps it
@@ -222,6 +309,9 @@ constexpr std::uint32_t run_led_off = 0x10;  // override enabled, code 0 (off)
 
 // ---- state -----------------------------------------------------------------------------------------
 bool present = false;
+bool ready = false;  ///< HW_CFG READY: configuration loaded; before it only the EEPROM emulation
+std::uint32_t since = 0;  ///< time of setup() (cycle's `now`), for the READY timeout
+bool ready_late_logged = false;
 std::uint16_t last_dl = 0xFFFF, last_al = 0xFFFF;
 std::uint32_t eeprom_commands = 0;
 
@@ -242,12 +332,12 @@ void serve_eeprom() noexcept {
     const unsigned cmd = (status >> 8) & 0x7;
     const std::uint32_t address = esc_read(eeprom_address, 4);  // word address
     const unsigned words = (status & eeprom_8_bytes) != 0 ? 4 : 2;
-    auto word = [](std::uint32_t a) -> std::uint32_t { return a < sii.size() ? sii[a] : 0xFFFF; };
+    auto word = [](std::uint32_t a) -> std::uint32_t { return a < image.size() ? image[a] : 0xFFFF; };
     if (cmd == cmd_read || cmd == cmd_reload) {
         esc_write(eeprom_data, 4, word(address) | (word(address + 1) << 16));
         if (words == 4) esc_write(eeprom_data + 4, 4, word(address + 2) | (word(address + 3) << 16));
     } else if (cmd == cmd_write) {
-        if (address < sii.size()) sii[address] = static_cast<std::uint16_t>(esc_read(eeprom_data, 2));
+        if (address < image.size()) image[address] = static_cast<std::uint16_t>(esc_read(eeprom_data, 2));
     }
     esc_write(eeprom_status, 2, cmd << 8);  // acknowledge: the command executed (note 24)
     if (eeprom_commands++ < 40 || cmd != cmd_read) {
@@ -320,36 +410,68 @@ void setup() noexcept {
                                                         : "LAN9252 compatible (core registers through ECAT_CSR_CMD)");
         const std::uint32_t cfg = read32(hw_cfg);
         RTOS_LOG_INFO("ethercat: LAN9253 on SPI - ID_REV 0x%08lx, HW_CFG 0x%08lx (%s)", static_cast<unsigned long>(read32(id_rev)),
-                      static_cast<unsigned long>(cfg), (cfg & hw_cfg_ready) != 0 ? "ready" : "not ready");
-        RTOS_LOG_INFO("ethercat: ESC type 0x%02lx rev %lu build 0x%04lx, %lu FMMUs, %lu SyncManagers, %lu KB RAM, ports 0x%02lx, features 0x%04lx",
-                      static_cast<unsigned long>(esc_read(esc_type, 1)), static_cast<unsigned long>(esc_read(esc_revision, 1)),
-                      static_cast<unsigned long>(esc_read(esc_build, 2)), static_cast<unsigned long>(esc_read(esc_fmmus, 1)),
-                      static_cast<unsigned long>(esc_read(esc_syncmanagers, 1)), static_cast<unsigned long>(esc_read(esc_ram_kb, 1)),
-                      static_cast<unsigned long>(esc_read(esc_ports, 1)), static_cast<unsigned long>(esc_read(esc_features, 2)));
-        const auto pdi = static_cast<std::uint8_t>(esc_read(pdi_control, 1));
-        const auto pdi_cfg = static_cast<std::uint8_t>(esc_read(pdi_config, 1));
+                      static_cast<unsigned long>(cfg), (cfg & hw_cfg_ready) != 0 ? "ready" : "not ready, waiting for the EEPROM reload");
+        // the PDI type of the straps, not read from 0x0140: see ethercat_sii.hpp
+        image = sii::make(direct_mapped);
         const auto eeprom = static_cast<std::uint16_t>(esc_read(eeprom_status, 2));
-        RTOS_LOG_INFO("ethercat: PDI control 0x%02x (0x80: SPI), ESC config 0x%02lx, PDI config 0x%02x, SYNC/latch 0x%02lx, ext PDI 0x%04lx",
-                      pdi, static_cast<unsigned long>(esc_read(esc_config, 1)), pdi_cfg,
-                      static_cast<unsigned long>(esc_read(sync_latch_config, 1)), static_cast<unsigned long>(esc_read(ext_pdi_config, 2)));
         RTOS_LOG_INFO("ethercat: EEPROM status 0x%04x - %s, %s, %u bytes per read", eeprom,
                       (eeprom & eeprom_emulation) != 0 ? "emulated by the PDI" : "I2C EEPROM",
                       (eeprom & (1u << 12)) != 0 ? "not loaded" : "loaded", (eeprom & eeprom_8_bytes) != 0 ? 8u : 4u);
-        build_sii(pdi, pdi_cfg);
-        esc_write(run_led_override, 1, run_led_off);
         present = true;
     }
 }
 
-void cycle(std::uint32_t) noexcept {
+namespace {
+
+/// Once READY is set (the configuration area is loaded): the ESC's identity and settings - reads of
+/// these registers before READY are forbidden (DS00003421 6.x, HW_CFG), writes are lost.
+void log_configured() noexcept {
+    RTOS_LOG_INFO("ethercat: ready - HW_CFG 0x%08lx", static_cast<unsigned long>(read32(hw_cfg)));
+    RTOS_LOG_INFO("ethercat: ESC type 0x%02lx rev %lu build 0x%04lx, %lu FMMUs, %lu SyncManagers, %lu KB RAM, ports 0x%02lx, features 0x%04lx",
+                  static_cast<unsigned long>(esc_read(esc_type, 1)), static_cast<unsigned long>(esc_read(esc_revision, 1)),
+                  static_cast<unsigned long>(esc_read(esc_build, 2)), static_cast<unsigned long>(esc_read(esc_fmmus, 1)),
+                  static_cast<unsigned long>(esc_read(esc_syncmanagers, 1)), static_cast<unsigned long>(esc_read(esc_ram_kb, 1)),
+                  static_cast<unsigned long>(esc_read(esc_ports, 1)), static_cast<unsigned long>(esc_read(esc_features, 2)));
+    const auto eeprom = static_cast<std::uint16_t>(esc_read(eeprom_status, 2));
+    RTOS_LOG_INFO("ethercat: PDI control 0x%02lx (0x80/0x82: SPI), ESC config 0x%02lx, PDI config 0x%02lx, SYNC/latch 0x%02lx, ext PDI 0x%04lx, EEPROM %s%s",
+                  static_cast<unsigned long>(esc_read(pdi_control, 1)), static_cast<unsigned long>(esc_read(esc_config, 1)),
+                  static_cast<unsigned long>(esc_read(pdi_config, 1)), static_cast<unsigned long>(esc_read(sync_latch_config, 1)),
+                  static_cast<unsigned long>(esc_read(ext_pdi_config, 2)), (eeprom & (1u << 12)) != 0 ? "not loaded" : "loaded",
+                  (eeprom & (1u << 11)) != 0 ? ", checksum error" : "");
+}
+
+}  // namespace
+
+void cycle(std::uint32_t now) noexcept {
     if (!present || !csr_ok) return;
+    if (since == 0) since = now == 0 ? 1 : now;
     for (int i = 0; i < 8; ++i) {  // a master reads the SII in bursts: several commands per cycle
         const auto status = static_cast<std::uint16_t>(esc_read(eeprom_status, 2));
         if ((status & eeprom_busy) == 0) break;
         serve_eeprom();
     }
+    if (!ready) {
+        const std::uint32_t cfg = read32(hw_cfg);
+        if ((cfg & hw_cfg_ready) == 0) {
+            if (!ready_late_logged && now - since > 2000) {
+                const auto eeprom = static_cast<std::uint16_t>(esc_read(eeprom_status, 2));
+                RTOS_LOG_WARN("ethercat: still not ready after 2 s - HW_CFG 0x%08lx, EEPROM status 0x%04x (%s%s), %lu EEPROM commands served",
+                              static_cast<unsigned long>(cfg), eeprom, (eeprom & (1u << 12)) != 0 ? "not loaded" : "loaded",
+                              (eeprom & (1u << 11)) != 0 ? ", checksum error" : "", static_cast<unsigned long>(eeprom_commands));
+                ready_late_logged = true;
+            }
+            return;  // before READY: no other register (DS00003421 HW_CFG note)
+        }
+        ready = true;
+        wait_ns(1500);  // 13.4: the new configuration takes effect 1.5 us after the last emulation write
+        log_configured();
+        esc_write(run_led_override, 1, run_led_off);
+        scan_phys();
+        last_phy_poll = now;
+    }
     serve_al();
     watch_links();
+    watch_phys(now);
 }
 
 }  // namespace fcu::ethercat

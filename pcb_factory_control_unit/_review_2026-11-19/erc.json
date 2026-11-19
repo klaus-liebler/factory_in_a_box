@@ -1,0 +1,390 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-11-19T10:57:16",
+    "ignored_checks": [
+        {
+            "description": "Global label only appears once in the schematic",
+            "key": "single_global_label"
+        },
+        {
+            "description": "Four connection points are joined together",
+            "key": "four_way_junction"
+        },
+        {
+            "description": "SPICE model issue",
+            "key": "simulation_model_issue"
+        },
+        {
+            "description": "Assigned footprint doesn't match footprint filters",
+            "key": "footprint_filter"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.2",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/9c57264a-0988-4c94-95c0-340e4ca73bd5",
+            "violations": [
+                {
+                    "description": "Unverbundenes Verbindungsende",
+                    "items": [
+                        {
+                            "description": "Horizontale Verbindung, Länge 0,0381 mm",
+                            "pos": {
+                                "x": 1.5494,
+                                "y": 0.9652
+                            },
+                            "uuid": "0afcae68-4f45-45ec-9750-653de4f003e3"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "unconnected_wire_endpoint"
+                },
+                {
+                    "comment": "",
+                    "description": "Conflict problem between pins",
+                    "excluded": true,
+                    "items": [],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "comment": "",
+                    "description": "Conflict problem between pins",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Symbol U17 Pin 48 [VCAP, Power output, Line]",
+                            "pos": {
+                                "x": 0.9525,
+                                "y": 1.4605
+                            },
+                            "uuid": "0f204f55-814b-4245-a22a-028375c88f40"
+                        },
+                        {
+                            "description": "Symbol U17 Pin 73 [VCAP, Power output, Line]",
+                            "pos": {
+                                "x": 0.9525,
+                                "y": 1.4859
+                            },
+                            "uuid": "38ccd09b-5753-4376-9142-de6448c8b8ca"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "pin_to_pin"
+                },
+                {
+                    "comment": "",
+                    "description": "Symbol doesn't match copy in library",
+                    "excluded": true,
+                    "items": [],
+                    "severity": "warning",
+                    "type": "lib_symbol_mismatch"
+                },
+                {
+                    "comment": "",
+                    "description": "Input Power pin not driven by any Output Power pins",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Symbol U17 Pin 19 [VSSA, Power input, Line]",
+                            "pos": {
+                                "x": 1.2065,
+                                "y": 1.7145
+                            },
+                            "uuid": "be4d74ff-53b9-4557-86a0-a4803d8792ed"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "power_pin_not_driven"
+                },
+                {
+                    "comment": "",
+                    "description": "More than one name given to this bus or net",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Symbol #PWR031 Pin 1 [Power input, Line]",
+                            "pos": {
+                                "x": 2.1844,
+                                "y": 0.4191
+                            },
+                            "uuid": "68f6d3c4-6449-48e3-9386-07a59daa5408"
+                        },
+                        {
+                            "description": "Symbol U2 Pin 9 [PAD, Power input, Line]",
+                            "pos": {
+                                "x": 2.159,
+                                "y": 0.4191
+                            },
+                            "uuid": "40f3aec1-6ad6-4ec6-8b0d-8036ece631cf"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "multiple_net_names"
+                },
+                {
+                    "comment": "",
+                    "description": "More than one name given to this bus or net",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Symbol #PWR011 Pin 1 [Power input, Line]",
+                            "pos": {
+                                "x": 0.5588,
+                                "y": 0.6985
+                            },
+                            "uuid": "6b7826cd-f470-4ad1-8d8f-a02980039bc4"
+                        },
+                        {
+                            "description": "Symbol U2 Pin 9 [PAD, Power input, Line]",
+                            "pos": {
+                                "x": 2.159,
+                                "y": 0.4191
+                            },
+                            "uuid": "40f3aec1-6ad6-4ec6-8b0d-8036ece631cf"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "multiple_net_names"
+                },
+                {
+                    "comment": "",
+                    "description": "Label not connected",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Globaler Bezeichner \"E-\"",
+                            "pos": {
+                                "x": 0.2159,
+                                "y": 0.4572
+                            },
+                            "uuid": "1851fe84-7519-49ca-9fcb-d9b06b40a82e"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "label_dangling"
+                },
+                {
+                    "comment": "",
+                    "description": "Symbol doesn't match copy in library",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Symbol U13 [LAN9253_SPI_GPIO_V2]",
+                            "pos": {
+                                "x": 0.9271,
+                                "y": 0.6604
+                            },
+                            "uuid": "5849de1a-6c00-4c2e-a1a9-4533979814d3"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_mismatch"
+                },
+                {
+                    "comment": "",
+                    "description": "Symbol doesn't match copy in library",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Symbol U13 [LAN9253_SPI_GPIO_V2]",
+                            "pos": {
+                                "x": 1.2827,
+                                "y": 1.1176
+                            },
+                            "uuid": "c6645980-9c9a-4d0b-88c5-aab753cb1c96"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_mismatch"
+                }
+            ]
+        },
+        {
+            "path": "/eth/",
+            "uuid_path": "/9c57264a-0988-4c94-95c0-340e4ca73bd5/53d03dea-1884-4b59-a05f-593b0c1ac681",
+            "violations": []
+        },
+        {
+            "path": "/psu/",
+            "uuid_path": "/9c57264a-0988-4c94-95c0-340e4ca73bd5/ed06edb5-031f-42a3-ad58-55ca73c66f14",
+            "violations": [
+                {
+                    "comment": "",
+                    "description": "More than one name given to this bus or net",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Symbol #PWR062 Pin 1 [Power input, Line]",
+                            "pos": {
+                                "x": 1.3081,
+                                "y": 0.4064
+                            },
+                            "uuid": "2a74abf8-32f9-43a0-be88-ab1177f30a42"
+                        },
+                        {
+                            "description": "Symbol U15 Versteckter Pin 12 [PGND, Power input, Line]",
+                            "pos": {
+                                "x": 2.032,
+                                "y": 1.5367
+                            },
+                            "uuid": "f779a6f1-438b-4993-a0d1-41698764d20d"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "multiple_net_names"
+                }
+            ]
+        },
+        {
+            "path": "/conn/",
+            "uuid_path": "/9c57264a-0988-4c94-95c0-340e4ca73bd5/57bd821a-1824-4d33-9527-59477d510592",
+            "violations": [
+                {
+                    "description": "Input Power pin not driven by any Output Power pins",
+                    "items": [
+                        {
+                            "description": "Symbol U6 Pin 1 [VCC1, Power input, Line]",
+                            "pos": {
+                                "x": 1.6129,
+                                "y": 1.016
+                            },
+                            "uuid": "bf83456e-febd-4f55-a778-8616323765bf"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "power_pin_not_driven"
+                },
+                {
+                    "description": "Input Power pin not driven by any Output Power pins",
+                    "items": [
+                        {
+                            "description": "Symbol U6 Pin 4 [GND1, Power input, Line]",
+                            "pos": {
+                                "x": 1.6129,
+                                "y": 1.0922
+                            },
+                            "uuid": "2bdbff8b-abee-4934-8d39-25c8a8b3581f"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "power_pin_not_driven"
+                },
+                {
+                    "description": "Pin GND1 nicht mit dem Erdungsnetz verbunden",
+                    "items": [
+                        {
+                            "description": "Symbol U6 Pin 4 [GND1, Power input, Line]",
+                            "pos": {
+                                "x": 1.6129,
+                                "y": 1.0922
+                            },
+                            "uuid": "2bdbff8b-abee-4934-8d39-25c8a8b3581f"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "ground_pin_not_ground"
+                }
+            ]
+        },
+        {
+            "path": "/actors/",
+            "uuid_path": "/9c57264a-0988-4c94-95c0-340e4ca73bd5/3e57726e-e70f-48f8-bf8b-be1a55c6b2d5",
+            "violations": [
+                {
+                    "comment": "",
+                    "description": "More than one name given to this bus or net",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Globaler Bezeichner \"STEPPER_RX\"",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.3048
+                            },
+                            "uuid": "cd1197a7-ea6a-44b0-94f7-6a81a25b71cd"
+                        },
+                        {
+                            "description": "Globaler Bezeichner \"STEPPER_UART\"",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.3429
+                            },
+                            "uuid": "17868aa7-b824-4668-88f6-92fd9a2d0f90"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "multiple_net_names"
+                },
+                {
+                    "comment": "",
+                    "description": "More than one name given to this bus or net",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Globaler Bezeichner \"STEPPER_RX\"",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.3048
+                            },
+                            "uuid": "cd1197a7-ea6a-44b0-94f7-6a81a25b71cd"
+                        },
+                        {
+                            "description": "Globaler Bezeichner \"STEPPER_UART\"",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.3429
+                            },
+                            "uuid": "17868aa7-b824-4668-88f6-92fd9a2d0f90"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "multiple_net_names"
+                },
+                {
+                    "comment": "",
+                    "description": "More than one name given to this bus or net",
+                    "excluded": true,
+                    "items": [
+                        {
+                            "description": "Globaler Bezeichner \"STEPPER_RX\"",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.3048
+                            },
+                            "uuid": "cd1197a7-ea6a-44b0-94f7-6a81a25b71cd"
+                        },
+                        {
+                            "description": "Globaler Bezeichner \"STEPPER_UART\"",
+                            "pos": {
+                                "x": 1.2573,
+                                "y": 0.3429
+                            },
+                            "uuid": "4a24b756-444e-40bd-9828-12f11274ce5a"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "multiple_net_names"
+                }
+            ]
+        },
+        {
+            "path": "/sensors/",
+            "uuid_path": "/9c57264a-0988-4c94-95c0-340e4ca73bd5/a880958f-925d-472a-a47d-531b373edb44",
+            "violations": []
+        },
+        {
+            "path": "/EtherCAT/",
+            "uuid_path": "/9c57264a-0988-4c94-95c0-340e4ca73bd5/f2fdf4e4-4878-452d-8edd-af4cbe9f58a2",
+            "violations": []
+        }
+    ],
+    "source": "pcb_factory_control_unit.kicad_sch"
+}

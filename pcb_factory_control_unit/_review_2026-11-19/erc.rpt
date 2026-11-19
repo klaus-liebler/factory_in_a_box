@@ -1,0 +1,84 @@
+ERC report (2026-11-19T10:57:19, Encoding UTF8)
+Report includes: Errors, Warnings, Exclusions
+
+***** Sheet /
+[unconnected_wire_endpoint]: Unverbundenes Verbindungsende
+    ; warning
+    @(154.94 mm, 96.52 mm): Horizontal Wire, length 3.81 mm
+[pin_to_pin]: Conflict problem between pins
+    ; warning (excluded)
+[pin_to_pin]: Conflict problem between pins
+    ; warning (excluded)
+    @(95.25 mm, 146.05 mm): Symbol U17 Pin 48 [VCAP, Power output, Line]
+    @(95.25 mm, 148.59 mm): Symbol U17 Pin 73 [VCAP, Power output, Line]
+[lib_symbol_mismatch]: Symbol doesn't match copy in library
+    ; warning (excluded)
+[power_pin_not_driven]: Input Power pin not driven by any Output Power pins
+    ; error (excluded)
+    @(120.65 mm, 171.45 mm): Symbol U17 Pin 19 [VSSA, Power input, Line]
+[multiple_net_names]: More than one name given to this bus or net
+    ; warning (excluded)
+    @(218.44 mm, 41.91 mm): Symbol #PWR031 Pin 1 [Power input, Line]
+    @(215.90 mm, 41.91 mm): Symbol U2 Pin 9 [PAD, Power input, Line]
+[multiple_net_names]: More than one name given to this bus or net
+    ; warning (excluded)
+    @(55.88 mm, 69.85 mm): Symbol #PWR011 Pin 1 [Power input, Line]
+    @(215.90 mm, 41.91 mm): Symbol U2 Pin 9 [PAD, Power input, Line]
+[label_dangling]: Label not connected
+    ; error (excluded)
+    @(21.59 mm, 45.72 mm): Global Label 'E-'
+[lib_symbol_mismatch]: Symbol doesn't match copy in library
+    ; warning (excluded)
+    @(92.71 mm, 66.04 mm): Symbol U13 [LAN9253_SPI_GPIO_V2]
+[lib_symbol_mismatch]: Symbol doesn't match copy in library
+    ; warning (excluded)
+    @(128.27 mm, 111.76 mm): Symbol U13 [LAN9253_SPI_GPIO_V2]
+
+***** Sheet /eth/
+
+***** Sheet /psu/
+[multiple_net_names]: GND und PGND sind jeweils mit dem gleichen Teil verbunden. GND wird in der Netzliste benutzt
+    ; warning
+    @(130.81 mm, 40.64 mm): Symbol #PWR062 Pin 1 [Power input, Line]
+    @(203.20 mm, 153.67 mm): Symbol U15 Hidden pin 13 [PGND, Power input, Line]
+[multiple_net_names]: More than one name given to this bus or net
+    ; warning (excluded)
+    @(130.81 mm, 40.64 mm): Symbol #PWR062 Pin 1 [Power input, Line]
+    @(203.20 mm, 153.67 mm): Symbol U15 Hidden pin 12 [PGND, Power input, Line]
+
+***** Sheet /conn/
+[power_pin_not_driven]: Input Power pin not driven by any Output Power pins
+    ; error
+    @(161.29 mm, 101.60 mm): Symbol U6 Pin 1 [VCC1, Power input, Line]
+[power_pin_not_driven]: Input Power pin not driven by any Output Power pins
+    ; error
+    @(161.29 mm, 109.22 mm): Symbol U6 Pin 4 [GND1, Power input, Line]
+[ground_pin_not_ground]: Pin GND1 nicht mit dem Erdungsnetz verbunden
+    ; warning
+    @(161.29 mm, 109.22 mm): Symbol U6 Pin 4 [GND1, Power input, Line]
+
+***** Sheet /actors/
+[multiple_net_names]: More than one name given to this bus or net
+    ; warning (excluded)
+    @(111.76 mm, 30.48 mm): Global Label 'STEPPER_RX'
+    @(111.76 mm, 34.29 mm): Global Label 'STEPPER_UART'
+[multiple_net_names]: More than one name given to this bus or net
+    ; warning (excluded)
+    @(111.76 mm, 30.48 mm): Global Label 'STEPPER_RX'
+    @(111.76 mm, 34.29 mm): Global Label 'STEPPER_UART'
+[multiple_net_names]: More than one name given to this bus or net
+    ; warning (excluded)
+    @(111.76 mm, 30.48 mm): Global Label 'STEPPER_RX'
+    @(125.73 mm, 34.29 mm): Global Label 'STEPPER_UART'
+
+***** Sheet /sensors/
+
+***** Sheet /EtherCAT/
+
+ ** ERC messages: 18  Errors 4  Warnings 14
+
+ ** Ignored checks:
+    - Global label only appears once in the schematic
+    - Four connection points are joined together
+    - SPICE model issue
+    - Assigned footprint doesn't match footprint filters

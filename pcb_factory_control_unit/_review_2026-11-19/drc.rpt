@@ -1,0 +1,97 @@
+** Drc report for pcb_factory_control_unit.kicad_pcb **
+** Created on 2026-11-19T10:57:29 **
+** Report includes: Errors, Warnings, Exclusions **
+
+** Found 17 DRC violations **
+[clearance]: Freiraum-Verstoß ( Freiraum 0,1800 mm; tatsächlich 0,1400 mm)
+    Local override; error (excluded)
+    @(123.3300 mm, 78.2400 mm): Pad 3 [GND] of Q6 on F.Cu
+    @(123.9700 mm, 78.2400 mm): Pad 4 [Net-(Q6-G)] of Q6 on F.Cu
+[clearance]: Freiraum-Verstoß ( Freiraum 0,1800 mm; tatsächlich 0,1400 mm)
+    Local override; error (excluded)
+    @(78.7075 mm, 125.7725 mm): Pad 3 [/psu/DC_IN] of Q1 on F.Cu
+    @(78.7075 mm, 125.1325 mm): Pad 4 [Net-(Q1-G)] of Q1 on F.Cu
+[clearance]: Freiraum-Verstoß ( Freiraum 0,1800 mm; tatsächlich 0,1400 mm)
+    Local override; error (excluded)
+    @(87.3300 mm, 80.3250 mm): Pad 3 [GND] of Q4 on F.Cu
+    @(87.9700 mm, 80.3250 mm): Pad 4 [Net-(Q4-G)] of Q4 on F.Cu
+[clearance]: Freiraum-Verstoß ( Freiraum 0,1800 mm; tatsächlich 0,1400 mm)
+    Local override; error (excluded)
+    @(95.8300 mm, 80.3400 mm): Pad 3 [GND] of Q5 on F.Cu
+    @(96.4700 mm, 80.3400 mm): Pad 4 [Net-(Q5-G)] of Q5 on F.Cu
+[clearance]: Freiraum-Verstoß ( Freiraum 0,1800 mm; tatsächlich 0,1400 mm)
+    Local override; error (excluded)
+    @(102.9300 mm, 80.3250 mm): Pad 3 [GND] of Q10 on F.Cu
+    @(103.5700 mm, 80.3250 mm): Pad 4 [Net-(Q10-G)] of Q10 on F.Cu
+[clearance]: Freiraum-Verstoß ( Freiraum 0,1800 mm; tatsächlich 0,1400 mm)
+    Local override; error (excluded)
+    @(116.5300 mm, 78.1250 mm): Pad 3 [GND] of Q7 on F.Cu
+    @(117.1700 mm, 78.1250 mm): Pad 4 [Net-(Q7-G)] of Q7 on F.Cu
+[clearance]: Freiraum-Verstoß ( Freiraum 0,1800 mm; tatsächlich 0,1400 mm)
+    Local override; error (excluded)
+    @(109.7300 mm, 78.1250 mm): Pad 3 [GND] of Q8 on F.Cu
+    @(110.3700 mm, 78.1250 mm): Pad 4 [Net-(Q8-G)] of Q8 on F.Cu
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(98.4300 mm, 105.5300 mm): PTH pad 17 [GND] of U15
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(98.4300 mm, 106.7100 mm): PTH pad 17 [GND] of U15
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(181.2875 mm, 90.5000 mm): PTH pad 25 [GND] of U3
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(181.2875 mm, 92.5000 mm): PTH pad 25 [GND] of U3
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(183.2875 mm, 90.5000 mm): PTH pad 25 [GND] of U3
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(183.2875 mm, 92.5000 mm): PTH pad 25 [GND] of U3
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(77.4000 mm, 122.3000 mm): PTH pad 25 [GND] of U14
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(79.6000 mm, 122.3000 mm): PTH pad 25 [GND] of U14
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(77.4000 mm, 120.1000 mm): PTH pad 25 [GND] of U14
+[starved_thermal]: Verbindung der Wärmefalle zur Zone unvollständig (Lage F.Cu; Zone min. Steganzahl 2; tatsächlich 1)
+    Local override; error (excluded)
+    @(45.0648 mm, 52.6750 mm): Zone [GND] on F.Cu, B.Cu and 2 more, priority 0
+    @(79.6000 mm, 120.1000 mm): PTH pad 25 [GND] of U14
+
+** Found 0 unconnected pads **
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Board edge clearance violation
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - Silkscreen clearance
+    - Silkscreen clipped by solder mask
+    - Silkscreen clipped by board edge
+    - Text height out of range
+    - Text thickness out of range
+    - Mirrored text on front layer
+    - Non-Mirrored text on back layer
+    - PTH inside courtyard
+    - NPTH inside courtyard
+    - Footprint component type doesn't match footprint pads
+    - Footprint doesn't match copy in library
+
+** End of Report **

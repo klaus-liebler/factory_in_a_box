@@ -46,6 +46,29 @@ export function alCodeText(code: number): string {
 	return `${hex} ${AL_CODES[code] ?? "unbekannt"}`;
 }
 
+const SDO_ABORTS: Record<number, string> = {
+	0x05030000: "Toggle-Bit nicht gewechselt",
+	0x05040001: "Kommando ungültig/nicht unterstützt",
+	0x06010000: "Zugriff nicht unterstützt",
+	0x06010001: "nur schreibbar",
+	0x06010002: "nur lesbar",
+	0x06020000: "Objekt existiert nicht",
+	0x06070010: "Datentyp-Länge passt nicht",
+	0x06070012: "zu lang",
+	0x06070013: "zu kurz",
+	0x06090011: "Subindex existiert nicht",
+	0x06090030: "Wertebereich überschritten",
+	0x08000000: "allgemeiner Fehler",
+	0x08000020: "nicht gespeichert",
+	0x08000021: "lokale Steuerung (SPS ist Steuerquelle)",
+	0x08000022: "im aktuellen Zustand nicht erlaubt",
+};
+
+/** An SDO abort code as text (ETG.1000.6 table 41), with the hex code. */
+export function sdoAbortText(code: number): string {
+	return `0x${code.toString(16).padStart(8, "0")} ${SDO_ABORTS[code] ?? "unbekannt"}`;
+}
+
 export interface DlPort {
 	link: boolean;
 	loopClosed: boolean;

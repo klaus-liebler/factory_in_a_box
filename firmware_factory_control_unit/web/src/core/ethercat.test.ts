@@ -1,6 +1,6 @@
 // The interpretation of the EtherCAT slave's raw ESC registers (ethercat.ts).
 import { describe, expect, it } from "vitest";
-import { alCodeText, alStateText, dlStatus, eepromText, fmmuKind, syncManagerKind, systemTimeText } from "./ethercat.ts";
+import { alCodeText, alStateText, dlStatus, eepromText, fmmuKind, sdoAbortText, syncManagerKind, systemTimeText } from "./ethercat.ts";
 
 describe("EtherCAT status", () => {
 	it("AL status: the state, an indicated error, unknown states", () => {
@@ -9,6 +9,7 @@ describe("EtherCAT status", () => {
 		expect(alStateText(0x05)).toBe("? (0x5)");
 		expect(alCodeText(0x001d)).toBe("0x001d ungültige Ausgangskonfiguration");
 		expect(alCodeText(0x9999)).toBe("0x9999 unbekannt");
+		expect(sdoAbortText(0x08000021)).toBe("0x08000021 lokale Steuerung (SPS ist Steuerquelle)");
 	});
 
 	it("DL status: PDI, link, loop and communication per port", () => {

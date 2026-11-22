@@ -7,7 +7,7 @@
 
 #include "device_ids.hh"
 #include "ethercat_config.hpp"
-#include "ethercat_registers.hpp"
+#include "gitconstants.hh"
 #include "hardware.hpp"
 #include "pins.hpp"
 #include "system.hpp"
@@ -85,39 +85,16 @@ struct App {
                       cmd == ec::eeprom::cmd_read ? "read" : cmd == ec::eeprom::cmd_write ? "write" : "reload",
                       static_cast<unsigned long>(word));
     }
-    static std::uint16_t outputs_size() noexcept { return 0; }
-    static std::uint16_t inputs_size() noexcept { return 0; }
 };
 App app;
 
 constexpr std::uint32_t serial = DEVICE_CHIP_UID_W0 ^ DEVICE_CHIP_UID_W1 ^ DEVICE_CHIP_UID_W2;
-constinit const auto sii = sii_image(board::revision, serial);
-ec::Slave<Esc, App, sii_words> slave{esc, sii, layout, app};
-
-// ---- register access over EtherCAT (ethercat_registers.hpp, until CoE replaces it) ---------------------
-namespace ra = register_access;
-std::uint16_t last_sequence = 0;
-std::uint32_t register_requests = 0;
-
-/// One request: a new sequence number at 0x1000 triggers it; the response is written with its
-/// sequence number last.
-void serve_registers() noexcept {
-    const std::uint16_t sequence = ec::read16(esc, ra::request_address);
-    if (sequence == 0 || sequence == last_sequence) return;
-    ra::Area request{};
-    esc.read(ra::request_address, std::as_writable_bytes(std::span(request).first(ra::header_bytes)));
-    const std::size_t values = ra::request_value_bytes(request);
-    esc.read(ra::request_address + ra::header_bytes, std::as_writable_bytes(std::span(request).subspan(ra::header_bytes, values)));
-    ra::Area response{};
-    ra::execute(request, ::registers, response);
-    esc.write(ra::response_address + 2, std::as_bytes(std::span<const std::uint8_t>(response).subspan(2, ra::response_bytes(response) - 2)));
-    ec::write16(esc, ra::response_address, sequence);
-    last_sequence = sequence;
-    if (register_requests++ == 0) {
-        RTOS_LOG_INFO("ethercat: first register request - function 0x%02x, start %u, count %u, exception %u", response[2],
-                      ra::get16(response, 4), ra::get16(response, 6), response[3]);
-    }
-}
+constinit const auto sii = sii_image(serial);
+constexpr std::string_view software_version = git::VERSION;
+/// The object dictionary: standard objects + the register map (CoE reads and writes go through the
+/// register bank like Modbus: the PLC's write filter and the write hook apply).
+using Od = Dictionary<board::revision, serial, &software_version>;
+ec::Slave<Esc, App, sii_words> slave{esc, sii, layout, Od::objects, ::registers, app};
 
 // ---- status -------------------------------------------------------------------------------------------
 Status snapshot{};
@@ -138,6 +115,9 @@ void take_status(bool ready) noexcept {
         s.phy_count = esc.phy_states(s.phys);
     }
     s.counters = slave.counters();
+    s.coe = slave.coe_counters();
+    s.outputs_bytes = slave.coe().process_data_bytes(false);
+    s.inputs_bytes = slave.coe().process_data_bytes(true);
     {
         [[maybe_unused]] const Kernel::Lock lock;
         snapshot = s;
@@ -181,7 +161,6 @@ void on_ready() noexcept {
         esc.enable_irq(ec::al_event::al_control | ec::al_event::eeprom | ec::al_event::watchdog | ec::al_event::sm(0) |
                        ec::al_event::sm(1) | ec::al_event::sm(2) | ec::al_event::sm(3));
     }
-    last_sequence = ec::read16(esc, register_access::request_address);  // no stale request
 }
 
 // ---- the thread ------------------------------------------------------------------------------------------
@@ -220,7 +199,6 @@ void ecat_main(void*) {
             on_ready();
         }
         slave.poll(ready);
-        if (ready) serve_registers();
         const rtos::Tick now = kernel.now();
         if (!ready && !late_logged && now - since > 2000) {
             late_logged = true;

@@ -89,6 +89,19 @@ public class StatusResponse
 	public ushort lastRefusedCode;
 	public byte lastRefusedFrom;
 	public byte lastRefusedTo;
+	public uint mailboxRequests;
+	public uint mailboxResponses;
+	public uint mailboxErrors;      // mailbox error replies (unknown protocol, bad header)
+	public uint mailboxRepeats;     // repeat requests of the master (a lost response)
+	public uint sdoUploads;
+	public uint sdoDownloads;
+	public uint sdoAborts;
+	public uint sdoInfoRequests;
+	public uint lastAbortCode;
+	public ushort lastAbortIndex;
+	public byte lastAbortSubindex;
+	public ushort outputsBytes;     // RxPDO bytes of the assignment (SM2)
+	public ushort inputsBytes;      // TxPDO bytes (SM3)
 	[BinaryMaxItemCount(2)] public EcatPort[] ports;
 	[BinaryMaxItemCount(4)] public EcatSyncManager[] syncManagers;
 	[BinaryMaxItemCount(3)] public EcatFmmu[] fmmus;

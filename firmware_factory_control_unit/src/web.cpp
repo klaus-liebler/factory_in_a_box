@@ -174,6 +174,11 @@ void ethercat_status(Responder& reply, const ws::ethercat::StatusRequest::Payloa
                    .eepromStatus = d.eeprom_status, .systemTimeNs = d.system_time_ns, .eepromReads = c.eeprom_reads,
                    .eepromWrites = c.eeprom_writes, .alTransitions = c.al_transitions, .alRefused = c.al_refused,
                    .lastRefusedCode = c.last_refused_code, .lastRefusedFrom = c.last_refused_from, .lastRefusedTo = c.last_refused_to,
+                   .mailboxRequests = c.mailbox_requests, .mailboxResponses = c.mailbox_responses, .mailboxErrors = c.mailbox_errors,
+                   .mailboxRepeats = c.mailbox_repeats, .sdoUploads = s.coe.uploads, .sdoDownloads = s.coe.downloads,
+                   .sdoAborts = s.coe.aborts, .sdoInfoRequests = s.coe.info_requests, .lastAbortCode = s.coe.last_abort,
+                   .lastAbortIndex = s.coe.last_abort_index, .lastAbortSubindex = s.coe.last_abort_subindex,
+                   .outputsBytes = s.outputs_bytes, .inputsBytes = s.inputs_bytes,
                    .portsData = ports.data(), .portsCount = d.ports.size(), .syncManagersData = sms.data(),
                    .syncManagersCount = d.sm.size(), .fmmusData = fmmus.data(), .fmmusCount = d.fmmu.size()});
 }

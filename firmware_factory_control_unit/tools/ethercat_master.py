@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""A minimal EtherCAT master for the FCU's LAN9253 bring-up test (src/ethercat_test.cpp).
+"""A minimal EtherCAT master for the FCU's EtherCAT slave (src/ethercat.cpp, rtoos rtos::ethercat).
 
-Not a full master (no mailbox, no process data): it does on the wire what TwinCAT or SOEM do first,
-datagram by datagram, and prints every step - so a bring-up problem shows where it is:
+Not a full master: it does on the wire what TwinCAT or SOEM do, datagram by datagram, and prints every
+step - so a problem shows where it is:
 
   1. count the slaves (BRD), give the first one a station address (APWR 0x0010)
   2. ESC identity and state: type, revision, FMMUs, SyncManagers, ports, DL status (links,
@@ -11,7 +11,12 @@ datagram by datagram, and prints every step - so a bring-up problem shows where 
   3. read the slave information (SII) through the EEPROM interface (0x0500-0x050F): the FCU's
      firmware answers every command from RAM (EEPROM emulation) - checks the configuration area's
      CRC, prints identity, strings and the general category
-  4. AL state machine: INIT -> PRE-OP -> SAFE-OP -> OP -> INIT, each acknowledged by the firmware
+  4. AL state machine: INIT -> PRE-OP (mailbox SyncManagers from the SII) -> SAFE-OP (process data
+     SyncManagers sized from the PDO assignment read over CoE) -> OP -> INIT; the slave's checks
+     (a wrong SyncManager is refused with its AL status code) and BOOT refused
+  5. CoE over the mailbox: SDO upload/download (the register map's object dictionary: inputs 6000h +
+     Modbus address of the region, outputs 7000h + ..., docs/generated/modbus-registers.md), SDO
+     information (the object list with names)
 
 Transport: raw Ethernet frames (EtherType 0x88A4) through Npcap and scapy. Connect a PC network
 port directly to the FCU's EtherCAT port A (port 0, "IN"); a straight cable is fine (the firmware sets
@@ -20,11 +25,12 @@ both PHYs to autonegotiation with Auto-MDIX, also port B, which revision 1 strap
   pip install scapy           (Npcap must be installed - Windows)
   python tools/ethercat_master.py --list
   python tools/ethercat_master.py --iface "Realtek USB GbE" test
-  python tools/ethercat_master.py --iface ... scan | sii | state op | watch
-  python tools/ethercat_master.py --simulate test      (no hardware: a simulated ESC, see SimEsc)
+  python tools/ethercat_master.py --iface ... scan | sii | state op | watch | od
+  python tools/ethercat_master.py --iface ... sdo read 0x1018 2 | sdo write 0x7064 1 3
+  python tools/ethercat_master.py --iface ... blink      (WS2812 patterns over SDO, 7064h:01/02)
+  python tools/ethercat_master.py --simulate scan|sii|state   (no hardware: a simulated ESC, no CoE)
 
-The firmware polls the ESC every I/O cycle (50 ms), so EEPROM reads and state changes take up to
-one cycle each; the timeouts below allow for that.
+The firmware's EtherCAT thread polls the ESC every 2 ms (revision 1) or wakes on its IRQ (revision 3).
 """
 from __future__ import annotations
 
@@ -53,14 +59,19 @@ PDI_NAMES = {0x04: "digital I/O", 0x05: "Beckhoff SPI", 0x80: "SPI (LAN9252 comp
              0x82: "SPI, EtherCAT Direct Mapped"}
 STATION = 0x1001
 
-# register access over EtherCAT (src/ethercat_registers.hpp): request/response areas in process RAM
-RA_REQUEST, RA_RESPONSE, RA_HEADER, RA_MAX_COUNT = 0x1000, 0x1100, 8, 64
-READ_HOLDING, READ_INPUT, WRITE_HOLDING = 0x03, 0x04, 0x10  # Modbus function codes
-MODBUS_EXCEPTIONS = {1: "illegal function", 2: "illegal data address - or refused: the PLC owns the outputs",
-                     3: "illegal data value", 4: "server device failure"}
-# registers of docs/generated/modbus-registers.md used here
-WS2812_CH1_PATTERN, WS2812_CH2_PATTERN = 100, 101  # holding: strip pattern (0 off, 1 red, ...), single LED palette
-FW_VERSION_MAJOR = 7  # input: major, minor
+# CoE (ETG.1000.6): mailbox type, services, SDO abort codes
+MBX_COE, MBX_ERROR = 3, 0
+COE_SDO_REQUEST, COE_SDO_RESPONSE, COE_SDO_INFO = 2, 3, 8
+SDO_ABORTS = {0x05040001: "command not supported", 0x06010000: "unsupported access", 0x06010001: "write only",
+              0x06010002: "read only", 0x06020000: "object does not exist", 0x06070012: "too long",
+              0x06070013: "too short", 0x06090011: "subindex does not exist", 0x06090030: "value range",
+              0x08000000: "general error", 0x08000021: "local control (the PLC owns it)",
+              0x08000022: "not in this state"}
+AL_CODES = {0x0011: "invalid state change", 0x0012: "unknown state", 0x0013: "bootstrap not supported",
+            0x0016: "invalid mailbox configuration", 0x001B: "sync manager watchdog",
+            0x001D: "invalid output configuration", 0x001E: "invalid input configuration"}
+# the register map's objects (index = range base + the region's first Modbus address)
+WS2812_OUTPUTS = 0x7000 + 100  # subindex 1: strip pattern (0 off, 1 red, ...), 2: single LED palette
 
 
 class MasterError(Exception):
@@ -155,11 +166,12 @@ def list_ifaces() -> None:
 
 
 class SimEsc:
-    """A simulated LAN9253 with what src/ethercat_test.cpp does behind it: EEPROM emulation from the
-    same SII image, AL state requests acknowledged (BOOT refused). Checks the master's sequences
-    without hardware. Like the real one, AL control (0x0120) is a mailbox (ESC configuration 0x0141
-    bit 0 = 0, DS00003421 note 8): after a write the master cannot write it again (working counter 0)
-    until the firmware has read it - and the firmware polls only every I/O cycle (50 ms)."""
+    """A simulated LAN9253 with a slave behind it: EEPROM emulation from an SII image, AL state
+    requests acknowledged without checks (BOOT refused), no mailbox. Checks the master's scan, SII and
+    state sequences without hardware (the firmware's stack itself: rtoos tests/ethercat_test.cpp).
+    Like the real one, AL control (0x0120) is a mailbox (ESC configuration 0x0141 bit 0 = 0,
+    DS00003421 note 8): after a write the master cannot write it again (working counter 0) until the
+    firmware has read it."""
 
     PDI_POLL = 0.05
 
@@ -173,9 +185,6 @@ class SimEsc:
         self.reg[0x0502:0x0504] = struct.pack("<H", (1 << 5) | (1 << 6))  # emulation, 8-byte reads
         self.mac = b"\x00\x11\x22\x33\x44\x55"
         self.al_control_written: float | None = None  # time of the master's write the firmware has not read yet
-        self.holding, self.input = [0] * 120, [0] * 262  # the register map's sizes (holding 20..111, input 0..261)
-        self.input[FW_VERSION_MAJOR:FW_VERSION_MAJOR + 2] = [1, 0]
-        self.last_sequence = 0
 
     def u16(self, a): return struct.unpack("<H", self.reg[a:a + 2])[0]
 
@@ -213,31 +222,7 @@ class SimEsc:
         return True
 
     def firmware_cycle(self) -> None:
-        self.serve_registers()
         self.serve_al()
-
-    def serve_registers(self) -> None:
-        """serve_registers() of the firmware (ethercat_registers.hpp: execute())."""
-        sequence = self.u16(RA_REQUEST)
-        if sequence in (0, self.last_sequence):
-            return
-        self.last_sequence = sequence
-        function, start, count = self.reg[RA_REQUEST + 2], self.u16(RA_REQUEST + 4), self.u16(RA_REQUEST + 6)
-        table = self.input if function == READ_INPUT else self.holding
-        values, exception = [], 0
-        if function not in (READ_HOLDING, READ_INPUT, WRITE_HOLDING):
-            exception = 1
-        elif not 1 <= count <= RA_MAX_COUNT:
-            exception = 3
-        elif start + count > len(table):
-            exception = 2
-        elif function == WRITE_HOLDING:
-            self.holding[start:start + count] = struct.unpack(f"<{count}H", self.reg[RA_REQUEST + 8:RA_REQUEST + 8 + 2 * count])
-        else:
-            values = table[start:start + count]
-        self.reg[RA_RESPONSE + 2:RA_RESPONSE + 8] = struct.pack("<BBHH", function, exception, start, count)
-        self.reg[RA_RESPONSE + 8:RA_RESPONSE + 8 + 2 * len(values)] = struct.pack(f"<{len(values)}H", *values)
-        self.reg[RA_RESPONSE:RA_RESPONSE + 2] = struct.pack("<H", sequence)
 
     def serve_al(self) -> None:
         """serve_al() of the firmware, one I/O cycle after the master's write: reads AL control (the
@@ -253,7 +238,7 @@ class SimEsc:
             self.reg[0x0130:0x0132] = struct.pack("<H", want)
 
 
-# ---- the SII image of the firmware (same as sii::make() in src/ethercat_sii.hpp) -------------------
+# ---- an SII image for the simulation (the firmware builds its own: src/ethercat_config.hpp) ----------
 def config_crc(words: list[int]) -> int:
     crc = 0xFF
     for i in range(14):
@@ -283,9 +268,32 @@ def build_sii(pdi: int, pdi_cfg: int) -> list[int]:
 
 
 # ---- the master ------------------------------------------------------------------------------------
+def sii_end(w: list[int]) -> int | None:
+    """The word index of the categories' end marker, None while not read that far."""
+    pos = 0x40
+    while pos + 1 < len(w):
+        if w[pos] == 0xFFFF:
+            return pos
+        pos += 2 + w[pos + 1]
+    return None
+
+
+def sii_sync_managers(w: list[int]) -> list[tuple[int, int, int]]:
+    """(start, length, control) of each SyncManager of the SII's category 41."""
+    pos = 0x40
+    while pos + 1 < len(w) and w[pos] != 0xFFFF:
+        if w[pos] == 41:
+            body = b"".join(struct.pack("<H", x) for x in w[pos + 2:pos + 2 + w[pos + 1]])
+            return [struct.unpack("<HHB", body[8 * n:8 * n + 5]) for n in range(len(body) // 8)]
+        pos += 2 + w[pos + 1]
+    return []
+
+
 class Master:
     def __init__(self, link, verbose: bool = False):
         self.link, self.verbose, self.index = link, verbose, 0
+        self.sms: list[tuple[int, int, int]] = []
+        self.mbx_counter = 0
 
     def _do(self, cmd: int, adp: int, ado: int, data: bytes, timeout: float = 0.25) -> Datagram:
         # The ESC answers within microseconds, but a USB adapter and Npcap now and then hold a received
@@ -365,13 +373,17 @@ class Master:
             raise MasterError(f"EEPROM read of word {word:#x}: error bits {status:#06x}")
         return self.read(REG["eeprom_data"], 8 if status & 0x40 else 4)
 
-    def read_sii(self, words: int = 128) -> list[int]:
+    def read_sii(self, words: int = 512) -> list[int]:
+        """Up to the categories' end marker (or `words`); the SyncManager category into self.sms."""
         self.write(REG["eeprom_config"], b"\x02")  # force: the EEPROM to EtherCAT (SOEM's ec_eeprom2master)
         self.write(REG["eeprom_config"], b"\x00")
         out: list[int] = []
         while len(out) < words:
             data = self.eeprom_read(len(out))
             out += list(struct.unpack(f"<{len(data) // 2}H", data))
+            if len(out) > 0x40 and sii_end(out) is not None:
+                break
+        self.sms = sii_sync_managers(out)
         return out[:words]
 
     @staticmethod
@@ -380,7 +392,9 @@ class Master:
         print(f"SII config area: PDI control {w[0] & 0xFF:#04x}, PDI config {w[1] & 0xFF:#04x}, "
               f"CRC {w[7] & 0xFF:#04x} ({'ok' if crc_ok else 'WRONG, expected %#04x' % config_crc(w)})")
         print(f"SII identity: vendor {w[8] | w[9] << 16:#010x}, product {w[10] | w[11] << 16:#010x}, "
-              f"revision {w[12] | w[13] << 16}, size {(w[0x3E] + 1)} Kbit, version {w[0x3F]}")
+              f"revision {w[12] | w[13] << 16}, serial {w[14] | w[15] << 16:#010x}, size {(w[0x3E] + 1)} Kbit, version {w[0x3F]}")
+        if w[0x19]:
+            print(f"SII mailbox: out {w[0x18]:#06x} ({w[0x19]} bytes), in {w[0x1A]:#06x} ({w[0x1B]} bytes), protocols {w[0x1C]:#06x}")
         pos = 0x40
         while pos + 1 < len(w) and w[pos] != 0xFFFF:
             cat, size = w[pos], w[pos + 1]
@@ -393,7 +407,12 @@ class Master:
                     p += 1 + n
                 print(f"SII strings: {strings}")
             elif cat == 30:
-                print(f"SII general: group {body[0]}, image {body[1]}, order {body[2]}, name {body[3]}")
+                print(f"SII general: group {body[0]}, image {body[1]}, order {body[2]}, name {body[3]}, CoE details {body[5]:#04x}")
+            elif cat == 41:
+                for n in range(len(body) // 8):
+                    start, length, control, _, enable, kind = struct.unpack("<HHBBBB", body[8 * n:8 * n + 8])
+                    print(f"SII SyncManager {n}: start {start:#06x}, length {length}, control {control:#04x}, "
+                          f"enable {enable}, type {['unused', 'mailbox out', 'mailbox in', 'outputs', 'inputs'][kind] if kind < 5 else kind}")
             else:
                 print(f"SII category {cat}, {size} words")
             pos += 2 + size
@@ -431,42 +450,131 @@ class Master:
         print(f"  -> {STATE_NAMES[want]}: no answer within {timeout} s (AL status still {self.r16(REG['al_status']):#06x})")
         return False
 
-    # 5. register access (src/ethercat_registers.hpp): the Modbus register map, in any AL state
-    def register_request(self, function: int, start: int, count: int, values: list[int] | None = None,
-                         timeout: float = 1.0) -> list[int]:
-        values = values or []
-        if not 1 <= count <= RA_MAX_COUNT:
-            raise MasterError(f"1..{RA_MAX_COUNT} registers per request")
-        sequence = self.r16(RA_RESPONSE) % 0xFFFF + 1  # never 0, never the last one
-        self.write(RA_REQUEST + 2, struct.pack(f"<BBHH{len(values)}H", function, 0, start, count, *values))
-        self.write(RA_REQUEST, struct.pack("<H", sequence))  # last: the trigger
+    # 5. SyncManagers as the SII says (the master's part before PRE-OP / SAFE-OP)
+    def configure_sm(self, n: int, length: int | None = None, enable: bool = True) -> None:
+        start, sii_length, control = self.sms[n]
+        length = sii_length if length is None else length
+        self.write(0x0800 + 8 * n + 6, b"\x00")  # disable: start/length/control writable
+        self.write(0x0800 + 8 * n, struct.pack("<HHB", start, length, control))
+        self.write(0x0800 + 8 * n + 6, b"\x01" if enable and length > 0 else b"\x00")
+
+    def configure_mailbox(self) -> None:
+        self.configure_sm(0)
+        self.configure_sm(1)
+        self.mbx_counter = 0
+
+    # 6. mailbox (ETG.1000.4 5.6): SM0 master -> slave, SM1 slave -> master
+    def mailbox(self, mtype: int, data: bytes, timeout: float = 1.0) -> tuple[int, bytes]:
+        out_start, out_size, _ = self.sms[0]
+        in_start, in_size, _ = self.sms[1]
+        if len(data) > out_size - 6:
+            raise MasterError(f"mailbox message of {len(data)} bytes: the mailbox holds {out_size - 6}")
         deadline = time.monotonic() + timeout
-        while True:
-            answered, _, exception, _, _ = struct.unpack("<HBBHH", self.read(RA_RESPONSE, RA_HEADER))
-            if answered == sequence:
-                break
+        while self.r8(0x0805) & 0x08:  # SM0 still full: the slave has not read the last one
             if time.monotonic() > deadline:
-                raise MasterError(f"register request: no answer within {timeout} s - does the firmware serve "
-                                  "register access (serve_registers(), EtherCAT Direct Mapped)?")
-            time.sleep(0.005)
-        if exception:
-            raise MasterError(f"register request {function:#04x} {start}..{start + count - 1}: Modbus exception "
-                              f"{exception} ({MODBUS_EXCEPTIONS.get(exception, '?')})")
-        if function in (READ_HOLDING, READ_INPUT):
-            return list(struct.unpack(f"<{count}H", self.read(RA_RESPONSE + RA_HEADER, 2 * count)))
-        return []
+                raise MasterError("mailbox: the slave does not read SM0")
+            time.sleep(0.002)
+        self.mbx_counter = self.mbx_counter % 7 + 1
+        frame = struct.pack("<HHBB", len(data), 0, 0, mtype | self.mbx_counter << 4) + data
+        self.write(out_start, frame + bytes(out_size - len(frame)))  # the whole buffer: its last byte marks it full
+        return self.mailbox_receive(timeout)
 
-    def read_holding(self, start: int, count: int = 1) -> list[int]:
-        return self.register_request(READ_HOLDING, start, count)
+    def mailbox_receive(self, timeout: float = 1.0) -> tuple[int, bytes]:
+        in_start, in_size, _ = self.sms[1]
+        deadline = time.monotonic() + timeout
+        while not self.r8(0x080D) & 0x08:  # SM1 full: the slave's response
+            if time.monotonic() > deadline:
+                raise MasterError(f"mailbox: no response within {timeout} s")
+            time.sleep(0.002)
+        b = self.read(in_start, in_size)  # the whole buffer: reading its last byte frees it
+        length, _, _, kind = struct.unpack("<HHBB", b[:6])
+        mtype, body = kind & 0x0F, b[6:6 + length]
+        if mtype == MBX_ERROR:
+            detail = struct.unpack("<H", body[2:4])[0] if len(body) >= 4 else 0
+            raise MasterError(f"mailbox error {detail:#06x}")
+        return mtype, body
 
-    def read_input(self, start: int, count: int = 1) -> list[int]:
-        return self.register_request(READ_INPUT, start, count)
+    # 7. CoE SDO (ETG.1000.6 5.6.2): expedited and normal transfers
+    def _sdo(self, cmd: int, index: int, sub: int, data: bytes = bytes(4), more: bytes = b"") -> bytes:
+        req = struct.pack("<HBHB", COE_SDO_REQUEST << 12, cmd, index, sub) + data + more
+        mtype, r = self.mailbox(MBX_COE, req)
+        if mtype != MBX_COE or len(r) < 10:
+            raise MasterError(f"SDO {index:#06x}:{sub}: unexpected response {r.hex()}")
+        if r[2] == 0x80:
+            code = struct.unpack("<I", r[6:10])[0]
+            raise MasterError(f"SDO {index:#06x}:{sub}: abort {code:#010x} ({SDO_ABORTS.get(code, '?')})")
+        return r
 
-    def write_holding(self, start: int, values: list[int]) -> None:
-        self.register_request(WRITE_HOLDING, start, len(values), values)
+    def sdo_read(self, index: int, sub: int) -> bytes:
+        r = self._sdo(0x40, index, sub)
+        if r[2] & 0x02:  # expedited
+            n = 4 - ((r[2] >> 2) & 3) if r[2] & 0x01 else 4
+            return r[6:6 + n]
+        n = struct.unpack("<I", r[6:10])[0]
+        return r[10:10 + n]
+
+    def sdo_write(self, index: int, sub: int, value: bytes) -> None:
+        if len(value) <= 4:
+            cmd = 0x23 | ((4 - len(value)) << 2)  # expedited, size indicated
+            self._sdo(cmd, index, sub, value + bytes(4 - len(value)))
+        else:
+            self._sdo(0x21, index, sub, struct.pack("<I", len(value)), value)
+
+    # 8. SDO information (ETG.1000.6 5.6.3): a response may come in fragments
+    def sdo_info(self, opcode: int, data: bytes) -> bytes:
+        mtype, r = self.mailbox(MBX_COE, struct.pack("<HBBH", COE_SDO_INFO << 12, opcode, 0, 0) + data)
+        body = b""
+        while True:
+            if r[2] & 0x7F == 7:
+                code = struct.unpack("<I", r[6:10])[0]
+                raise MasterError(f"SDO info: error {code:#010x} ({SDO_ABORTS.get(code, '?')})")
+            body += r[6:]
+            if not r[2] & 0x80:  # complete
+                return body
+            _, r = self.mailbox_receive()
+
+    def object_list(self) -> list[int]:
+        body = self.sdo_info(1, struct.pack("<H", 1))
+        return list(struct.unpack(f"<{(len(body) - 2) // 2}H", body[2:]))
+
+    def object_name(self, index: int) -> tuple[str, int]:
+        body = self.sdo_info(3, struct.pack("<H", index))
+        return body[6:].decode("ascii", "replace"), body[4]
+
+    def assigned_bytes(self) -> tuple[int, int]:
+        """RxPDO and TxPDO bytes of the assignment (1C12h/1C13h) and the mappings."""
+        sizes = []
+        for assign in (0x1C12, 0x1C13):
+            bits = 0
+            for k in range(1, self.sdo_read(assign, 0)[0] + 1):
+                pdo = struct.unpack("<H", self.sdo_read(assign, k))[0]
+                for e in range(1, self.sdo_read(pdo, 0)[0] + 1):
+                    bits += struct.unpack("<I", self.sdo_read(pdo, e))[0] & 0xFF
+            sizes.append((bits + 7) // 8)
+        return sizes[0], sizes[1]
 
 
 # ---- commands ---------------------------------------------------------------------------------------
+def expect_refused(m: Master, state: str, code: int) -> bool:
+    """A request that the slave must refuse with `code` (then acknowledged)."""
+    m.write_al_control(STATES[state])
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        al = m.r16(REG["al_status"])
+        if al & 0x10:
+            got = m.r16(REG["al_status_code"])
+            m.write_al_control((al & 0x0F) | 0x10)  # acknowledge
+            time.sleep(0.05)
+            print(f"  -> refused with {got:#06x} ({AL_CODES.get(got, '?')})" + ("" if got == code else f" - expected {code:#06x}"))
+            return got == code
+        if al & 0x0F == STATES[state]:
+            print(f"  -> FAIL: {state} accepted")
+            return False
+        time.sleep(0.01)
+    print("  -> FAIL: no answer")
+    return False
+
+
 def run(args) -> int:
     link = SimEsc() if args.simulate else PcapLink(args.iface)
     m = Master(link, args.verbose)
@@ -479,14 +587,25 @@ def run(args) -> int:
             return 0 if m.print_sii(m.read_sii()) else 1
         if args.command == "state":
             return 0 if m.request_state(args.state) else 1
-        if args.command == "regs":
+        if args.command in ("sdo", "od", "blink"):
+            m.read_sii()
+            m.configure_mailbox()
+            if not m.request_state("preop"):
+                return 1
+        if args.command == "sdo":
             if args.op == "write":
-                m.write_holding(args.start, args.values)
-                print(f"holding {args.start}..{args.start + len(args.values) - 1} := {args.values}")
+                m.sdo_write(args.index, args.sub, args.value.to_bytes(args.size, "little", signed=args.value < 0))
+                print(f"{args.index:#06x}:{args.sub} := {args.value}")
             else:
-                read = m.read_input if args.op == "input" else m.read_holding
-                for i, v in enumerate(read(args.start, args.count)):
-                    print(f"{args.op} {args.start + i}: {v} ({v:#06x})")
+                v = m.sdo_read(args.index, args.sub)
+                as_int = int.from_bytes(v, "little") if len(v) <= 4 else None
+                text = v.decode("ascii", "replace") if v and all(32 <= c < 127 for c in v) else ""
+                print(f"{args.index:#06x}:{args.sub} = {v.hex()}" + (f" ({as_int})" if as_int is not None else "") + (f" \"{text}\"" if text else ""))
+            return 0
+        if args.command == "od":
+            for index in m.object_list():
+                name, max_sub = m.object_name(index)
+                print(f"{index:#06x}  {name}  (subindex 0..{max_sub})")
             return 0
         if args.command == "blink":
             # strip (CH1) pattern 1 = red, single LED (CH2) palette 1 = red; 0 = off
@@ -495,13 +614,15 @@ def run(args) -> int:
                 n = 0
                 while args.cycles == 0 or n < 2 * args.cycles:
                     on = not on
-                    m.write_holding(WS2812_CH1_PATTERN, [args.pattern if on else 0, args.colour if on else 0])
+                    m.sdo_write(WS2812_OUTPUTS, 1, struct.pack("<H", args.pattern if on else 0))
+                    m.sdo_write(WS2812_OUTPUTS, 2, struct.pack("<H", args.colour if on else 0))
                     print(time.strftime("%H:%M:%S"), "LEDs", "on" if on else "off", flush=True)
                     n += 1
                     time.sleep(args.interval)
             except KeyboardInterrupt:
                 pass
-            m.write_holding(WS2812_CH1_PATTERN, [0, 0])
+            m.sdo_write(WS2812_OUTPUTS, 1, b"\x00\x00")
+            m.sdo_write(WS2812_OUTPUTS, 2, b"\x00\x00")
             print("LEDs off")
             return 0
         if args.command == "watch":
@@ -524,13 +645,45 @@ def run(args) -> int:
             print(f"FAIL: the SII's PDI type {sii[0] & 0xFF:#04x} is not the ESC's {info['pdi']:#04x}")
             ok = False
         print("AL state machine:")
-        for state in ("init", "preop", "safeop", "op", "init"):
-            ok = m.request_state(state) and ok
+        ok = m.request_state("init") and ok
+        if args.simulate:  # no mailbox in the simulation: states only
+            for state in ("preop", "safeop", "op", "init"):
+                ok = m.request_state(state) and ok
+        else:
+            print("  PRE-OP without the mailbox SyncManagers: must be refused (0x0016)")
+            for n in (0, 1):
+                m.configure_sm(n, enable=False)
+            ok = expect_refused(m, "preop", 0x0016) and ok
+            m.configure_mailbox()
+            ok = m.request_state("preop") and ok
+            print("CoE:")
+            ident = [struct.unpack("<I", m.sdo_read(0x1018, k))[0] for k in (1, 2, 3, 4)]
+            print(f"  identity 1018h: vendor {ident[0]:#010x}, product {ident[1]:#010x}, revision {ident[2]}, serial {ident[3]:#010x}")
+            if ident[1] != (sii[10] | sii[11] << 16) or ident[2] != (sii[12] | sii[13] << 16):
+                print("  FAIL: identity over CoE is not the SII's")
+                ok = False
+            print(f"  device name {m.sdo_read(0x1008, 0).decode()!r}, hardware {m.sdo_read(0x1009, 0).decode()!r}, "
+                  f"firmware {m.sdo_read(0x100A, 0).decode()!r}")
+            objects = m.object_list()
+            print(f"  SDO information: {len(objects)} objects")
+            try:
+                m.sdo_read(0x5555, 0)
+                print("  FAIL: an object that does not exist was read")
+                ok = False
+            except MasterError as e:
+                print(f"  object 5555h: {e} - as expected")
+            out_bytes, in_bytes = m.assigned_bytes()
+            print(f"  PDO assignment: {out_bytes} bytes outputs (SM2), {in_bytes} bytes inputs (SM3)")
+            print("  SAFE-OP with a wrong SM2 length: must be refused (0x001D)")
+            m.configure_sm(2, out_bytes + 2)
+            m.configure_sm(3, in_bytes)
+            ok = expect_refused(m, "safeop", 0x001D) and ok
+            m.configure_sm(2, out_bytes)
+            for state in ("safeop", "op", "init"):
+                ok = m.request_state(state) and ok
         refused = not m.request_state("boot")
-        print(f"  BOOT {'refused as expected' if refused else 'accepted - the test firmware should refuse it'}")
+        print(f"  BOOT {'refused as expected' if refused else 'accepted - the firmware should refuse it'}")
         ok = ok and refused
-        major, minor = m.read_input(FW_VERSION_MAJOR, 2)
-        print(f"register access: firmware version {major}.{minor} (input registers {FW_VERSION_MAJOR}..{FW_VERSION_MAJOR + 1})")
         print("RESULT:", "PASS" if ok else "FAIL")
         return 0 if ok else 1
     except MasterError as e:
@@ -550,21 +703,23 @@ def main() -> int:
     st = sub.add_parser("state", help="request an AL state")
     st.add_argument("state", choices=list(STATES))
     sub.add_parser("watch", help="print DL and AL status changes (Ctrl+C ends)")
-    rg = sub.add_parser("regs", help="read/write the Modbus register map over EtherCAT (docs/generated/modbus-registers.md)")
-    rg_ops = rg.add_subparsers(dest="op", required=True)
-    for name in ("holding", "input"):
-        r = rg_ops.add_parser(name, help=f"read {name} registers")
-        r.add_argument("start", type=int)
-        r.add_argument("count", type=int, nargs="?", default=1)
-    w = rg_ops.add_parser("write", help="write holding registers")
-    w.add_argument("start", type=int)
-    w.add_argument("values", type=lambda s: int(s, 0), nargs="+")
-    bl = sub.add_parser("blink", help="RGB LEDs on/off over EtherCAT (holding 100/101; Ctrl+C ends, LEDs off)")
+    sd = sub.add_parser("sdo", help="CoE SDO read/write (goes to PRE-OP; the register map: 6000h/7000h + Modbus address)")
+    sd_ops = sd.add_subparsers(dest="op", required=True)
+    r = sd_ops.add_parser("read", help="SDO upload")
+    r.add_argument("index", type=lambda s: int(s, 0))
+    r.add_argument("sub", type=lambda s: int(s, 0))
+    w = sd_ops.add_parser("write", help="SDO download")
+    w.add_argument("index", type=lambda s: int(s, 0))
+    w.add_argument("sub", type=lambda s: int(s, 0))
+    w.add_argument("value", type=lambda s: int(s, 0))
+    w.add_argument("--size", type=int, default=2, choices=(1, 2, 4), help="bytes (default 2: a register)")
+    sub.add_parser("od", help="the object dictionary over SDO information (index, name)")
+    bl = sub.add_parser("blink", help="RGB LEDs on/off over CoE (7064h:01/02, the WS2812 patterns; Ctrl+C ends, LEDs off)")
     bl.add_argument("--interval", type=float, default=1.0, help="seconds per on/off phase (default 1)")
     bl.add_argument("--cycles", type=int, default=0, help="on/off cycles, 0 = until Ctrl+C")
     bl.add_argument("--pattern", type=int, default=1, help="strip pattern when on (1 red, 2 yellow, 3 green, 4 blue/white)")
     bl.add_argument("--colour", type=int, default=1, help="single LED palette index when on (1 red, 2 green, 3 blue, ...)")
-    sub.add_parser("test", help="end to end: scan, SII, INIT -> PRE-OP -> SAFE-OP -> OP -> INIT, BOOT refused")
+    sub.add_parser("test", help="end to end: scan, SII, AL states with the slave's checks, CoE identity/info/PDO assignment, BOOT refused")
     args = ap.parse_args()
     if args.list:
         list_ifaces()

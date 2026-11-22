@@ -1,6 +1,8 @@
 // The EtherCAT slave (LAN9253, revisions 1 and 3): its own thread drives rtos::ethercat::Slave over
 // rtos::devices::Lan9253 - EEPROM emulation (SII from ethercat_config.hpp), the AL state machine with
-// its checks, and once a second the ESC's diagnostics for the web UI and the register map.
+// its checks, the mailbox with CoE (SDO and SDO information over the register map's object dictionary:
+// the same registers as Modbus and OPC UA), and once a second the ESC's diagnostics for the web UI and
+// the register map.
 //
 // SPI by GPIO on the QUADSPI/OCTOSPI lines (rtoos has no driver for either peripheral yet; the same
 // pins take it later). The thread wakes on the ESC's IRQ where the line is wired (revision 3: EXTI),
@@ -31,6 +33,8 @@ struct Status {
     std::uint32_t taken_ms = 0;  ///< kernel time of the snapshot
     rtos::ethercat::Diagnostics diagnostics{};
     rtos::ethercat::SlaveCounters counters{};
+    rtos::ethercat::CoeCounters coe{};
+    std::uint16_t outputs_bytes = 0, inputs_bytes = 0;  ///< the assigned PDOs
     std::array<rtos::devices::Lan9253Phy, 2> phys{};
     std::size_t phy_count = 0;
 };

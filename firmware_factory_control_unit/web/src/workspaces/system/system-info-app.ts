@@ -14,7 +14,7 @@ import { Poller, pollingGroup } from "../../core/poller.ts";
 import { dateTimeOfEpoch, formatUptime } from "@klaus-liebler/ui-shell/ui/format.ts";
 import { fetchSystemInfo, RESET_CAUSE_NAMES, type SystemInfo } from "../../core/system.ts";
 import {
-	alCodeText, alStateText, dlStatus, eepromText, fetchEthercatStatus, fmmuKind, MODE_NAMES, stateName, syncManagerKind,
+	alCodeText, alStateText, dlStatus, eepromText, fetchEthercatStatus, fmmuKind, MODE_NAMES, sdoAbortText, stateName, syncManagerKind,
 	systemTimeText, type EthercatStatus,
 } from "../../core/ethercat.ts";
 
@@ -157,6 +157,10 @@ export class SystemInfoApp extends LitElement implements WorkspaceApp {
 						${this.row("PDI / ESC-Konfiguration", `${this.hex(e.pdiControl, 2)} / ${this.hex(e.escConfig, 2)}`)}
 						${this.row("EEPROM", `${eepromText(e.eepromStatus)} - ${e.eepromReads} gelesen, ${e.eepromWrites} geschrieben`)}
 						${this.row("Zustandswechsel", `${e.alTransitions} ausgeführt, ${e.alRefused} abgelehnt`)}
+						${this.row("Mailbox", `${e.mailboxRequests} Anfragen, ${e.mailboxResponses} Antworten, ${e.mailboxErrors} Fehler, ${e.mailboxRepeats} Wiederholungen`)}
+						${this.row("SDO (CoE)", `${e.sdoUploads} gelesen, ${e.sdoDownloads} geschrieben, ${e.sdoAborts} abgebrochen, ${e.sdoInfoRequests} Info-Anfragen`)}
+						${e.sdoAborts > 0 ? this.row("Letzter SDO-Abbruch", `${this.hex(e.lastAbortIndex, 4)}:${e.lastAbortSubindex} - ${sdoAbortText(e.lastAbortCode)}`) : null}
+						${this.row("Prozessdaten (PDO-Zuordnung)", `${e.outputsBytes} Byte Ausgänge (SM2), ${e.inputsBytes} Byte Eingänge (SM3)`)}
 						${e.alRefused > 0 ? this.row("Zuletzt abgelehnt", `${stateName(e.lastRefusedFrom)} → ${stateName(e.lastRefusedTo)}: ${alCodeText(e.lastRefusedCode)}`) : null}
 						${this.row("Fehlerzähler Verarbeitung / PDI", `${e.processingUnitErrors} / ${e.pdiErrors}`)}
 						${this.row("Watchdog Prozessdaten", `Zeit ${e.watchdogTimeProcessData} (Teiler ${e.watchdogDivider}), abgelaufen ${e.watchdogCounterProcessData}×; PDI ${e.watchdogCounterPdi}×`)}

@@ -1,13 +1,35 @@
-Flashen, sobald die Platine an der Debug-Probe hängt:
+# EtherCAT auf der Platine testen
 
+Flashen (Revision 1 oder 3), sobald die Platine an der Debug-Probe hängt:
 
+```
 dotnet run --project builder -- FlashFirmware --preset rev1
-Im Log solltest du danach diese Zeilen sehen:
+```
 
-ethercat: SPI EtherCAT Direct Mapped (system CSRs at 0x3000), falls deine Drähte an Pin 42 und 45 dran sind
-usb: … OUT packets waited for COUNT_RX …, sobald USB-Netzwerk läuft; daran erkennst du, wie oft der neue USB-Empfang tatsächlich warten musste
-Dann den EtherCAT-Test von der PC-Seite starten, mit dem Kabel an Port A:
+Im Log (Terminal-Seite oder serielle Konsole) erscheinen danach:
 
+```
+ethercat: LAN9253 on SPI, Direct Mapped - ID_REV ..., HW_CFG ...
+ethercat: ready - ESC type 0xc0 ..., PDI 0x82, 2 PHYs, polled   (Revision 3: IRQ)
+ethercat: DL status 0x.... - PDI ok, port 0 link up ...
+```
 
-python tools/ethercat_master.py --iface "<Netzwerkkarte>" test
-Committet ist weiterhin nichts von Firmware und Builder-Bibliothek; das mache ich erst, wenn es auf der Platine läuft.
+Die Systemseite der Web-UI zeigt unter "EtherCAT - Slave/Ports/SyncManager und FMMUs" alles, was der ESC
+weiß (AL-Zustand, Statuscode, Fehlerzähler je Port, PHYs, Mailbox- und SDO-Zähler, PDO-Größen).
+
+Vom PC aus, Kabel an Port A (IN), Npcap installiert (`pip install scapy`):
+
+```
+python tools/ethercat_master.py --list
+python tools/ethercat_master.py --iface "<Netzwerkkarte>" test        # alles: SII, AL-Prüfungen, CoE, PDO-Zuordnung
+python tools/ethercat_master.py --iface "<Netzwerkkarte>" od          # Objektverzeichnis mit Namen
+python tools/ethercat_master.py --iface "<Netzwerkkarte>" sdo read 0x1018 2
+python tools/ethercat_master.py --iface "<Netzwerkkarte>" sdo write 0x7064 1 3   # Streifen grün
+python tools/ethercat_master.py --iface "<Netzwerkkarte>" blink
+```
+
+Objektindizes: Eingänge 6000h + Modbus-Adresse des ersten Registers der Region, Ausgänge 7000h + ...,
+Parameter 8000h + ..., Kommandos 2000h + ... (`docs/generated/modbus-registers.md`); PDOs 1A00h/1600h +
+dieselbe Adresse.
+
+Mit TwinCAT: die ESI aus `generated/` (ab Schritt E3) nach `C:\TwinCAT\3.1\Config\Io\EtherCAT` kopieren.

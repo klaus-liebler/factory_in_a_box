@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstring>
+#include <ranges>
 
 #include "boot.hpp"
 #include "ethercat.hpp"
@@ -10,6 +11,8 @@
 #include "plc.hpp"
 #include "plc_project.hpp"
 #include "roarm/roarm.hpp"
+#include "steppers/steppers.hpp"
+#include "rtos/time.hpp"
 #include "task_monitor.hpp"
 #include "terminal.hpp"
 #include "ws_protocol.hh"
@@ -63,14 +66,8 @@ void get_registers(Responder& reply, const ws::modbus::GetRegistersRequest::Payl
     registers.read_inputs(0, input);
     std::array<std::uint8_t, holding_count * ws::modbus::RegistersMessageHolding_ELEMENT_SIZE> holding_bytes{};
     std::array<std::uint8_t, input_count * ws::modbus::RegistersMessageInput_ELEMENT_SIZE> input_bytes{};
-    std::size_t pos = 0;
-    for (const std::uint16_t v : holding) {
-        pos += ws::modbus::EncodeRegistersMessageHoldingElement(v, holding_bytes.data() + pos, holding_bytes.size() - pos);
-    }
-    pos = 0;
-    for (const std::uint16_t v : input) {
-        pos += ws::modbus::EncodeRegistersMessageInputElement(v, input_bytes.data() + pos, input_bytes.size() - pos);
-    }
+    (void)ws::modbus::EncodeRegistersMessageHoldingElements(holding, holding_bytes.data(), holding_bytes.size());
+    (void)ws::modbus::EncodeRegistersMessageInputElements(input, input_bytes.data(), input_bytes.size());
     reply.Send(ws::modbus::RegistersMessage::Encode,
                ws::modbus::RegistersMessage::Payload{.holdingData = holding_bytes.data(), .holdingCount = holding_count,
                                                      .inputData = input_bytes.data(), .inputCount = input_count});
@@ -96,7 +93,6 @@ void write_holding(Responder& reply, const ws::modbus::WriteHoldingRequest::Payl
 void system_info(Responder& reply, const ws::system::SystemInfoRequest::Payload&) {
     ws::system::SystemInfoMessage::Payload resp{};
     resp.uptimeSeconds = kernel.now() / 1000;
-    resp.freeHeapBytes = 0;  // no heap
     const net::Status s = net::status();
     const std::uint32_t ip = s.ethernet_address.value;
     for (int i = 0; i < 4; ++i) {
@@ -112,13 +108,13 @@ void system_info(Responder& reply, const ws::system::SystemInfoRequest::Payload&
                 .mcsr = phy.mcsr, .secr = phy.secr, .scsir = phy.scsir, .tcsr = phy.tcsr, .clr = phy.clr};
     // every bus with its number on this revision (the page labels them I2Cn)
     std::array<std::uint8_t, io::i2c_bus_count * ws::system::SystemInfoMessageI2cScans_ELEMENT_SIZE> scans{};
-    std::size_t scan_pos = 0;
-    for (const auto bus : {io::I2cBus::Color, io::I2cBus::Tof2, io::I2cBus::Supply}) {
+    constexpr std::array<io::I2cBus, io::i2c_bus_count> buses{io::I2cBus::Color, io::I2cBus::Tof2, io::I2cBus::Supply};
+    (void)ws::system::EncodeSystemInfoMessageI2cScansElements(buses, scans.data(), scans.size(), [](io::I2cBus bus) {
         ws::system::I2cBusScan s{};
         s.bus = static_cast<std::uint8_t>(io::i2c_bus_number(bus));
         std::memcpy(s.devices, io::i2c_scan(bus).data(), sizeof s.devices);
-        scan_pos += ws::system::EncodeSystemInfoMessageI2cScansElement(s, scans.data() + scan_pos, scans.size() - scan_pos);
-    }
+        return s;
+    });
     resp.i2cScansData = scans.data();
     resp.i2cScansCount = io::i2c_bus_count;
     reply.Send(ws::system::SystemInfoMessage::Encode, resp);
@@ -131,34 +127,25 @@ void ethercat_status(Responder& reply, const ws::ethercat::StatusRequest::Payloa
     const fcu::ethercat::Status s = fcu::ethercat::status();
     const auto& d = s.diagnostics;
     std::array<std::uint8_t, 2 * we::StatusResponsePorts_ELEMENT_SIZE> ports{};
-    std::size_t pos = 0;
-    for (std::size_t i = 0; i < d.ports.size(); ++i) {
+    (void)we::EncodeStatusResponsePortsElements(std::views::iota(std::size_t{0}, d.ports.size()), ports.data(), ports.size(), [&](std::size_t i) {
         const auto& c = d.ports[i];
         const auto& phy = s.phys[i];
         const bool present = i < s.phy_count && phy.present;
-        pos += we::EncodeStatusResponsePortsElement(
-            we::EcatPort{.invalidFrames = c.invalid_frames, .rxErrors = c.rx_errors, .forwardedErrors = c.forwarded_errors,
-                         .lostLinks = c.lost_links, .phyPresent = present, .phyAddress = phy.address, .phyLink = present && phy.link,
-                         .phyAutonegotiationComplete = present && phy.autonegotiation_complete, .phyEnergy = present && phy.energy,
-                         .phyAutoMdix = present && phy.auto_mdix, .phyBasicControl = phy.basic_control, .phyBasicStatus = phy.basic_status},
-            ports.data() + pos, ports.size() - pos);
-    }
+        return we::EcatPort{.invalidFrames = c.invalid_frames, .rxErrors = c.rx_errors, .forwardedErrors = c.forwarded_errors,
+                            .lostLinks = c.lost_links, .phyPresent = present, .phyAddress = phy.address, .phyLink = present && phy.link,
+                            .phyAutonegotiationComplete = present && phy.autonegotiation_complete, .phyEnergy = present && phy.energy,
+                            .phyAutoMdix = present && phy.auto_mdix, .phyBasicControl = phy.basic_control, .phyBasicStatus = phy.basic_status};
+    });
     std::array<std::uint8_t, 4 * we::StatusResponseSyncManagers_ELEMENT_SIZE> sms{};
-    pos = 0;
-    for (const auto& sm : d.sm) {
-        pos += we::EncodeStatusResponseSyncManagersElement(
-            we::EcatSyncManager{.start = sm.start, .length = sm.length, .control = sm.control, .status = sm.status,
-                                .activate = sm.activate, .pdiControl = sm.pdi_control},
-            sms.data() + pos, sms.size() - pos);
-    }
+    (void)we::EncodeStatusResponseSyncManagersElements(d.sm, sms.data(), sms.size(), [](const auto& sm) {
+        return we::EcatSyncManager{.start = sm.start, .length = sm.length, .control = sm.control, .status = sm.status,
+                                   .activate = sm.activate, .pdiControl = sm.pdi_control};
+    });
     std::array<std::uint8_t, 3 * we::StatusResponseFmmus_ELEMENT_SIZE> fmmus{};
-    pos = 0;
-    for (const auto& f : d.fmmu) {
-        pos += we::EncodeStatusResponseFmmusElement(
-            we::EcatFmmu{.logicalStart = f.logical_start, .length = f.length, .physicalStart = f.physical_start, .type = f.type,
-                         .active = f.active},
-            fmmus.data() + pos, fmmus.size() - pos);
-    }
+    (void)we::EncodeStatusResponseFmmusElements(d.fmmu, fmmus.data(), fmmus.size(), [](const auto& f) {
+        return we::EcatFmmu{.logicalStart = f.logical_start, .length = f.length, .physicalStart = f.physical_start, .type = f.type,
+                            .active = f.active};
+    });
     const auto& c = s.counters;
     reply.Send(we::StatusResponse::Encode,
                we::StatusResponse::Payload{
@@ -224,7 +211,7 @@ std::string_view logger_name(const char* file) {
 
 void LogMirror::service() noexcept {
     const rtos::Tick now = kernel.now();
-    if (static_cast<std::int32_t>(now - next_log_poll) < 0) {
+    if (!rtos::reached(now, next_log_poll)) {
         return;
     }
     next_log_poll = now + log_poll_ms;
@@ -306,7 +293,7 @@ void on_message(void*, SessionId id, std::span<const std::byte> message, bool bi
             if (!plc::project::post(id, reply, frame)) plc::on_message(id, reply, frame);
             return;
         case ws::roarm::NAMESPACE_ID: return roarm::post(id, reply, frame);        // the I/O thread answers
-        case ws::stepper::NAMESPACE_ID: return io::stepper_post(id, reply, frame);  // the I/O thread owns the TMC2209 UART
+        case ws::stepper::NAMESPACE_ID: return steppers::post(id, reply, frame);  // the I/O thread owns the TMC2209 UART
         case ws::tasks::NAMESPACE_ID: return task_monitor::handle_message(reply, frame);
         default: return unknown(reply);
     }

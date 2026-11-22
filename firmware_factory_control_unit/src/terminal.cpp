@@ -86,8 +86,8 @@ constexpr std::array outputs{
 // ---- commands (schema/terminal/commands.cs) -------------------------------------------------------------
 bool cmd_info(Args, Out& o) {
     o.line("%s.local, hardware revision %u", DEVICE_HOSTNAME, board::revision);
-    o.line("firmware %.*s (%.*s)", static_cast<int>(git::VERSION.size()), git::VERSION.data(),
-           static_cast<int>(git::COMMIT_HASH.size()), git::COMMIT_HASH.data());
+    o.line("firmware %.*s (%.*s)", RTOS_SV(git::VERSION),
+           RTOS_SV(git::COMMIT_HASH));
     const auto s = net::status();
     const unsigned a = s.ethernet_address.value;
     o.line("uptime %lu s, ethernet %s %u.%u.%u.%u, %u Mbit/s", static_cast<unsigned long>(kernel.now() / 1000),
@@ -109,11 +109,18 @@ bool cmd_in(Args a, Out& o) {
     return found;
 }
 
-/// In IEC mode the outputs belong to the program (docs/plc-iec61131.md 6.2): say so instead of writing.
-bool plc_owns(std::uint16_t reg, Out& o) {
-    if (plc::external_write_allowed(reg)) return false;
+/// The terminal writes like a protocol (Modbus, web UI): through the register bank's write filter -
+/// in IEC mode the outputs belong to the program (docs/plc-iec61131.md 6.2), the write then changes
+/// nothing and says so - and its write hook (WS2812 pixels). False: refused.
+bool write(std::uint16_t reg, std::span<const std::uint16_t> words, Out& o) {
+    if (registers.write(reg, words) == rtos::modbus::Exception::None) return true;
     o.line("holding %u is controlled by the IEC program (control source IEC; switch on the PLC page)", reg);
-    return true;
+    return false;
+}
+bool write(std::uint16_t reg, std::uint16_t value, Out& o) { return write(reg, std::array{value}, o); }
+bool write(std::uint16_t reg, std::int32_t value, Out& o) {
+    const auto v = static_cast<std::uint32_t>(value);
+    return write(reg, std::array{static_cast<std::uint16_t>(v >> 16), static_cast<std::uint16_t>(v)}, o);  // high word first
 }
 
 bool cmd_out(Args a, Out& o) {
@@ -129,8 +136,7 @@ bool cmd_out(Args a, Out& o) {
     const auto level = parse_level(a[1]);
     for (const NamedOutput& out : outputs) {
         if (out.exists && out.name == a[0] && level) {
-            if (plc_owns(out.holding, o)) return true;
-            registers.set_holding(out.holding, *level ? 1 : 0);  // the I/O cycle drives the pin
+            if (!write(out.holding, static_cast<std::uint16_t>(*level ? 1 : 0), o)) return true;  // the I/O cycle drives the pin
             o.line("%s %s", out.name.data(), *level ? "on" : "off");
             return true;
         }
@@ -142,9 +148,8 @@ bool cmd_pwm(Args a, Out& o) {
     const auto permille = a.size() == 2 ? number<unsigned>(a[1]) : std::nullopt;
     if (!permille || *permille > 1000 || (a[0] != "conveyor" && a[0] != "compressor")) return false;
     const std::uint16_t reg = a[0] == "conveyor" ? rm::holding::conveyor_pwm : rm::holding::compressor_pwm;
-    if (plc_owns(reg, o)) return true;
-    registers.set_holding(reg, static_cast<std::uint16_t>(*permille));
-    o.line("%.*s %u.%u %%", static_cast<int>(a[0].size()), a[0].data(), *permille / 10, *permille % 10);
+    if (!write(reg, static_cast<std::uint16_t>(*permille), o)) return true;
+    o.line("%.*s %u.%u %%", RTOS_SV(a[0]), *permille / 10, *permille % 10);
     return true;
 }
 
@@ -223,8 +228,7 @@ bool cmd_reg(Args a, Out& o) {
     if (a.size() == 3) {
         const auto value = number<int>(a[2]);
         if (!holding || !value || *value < -32768 || *value > 65535) return false;
-        if (plc_owns(static_cast<std::uint16_t>(*addr), o)) return true;
-        registers.set_holding(static_cast<std::uint16_t>(*addr), static_cast<std::uint16_t>(*value));
+        if (!write(static_cast<std::uint16_t>(*addr), static_cast<std::uint16_t>(*value), o)) return true;
     }
     const std::uint16_t v = holding ? registers.holding(static_cast<std::uint16_t>(*addr))
                                     : registers.input(static_cast<std::uint16_t>(*addr));
@@ -236,20 +240,16 @@ bool cmd_stepper(Args a, Out& o) {
     const auto n = a.size() == 2 ? number<unsigned>(a[0]) : std::nullopt;
     const auto target = a.size() == 2 ? number<std::int32_t>(a[1]) : std::nullopt;
     if (!n || (*n != 1 && *n != 2) || !target) return false;
-    if (plc_owns(*n == 1 ? rm::holding::stepper1_target : rm::holding::stepper2_target, o)) return true;
-    rm::set_stepper_enable(registers, 1);
-    if (*n == 1) {
-        rm::set_stepper1_target(registers, *target);
-    } else {
-        rm::set_stepper2_target(registers, *target);
+    if (!write(*n == 1 ? rm::holding::stepper1_target : rm::holding::stepper2_target, *target, o) ||
+        !write(rm::holding::stepper_enable, std::uint16_t{1}, o)) {
+        return true;
     }
     o.line("stepper %u: enabled, target %ld (position now %ld)", *n, static_cast<long>(*target),
            static_cast<long>(*n == 1 ? rm::stepper1_position(registers) : rm::stepper2_position(registers)));
     const std::uint16_t status = *n == 1 ? rm::stepper1_status(registers) : rm::stepper2_status(registers);
-    if ((status & 32u) != 0) {
-    } else if ((status & 16u) != 0) {
+    if ((status & 16u) != 0) {
         o.line("not homed yet: the move starts after the homing");
-    } else {
+    } else if ((status & 32u) == 0) {
         o.line("not homed: the move waits - 'home %u' first", *n);
     }
     return true;
@@ -259,8 +259,7 @@ bool cmd_home(Args a, Out& o) {
     const auto n = a.size() == 1 ? number<unsigned>(a[0]) : std::nullopt;
     if (!n || (*n != 1 && *n != 2)) return false;
     const std::uint16_t reg = *n == 1 ? rm::holding::stepper1_start_homing : rm::holding::stepper2_start_homing;
-    if (plc_owns(reg, o)) return true;  // IEC mode: FCU_StepperHome in the program
-    registers.set_holding(reg, 1);
+    if (!write(reg, std::uint16_t{1}, o)) return true;  // IEC mode: FCU_StepperHome in the program
     o.line("stepper %u: homing (sensorless, towards the end stop); result in the status and the log", *n);
     return true;
 }
@@ -270,8 +269,7 @@ bool cmd_led(Args a, Out& o) {
     const auto pattern = a.size() == 2 ? number<unsigned>(a[1]) : std::nullopt;
     if (!ch || (*ch != 1 && *ch != 2) || !pattern || *pattern > 0xFFFF) return false;
     const std::uint16_t reg = *ch == 1 ? rm::holding::ws2812_ch1_pattern : rm::holding::ws2812_ch2_pattern;
-    if (plc_owns(reg, o)) return true;
-    registers.set_holding(reg, static_cast<std::uint16_t>(*pattern));
+    if (!write(reg, static_cast<std::uint16_t>(*pattern), o)) return true;
     o.line("WS2812 channel %u: pattern %u", *ch, *pattern);
     return true;
 }
@@ -311,8 +309,7 @@ bool cmd_plc(Args a, Out& o) {
         o.line("the PLC is busy (request queue full), try again");
         return true;
     }
-    o.line("plc %.*s%s%.*s: sent to the PLC thread, the result follows in the log", static_cast<int>(action.size()),
-           action.data(), option.empty() ? "" : " ", static_cast<int>(option.size()), option.data());
+    o.line("plc %.*s%s%.*s: sent to the PLC thread, the result follows in the log", RTOS_SV(action), option.empty() ? "" : " ", RTOS_SV(option));
     return true;
 }
 

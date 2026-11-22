@@ -66,7 +66,6 @@ public struct I2cBusScan
 public class SystemInfoMessage
 {
 	public uint uptimeSeconds;
-	public uint freeHeapBytes;
 	[BinaryCount(4)] public byte[] ipAddress = new byte[4]; // MSB-Oktett zuerst, wie IP_ADDR_FMT_ARGS
 	[BinaryCount(4)] public byte[] netMask = new byte[4];
 	public byte resetCauseCode; // s. App::ResetCauseCode()

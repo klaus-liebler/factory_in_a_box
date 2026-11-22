@@ -90,7 +90,7 @@ FCU                                   Roboter
 | MalibottiActiveMission (Input 261) | | laufende Mission laut Roboter, 0 = keine |
 
 In der SPS: Baustein `FCU_MalibottiRunMission` (FCU-Bibliothek, wie `FCU_RoArmRunMission`).
-Die Firmware-Seite: `src/malibotti.cpp` (im I/O-Zyklus, alle 50 ms).
+Die Firmware-Seite: `src/features/malibotti/malibotti.cpp` (im I/O-Zyklus, alle 50 ms).
 
 ## Was der Roboter tun muss
 

@@ -63,9 +63,9 @@ struct PhyDiagnostics {
 };
 [[nodiscard]] PhyDiagnostics phy_diagnostics() noexcept;
 
-/// Packet buffers: total and free now (task manager).
+/// Packet buffers: total, free now and the fewest free ever (task manager).
 struct PoolUse {
-    std::uint32_t capacity = 0, available = 0;
+    std::uint32_t capacity = 0, available = 0, min_available = 0;
 };
 [[nodiscard]] PoolUse packet_pool_use() noexcept;
 

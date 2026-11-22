@@ -495,8 +495,10 @@ Behavior:
 
 Implementation in rtoos: `RegisterBank` gets an optional **write filter** next to the `WriteHook`
 (`bool permit(start, count)`, consulted under the guard before a protocol write); the Modbus server
-returns the exception on `false`, the OPC UA register binding `Bad_NotWritable`. The application side
-(`set_holding`) stays unfiltered. Host test in rtoos for both protocols.
+returns the exception on `false`, the OPC UA register binding `Bad_NotWritable`. The terminal writes
+like a protocol (`write()`) and reports the refusal. The PLC writes its outputs with
+`set_holdings_notified` (no filter, but the write hook sees the commands, e.g. the WS2812 pixels); the
+I/O thread's own values (`set_holding`) stay unfiltered. Host test in rtoos for both protocols.
 
 ### 6.3 Register classes: output, command, parameter
 

@@ -236,10 +236,8 @@ export class OverviewApp extends LitElement implements WorkspaceApp {
 	}
 
 	private renderMemory() {
-		const heap = this.info?.freeHeapBytes;
 		const worstStack = this.taskList.reduce((m, t) => Math.max(m, t.stackSizeBytes ? t.stackUsedHighWaterBytes / t.stackSizeBytes : 0), 0);
 		return this.tile("Speicher", "memory", html`
-			${this.kv("Freier Heap", heap === undefined ? "–" : `${(heap / 1024).toFixed(1)} KiB`)}
 			${this.kv("Höchste Stack-Auslastung", this.taskList.length ? `${Math.round(worstStack * 100)} %` : "–")}
 			${this.pools.map((p) => {
 				const used = p.capacity ? 1 - p.free / p.capacity : 0;

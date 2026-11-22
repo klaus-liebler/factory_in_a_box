@@ -304,7 +304,6 @@ export class SystemInfoApp extends LitElement implements WorkspaceApp {
 									<table class="register-table kv-table">
 										<tbody>
 											${this.row("Uptime", formatUptime(info.uptimeSeconds))}
-											${this.row("Freier Heap", `${(info.freeHeapBytes / 1024).toFixed(1)} KiB`)}
 											${this.row("Letzter Reset", RESET_CAUSE_NAMES[info.resetCauseCode] ?? "Unbekannt")}
 										</tbody>
 									</table>

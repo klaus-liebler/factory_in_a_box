@@ -43,7 +43,6 @@ export class TaskManagerApp extends LitElement implements WorkspaceApp, WsProtoc
 
 	@state() private tasks: WsProtocol.tasks.TaskInfo[] = [];
 	@state() private pools: WsProtocol.tasks.PoolInfo[] = [];
-	@state() private freeHeapBytes = 0;
 
 	// The first answer after opening has no previous value for the CPU load (task_monitor.cpp): every
 	// cpuPermille is 0 then. The CPU column is shown from the second answer on.
@@ -90,7 +89,6 @@ export class TaskManagerApp extends LitElement implements WorkspaceApp, WsProtoc
 
 	private readonly onPoolList = (payload: WsProtocol.tasks.PoolListMessage.Payload) => {
 		this.pools = payload.pools;
-		this.freeHeapBytes = payload.freeHeapBytes;
 	};
 
 	onShow(): void {
@@ -189,7 +187,7 @@ export class TaskManagerApp extends LitElement implements WorkspaceApp, WsProtoc
 				</div>
 
 				<div class="panel-section">
-					<div class="panel-label">Pools &amp; Heap</div>
+					<div class="panel-label">Pools</div>
 					${this.pools.length === 0
 						? html`<p class="panel-text">Noch keine Daten empfangen.</p>`
 						: html`
@@ -206,10 +204,6 @@ export class TaskManagerApp extends LitElement implements WorkspaceApp, WsProtoc
 										</thead>
 										<tbody>
 											${this.pools.map((pool) => this.renderPoolRow(pool))}
-											<tr>
-												<td>newlib-Heap (B)</td>
-												<td colspan="3">${formatBytes(this.freeHeapBytes)} frei</td>
-											</tr>
 										</tbody>
 									</table>
 								</div>

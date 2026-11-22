@@ -40,9 +40,10 @@ foreach(f device_https_certificate.der device_https_key.der device_certificate.d
     endif()
 endforeach()
 
-# The common sources; of src/hal and src/features only what the revision's hal.cmake lists.
+# The common sources (src/features/<module>/: the function modules); of src/hal and of the modules
+# that only some revisions have (src/features/malibotti) only what the revision's hal.cmake lists.
 file(GLOB_RECURSE FCU_SOURCES CONFIGURE_DEPENDS src/*.cpp)
-list(FILTER FCU_SOURCES EXCLUDE REGEX "/src/(hal|features)/")
+list(FILTER FCU_SOURCES EXCLUDE REGEX "/src/(hal|features/malibotti)/")
 list(APPEND FCU_SOURCES ${FCU_HAL_SOURCES})
 message(STATUS "FCU board revision ${FCU_HAL}: ${RTOS_CHIP}, rtoos board revision ${RTOS_FCU_REVISION}")
 
@@ -52,5 +53,5 @@ rtos_add_firmware(firmware_factory_control_unit
     SOURCES ${FCU_SOURCES}
     LIBRARIES rtos_board_fcu rtos_tls rtos_opcua rtos_filex rtos_plc
     FLASH_DATA_START 0x081C0000)
-target_include_directories(firmware_factory_control_unit PRIVATE src src/hal/${FCU_HAL} ${FCU_GENERATED})
+target_include_directories(firmware_factory_control_unit PRIVATE src src/features src/hal/${FCU_HAL} ${FCU_GENERATED})
 target_compile_options(firmware_factory_control_unit PRIVATE -Wall -Wextra -Werror --embed-dir=${FCU_ASSETS})

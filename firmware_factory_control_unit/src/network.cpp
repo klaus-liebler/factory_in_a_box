@@ -27,6 +27,7 @@
 #include "rtos/opcua/clock.hpp"
 #include "rtos/opcua/ns0_base.hpp"
 #include "rtos/opcua/registers.hpp"
+#include "rtos/time.hpp"
 #include "rtos/usb/cdc_acm.hpp"
 #include "rtos/usb/cdc_ncm.hpp"
 #include "rtos/usb/descriptors.hpp"
@@ -168,7 +169,7 @@ std::atomic<bool> usb_configured{false};
 
 void on_sntp_host(void*, std::string_view name, std::optional<rn::Ipv4Address> address) noexcept {
     if (!address) {
-        RTOS_LOG_WARN("sntp: %.*s not resolved", static_cast<int>(name.size()), name.data());
+        RTOS_LOG_WARN("sntp: %.*s not resolved", RTOS_SV(name));
         return;
     }
     sntp.set_server(*address, 123);
@@ -185,7 +186,7 @@ void on_dhcp_bound(void*, const rn::DhcpLease& lease, bool renewed) noexcept {
         if (lease.ntp[0] != rn::Ipv4Address::any()) {
             sntp.set_server(lease.ntp[0], 123);
         } else if (!dns.resolve(sntp_host, &on_sntp_host, nullptr)) {
-            RTOS_LOG_WARN("sntp: no DNS server for %.*s", static_cast<int>(sntp_host.size()), sntp_host.data());
+            RTOS_LOG_WARN("sntp: no DNS server for %.*s", RTOS_SV(sntp_host));
         }
     }
 }
@@ -195,7 +196,7 @@ void on_dhcp_lost(void*) noexcept {
 }
 void on_dhcp_declined(void*, rn::Ipv4Address) noexcept { RTOS_LOG_WARN("dhcp: offered address in use, declined"); }
 void on_mdns_renamed(void*, std::string_view name) noexcept {
-    RTOS_LOG_WARN("mdns: name conflict, now %.*s", static_cast<int>(name.size()), name.data());
+    RTOS_LOG_WARN("mdns: name conflict, now %.*s", RTOS_SV(name));
 }
 
 const rn::DhcpClient<Stack>::Handler dhcp_handler{nullptr, &on_dhcp_bound, &on_dhcp_lost, &on_dhcp_declined};
@@ -209,7 +210,7 @@ struct LinkTasks {
 
     void service() noexcept {
         const rtos::Tick now = stack.now_ms();
-        if (static_cast<std::int32_t>(now - next_poll) < 0) {
+        if (!rtos::reached(now, next_poll)) {
             return;
         }
         next_poll = now + poll_ms;
@@ -244,7 +245,7 @@ struct LinkTasks {
     std::uint32_t usb_late_logged = 0, usb_lost_logged = 0;
     void log_late_descriptors(rtos::Tick now) noexcept {
         const auto& s = usb_fs.stats();
-        if (static_cast<std::int32_t>(now - next_usb_log) < 0 || (s.rx_late == usb_late_logged && s.rx_late_lost == usb_lost_logged)) {
+        if (!rtos::reached(now, next_usb_log) || (s.rx_late == usb_late_logged && s.rx_late_lost == usb_lost_logged)) {
             return;
         }
         next_usb_log = now + 10'000;
@@ -350,9 +351,7 @@ Server server{stack, tls_context, resources, "/ws", ws_handler, https_config};
 Outbox outbox{server};
 
 void start() noexcept {
-    std::ranges::fill(net_stack, task_monitor::paint);
-    task_monitor::add(net_tcb, net_stack);
-    kernel.create_thread(net_tcb, {.name = "net", .entry = &net_main, .stack = net_stack, .priority = net_priority});
+    task_monitor::spawn(net_tcb, {.name = "net", .entry = &net_main, .stack = net_stack, .priority = net_priority});
 }
 
 Status status() noexcept {
@@ -367,7 +366,9 @@ Status status() noexcept {
 }
 
 PoolUse packet_pool_use() noexcept {
-    return {static_cast<std::uint32_t>(Pool::capacity()), static_cast<std::uint32_t>(packet_pool.available())};
+    return {.capacity = static_cast<std::uint32_t>(Pool::capacity()),
+            .available = static_cast<std::uint32_t>(packet_pool.available()),
+            .min_available = static_cast<std::uint32_t>(packet_pool.min_available())};
 }
 
 std::uint64_t unix_ms() noexcept { return sntp.unix_ms(kernel.now()); }

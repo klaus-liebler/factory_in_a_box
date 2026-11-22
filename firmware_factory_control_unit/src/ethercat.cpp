@@ -10,6 +10,7 @@
 #include "gitconstants.hh"
 #include "hardware.hpp"
 #include "pins.hpp"
+#include "rtos/time.hpp"
 #include "system.hpp"
 #include "task_monitor.hpp"
 
@@ -68,22 +69,20 @@ struct App {
 
     void al_changed(std::uint8_t from, std::uint8_t to) noexcept {
         ec::write8(esc, ec::reg::run_led_override, run_led_off);
-        RTOS_LOG_INFO("ethercat: AL %.*s -> %.*s", static_cast<int>(ec::state_name(from).size()), ec::state_name(from).data(),
-                      static_cast<int>(ec::state_name(to).size()), ec::state_name(to).data());
+        RTOS_LOG_INFO("ethercat: AL %.*s -> %.*s", RTOS_SV(ec::state_name(from)),
+                      RTOS_SV(ec::state_name(to)));
     }
     void al_refused(std::uint8_t from, std::uint8_t to, std::uint16_t code) noexcept {
         ec::write8(esc, ec::reg::run_led_override, run_led_off);
         const auto text = ec::al_code::text(code);
-        RTOS_LOG_WARN("ethercat: AL %.*s -> %.*s refused: 0x%04x %.*s", static_cast<int>(ec::state_name(from).size()),
-                      ec::state_name(from).data(), static_cast<int>(ec::state_name(to).size()), ec::state_name(to).data(), code,
-                      static_cast<int>(text.size()), text.data());
+        RTOS_LOG_WARN("ethercat: AL %.*s -> %.*s refused: 0x%04x %.*s", RTOS_SV(ec::state_name(from)), RTOS_SV(ec::state_name(to)), code,
+                      RTOS_SV(text));
     }
     void al_error(std::uint8_t from, std::uint8_t to, std::uint16_t code) noexcept {
         ec::write8(esc, ec::reg::run_led_override, run_led_off);
         const auto text = ec::al_code::text(code);
-        RTOS_LOG_ERROR("ethercat: %.*s -> %.*s by the slave: 0x%04x %.*s - EtherCAT outputs to 0", static_cast<int>(ec::state_name(from).size()),
-                       ec::state_name(from).data(), static_cast<int>(ec::state_name(to).size()), ec::state_name(to).data(), code,
-                       static_cast<int>(text.size()), text.data());
+        RTOS_LOG_ERROR("ethercat: %.*s -> %.*s by the slave: 0x%04x %.*s - EtherCAT outputs to 0", RTOS_SV(ec::state_name(from)), RTOS_SV(ec::state_name(to)), code,
+                       RTOS_SV(text));
     }
     void eeprom_command(unsigned cmd, std::uint32_t word) noexcept {
         if (cmd == ec::eeprom::cmd_read && eeprom_logged >= 8) return;  // a master reads the SII in bursts
@@ -215,7 +214,7 @@ void ecat_main(void*) {
                           static_cast<unsigned long>(esc.csr(rtos::devices::lan9253::hw_cfg)),
                           static_cast<unsigned long>(slave.counters().eeprom_reloads));
         }
-        if (static_cast<std::int32_t>(now - next_status) >= 0) {
+        if (rtos::reached(now, next_status)) {
             next_status = now + 1000;
             take_status(ready);
         }
@@ -234,9 +233,7 @@ void start() noexcept {
     if constexpr (!pins::ethercat.has_value()) {
         return;
     } else {
-        std::ranges::fill(ecat_stack, task_monitor::paint);
-        kernel.create_thread(ecat_tcb, {.name = "ecat", .entry = &ecat_main, .stack = ecat_stack, .priority = ethercat_priority});
-        task_monitor::add(ecat_tcb, ecat_stack);
+        task_monitor::spawn(ecat_tcb, {.name = "ecat", .entry = &ecat_main, .stack = ecat_stack, .priority = ethercat_priority});
         if constexpr (hw::has_ethercat_irq) {
             hw::EscIrq::init();
             hw::EscIrq::enable();

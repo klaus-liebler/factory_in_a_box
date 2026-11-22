@@ -1,6 +1,6 @@
-// The I/O thread's cycle (every 50 ms): inputs into the register map, the register map into
-// the outputs, the sensors, steppers, LEDs, CAN and the RoArm - the former Io class with its
-// SetupAndLoop members, in one thread as before.
+// The I/O thread's cycle (every 50 ms): inputs into the register map, the register map into the
+// outputs (valves, PWM, LEDs), the sensors, CAN, health; the function modules of src/features
+// (steppers, RoArm, Malibotti) run in it too. The EXTI interrupts of every module end here.
 #pragma once
 
 #include <array>
@@ -15,22 +15,12 @@ namespace fcu::io {
 
 inline constexpr std::uint32_t cycle_ms = 50;
 
-/// Power consumers (after the supply gate): pins, buses, sensors, drivers. Then the bus scans.
-/// `supply_up`: the motor supply is there; only then do the steppers home (sensorless, by
-/// StallGuard), each one whose TMC2209 answers.
+/// Power consumers (after the supply gate): pins, buses and their scans, sensors, drivers, the
+/// function modules. `supply_up`: the motor supply is there (the steppers home only then).
 void setup(bool supply_up) noexcept;
 
 /// One cycle; `now` in ms.
 void cycle(std::uint32_t now) noexcept;
-
-/// Sensorless homing between the cycles: StallGuard over UART, on every revision; revision 1 has
-/// no DIAG wires, so this is its only way (revisions 2/3: DIAG stops it at once, the poll stays as
-/// the fallback). SG_RESULT changes about every full step (5 ms at the homing speed of 200 full
-/// steps/s); at the 50 ms of the cycle the motor would push about 10 full steps against the end stop.
-inline constexpr std::uint32_t homing_poll_period_ms = 5;
-/// The period to call homing_poll() at, 0: no homing running.
-[[nodiscard]] std::uint32_t homing_poll_ms() noexcept;
-void homing_poll(std::uint32_t now) noexcept;
 
 /// Events from interrupts for the I/O thread, between the cycles: notification slot and bits.
 inline constexpr std::size_t event_slot = 0;
@@ -46,11 +36,6 @@ void events(std::uint32_t bits) noexcept;
 /// the PLC, which calls it after its own writes. Commands that must not be missed between two cycles
 /// (the WS2812 pixel registers, ws2812.hpp) are applied here.
 void holding_written(void* context, std::uint16_t start, std::uint16_t count) noexcept;
-
-/// A message of the stepper test bench (ws::stepper, network thread): handled in the next cycle,
-/// answered through the outbox.
-/// `reply` only for refusing it here (queue full).
-void stepper_post(net::Server::SessionId session, WsProtocol::Responder& reply, std::span<const std::uint8_t> message) noexcept;
 
 /// The boot scan of an I2C bus: 128 bits, bit n = a device answered at address n.
 /// The I2C buses by role (their numbers differ per revision: hw::i2c_tof2_bus, hw::i2c_supply_bus).

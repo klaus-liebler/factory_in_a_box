@@ -9,11 +9,11 @@
 #include <string_view>
 
 #include "board/chip.hpp"
-#include "io.hpp"
 #include "mcu.h"  // the revision's MCU: its flash_program.hpp
 #include "rtos/plc/slot_store.hpp"
 #include "rtos/plc/vm.hpp"
 #include "rtos/sync/message_queue.hpp"
+#include "rtos/time.hpp"
 #include "system.hpp"
 #include "task_monitor.hpp"
 #include "web.hpp"
@@ -136,18 +136,16 @@ std::uint32_t read_var(const vm::IoBinding& b) noexcept {
     return v;
 }
 
+/// The program's writes are commands like a protocol's: the bank's write hook sees them (WS2812
+/// pixels, io::holding_written), its write filter does not apply (the program owns these registers).
 void write_register(const vm::IoBinding& b, std::uint32_t v) noexcept {
-    std::uint16_t words_written = 1;
-    if (b.bits == 1) {
-        registers.set_holding(b.reg, v != 0 ? 1 : 0);
-    } else if (b.bits == 16) {
-        registers.set_holding(b.reg, static_cast<std::uint16_t>(v));
-    } else {
+    if (b.bits == 32) {
         const std::array<std::uint16_t, 2> words{static_cast<std::uint16_t>(v >> 16), static_cast<std::uint16_t>(v)};
-        registers.set_holdings(b.reg, words);  // one guard: never half a value
-        words_written = 2;
+        registers.set_holdings_notified(b.reg, words);  // one guard: never half a value
+        return;
     }
-    io::holding_written(nullptr, b.reg, words_written);  // the bank's hook sees protocol writes only
+    const std::array<std::uint16_t, 1> word{static_cast<std::uint16_t>(b.bits == 1 ? (v != 0 ? 1 : 0) : v)};
+    registers.set_holdings_notified(b.reg, word);
 }
 
 /// Registers -> program variables: inputs, parameters and the commands' answers.
@@ -420,7 +418,7 @@ void watch_publish() noexcept {
     const std::size_t size = machine.loaded() ? machine.data_size() : 0;
     for (std::size_t i = 0; i < watches.size(); ++i) {
         Watch& w = watches[i];
-        if (!w.active || static_cast<std::int32_t>(now - w.last_ms) < static_cast<std::int32_t>(watch_period_ms)) continue;
+        if (!w.active || !rtos::reached(now, w.last_ms + watch_period_ms)) continue;
         w.last_ms = now;
         std::size_t n = 0;
         bool fits = true;
@@ -714,9 +712,7 @@ bool post(const Request& r) noexcept {
 
 // ---- interface ---------------------------------------------------------------------------------------------
 void create_thread() noexcept {
-    std::ranges::fill(plc_stack, task_monitor::paint);
-    kernel.create_thread(plc_tcb, {.name = "plc", .entry = &plc_main, .stack = plc_stack, .priority = plc_priority});
-    task_monitor::add(plc_tcb, plc_stack);
+    task_monitor::spawn(plc_tcb, {.name = "plc", .entry = &plc_main, .stack = plc_stack, .priority = plc_priority});
 }
 
 void io_cycle_done() noexcept { kernel.notify(plc_tcb, notify_slot, bit_cycle); }
@@ -742,10 +738,6 @@ void session_closed(SessionId id) noexcept {
 }
 
 bool command(ws::PlcCommand c) noexcept { return post({.terminal = true, .kind = Kind::control, .command = c}); }
-
-bool external_write_allowed(std::uint16_t reg) noexcept {
-    return !iec_controls() || rm::holding_kind(reg) == RegisterKind::parameter;
-}
 
 void on_message(SessionId id, WsProtocol::Responder& reply, std::span<const std::uint8_t> frame) noexcept {
     using WsProtocol::ErrorCode;

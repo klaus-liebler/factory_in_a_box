@@ -11,6 +11,8 @@
 #include "io.hpp"
 #include "network.hpp"
 #include "plc.hpp"
+#include "steppers/steppers.hpp"
+#include "rtos/time.hpp"
 #include "system.hpp"
 #include "task_monitor.hpp"
 
@@ -73,19 +75,19 @@ void io_main(void*) {
         fcu::io::cycle(kernel.now());
         fcu::plc::io_cycle_done();  // the inputs are fresh: one cycle of the IEC program
         next += fcu::io::cycle_ms;
-        if (static_cast<std::int32_t>(kernel.now() - next) > static_cast<std::int32_t>(fcu::io::cycle_ms)) {
+        if (rtos::earlier(next + fcu::io::cycle_ms, kernel.now())) {
             next = kernel.now();  // overrun: no catching up
         }
         // until the next cycle: events from interrupts (a measurement ready, ...) right away, and
         // while a stepper homes its StallGuard poll every few ms
-        for (rtos::Tick now = kernel.now(); static_cast<std::int32_t>(next - now) > 0; now = kernel.now()) {
-            const std::uint32_t poll = fcu::io::homing_poll_ms();
+        for (rtos::Tick now = kernel.now(); rtos::earlier(now, next); now = kernel.now()) {
+            const std::uint32_t poll = fcu::steppers::homing_poll_ms();
             const rtos::Tick wait = poll != 0 ? std::min<rtos::Tick>(poll, next - now) : next - now;
             if (const auto bits = kernel.notify_wait(fcu::io::event_slot, wait)) {
                 fcu::io::events(*bits);
             }
             if (poll != 0) {
-                fcu::io::homing_poll(kernel.now());
+                fcu::steppers::homing_poll(kernel.now());
             }
         }
     }
@@ -99,12 +101,8 @@ int main() {
     board::CycleCounter::enable();
     fcu::Port::configure(board::sysclk_hz, 1000);
     rtos::log::set_sink(journal.sink([]() noexcept { return kernel.now(); }));
-    std::ranges::fill(log_stack, fcu::task_monitor::paint);
-    std::ranges::fill(io_stack, fcu::task_monitor::paint);
-    kernel.create_thread(log_tcb, {.name = "log", .entry = &log_main, .stack = log_stack, .priority = fcu::log_priority});
-    kernel.create_thread(io_tcb, {.name = "io", .entry = &io_main, .stack = io_stack, .priority = fcu::io_priority});
-    fcu::task_monitor::add(io_tcb, io_stack);
-    fcu::task_monitor::add(log_tcb, log_stack);
+    fcu::task_monitor::spawn(log_tcb, {.name = "log", .entry = &log_main, .stack = log_stack, .priority = fcu::log_priority});
+    fcu::task_monitor::spawn(io_tcb, {.name = "io", .entry = &io_main, .stack = io_stack, .priority = fcu::io_priority});
     fcu::plc::create_thread();
     kernel.start();
 }

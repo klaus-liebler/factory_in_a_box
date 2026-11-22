@@ -12,9 +12,9 @@
 
 namespace fcu::task_monitor {
 
-/// A thread to show; its stack must have been painted with `paint` before it started.
-void add(Kernel::Thread& thread, std::span<std::byte> stack) noexcept;
-inline constexpr std::byte paint{0xA5};
+/// Creates a thread (Kernel::create_thread) that the task manager shows: its stack painted first, so
+/// that the stack use can be measured. Every thread of the firmware starts this way.
+void spawn(Kernel::Thread& thread, const Kernel::ThreadParams& params) noexcept;
 
 /// Network thread: answer a tasks message (`frame`: header included).
 void handle_message(WsProtocol::Responder& reply, std::span<const std::uint8_t> frame) noexcept;

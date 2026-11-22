@@ -56,14 +56,12 @@ void announce() noexcept {
     {
         auto b = RTOS_LOG_BLOCK(Info);
         b.add("=== FactoryInABox Control Unit (rtoos) ===");
-        b.add(" board     %.*s, hardware revision %u", static_cast<int>(BOARD_NAME.size()), BOARD_NAME.data(),
+        b.add(" board     %.*s, hardware revision %u", RTOS_SV(BOARD_NAME),
                board::revision);
         b.add(" hostname  %s.local", DEVICE_HOSTNAME);
-        b.add(" version   %.*s, commit %.*s (%.*s)%s", static_cast<int>(git::VERSION.size()), git::VERSION.data(),
-               static_cast<int>(git::COMMIT_HASH.size()), git::COMMIT_HASH.data(), static_cast<int>(git::BRANCH.size()),
-               git::BRANCH.data(), git::IS_DIRTY ? ", dirty" : "");
-        b.add(" clocks    %.*s, CPU %u MHz, PCLK1 %u MHz", static_cast<int>(board::mcu_name.size()),
-               board::mcu_name.data(), static_cast<unsigned>(board::sysclk_hz / 1'000'000),
+        b.add(" version   %.*s, commit %.*s (%.*s)%s", RTOS_SV(git::VERSION),
+               RTOS_SV(git::COMMIT_HASH), RTOS_SV(git::BRANCH), git::IS_DIRTY ? ", dirty" : "");
+        b.add(" clocks    %.*s, CPU %u MHz, PCLK1 %u MHz", RTOS_SV(board::mcu_name), static_cast<unsigned>(board::sysclk_hz / 1'000'000),
                static_cast<unsigned>(hw::clocks.pclk1_hz() / 1'000'000));
         b.add(" chip      %08lX-%08lX-%08lX", static_cast<unsigned long>(uid[0]), static_cast<unsigned long>(uid[1]),
                static_cast<unsigned long>(uid[2]));
@@ -127,11 +125,11 @@ bool wait_for_supply() noexcept {
     }
     if constexpr (hw::mcu_power_delivery) {
         RTOS_LOG_INFO("supply: only %ld mV, asking USB-PD (%.*s) for %d mV", static_cast<long>(mv),
-                      static_cast<int>(hw::pd_controller.size()), hw::pd_controller.data(), pd_request_mv);
+                      RTOS_SV(hw::pd_controller), pd_request_mv);
         pd::request(pd_request_mv);
     } else {
         RTOS_LOG_INFO("supply: only %ld mV, waiting for the %.*s's %d mV", static_cast<long>(mv),
-                      static_cast<int>(hw::pd_controller.size()), hw::pd_controller.data(), pd_request_mv);
+                      RTOS_SV(hw::pd_controller), pd_request_mv);
     }
     rtos::Tick last_log = kernel.now();
     while (mv < supply_min_mv) {

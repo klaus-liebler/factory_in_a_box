@@ -49,11 +49,7 @@ public class Diagnostics
     [ModbusRegister(Access.ReadOnly, Unit = "ticks"), ModbusMapping(Address = 10)]
     public ushort TimerTick;
 
-    /// <summary>Freier newlib-Heap (High-Water-Mark bis zur MSP-Stack-Reserve, s. sysmem.c) --
-    /// freigegebene, aber noch sbrk'te Bloecke zaehlen nicht mit, also eine pessimistische
-    /// untere Schranke</summary>
-    [ModbusRegister(Access.ReadOnly, Unit = "KiB"), ModbusMapping(Address = 11)]
-    public ushort FreeHeapKib;
+    // Address 11 (FreeHeapKib) stays free: the firmware has no heap (rtoos).
 
     /// <summary>Chip-Temperatur (interner DTS-Sensor, RM0481 Kap. 29, werksseitig je Chip
     /// kalibriert)</summary>

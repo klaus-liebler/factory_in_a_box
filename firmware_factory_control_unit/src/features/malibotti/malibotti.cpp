@@ -1,6 +1,6 @@
 // The Malibotti robot (see malibotti.hpp, docs/malibotti-uart.md): boards with the connector
 // (src/hal/<revision>/hal.cmake lists this file; the others malibotti_absent.cpp).
-#include "malibotti.hpp"
+#include "malibotti/malibotti.hpp"
 
 #include <array>
 #include <cstddef>

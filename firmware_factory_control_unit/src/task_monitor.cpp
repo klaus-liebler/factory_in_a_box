@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <ranges>
 
 #include "network.hpp"
 #include "rtos/net/tls_memory.hpp"
@@ -14,6 +15,8 @@ namespace fcu::task_monitor {
 namespace {
 
 namespace ws = WsProtocol::tasks;
+
+constexpr std::byte paint{0xA5};
 
 struct Entry {
     Kernel::Thread* thread = nullptr;
@@ -35,8 +38,7 @@ void tasks(WsProtocol::Responder& reply, const ws::TaskManagerRequest::Payload&)
     const std::uint32_t now = board::CycleCounter::now();
     const std::uint32_t wall = sampled ? now - last_sample : 0;
     std::array<std::uint8_t, KernelConfig::max_threads * ws::TaskListMessageItems_ELEMENT_SIZE> items{};
-    std::size_t pos = 0;
-    for (std::size_t i = 0; i < count; ++i) {
+    (void)ws::EncodeTaskListMessageItemsElements(std::views::iota(std::size_t{0}, count), items.data(), items.size(), [&](std::size_t i) {
         Entry& e = entries[i];
         const Kernel::Thread& t = *e.thread;
         ws::TaskInfo info{};
@@ -51,8 +53,8 @@ void tasks(WsProtocol::Responder& reply, const ws::TaskManagerRequest::Payload&)
         const std::uint64_t cycles = t.run_cycles;
         info.cpuPermille = wall != 0 ? static_cast<std::uint16_t>(std::min<std::uint64_t>(1000, (cycles - e.last_cycles) * 1000 / wall)) : 0;
         e.last_cycles = cycles;
-        pos += ws::EncodeTaskListMessageItemsElement(info, items.data() + pos, items.size() - pos);
-    }
+        return info;
+    });
     last_sample = now;
     sampled = true;
     reply.Send(ws::TaskListMessage::Encode, ws::TaskListMessage::Payload{.itemsData = items.data(), .itemsCount = count});
@@ -64,27 +66,26 @@ void pools(WsProtocol::Responder& reply, const ws::PoolListRequest::Payload&) no
     fill(info[0].name, "Packets (buffers)");
     info[0].capacity = packets.capacity;
     info[0].free = packets.available;
-    info[0].minFree = packets.available;
+    info[0].minFree = packets.min_available;
     const rtos::net::TlsPoolStats& tls = rtos::net::tls_pool_stats();
     fill(info[1].name, "wolfSSL (bytes)");
     info[1].capacity = tls.total_bytes;
     info[1].free = tls.total_bytes - tls.used_bytes;
     info[1].minFree = tls.total_bytes - tls.peak_bytes;  // sizes the pool: the peak of real use
     std::array<std::uint8_t, 2 * ws::PoolListMessagePools_ELEMENT_SIZE> data{};
-    std::size_t pos = 0;
-    for (const auto& i : info) {
-        pos += ws::EncodePoolListMessagePoolsElement(i, data.data() + pos, data.size() - pos);
-    }
+    (void)ws::EncodePoolListMessagePoolsElements(info, data.data(), data.size());
     reply.Send(ws::PoolListMessage::Encode,
-               ws::PoolListMessage::Payload{.poolsData = data.data(), .poolsCount = info.size(), .freeHeapBytes = 0});
+               ws::PoolListMessage::Payload{.poolsData = data.data(), .poolsCount = info.size()});
 }
 
 }  // namespace
 
-void add(Kernel::Thread& thread, std::span<std::byte> stack) noexcept {
+void spawn(Kernel::Thread& thread, const Kernel::ThreadParams& params) noexcept {
+    std::ranges::fill(params.stack, paint);
     if (count < entries.size()) {
-        entries[count++] = {&thread, stack, 0};
+        entries[count++] = {&thread, params.stack, 0};
     }
+    kernel.create_thread(thread, params);
 }
 
 std::size_t stack_used(std::span<const std::byte> stack) noexcept {

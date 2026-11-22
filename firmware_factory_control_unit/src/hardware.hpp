@@ -92,14 +92,11 @@ using EscIrq = chip::ExtiLine<has_ethercat_irq ? pins::ethercat->irq : pins::lig
 /// Conveyor and compressor: 1 kHz PWM (requirement: at most 1 kHz), duty in 1/1000.
 using MotorPwm = chip::Timer<chip::TimerId::Tim4, {.kernel_hz = clocks.timer1_hz(), .update_hz = 1'000, .min_steps = 1000}>;
 
-/// 100 -> 1000 steps/s in 0.5 s (the FCU's sorter and elevator; rtoos motion_test).
-inline constexpr rtos::motion::SigmoidRamp stepper_ramp{.tick_hz = 1'000'000, .start_hz = 100, .cruise_hz = 1000,
-                                                        .ramp_us = 500'000};
 /// The timers make every STEP edge (toggle on CCR, TMC2209 DEDGE: one microstep per edge), the
 /// DMA writes each step's period into ARR; STEP 1 = PA15 (TIM2_CH1), STEP 2 = PB4 (TIM3_CH1).
 using Stepper1Timer = chip::Timer<chip::TimerId::Tim2, {.kernel_hz = clocks.timer1_hz(), .tick_hz = 1'000'000}>;
 using Stepper2Timer = chip::Timer<chip::TimerId::Tim3, {.kernel_hz = clocks.timer1_hz(), .tick_hz = 1'000'000}>;
-/// The speed profile is chosen at run time (the stepper test bench of the web UI, io.cpp).
+/// The speed profile is chosen at run time (the stepper test bench of the web UI, features/steppers).
 using Stepper1 = rtos::motion::ProfileTimerStepper<Stepper1Timer, 1, Stepper1Dma>;
 using Stepper2 = rtos::motion::ProfileTimerStepper<Stepper2Timer, 1, Stepper2Dma>;
 

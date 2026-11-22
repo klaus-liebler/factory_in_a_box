@@ -1,5 +1,4 @@
 // RoArm-M3 (see roarm.hpp).
-#include "plc.hpp"
 #include "roarm/roarm.hpp"
 
 #include <algorithm>
@@ -10,11 +9,12 @@
 #include <type_traits>
 
 #include "hardware.hpp"
-#include "rtos/devices/feetech_sts.hpp"
-#include "rtos/sync/message_queue.hpp"
+#include "plc.hpp"
 #include "roarm/kinematics.hpp"
 #include "roarm/missions.hpp"
 #include "roarm/motion.hpp"
+#include "rtos/devices/feetech_sts.hpp"
+#include "rtos/time.hpp"
 #include "system.hpp"
 #include "web.hpp"
 #include "ws_protocol.hh"
@@ -199,12 +199,7 @@ void servo_io() {
 }
 
 // ---- WebSocket requests (queued by the network thread) -------------------------------------------------
-struct Request {
-    net::Server::SessionId session = 0;
-    std::uint16_t size = 0;
-    std::array<std::uint8_t, net::max_ws_message> data{};
-};
-rtos::MessageQueue<Kernel, Request, 3> requests{kernel};
+web::FrameQueue<net::max_ws_message, 3> requests{"RoArm"};
 
 std::array<std::uint8_t, net::max_ws_message> answer;
 std::array<std::uint8_t, net::max_ws_message> build;
@@ -289,11 +284,8 @@ void mission_gpio_list(Responder& reply, const ws::GetMissionGpioListRequest::Pa
                                                        .namesDataSize = pos});
 }
 
-void handle(const Request& r) {
-    WsProtocol::FrameHeader header{};
-    if (!WsProtocol::ReadHeader(r.data.data(), r.size, header)) return;
-    Responder reply = web::responder_from_io(r.session, header, answer);
-    const auto on = [&](auto decode, auto handler) { WsProtocol::Dispatch(reply, r.data.data(), r.size, decode, handler); };
+void handle(Responder& reply, const WsProtocol::FrameHeader& header, std::span<const std::uint8_t> frame) {
+    const auto on = [&](auto decode, auto handler) { WsProtocol::Dispatch(reply, frame.data(), frame.size(), decode, handler); };
     switch (header.messageTypeId) {
         case ws::StartTeachModeRequest::TYPE_ID: return on(ws::StartTeachModeRequest::Decode, start_teach_mode);
         case ws::StopTeachModeRequest::TYPE_ID: return on(ws::StopTeachModeRequest::Decode, stop_teach_mode);
@@ -311,7 +303,7 @@ void handle(const Request& r) {
 std::uint32_t next_pose = 0;
 
 void pose_broadcast(std::uint32_t now) {
-    if (!teach_mode || static_cast<std::int32_t>(now - next_pose) < 0) {
+    if (!teach_mode || !rtos::reached(now, next_pose)) {
         return;
     }
     next_pose = now + 100;
@@ -344,11 +336,7 @@ void cycle(std::uint32_t now) noexcept {
         teach_mode = false;  // switched to IEC: jogging ends, the arm holds its position
         RTOS_LOG_INFO("roarm: teach mode ended: the IEC program is the control source");
     }
-    for (int i = 0; i < 3; ++i) {
-        const auto r = requests.try_receive();
-        if (!r) break;
-        handle(*r);
-    }
+    requests.drain(answer, handle);
     double dt = last_tick == 0 ? 0.05 : (now - last_tick) / 1000.0;
     last_tick = now;
     if (!(dt > 0.0) || dt > 1.0) dt = 0.05;
@@ -362,16 +350,7 @@ void cycle(std::uint32_t now) noexcept {
 }
 
 void post(net::Server::SessionId id, WsProtocol::Responder& reply, std::span<const std::uint8_t> message) noexcept {
-    if (message.size() > net::max_ws_message) {
-        reply.Error(WsProtocol::ErrorCode::Malformed, "frame too large");
-        return;
-    }
-    Request r{.session = id, .size = static_cast<std::uint16_t>(message.size())};
-    std::memcpy(r.data.data(), message.data(), message.size());
-    if (!requests.try_send(r)) {
-        RTOS_LOG_WARN("RoArm: request queue full, message dropped");
-        reply.Error(WsProtocol::ErrorCode::Busy, "RoArm request queue full");
-    }
+    requests.post(id, reply, message);
 }
 
 }  // namespace fcu::roarm

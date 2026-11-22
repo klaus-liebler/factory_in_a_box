@@ -5,4 +5,4 @@ set(RTOS_CHIP stm32h743 CACHE STRING "Chip of this build tree" FORCE)
 set(RTOS_FCU_REVISION 3 CACHE STRING "Factory Control Unit hardware revision" FORCE)
 set(FCU_HAL_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/power_delivery.cpp
-    ${CMAKE_SOURCE_DIR}/src/features/malibotti.cpp)
+    ${CMAKE_SOURCE_DIR}/src/features/malibotti/malibotti.cpp)

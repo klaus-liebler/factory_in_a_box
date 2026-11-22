@@ -2,11 +2,9 @@
 #include "plc_project.hpp"
 
 #include <array>
-#include <cstring>
 #include <span>
 
 #include "rtos/log/log.hpp"
-#include "rtos/sync/message_queue.hpp"
 #include "sd_card.hpp"
 #include "system.hpp"
 #include "web.hpp"
@@ -22,12 +20,7 @@ constexpr const char* directory = "/PLC";
 constexpr const char* path = "/PLC/project.fcuplc.json";
 constexpr const char* tmp_path = "/PLC/project.tmp";
 
-struct Request {
-    net::Server::SessionId session = 0;
-    std::uint16_t size = 0;
-    std::array<std::uint8_t, ws::PutProjectRequest::PutProjectRequest_MAX_SIZE> data{};
-};
-rtos::MessageQueue<Kernel, Request, 2> requests{kernel};
+web::FrameQueue<ws::PutProjectRequest::PutProjectRequest_MAX_SIZE, 2> requests{"plc project"};
 std::array<std::uint8_t, ws::GetProjectResponse::GetProjectResponse_MAX_SIZE> answer;
 std::array<std::uint8_t, 1024> chunk;  ///< a GetProject chunk (static: not on the I/O thread's stack)
 
@@ -143,14 +136,11 @@ void get_project(WsProtocol::Responder& reply, const ws::GetProjectRequest::Payl
                                                .dataCount = got, .message = e ? e : ""});
 }
 
-void handle(const Request& r) noexcept {
-    WsProtocol::FrameHeader h{};
-    if (!WsProtocol::ReadHeader(r.data.data(), r.size, h)) return;
-    WsProtocol::Responder reply = web::responder_from_io(r.session, h, answer);
+void handle(WsProtocol::Responder& reply, const WsProtocol::FrameHeader& h, std::span<const std::uint8_t> frame) noexcept {
     if (h.messageTypeId == ws::PutProjectRequest::TYPE_ID) {
-        WsProtocol::Dispatch(reply, r.data.data(), r.size, ws::PutProjectRequest::Decode, put_project);
+        WsProtocol::Dispatch(reply, frame.data(), frame.size(), ws::PutProjectRequest::Decode, put_project);
     } else {
-        WsProtocol::Dispatch(reply, r.data.data(), r.size, ws::GetProjectRequest::Decode, get_project);
+        WsProtocol::Dispatch(reply, frame.data(), frame.size(), ws::GetProjectRequest::Decode, get_project);
     }
 }
 
@@ -159,22 +149,13 @@ void handle(const Request& r) noexcept {
 bool post(net::Server::SessionId id, WsProtocol::Responder& reply, std::span<const std::uint8_t> frame) noexcept {
     const std::uint16_t type = reply.Request().messageTypeId;
     if (type != ws::PutProjectRequest::TYPE_ID && type != ws::GetProjectRequest::TYPE_ID) return false;
-    Request r{.session = id, .size = static_cast<std::uint16_t>(frame.size())};
-    if (frame.size() > r.data.size()) {
-        reply.Error(WsProtocol::ErrorCode::Malformed, "frame too large");
-        return true;
-    }
-    std::memcpy(r.data.data(), frame.data(), frame.size());
-    if (!requests.try_send(r)) {
-        RTOS_LOG_WARN("plc: project request queue full, request dropped");
-        reply.Error(WsProtocol::ErrorCode::Busy, "project request queue full");
-    }
+    requests.post(id, reply, frame);
     return true;
 }
 
 void cycle() noexcept {
     // one request per cycle: a chunk is one FileX write of 1 KB
-    if (const auto r = requests.try_receive()) handle(*r);
+    requests.drain(answer, handle, 1);
 }
 
 }  // namespace fcu::plc::project

@@ -55,8 +55,6 @@ public class PoolListRequest
 [BinaryMessage(MessageKind.Response)]
 public class PoolListMessage
 {
-	// App::byte_pool, App::packet_pool, Http::WebServer::PacketPool(), App::opcua_packet_pool --
-	// s. HandlePoolListRequest() in task_monitor.cpp.
+	// packet buffers, wolfSSL pool: s. pools() in task_monitor.cpp (the firmware has no heap)
 	[BinaryMaxItemCount(4)] public PoolInfo[] pools = System.Array.Empty<PoolInfo>();
-	public uint freeHeapBytes; // newlib-Heap, s. GetFreeHeapBytes() (sysmem.c)
 }

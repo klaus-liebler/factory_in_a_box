@@ -30,9 +30,6 @@ void io_cycle_done() noexcept;
 /// Is the IEC program the control source right now?
 [[nodiscard]] bool iec_controls() noexcept;
 
-/// May somebody other than the program (terminal, web UI, RoArm teach) write holding register `reg`?
-[[nodiscard]] bool external_write_allowed(std::uint16_t reg) noexcept;
-
 /// The PLC's state for the terminal (`plc`), read from any thread.
 struct Status {
     const char* state;  ///< NO_PROGRAM, STOP, RUN, ERROR

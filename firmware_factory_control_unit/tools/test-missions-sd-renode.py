@@ -155,15 +155,20 @@ try:
         end = b.index(0, pos)
         return b[pos:end].decode(), end + 1
 
+    def polymorphic(elements):
+        # a polymorphic array: [count:u16][byte length:u32][elements] (best_binary_buffers)
+        data = b"".join(elements)
+        return struct.pack("<HI", len(elements), len(data)) + data
+
     def save(index, name, steps):
-        body = struct.pack("<H", index) + name.encode() + b"\0" + struct.pack("<H", len(steps)) + b"".join(steps)
+        body = struct.pack("<H", index) + name.encode() + b"\0" + polymorphic(steps)
         r = call(12, body, 13)
         return r[0] == 1, struct.unpack_from("<h", r, 1)[0]
 
     def listing():
         r = call(8, b"", 9)
         count, = struct.unpack_from("<H", r, 0)
-        pos, out = 2, []
+        pos, out = 6, []  # behind the count and the byte length
         for _ in range(count):
             cls, idx = struct.unpack_from("<HH", r, pos)
             name, pos = cstr(r, pos + 4)

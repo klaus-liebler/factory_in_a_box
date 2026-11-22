@@ -1,4 +1,4 @@
-// RoArm missions on the (simulated) SD card: src/roarm/missions.cpp against sim/sd_card_sim.cpp.
+// RoArm missions on the (simulated) SD card: src/features/roarm/missions.cpp against sim/sd_card_sim.cpp.
 #include <gtest/gtest.h>
 
 #include <array>

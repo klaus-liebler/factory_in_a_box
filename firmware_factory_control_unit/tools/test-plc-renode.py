@@ -8,7 +8,7 @@ TAP adapter "rtoos-tap" (rtoos/emulation/renode/setup-tap.ps1); over wss:// (WsP
   - an image built for another register map (I/O map hash) is refused
   - download of tools/plc-renode/test.img in chunks, commit into the flash slot
   - control source IEC: the outputs go to the safe state, Modbus writes to them and to the command
-    registers are refused with exception 0x02
+    registers are refused with exception 0x02 (Modbus) and to the terminal
   - a command register (Stepper1StartHoming) through the FCU library block FCU_StepperHome: the
     start reaches the firmware's homing, its answer the block (the emulator has no TMC2209: 3)
   - RUN: the program writes its outputs into the holding registers (32-bit value high word first),
@@ -456,6 +456,12 @@ try:
     check("IEC: the refused write changed nothing", holding(mb, CONVEYOR) == [0])
     check("IEC: Modbus write to a command register -> exception 02 (the program's)", modbus_write(mb, MISSION, 1) == 0x02
           and modbus_write(mb, HOMING1, 1) == 0x02)
+    # the terminal writes like a protocol: the register bank's write filter refuses it too
+    ok, out = term(ws, "pwm conveyor 500")
+    check("IEC: terminal 'pwm' to an output is refused", ok and "controlled by the IEC program" in out, out)
+    ok, out = term(ws, f"reg h {CONVEYOR} 7")
+    check("IEC: terminal 'reg h' to an output is refused, nothing changed",
+          ok and "controlled by the IEC program" in out and holding(mb, CONVEYOR) == [0], out)
     run_mark = len(log)
 
     ok, msg = control(ws, "run")

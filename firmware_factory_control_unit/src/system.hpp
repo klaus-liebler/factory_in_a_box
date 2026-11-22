@@ -3,6 +3,7 @@
 // Threads (0 = most urgent):
 //   net   8   network thread: IP stack, HTTPS/WebSocket, Modbus TCP/RTU, OPC UA, USB, mDNS,
 //             DHCP, SNTP (rtos::net::NetRuntime)
+//   ecat  9   EtherCAT slave (ethercat.hpp): woken by the ESC's IRQ or polling every 2 ms
 //   io   10   boot sequence (supply voltage, USB-PD, power consumers), then the I/O cycle
 //             every 50 ms: sensors, actuators, steppers, RoArm, heartbeat
 //   plc  11   the IEC 61131-3 program (plc.hpp): one cycle after each I/O cycle
@@ -40,6 +41,7 @@ using Registers = rtos::modbus::RegisterBank<register_map::holding_count, regist
 using Journal = rtos::log::Journal<48, 120, Kernel::Lock>;
 
 inline constexpr std::uint8_t net_priority = 8;
+inline constexpr std::uint8_t ethercat_priority = 9;  ///< below net: the bit-banged SPI must not starve the network
 inline constexpr std::uint8_t io_priority = 10;
 inline constexpr std::uint8_t plc_priority = 11;  ///< below io: the I/O cycle never waits for the program
 inline constexpr std::uint8_t log_priority = 14;

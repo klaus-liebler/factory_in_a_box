@@ -84,6 +84,9 @@ inline constexpr bool has_barrier3 = pins::light_barrier3.has_value();
 using Diag1 = chip::ExtiLine<pins::stepper1_diag.value_or(pins::light_barrier1), chip::ExtiEdge::Rising>;
 using Diag2 = chip::ExtiLine<pins::stepper2_diag.value_or(pins::light_barrier2), chip::ExtiEdge::Rising>;
 inline constexpr bool has_stepper_diag = pins::stepper1_diag.has_value() && pins::stepper2_diag.has_value();
+/// LAN9253 IRQ low: an AL event is pending (only where the line is wired; the fallback pin is never used).
+inline constexpr bool has_ethercat_irq = pins::ethercat.has_value() && pins::ethercat_irq_wired;
+using EscIrq = chip::ExtiLine<has_ethercat_irq ? pins::ethercat->irq : pins::light_barrier1, chip::ExtiEdge::Falling>;
 
 // ---- actuators ----------------------------------------------------------------------------------
 /// Conveyor and compressor: 1 kHz PWM (requirement: at most 1 kHz), duty in 1/1000.
@@ -123,7 +126,11 @@ inline constexpr auto exti_lines = [] {
         if constexpr (has_stepper_diag) return std::array{Diag1::line, Diag2::line};
         else return std::array<unsigned, 0>{};
     }();
-    return join(common, barrier3, diag);
+    constexpr auto esc = [] {
+        if constexpr (has_ethercat_irq) return std::array{EscIrq::line};
+        else return std::array<unsigned, 0>{};
+    }();
+    return join(common, barrier3, diag, esc);
 }();
 static_assert(rtos::distinct(exti_lines), "two EXTI interrupts on one line (one pin per line number)");
 
@@ -137,7 +144,8 @@ consteval bool exti_vector_routed(unsigned irq) {
 static_assert(exti_vector_routed(ScaleReady::irq) && exti_vector_routed(SupplyAlert::irq) &&
                   exti_vector_routed(Barrier1::irq) && exti_vector_routed(Barrier2::irq) &&
                   (!has_barrier3 || exti_vector_routed(Barrier3::irq)) &&
-                  (!has_stepper_diag || (exti_vector_routed(Diag1::irq) && exti_vector_routed(Diag2::irq))),
+                  (!has_stepper_diag || (exti_vector_routed(Diag1::irq) && exti_vector_routed(Diag2::irq))) &&
+                  (!has_ethercat_irq || exti_vector_routed(EscIrq::irq)),
               "an EXTI line without its vector in the revision's FCU_EXTI_HANDLERS (peripherals.hpp)");
 
 inline constexpr auto timers =

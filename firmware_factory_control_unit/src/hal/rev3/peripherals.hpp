@@ -32,7 +32,7 @@
     X(EXTI2_IRQHandler, 8)       /* HX711 DOUT (PC2) */ \
     X(EXTI4_IRQHandler, 10)      /* DIAG 2 (PE4) */ \
     X(EXTI9_5_IRQHandler, 23)    /* DIAG 1 (PD6), INA226 ALERT (PA9) */ \
-    X(EXTI15_10_IRQHandler, 40)  /* light barriers 1, 2 (PB10, PD11) */
+    X(EXTI15_10_IRQHandler, 40)  /* light barriers 1, 2 (PB10, PD11), LAN9253 IRQ (PC14) */
 
 namespace fcu::hw {
 

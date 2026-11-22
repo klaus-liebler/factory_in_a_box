@@ -1,5 +1,6 @@
 // System: board identity and build (compile-time constants from build-info.ts), and the live system
-// information - uptime, network, Ethernet PHY diagnostics, I2C scans - refreshed every 10 s while shown.
+// information - uptime, network, Ethernet PHY diagnostics, EtherCAT (ESC, ports, SyncManagers), I2C scans -
+// refreshed every 10 s while shown.
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import type { system } from "../../../generated/ws-protocol.ts";
@@ -12,6 +13,10 @@ import { openWorkspace, setAppRibbon } from "@klaus-liebler/ui-shell/shell/ribbo
 import { Poller, pollingGroup } from "../../core/poller.ts";
 import { dateTimeOfEpoch, formatUptime } from "@klaus-liebler/ui-shell/ui/format.ts";
 import { fetchSystemInfo, RESET_CAUSE_NAMES, type SystemInfo } from "../../core/system.ts";
+import {
+	alCodeText, alStateText, dlStatus, eepromText, fetchEthercatStatus, fmmuKind, MODE_NAMES, stateName, syncManagerKind,
+	systemTimeText, type EthercatStatus,
+} from "../../core/ethercat.ts";
 
 function formatOctets(bytes: readonly number[]): string {
 	return bytes.join(".");
@@ -62,7 +67,7 @@ export class SystemInfoApp extends LitElement implements WorkspaceApp {
 		setAppStatus(this, this.poller.status("Lade Systemdaten …"));
 		setAppRibbon(this, [
 			{ id: "system", label: "System", groups: [
-				pollingGroup(this.poller, "Uptime, Netzwerk, PHY und I²C"),
+				pollingGroup(this.poller, "Uptime, Netzwerk, PHY, EtherCAT und I²C"),
 				{ label: "Weitere", commands: [
 					{ id: "tasks", label: "Task Manager", icon: "tasks", run: () => openWorkspace("/tasks") },
 					{ id: "power", label: "Power", icon: "power", run: () => openWorkspace("/power") },
@@ -77,7 +82,11 @@ export class SystemInfoApp extends LitElement implements WorkspaceApp {
 	}
 
 	@state() private info: SystemInfo | null = null;
-	private readonly poller = new Poller(this, async () => void (this.info = await fetchSystemInfo()), 10_000);
+	@state() private ecat: EthercatStatus | null = null;
+	private readonly poller = new Poller(this, async () => {
+		this.info = await fetchSystemInfo();
+		this.ecat = await fetchEthercatStatus();
+	}, 10_000);
 
 	onShow(): void {
 		this.poller.start();
@@ -118,6 +127,92 @@ export class SystemInfoApp extends LitElement implements WorkspaceApp {
 								${this.row("Kabellängen-Klasse (0-15, nur bei Link)", cableLengthClass)}
 							`
 						: this.row("Kabeldiagnose (TDR)", "nicht verfügbar")}
+				</tbody>
+			</table>
+		`;
+	}
+
+	private hex(v: number, digits: number): string {
+		return "0x" + v.toString(16).toUpperCase().padStart(digits, "0");
+	}
+
+	/** The slave: AL state, identity of the ESC, station address, counters. */
+	private renderEthercatState(e: EthercatStatus) {
+		if (e.mode !== 2) {
+			return html`<p class="panel-text ${e.mode === 0 ? "" : "status-error"}">${MODE_NAMES[e.mode] ?? "?"}</p>`;
+		}
+		const errorState = (e.alStatus & 0x10) !== 0;
+		return html`
+			<table class="register-table kv-table">
+				<tbody>
+					${this.row("Anbindung", `${MODE_NAMES[e.mode]}, ${e.irq ? "IRQ" : "gepollt (keine IRQ-Leitung)"}`)}
+					${this.row("Konfiguration geladen (READY)", e.ready ? "ja" : "nein - wartet auf den EEPROM-Reload")}
+					${e.ready ? html`
+						<tr><td>AL-Zustand</td><td><span class="bool-badge ${errorState ? "bool-badge-error" : "bool-badge-on"}">${alStateText(e.alStatus)}</span></td></tr>
+						${this.row("AL-Statuscode", alCodeText(e.alStatusCode))}
+						${this.row("Stationsadresse / Alias", `${this.hex(e.stationAddress, 4)} / ${this.hex(e.stationAlias, 4)}`)}
+						${this.row("ESC", `Typ ${this.hex(e.escType, 2)}, Rev. ${e.escRevision}, Build ${this.hex(e.escBuild, 4)}`)}
+						${this.row("Ressourcen", `${e.fmmuCount} FMMUs, ${e.syncManagerCount} SyncManager, ${e.ramKb} KB RAM`)}
+						${this.row("Features / Port-Deskriptor", `${this.hex(e.features, 4)} / ${this.hex(e.portDescriptor, 2)}`)}
+						${this.row("PDI / ESC-Konfiguration", `${this.hex(e.pdiControl, 2)} / ${this.hex(e.escConfig, 2)}`)}
+						${this.row("EEPROM", `${eepromText(e.eepromStatus)} - ${e.eepromReads} gelesen, ${e.eepromWrites} geschrieben`)}
+						${this.row("Zustandswechsel", `${e.alTransitions} ausgeführt, ${e.alRefused} abgelehnt`)}
+						${e.alRefused > 0 ? this.row("Zuletzt abgelehnt", `${stateName(e.lastRefusedFrom)} → ${stateName(e.lastRefusedTo)}: ${alCodeText(e.lastRefusedCode)}`) : null}
+						${this.row("Fehlerzähler Verarbeitung / PDI", `${e.processingUnitErrors} / ${e.pdiErrors}`)}
+						${this.row("Watchdog Prozessdaten", `Zeit ${e.watchdogTimeProcessData} (Teiler ${e.watchdogDivider}), abgelaufen ${e.watchdogCounterProcessData}×; PDI ${e.watchdogCounterPdi}×`)}
+						${this.row("Systemzeit (DC)", systemTimeText(e.systemTimeNs))}
+					` : null}
+					${this.row("ID_REV / HW_CFG", `${this.hex(e.idRev, 8)} / ${this.hex(e.hwCfg, 8)}`)}
+					${this.row("Stand", `vor ${(e.statusAgeMs / 1000).toFixed(1)} s`)}
+				</tbody>
+			</table>
+		`;
+	}
+
+	/** Both ports: DL status, the internal PHY, the error counters. */
+	private renderEthercatPorts(e: EthercatStatus) {
+		if (e.mode !== 2 || !e.ready) return html`<p class="panel-text">Keine Daten (ESC nicht bereit).</p>`;
+		const dl = dlStatus(e.dlStatus);
+		const yesNo = (b: boolean) => (b ? "ja" : "nein");
+		return html`
+			<p class="panel-text">PDI betriebsbereit: ${yesNo(dl.pdiOperational)}</p>
+			<table class="register-table">
+				<thead><tr><th></th>${e.ports.map((_, i) => html`<th>Port ${i} (${i === 0 ? "IN" : "OUT"})</th>`)}</tr></thead>
+				<tbody>
+					<tr><td>Link (ESC)</td>${dl.ports.map((p) => html`<td>${p.link ? "up" : "down"}</td>`)}</tr>
+					<tr><td>Kommunikation / Loop geschlossen</td>${dl.ports.map((p) => html`<td>${yesNo(p.communication)} / ${yesNo(p.loopClosed)}</td>`)}</tr>
+					<tr><td>PHY-Adresse</td>${e.ports.map((p) => html`<td>${p.phyPresent ? p.phyAddress : "–"}</td>`)}</tr>
+					<tr><td>PHY Link / Auto-Negotiation</td>${e.ports.map((p) => html`<td>${p.phyPresent ? `${p.phyLink ? "up" : "down"} / ${p.phyAutonegotiationComplete ? "fertig" : "läuft"}` : "–"}</td>`)}</tr>
+					<tr><td>Energie am Kabel / Auto-MDIX</td>${e.ports.map((p) => html`<td>${p.phyPresent ? `${yesNo(p.phyEnergy)} / ${p.phyAutoMdix ? "aktiv" : "aus"}` : "–"}</td>`)}</tr>
+					<tr><td>PHY BMCR / BMSR</td>${e.ports.map((p) => html`<td>${p.phyPresent ? `${this.hex(p.phyBasicControl, 4)} / ${this.hex(p.phyBasicStatus, 4)}` : "–"}</td>`)}</tr>
+					<tr><td>Ungültige Frames / RX-Fehler</td>${e.ports.map((p) => html`<td>${p.invalidFrames} / ${p.rxErrors}</td>`)}</tr>
+					<tr><td>Weitergeleitete Fehler</td>${e.ports.map((p) => html`<td>${p.forwardedErrors}</td>`)}</tr>
+					<tr><td>Link-Verluste</td>${e.ports.map((p) => html`<td>${p.lostLinks}</td>`)}</tr>
+				</tbody>
+			</table>
+		`;
+	}
+
+	/** What the master configured: SyncManagers and FMMUs. */
+	private renderEthercatMemory(e: EthercatStatus) {
+		if (e.mode !== 2 || !e.ready) return html`<p class="panel-text">Keine Daten (ESC nicht bereit).</p>`;
+		return html`
+			<table class="register-table">
+				<thead><tr><th>SM</th><th>Art</th><th>Start</th><th>Länge</th><th>Control / Status</th></tr></thead>
+				<tbody>
+					${e.syncManagers.map((sm, i) => html`<tr>
+						<td>${i}</td><td>${syncManagerKind(sm.control, sm.length, (sm.activate & 1) !== 0)}</td>
+						<td>${this.hex(sm.start, 4)}</td><td>${sm.length}</td><td>${this.hex(sm.control, 2)} / ${this.hex(sm.status, 2)}</td>
+					</tr>`)}
+				</tbody>
+			</table>
+			<table class="register-table">
+				<thead><tr><th>FMMU</th><th>Art</th><th>logisch</th><th>Länge</th><th>physisch</th></tr></thead>
+				<tbody>
+					${e.fmmus.map((f, i) => html`<tr>
+						<td>${i}</td><td>${f.active ? fmmuKind(f.type) : "inaktiv"}</td>
+						<td>${this.hex(f.logicalStart, 8)}</td><td>${f.length}</td><td>${this.hex(f.physicalStart, 4)}</td>
+					</tr>`)}
 				</tbody>
 			</table>
 		`;
@@ -223,6 +318,21 @@ export class SystemInfoApp extends LitElement implements WorkspaceApp {
 									${this.renderPhySection(info.phy)}
 								`
 							: html`<p class="panel-text">Noch keine Daten geladen.</p>`}
+					</div>
+
+					<div class="panel-section">
+						<div class="panel-label">EtherCAT - Slave</div>
+						${this.ecat ? this.renderEthercatState(this.ecat) : html`<p class="panel-text">Noch keine Daten geladen.</p>`}
+					</div>
+
+					<div class="panel-section">
+						<div class="panel-label">EtherCAT - Ports</div>
+						${this.ecat ? this.renderEthercatPorts(this.ecat) : html`<p class="panel-text">Noch keine Daten geladen.</p>`}
+					</div>
+
+					<div class="panel-section">
+						<div class="panel-label">EtherCAT - SyncManager und FMMUs</div>
+						${this.ecat ? this.renderEthercatMemory(this.ecat) : html`<p class="panel-text">Noch keine Daten geladen.</p>`}
 					</div>
 
 					<div class="panel-section">

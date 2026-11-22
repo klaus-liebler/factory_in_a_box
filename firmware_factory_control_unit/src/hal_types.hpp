@@ -48,13 +48,13 @@ using gpio::GpioPort;
 using gpio::Pin;
 using S = gpio::Signal;
 
-/// The LAN9253's host interface (SPI/SQI) and its other lines. The test code drives SPI by GPIO
+/// The LAN9253's host interface (SPI/SQI) and its other lines. src/ethercat.cpp drives SPI by GPIO
 /// (SIO0 = SI, SIO1 = SO; SIO2/SIO3 held high), no OCTOSPI/QUADSPI driver yet.
 struct EthercatPins {
     Pin sck, cs, sio0, sio1, sio2, sio3, irq, sync0, sync1;
 };
-/// Their configuration: select inactive, clock low, SYNC/IRQ inputs (IRQ: open drain, pulled up -
-/// not used by the software, which polls; on revision 1 it is not connected).
+/// Their configuration: select inactive, clock low, SYNC/IRQ inputs (IRQ: open drain, pulled up;
+/// used where pins::ethercat_irq_wired, else the EtherCAT thread polls).
 [[nodiscard]] constexpr std::array<gpio::PinConfig, 9> ethercat_pin_config(const EthercatPins& e) {
     return {gpio::output(e.cs, /*high = deselected*/ true, gpio::Speed::High), gpio::output(e.sck, false, gpio::Speed::High),
             gpio::output(e.sio0, false, gpio::Speed::High), gpio::input(e.sio1, gpio::Pull::Up),

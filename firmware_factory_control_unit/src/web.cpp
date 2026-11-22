@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "boot.hpp"
+#include "ethercat.hpp"
 #include "io.hpp"
 #include "plc.hpp"
 #include "plc_project.hpp"
@@ -123,6 +124,60 @@ void system_info(Responder& reply, const ws::system::SystemInfoRequest::Payload&
     reply.Send(ws::system::SystemInfoMessage::Encode, resp);
 }
 
+// ---- EtherCAT: the slave's last snapshot (ethercat.hpp), raw - the page interprets it ------------------
+
+void ethercat_status(Responder& reply, const ws::ethercat::StatusRequest::Payload&) {
+    namespace we = ws::ethercat;
+    const fcu::ethercat::Status s = fcu::ethercat::status();
+    const auto& d = s.diagnostics;
+    std::array<std::uint8_t, 2 * we::StatusResponsePorts_ELEMENT_SIZE> ports{};
+    std::size_t pos = 0;
+    for (std::size_t i = 0; i < d.ports.size(); ++i) {
+        const auto& c = d.ports[i];
+        const auto& phy = s.phys[i];
+        const bool present = i < s.phy_count && phy.present;
+        pos += we::EncodeStatusResponsePortsElement(
+            we::EcatPort{.invalidFrames = c.invalid_frames, .rxErrors = c.rx_errors, .forwardedErrors = c.forwarded_errors,
+                         .lostLinks = c.lost_links, .phyPresent = present, .phyAddress = phy.address, .phyLink = present && phy.link,
+                         .phyAutonegotiationComplete = present && phy.autonegotiation_complete, .phyEnergy = present && phy.energy,
+                         .phyAutoMdix = present && phy.auto_mdix, .phyBasicControl = phy.basic_control, .phyBasicStatus = phy.basic_status},
+            ports.data() + pos, ports.size() - pos);
+    }
+    std::array<std::uint8_t, 4 * we::StatusResponseSyncManagers_ELEMENT_SIZE> sms{};
+    pos = 0;
+    for (const auto& sm : d.sm) {
+        pos += we::EncodeStatusResponseSyncManagersElement(
+            we::EcatSyncManager{.start = sm.start, .length = sm.length, .control = sm.control, .status = sm.status,
+                                .activate = sm.activate, .pdiControl = sm.pdi_control},
+            sms.data() + pos, sms.size() - pos);
+    }
+    std::array<std::uint8_t, 3 * we::StatusResponseFmmus_ELEMENT_SIZE> fmmus{};
+    pos = 0;
+    for (const auto& f : d.fmmu) {
+        pos += we::EncodeStatusResponseFmmusElement(
+            we::EcatFmmu{.logicalStart = f.logical_start, .length = f.length, .physicalStart = f.physical_start, .type = f.type,
+                         .active = f.active},
+            fmmus.data() + pos, fmmus.size() - pos);
+    }
+    const auto& c = s.counters;
+    reply.Send(we::StatusResponse::Encode,
+               we::StatusResponse::Payload{
+                   .mode = static_cast<std::uint8_t>(s.mode), .ready = s.ready, .irq = s.irq, .idRev = s.id_rev, .hwCfg = s.hw_cfg,
+                   .statusAgeMs = kernel.now() - s.taken_ms, .escType = d.esc_type, .escRevision = d.esc_revision,
+                   .escBuild = d.esc_build, .fmmuCount = d.fmmus, .syncManagerCount = d.sync_managers, .ramKb = d.ram_kb,
+                   .portDescriptor = d.port_descriptor, .features = d.features, .stationAddress = d.station_address,
+                   .stationAlias = d.station_alias, .dlStatus = d.dl_status, .alStatus = d.al_status, .alStatusCode = d.al_status_code,
+                   .pdiControl = d.pdi_control, .escConfig = d.esc_config, .processingUnitErrors = d.processing_unit_errors,
+                   .pdiErrors = d.pdi_errors, .watchdogDivider = d.watchdog_divider,
+                   .watchdogTimeProcessData = d.watchdog_time_process_data,
+                   .watchdogCounterProcessData = d.watchdog_counter_process_data, .watchdogCounterPdi = d.watchdog_counter_pdi,
+                   .eepromStatus = d.eeprom_status, .systemTimeNs = d.system_time_ns, .eepromReads = c.eeprom_reads,
+                   .eepromWrites = c.eeprom_writes, .alTransitions = c.al_transitions, .alRefused = c.al_refused,
+                   .lastRefusedCode = c.last_refused_code, .lastRefusedFrom = c.last_refused_from, .lastRefusedTo = c.last_refused_to,
+                   .portsData = ports.data(), .portsCount = d.ports.size(), .syncManagersData = sms.data(),
+                   .syncManagersCount = d.sm.size(), .fmmusData = fmmus.data(), .fmmusCount = d.fmmu.size()});
+}
+
 // ---- terminal: queued for the I/O thread, which answers ------------------------------------------------
 
 void terminal_lookup(SessionId id, Responder& reply, const ws::terminal::LookupRequest::Payload& q) {
@@ -229,6 +284,9 @@ void on_message(void*, SessionId id, std::span<const std::byte> message, bool bi
             return unknown(reply);
         case ws::system::NAMESPACE_ID:
             if (type == ws::system::SystemInfoRequest::TYPE_ID) return dispatch(ws::system::SystemInfoRequest::Decode, system_info);
+            return unknown(reply);
+        case ws::ethercat::NAMESPACE_ID:
+            if (type == ws::ethercat::StatusRequest::TYPE_ID) return dispatch(ws::ethercat::StatusRequest::Decode, ethercat_status);
             return unknown(reply);
         case ws::terminal::NAMESPACE_ID: {
             const auto with_session = [id](auto handler) { return [id, handler](Responder& r, const auto& q) { handler(id, r, q); }; };

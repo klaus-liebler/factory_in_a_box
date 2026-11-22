@@ -67,11 +67,13 @@ inline constexpr Pin usb_pd_cc1{GpioPort::B, 13}, usb_pd_cc2{GpioPort::B, 14};
 inline constexpr Pin ethercat_reset{GpioPort::C, 14};  ///< ESC held in reset
 inline constexpr std::optional<Pin> uext_cs = std::nullopt;
 /// LAN9253 EtherCAT on OCTOSPI1 (former CubeMX project: ETHERCAT_*), driven as plain SPI by GPIO
-/// (ethercat_test.cpp).
+/// (ethercat.cpp).
 inline constexpr std::optional<EthercatPins> ethercat =
     EthercatPins{.sck = {GpioPort::B, 2}, .cs = {GpioPort::E, 11}, .sio0 = {GpioPort::B, 1}, .sio1 = {GpioPort::B, 0},
                  .sio2 = {GpioPort::E, 2}, .sio3 = {GpioPort::A, 6}, .irq = {GpioPort::C, 13}, .sync0 = {GpioPort::E, 4},
                  .sync1 = {GpioPort::E, 3}};
+/// The ESC's IRQ is not connected on this board: the EtherCAT thread polls.
+inline constexpr bool ethercat_irq_wired = false;
 /// GPIO 1/2 inputs, the Malibotti connector: revision 3 only.
 inline constexpr std::optional<Pin> gpio1 = std::nullopt;
 inline constexpr std::optional<Pin> gpio2 = std::nullopt;

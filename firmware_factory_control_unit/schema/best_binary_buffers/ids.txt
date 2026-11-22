@@ -90,3 +90,6 @@ namespace stepper 8
 message malibotti.Command 1
 message malibotti.Status 2
 namespace malibotti 9
+message ethercat.StatusRequest 1
+message ethercat.StatusResponse 2
+namespace ethercat 10

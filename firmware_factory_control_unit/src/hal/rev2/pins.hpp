@@ -72,6 +72,8 @@ inline constexpr Pin ethercat_reset{GpioPort::D, 3};  ///< ESC held in reset
 inline constexpr std::optional<Pin> uext_cs = Pin{GpioPort::B, 13};
 /// LAN9253 EtherCAT: revision 2's wiring is not known here.
 inline constexpr std::optional<EthercatPins> ethercat = std::nullopt;
+/// No EtherCAT on this revision.
+inline constexpr bool ethercat_irq_wired = false;
 /// GPIO 1/2 inputs, the Malibotti connector: revision 3 only.
 inline constexpr std::optional<Pin> gpio1 = std::nullopt;
 inline constexpr std::optional<Pin> gpio2 = std::nullopt;

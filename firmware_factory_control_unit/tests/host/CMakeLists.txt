@@ -33,7 +33,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(fcu_host_tests
     missions_test.cpp
-    ethercat_sii_test.cpp  # src/ethercat_sii.hpp, header only
+    ethercat_config_test.cpp  # src/ethercat_config.hpp, header only
     ethercat_registers_test.cpp  # src/ethercat_registers.hpp, header only
     ws2812_test.cpp  # src/ws2812.hpp, header only
     sim/sd_card_sim.cpp

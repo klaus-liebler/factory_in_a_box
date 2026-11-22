@@ -74,11 +74,13 @@ inline constexpr Pin malibotti_rx{GpioPort::C, 7};  ///< J16 pin 1 (MALIBOTTI_RX
 /// an open input at 0. Direct to the MCU (no series resistor, no ESD protection on the board).
 inline constexpr std::optional<Pin> gpio1 = Pin{GpioPort::E, 2};
 inline constexpr std::optional<Pin> gpio2 = Pin{GpioPort::E, 3};
-/// LAN9253 EtherCAT (U13): its QUADSPI lines driven as plain SPI by GPIO (ethercat_test.cpp).
+/// LAN9253 EtherCAT (U13): its QUADSPI lines driven as plain SPI by GPIO (ethercat.cpp).
 inline constexpr std::optional<EthercatPins> ethercat = EthercatPins{
     .sck = {GpioPort::B, 2}, .cs = {GpioPort::C, 11}, .sio0 = {GpioPort::E, 7}, .sio1 = {GpioPort::E, 8},
     .sio2 = {GpioPort::E, 9}, .sio3 = {GpioPort::E, 10}, .irq = {GpioPort::C, 14}, .sync0 = {GpioPort::B, 0},
     .sync1 = {GpioPort::B, 1}};
+/// IRQ (PC14, open drain, active low) wakes the EtherCAT thread through EXTI.
+inline constexpr bool ethercat_irq_wired = true;
 
 /// I2C buses: the supply bus carries the INA226, ToF 3 and the CH224Q; the second ToF bus ToF 2.
 inline constexpr Pin i2c1_scl{GpioPort::B, 8}, i2c1_sda{GpioPort::B, 9};             ///< colour, ToF 1

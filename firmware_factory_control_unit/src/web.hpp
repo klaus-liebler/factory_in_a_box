@@ -7,6 +7,7 @@
 // answers Malformed itself.
 //
 //   modbus  GetRegisters / WriteHolding: the register map for the web UI's register panel
+//   ethercat Status request: the EtherCAT slave's ESC registers, PHYs and counters (ethercat.hpp)
 //   system  SystemInfo request; LogMessage events: every log record to every client at once
 //           (the device keeps no history; the browser's Terminal page does)
 //   terminal command list and commands of the browser terminal (terminal.hpp)

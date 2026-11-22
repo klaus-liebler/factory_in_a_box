@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "board/chip.hpp"
+#include "io.hpp"
 #include "mcu.h"  // the revision's MCU: its flash_program.hpp
 #include "rtos/plc/slot_store.hpp"
 #include "rtos/plc/vm.hpp"
@@ -136,6 +137,7 @@ std::uint32_t read_var(const vm::IoBinding& b) noexcept {
 }
 
 void write_register(const vm::IoBinding& b, std::uint32_t v) noexcept {
+    std::uint16_t words_written = 1;
     if (b.bits == 1) {
         registers.set_holding(b.reg, v != 0 ? 1 : 0);
     } else if (b.bits == 16) {
@@ -143,7 +145,9 @@ void write_register(const vm::IoBinding& b, std::uint32_t v) noexcept {
     } else {
         const std::array<std::uint16_t, 2> words{static_cast<std::uint16_t>(v >> 16), static_cast<std::uint16_t>(v)};
         registers.set_holdings(b.reg, words);  // one guard: never half a value
+        words_written = 2;
     }
+    io::holding_written(nullptr, b.reg, words_written);  // the bank's hook sees protocol writes only
 }
 
 /// Registers -> program variables: inputs, parameters and the commands' answers.

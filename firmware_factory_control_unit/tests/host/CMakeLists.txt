@@ -35,6 +35,7 @@ add_executable(fcu_host_tests
     missions_test.cpp
     ethercat_sii_test.cpp  # src/ethercat_sii.hpp, header only
     ethercat_registers_test.cpp  # src/ethercat_registers.hpp, header only
+    ws2812_test.cpp  # src/ws2812.hpp, header only
     sim/sd_card_sim.cpp
     ${FCU_DIR}/src/roarm/missions.cpp)
 # stubs/ first: replaces board/fcu.hpp and system.hpp (hardware, kernel instance) for the code under test

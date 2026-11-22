@@ -41,6 +41,12 @@ void set_event_thread(Kernel::Thread& thread) noexcept;
 /// Handle the event bits that woke the thread.
 void events(std::uint32_t bits) noexcept;
 
+/// The register bank's write hook (rtos::modbus::WriteHook; main.cpp): holding registers start ..
+/// start+count-1 were written - by a protocol (Modbus, OPC UA, web, EtherCAT) in its thread, or by
+/// the PLC, which calls it after its own writes. Commands that must not be missed between two cycles
+/// (the WS2812 pixel registers, ws2812.hpp) are applied here.
+void holding_written(void* context, std::uint16_t start, std::uint16_t count) noexcept;
+
 /// A message of the stepper test bench (ws::stepper, network thread): handled in the next cycle,
 /// answered through the outbox.
 /// `reply` only for refusing it here (queue full).

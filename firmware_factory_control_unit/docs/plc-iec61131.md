@@ -340,7 +340,7 @@ Access to device functions that are more than "write a register" ([§6.3](#63-re
 | `FCU_StepperMoveAbsolute` | target position (and speed), Done when the axis stands at the goal |
 | `FCU_RoArmRunMission` | start a stored RoArm mission by index (Execute/Done/Busy/Error) over the mission register (holding 110) |
 | `FCU_MalibottiRunMission` | start a mission of the Malibotti robot by number (revision 3, holding 111; ErrorID 1 no answer, 2 unknown mission, 3 aborted, 4 busy, 5 blocked, 6 robot fault) - [malibotti-uart.md](malibotti-uart.md) |
-| ~~`FCU_Ws2812`~~ | dropped for now: the register map has one pattern index per channel (`Ws2812Ch1Pattern`, `Ws2812Ch2Pattern`), ordinary outputs - a block would add nothing until the firmware offers LED colours |
+| `FCU_Ws2812SetLed` | one LED to an RGB565 colour (Channel, Index, Color, Execute → Done/Error, ErrorID 16#100 no such LED) over the pixel command register `Ws2812ChXPixel` (index and colour in one 32-bit write; the firmware answers "ready" 16#FFFFFFFF, so every write is a change). The patterns stay ordinary outputs (`Ws2812ChXPattern`); after a pixel the pattern register reads 16#FFFF |
 | `FCU_Log` | log entry into the device journal (rate-limited) - **P7**: needs STRING, a native in both VMs and the rate limit in the firmware |
 
 The list is not final; it grows with the register schema. Implemented (P2): `FCU_StepperHome`

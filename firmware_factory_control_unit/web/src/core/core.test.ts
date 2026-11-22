@@ -1,7 +1,7 @@
 // The shared core of the web UI: the poller's schedule and states, register access by name, formatting.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Poller } from "./poller.ts";
-import { healthProblems, regBool, register, regValue, type RegisterValues } from "./registers.ts";
+import { healthProblems, hexToRgb565, indexRgb565, regBool, register, registerWords, regValue, rgb565ToHex, type RegisterValues } from "./registers.ts";
 import { cString, formatBytes, formatUptime } from "@klaus-liebler/ui-shell/ui/format.ts";
 
 const host = () => ({ addController: vi.fn(), removeController: vi.fn(), requestUpdate: vi.fn(), updateComplete: Promise.resolve(true) });
@@ -124,4 +124,28 @@ it("formats durations, sizes, names", () => {
 	expect([formatUptime(12), formatUptime(247), formatUptime(7500), formatUptime(3 * 86400 + 4 * 3600 + 5)]).toEqual(["12 s", "4 min 7 s", "2 h 5 min", "3 d 4 h"]);
 	expect([formatBytes(512), formatBytes(3482), formatBytes(1258291)]).toEqual(["512 B", "3.4 KiB", "1.20 MiB"]);
 	expect(cString([0x69, 0x64, 0x6c, 0x65, 0, 0x78])).toBe("idle");
+});
+
+describe("register words and index-rgb565", () => {
+	it("writes a 32-bit register as two words, high word first, signed in two's complement", () => {
+		expect(registerWords(register("WS2812_CH1_PATTERN"), 0x12345)).toEqual([0x2345]);
+		expect(registerWords(register("WS2812_CH1_PIXEL"), 0x0003f800)).toEqual([3, 0xf800]);
+		expect(registerWords(register("STEPPER1_TARGET"), -2)).toEqual([0xffff, 0xfffe]);
+	});
+
+	it("packs the index into the high word and the colour into the low word", () => {
+		expect(indexRgb565(7, 0x07e0)).toBe(0x000707e0);
+		expect(indexRgb565(0xffff, 0xffff)).toBe(0xffffffff);
+	});
+
+	it("converts colours like the firmware (src/ws2812.hpp rgb888)", () => {
+		expect(hexToRgb565("#ff0000")).toBe(0xf800);
+		expect(hexToRgb565("#00ff00")).toBe(0x07e0);
+		expect(hexToRgb565("#0000ff")).toBe(0x001f);
+		expect(rgb565ToHex(0xffff)).toBe("#ffffff");
+		expect(rgb565ToHex(0x8410)).toBe("#848284");
+		// a picked colour comes back as the device shows it, and stays there
+		const shown = rgb565ToHex(hexToRgb565("#123456"));
+		expect(rgb565ToHex(hexToRgb565(shown))).toBe(shown);
+	});
 });

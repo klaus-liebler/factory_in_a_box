@@ -16,7 +16,7 @@
 
 fcu::Kernel kernel;
 RTOS_BOARD_BIND_KERNEL(kernel)
-fcu::Registers registers;
+fcu::Registers registers{rtos::modbus::WriteHook{nullptr, &fcu::io::holding_written}};
 fcu::Journal journal;
 
 namespace {

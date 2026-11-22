@@ -21,12 +21,13 @@ public class RegistersMessage
     [BinaryMaxItemCount(320)] public ushort[] input = System.Array.Empty<ushort>();
 }
 
-/// <summary>Nachfolger von GET /api/write-holding?address=&value=.</summary>
+/// <summary>Schreibt aufeinanderfolgende Holding-Register ab address in einem Schreibvorgang (wie Modbus
+/// FC16): ein 32-Bit-Wert (zwei Register, hohes Wort zuerst) kommt nie halb an.</summary>
 [BinaryMessage(MessageKind.Request)]
 public class WriteHoldingRequest
 {
     public ushort address;
-    public ushort value;
+    [BinaryMaxItemCount(8)] public ushort[] values = System.Array.Empty<ushort>();
 }
 
 [BinaryMessage(MessageKind.Response)]

@@ -16,10 +16,39 @@ export async function fetchRegisters(): Promise<RegisterValues> {
 	return { holding: resp.holding, input: resp.input };
 }
 
-/** Writes one holding register by address; throws when the device refuses (e.g. IEC 61131 is the control source). */
-export async function writeHolding(address: number, value: number): Promise<void> {
-	const resp = await wsRequest(modbus.NAMESPACE_ID, (correlationId) => modbus.WriteHoldingRequest.encode({ address, value }, correlationId), modbus.WriteHoldingResponse);
+/** Writes consecutive holding registers from `address` in one write (a 32-bit value never arrives half);
+ *  throws when the device refuses (e.g. IEC 61131 is the control source). */
+export async function writeHolding(address: number, values: number[]): Promise<void> {
+	const resp = await wsRequest(modbus.NAMESPACE_ID, (correlationId) => modbus.WriteHoldingRequest.encode({ address, values }, correlationId), modbus.WriteHoldingResponse);
 	if (!resp.success) throw new Error(`Schreiben von Holding-Register ${address} fehlgeschlagen`);
+}
+
+/** The words of a register's value, high word first (as the map stores 32-bit values); signed values in
+ *  two's complement. */
+export function registerWords(reg: RegisterDef, value: number): number[] {
+	const count = reg.combine?.count ?? 1;
+	if (count === 1) return [value & 0xffff];
+	const u = value >>> 0;
+	return [u >>> 16, u & 0xffff];
+}
+
+/** The pixel value of an "index-rgb565" register: high word the index, low word the colour. */
+export function indexRgb565(index: number, rgb565: number): number {
+	return ((index & 0xffff) * 0x10000 + (rgb565 & 0xffff)) >>> 0;
+}
+
+/** "#rrggbb" -> RGB565 (each component's top bits). */
+export function hexToRgb565(hex: string): number {
+	const n = parseInt(hex.slice(1), 16);
+	const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+	return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+}
+
+/** RGB565 -> "#rrggbb", as the firmware expands it (src/ws2812.hpp rgb888: top bits repeated). */
+export function rgb565ToHex(c: number): string {
+	const r5 = (c >> 11) & 0x1f, g6 = (c >> 5) & 0x3f, b5 = c & 0x1f;
+	const r = (r5 << 3) | (r5 >> 2), g = (g6 << 2) | (g6 >> 4), b = (b5 << 3) | (b5 >> 2);
+	return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
 }
 
 const BY_NAME = new Map<string, RegisterDef>(REGIONS.flatMap((r) => r.registers.map((x) => [x.name, x] as const)));
@@ -53,11 +82,11 @@ export function regBool(values: RegisterValues | null, reg: string | RegisterDef
 	return v === undefined ? undefined : v !== 0;
 }
 
-/** Writes a 16-bit holding register by name. */
+/** Writes a holding register by name, all its words in one write (16 or 32 bits). */
 export function writeRegister(reg: string | RegisterDef, value: number): Promise<void> {
 	const d = typeof reg === "string" ? register(reg) : reg;
 	if (d.bank !== "holding") return Promise.reject(new Error(`${d.name} is not a holding register`));
-	return writeHolding(d.address, value);
+	return writeHolding(d.address, registerWords(d, value));
 }
 
 /** The bits of HEALTH_STATE (enum HealthBits in schema/register_map/Diagnostics.cs; bit 0 "ok" is set when

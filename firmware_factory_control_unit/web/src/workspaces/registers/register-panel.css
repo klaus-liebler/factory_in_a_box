@@ -69,6 +69,29 @@
 	width: 90px;
 }
 
+/* index-rgb565: index field, colour picker, and the swatch of the value */
+.register-pixel-index {
+	width: 60px;
+}
+
+.register-pixel-colour {
+	width: 36px;
+	height: 26px;
+	padding: 0;
+	border: 1px solid var(--ui-color-border);
+	background: none;
+	cursor: pointer;
+}
+
+.register-swatch {
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	vertical-align: middle;
+	border: 1px solid var(--ui-color-border);
+	border-radius: var(--ui-radius-sm);
+}
+
 
 .register-slider-controls {
 	display: flex;

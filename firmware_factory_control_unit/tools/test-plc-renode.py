@@ -387,6 +387,7 @@ def holding(mb, reg, count=1):
 
 
 CONVEYOR, VALVE2, VALVE3, STEPPER1_TARGET, STEPPER2_TARGET, HOMING1, MISSION = 40, 21, 22, 61, 65, 69, 110
+WS2812_PATTERN1, WS2812_PIXEL1 = 100, 102
 
 ws = mb = None
 try:
@@ -398,6 +399,17 @@ try:
     st = status(ws)
     check("status: NO_PROGRAM, fieldbus", st["state"] == "NO_PROGRAM" and not st["iec"], str(st))
     check("fieldbus mode: Modbus writes the conveyor", modbus_write(mb, CONVEYOR, 500) is None and holding(mb, CONVEYOR) == [500])
+    # WS2812 pixel command (src/ws2812.hpp): one FC16 write of index and RGB565; the write hook applies
+    # it at once and answers "ready", the pattern register reads 0xFFFF; a write of one word is no command
+    check("WS2812 pixel register reads ready at the start", holding(mb, WS2812_PIXEL1, 2) == [0xFFFF, 0xFFFF])
+    check("WS2812: pattern 3, then LED 5 by FC16 -> pattern 0xFFFF, pixel ready",
+          modbus_write(mb, WS2812_PATTERN1, 3) is None
+          and mb.request(struct.pack(">BHHB2H", 0x10, WS2812_PIXEL1, 2, 4, 5, 0xF800))[0] == 0x10
+          and holding(mb, WS2812_PATTERN1) == [0xFFFF] and holding(mb, WS2812_PIXEL1, 2) == [0xFFFF, 0xFFFF])
+    check("WS2812: half a pixel (FC06) is no command", modbus_write(mb, WS2812_PIXEL1 + 1, 0x001F) is None
+          and holding(mb, WS2812_PIXEL1, 2) == [0xFFFF, 0x001F] and holding(mb, WS2812_PATTERN1) == [0xFFFF])
+    check("WS2812: a pattern again replaces the single LEDs", modbus_write(mb, WS2812_PATTERN1, 0) is None
+          and holding(mb, WS2812_PATTERN1) == [0])
 
     # a request that cannot be served gets an error reply with its correlation, not silence
     def error_code(ns, type_id, body):

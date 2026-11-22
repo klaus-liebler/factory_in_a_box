@@ -7,7 +7,7 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | Bank | Anzahl Register-Definitionen | Adressbereich |
 |---|---|---|
 | Input | 62 | 0..261 |
-| Holding | 20 | 20..111 |
+| Holding | 22 | 20..111 |
 
 ## Nach Gruppe
 
@@ -185,8 +185,10 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 
 | Bezeichnung | Bank | Adresse | Worte | Typ | Einheit | Min | Max | Anzeige | GPIO/I2C | OPC-UA-NodeId | Beschreibung |
 |---|---|---:|---:|---|---|---:|---:|---|---|---|---|
-| `ws2812_ch1_pattern` | Holding (R/W) | 100 | 1 | uint16 |  |  |  | decimal | PE5/TIM15_CH1 | ns=1;i=5080 | Index in fest im Code hinterlegte Farbmuster-Tabelle |
-| `ws2812_ch2_pattern` | Holding (R/W) | 101 | 1 | uint16 |  |  |  | decimal | PE6/TIM15_CH2 | ns=1;i=5081 | Index in fest im Code hinterlegte Farbmuster-Tabelle |
+| `ws2812_ch1_pattern` | Holding (R/W) | 100 | 1 | uint16 |  |  |  | decimal | PE5/TIM15_CH1 | ns=1;i=5080 | Lichtmuster (0 aus, 1 rot, 2 gelb, 3 gruen, 4 blau/weiss); 0xFFFF: einzelne LEDs ueber WS2812_CH1_PIXEL gesetzt |
+| `ws2812_ch2_pattern` | Holding (R/W) | 101 | 1 | uint16 |  |  |  | decimal | PE6/TIM15_CH2 | ns=1;i=5081 | Farbe aus der Palette (0 schwarz, 1 rot, 2 gruen, 3 blau, 4 weiss, 5 gelb, 6 cyan, 7 magenta); 0xFFFF: ueber WS2812_CH2_PIXEL gesetzt |
+| `ws2812_ch1_pixel` | Holding (R/W, Command) | 102..103 | 2 | uint32[^byteorder] |  |  |  | index-rgb565 | PE5/TIM15_CH1 | ns=1;i=5082 | Eine LED des Streifens setzen: hohes Wort LED-Index (0..7), niedriges Wort Farbe RGB565; beide Worte in einem Schreibvorgang; liest danach 0xFFFFFFFF (bereit) |
+| `ws2812_ch2_pixel` | Holding (R/W, Command) | 104..105 | 2 | uint32[^byteorder] |  |  |  | index-rgb565 | PE6/TIM15_CH2 | ns=1;i=5083 | Die einzelne LED setzen: hohes Wort LED-Index (0), niedriges Wort Farbe RGB565; beide Worte in einem Schreibvorgang; liest danach 0xFFFFFFFF (bereit) |
 
 ## Input-Register nach Adresse (FC04)
 
@@ -277,6 +279,8 @@ Input-Register (nur lesen): Funktionscode 04. Holding-Register (lesen/schreiben)
 | 70 | 1 | Stepper-Steuerung | `stepper2_start_homing` | uint16 |  |
 | 100 | 1 | WS2812 | `ws2812_ch1_pattern` | uint16 |  |
 | 101 | 1 | WS2812 | `ws2812_ch2_pattern` | uint16 |  |
+| 102..103 | 2 | WS2812 | `ws2812_ch1_pixel` | uint32[^byteorder] |  |
+| 104..105 | 2 | WS2812 | `ws2812_ch2_pixel` | uint32[^byteorder] |  |
 | 110 | 1 | RoArm-M3 Steuerung | `ro_arm_mission_control` | int16 |  |
 | 111 | 1 | Malibotti Steuerung | `malibotti_mission_control` | int16 |  |
 

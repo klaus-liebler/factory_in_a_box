@@ -76,9 +76,17 @@ void get_registers(Responder& reply, const ws::modbus::GetRegistersRequest::Payl
 }
 
 void write_holding(Responder& reply, const ws::modbus::WriteHoldingRequest::Payload& req) {
-    // the protocol path: the write filter refuses the program's outputs in IEC mode (plc.hpp)
-    const bool ok = req.address < register_map::holding_count &&
-                    registers.write(req.address, {&req.value, 1}) == rtos::modbus::Exception::None;
+    // one write of 1..8 registers (a 32-bit value never arrives half); the decoder does not bound the
+    // count, so it is checked here. The protocol path: the write filter refuses the program's outputs
+    // in IEC mode (plc.hpp), the write hook applies commands (io::holding_written).
+    constexpr std::size_t max_values = 8;
+    std::array<std::uint16_t, max_values> values{};
+    bool ok = req.valuesCount >= 1 && req.valuesCount <= max_values &&
+              std::size_t{req.address} + req.valuesCount <= register_map::holding_count;
+    for (std::size_t i = 0; ok && i < req.valuesCount; ++i) {
+        ok = ws::modbus::DecodeWriteHoldingRequestValuesElementAt(req.valuesData, i, values[i]);
+    }
+    ok = ok && registers.write(req.address, {values.data(), req.valuesCount}) == rtos::modbus::Exception::None;
     reply.Send(ws::modbus::WriteHoldingResponse::Encode, ws::modbus::WriteHoldingResponse::Payload{.success = ok});
 }
 

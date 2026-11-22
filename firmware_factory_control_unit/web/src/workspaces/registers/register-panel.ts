@@ -1,6 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { RegisterRegion, RegisterDef } from "../../../generated/register-map.ts";
+import { hexToRgb565, indexRgb565, registerWords, rgb565ToHex } from "../../core/registers.ts";
 import "./register-panel.css";
 
 // Shows a register region (see register-map.ts) as a table. reg.display is the ONE representation for reading
@@ -10,9 +11,12 @@ import "./register-panel.css";
 // - "bool": value as a grey (0) / green (1) badge - holding registers additionally get a toggle switch for
 // writing.
 // - "range": slider with min/max - only sensible for holding registers.
+// - "index-rgb565": 32 bits, high word an index (e.g. an LED), low word an RGB565 colour - shown as the index
+// and a colour swatch ("bereit" for 0xFFFFFFFF, a command's answer), written with an index field and a colour
+// picker.
 // reg.combine joins several consecutive registers (from reg.address, MSB first) into one display value (e.g.
 // 6 registers -> one chip ID as a hex string). The app does the firmware access (this panel only fires a
-// "write-register" event upwards).
+// "write-register" event upwards, with all words of the register: a 32-bit value is written in one go).
 @customElement("register-panel")
 export class RegisterPanel extends LitElement {
 	protected createRenderRoot() {
@@ -28,6 +32,7 @@ export class RegisterPanel extends LitElement {
 
 	@state() private pendingEdits: Record<number, string> = {};
 	@state() private sliderPreview: Record<number, number> = {};
+	@state() private pixelEdits: Record<number, { index: number; colour: string }> = {};
 
 	// Reads "count" (default: 1, or reg.combine.count) consecutive raw values from reg.address of the matching
 	// bank - the result can be shorter than expected while the first poll has not loaded the values (completely)
@@ -69,14 +74,22 @@ export class RegisterPanel extends LitElement {
 		}
 	}
 
-	private writeRegister(address: number, value: number) {
+	private writeRegister(reg: RegisterDef, value: number) {
 		this.dispatchEvent(
-			new CustomEvent("write-register", { detail: { address, value }, bubbles: true, composed: true })
+			new CustomEvent("write-register", { detail: { address: reg.address, values: registerWords(reg, value) }, bubbles: true, composed: true })
 		);
 	}
 
-	private handleToggle(address: number, ev: Event) {
-		this.writeRegister(address, (ev.target as HTMLInputElement).checked ? 1 : 0);
+	/** The value range a register can be written with: min/max of the schema, else its word count's. */
+	private writeRange(reg: RegisterDef): [number, number] {
+		const wide = (reg.combine?.count ?? 1) === 2;
+		const min = reg.min ?? (wide && reg.signed ? -0x80000000 : reg.signed ? -0x8000 : 0);
+		const max = reg.max ?? (wide ? (reg.signed ? 0x7fffffff : 0xffffffff) : reg.signed ? 0x7fff : 0xffff);
+		return [min, max];
+	}
+
+	private handleToggle(reg: RegisterDef, ev: Event) {
+		this.writeRegister(reg, (ev.target as HTMLInputElement).checked ? 1 : 0);
 	}
 
 	private handleSliderInput(address: number, ev: Event) {
@@ -85,8 +98,8 @@ export class RegisterPanel extends LitElement {
 		this.sliderPreview = { ...this.sliderPreview, [address]: Number((ev.target as HTMLInputElement).value) };
 	}
 
-	private handleSliderChange(address: number, ev: Event) {
-		this.writeRegister(address, Number((ev.target as HTMLInputElement).value));
+	private handleSliderChange(reg: RegisterDef, ev: Event) {
+		this.writeRegister(reg, Number((ev.target as HTMLInputElement).value));
 	}
 
 	private handleInput(address: number, ev: Event) {
@@ -100,12 +113,26 @@ export class RegisterPanel extends LitElement {
 			return;
 		}
 		const value = Number(raw);
-		const min = reg.min ?? 0;
-		const max = reg.max ?? 0xffff;
-		if (!Number.isFinite(value) || value < min || value > max) {
+		const [min, max] = this.writeRange(reg);
+		if (!Number.isInteger(value) || value < min || value > max) {
 			return;
 		}
-		this.writeRegister(address, value);
+		this.writeRegister(reg, value);
+	}
+
+	private pixelEdit(reg: RegisterDef): { index: number; colour: string } {
+		// a command register: it reads "ready" (0xFFFFFFFF) once done - the edit starts at LED 0, red
+		return this.pixelEdits[reg.address] ?? { index: 0, colour: "#ff0000" };
+	}
+
+	private editPixel(reg: RegisterDef, change: Partial<{ index: number; colour: string }>) {
+		this.pixelEdits = { ...this.pixelEdits, [reg.address]: { ...this.pixelEdit(reg), ...change } };
+	}
+
+	private writePixel(reg: RegisterDef) {
+		const { index, colour } = this.pixelEdit(reg);
+		if (!Number.isInteger(index) || index < 0 || index > 0xffff) return;
+		this.writeRegister(reg, indexRgb565(index, hexToRgb565(colour)));
 	}
 
 	private renderValueCell(reg: RegisterDef, raws: number[]) {
@@ -121,10 +148,17 @@ export class RegisterPanel extends LitElement {
 			const ok = value === 0;
 			return html`<span class="bool-badge ${ok ? "bool-badge-off" : "bool-badge-error"}">${raws.length ? value : "–"}</span>`;
 		}
+		if (reg.display === "index-rgb565") {
+			if (raws.length < 2) return "–";
+			if (raws[0] === 0xffff && raws[1] === 0xffff) return html`<span class="panel-text" title="0xFFFFFFFF: der letzte Schreibvorgang ist ausgeführt">bereit</span>`;
+			const colour = rgb565ToHex(raws[1]!);
+			return html`<span class="register-pixel">#${raws[0]} <span class="register-swatch" style="background:${colour}" title="${colour}"></span></span>`;
+		}
 		return this.formatValue(reg, raws);
 	}
 
-	private renderControl(reg: RegisterDef, value: number | undefined) {
+	private renderControl(reg: RegisterDef, raws: number[]) {
+		const value = raws[0];
 		if (reg.bank !== "holding") {
 			// Input registers only show hardware state, never writable.
 			return null;
@@ -140,7 +174,7 @@ export class RegisterPanel extends LitElement {
 						<input
 							type="checkbox"
 							.checked=${(value ?? 0) !== 0}
-							@change=${(ev: Event) => this.handleToggle(reg.address, ev)}
+							@change=${(ev: Event) => this.handleToggle(reg, ev)}
 						/>
 						<span class="toggle-slider-track"></span>
 					</label>
@@ -158,26 +192,52 @@ export class RegisterPanel extends LitElement {
 							max=${max}
 							.value=${String(preview)}
 							@input=${(ev: Event) => this.handleSliderInput(reg.address, ev)}
-							@change=${(ev: Event) => this.handleSliderChange(reg.address, ev)}
+							@change=${(ev: Event) => this.handleSliderChange(reg, ev)}
 						/>
 						<span class="register-slider-value">${preview}</span>
 					</div>
 				`;
 			}
-			default:
+			case "index-rgb565": {
+				const edit = this.pixelEdit(reg);
+				return html`
+					<div class="register-write-controls">
+						<input
+							class="panel-input register-pixel-index"
+							type="number"
+							min="0"
+							max="65535"
+							title="Index"
+							.value=${String(edit.index)}
+							@input=${(ev: Event) => this.editPixel(reg, { index: Number((ev.target as HTMLInputElement).value) })}
+						/>
+						<input
+							class="register-pixel-colour"
+							type="color"
+							title="Farbe (wird auf RGB565 gerundet)"
+							.value=${edit.colour}
+							@input=${(ev: Event) => this.editPixel(reg, { colour: (ev.target as HTMLInputElement).value })}
+						/>
+						<button @click=${() => this.writePixel(reg)}>Schreiben</button>
+					</div>
+				`;
+			}
+			default: {
+				const [min, max] = this.writeRange(reg);
 				return html`
 					<div class="register-write-controls">
 						<input
 							class="panel-input register-write-input"
 							type="number"
-							min="${reg.min ?? 0}"
-							max="${reg.max ?? 0xffff}"
+							min="${min}"
+							max="${max}"
 							placeholder="${String(value ?? 0)}"
 							@input=${(ev: Event) => this.handleInput(reg.address, ev)}
 						/>
 						<button @click=${() => this.handleWrite(reg.address, reg)}>Schreiben</button>
 					</div>
 				`;
+			}
 		}
 	}
 
@@ -199,7 +259,6 @@ export class RegisterPanel extends LitElement {
 						<tbody>
 							${this.region.registers.map((reg) => {
 								const raws = this.rawValuesFor(reg);
-								const value = raws[0];
 								const note = [reg.description, reg.unit].filter(Boolean).join(", ");
 								return html`
 									<tr>
@@ -207,7 +266,7 @@ export class RegisterPanel extends LitElement {
 										<td>${reg.address}</td>
 										<td><span class="register-bank-tag register-bank-${reg.bank}">${reg.bank}</span></td>
 										<td class="register-value">${this.renderValueCell(reg, raws)}</td>
-										<td>${this.renderControl(reg, value)}</td>
+										<td>${this.renderControl(reg, raws)}</td>
 									</tr>
 								`;
 							})}

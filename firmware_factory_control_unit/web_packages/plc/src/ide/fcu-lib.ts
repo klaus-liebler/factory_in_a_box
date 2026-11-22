@@ -7,7 +7,8 @@
 // before each cycle (the answer) and the variable into the register only when the program changed it
 // (the start) - docs/plc-iec61131.md 6.3. The start value written is also the "busy" value of the
 // register; the idle value 0 is also "done", so a block takes 0 as success only after it has seen its
-// start value in the register. Error answers count at once. While the control source is the fieldbus
+// start value in the register. Error answers count at once. FCU_Ws2812SetLed needs no answer: the
+// firmware sets the LED in the write itself and answers "ready" (16#FFFFFFFF), so it is Done at once. While the control source is the fieldbus
 // nothing reaches the register and the block stays Busy.
 import { COMMAND_VARS } from "./io-list.ts";
 
@@ -159,6 +160,33 @@ ELSIF Busy THEN
         Busy := FALSE; Error := TRUE; ErrorID := 2;
     ELSIF Pos = Goal AND (Status / 2) MOD 2 = 0 THEN
         Busy := FALSE; Done := TRUE;
+    END_IF;
+END_IF;
+END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK FCU_Ws2812SetLed
+(* Sets one WS2812 LED to a colour, over Ws2812ChXPixel (the LED index and the colour in one write).
+   Channel: 1 = the strip (LED 0..7), 2 = the single LED (0). Color: RGB565 (16#F800 red, 16#07E0
+   green, 16#001F blue, 16#FFFF white). A rising edge of Execute sets it: Done at once, or Error with
+   ErrorID 16#100 = no such channel or LED. The other LEDs keep their colour; the channel's pattern
+   register then reads 16#FFFF - a program that drives Ws2812ChXPattern itself keeps it at 16#FFFF, any
+   other value is a pattern again and replaces the LEDs. One LED per channel and cycle (a second write in
+   the same cycle replaces the first). Outputs stay while Execute is TRUE (else for one call). *)
+VAR_INPUT Channel : UINT := 1; Index : UINT; Color : UINT; Execute : BOOL; END_VAR
+VAR_OUTPUT Done : BOOL; Error : BOOL; ErrorID : UINT; END_VAR
+VAR Edge : R_TRIG; END_VAR
+IF NOT Execute THEN
+    Done := FALSE; Error := FALSE; ErrorID := 0;
+END_IF;
+Edge(CLK := Execute);
+IF Edge.Q THEN
+    Done := FALSE; Error := FALSE; ErrorID := 0;
+    IF Channel = 1 AND Index < 8 THEN
+        __Ws2812Ch1Pixel := UINT_TO_UDINT(Index) * 65536 + UINT_TO_UDINT(Color); Done := TRUE;
+    ELSIF Channel = 2 AND Index = 0 THEN
+        __Ws2812Ch2Pixel := UINT_TO_UDINT(Color); Done := TRUE;
+    ELSE
+        Error := TRUE; ErrorID := 16#100;
     END_IF;
 END_IF;
 END_FUNCTION_BLOCK

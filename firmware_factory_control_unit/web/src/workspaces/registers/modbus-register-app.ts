@@ -38,9 +38,9 @@ export class ModbusRegisterApp extends LitElement implements WorkspaceApp {
 	}
 
 	private async handleWriteRegister(ev: Event): Promise<void> {
-		const { address, value } = (ev as CustomEvent<{ address: number; value: number }>).detail;
+		const { address, values } = (ev as CustomEvent<{ address: number; values: number[] }>).detail;
 		try {
-			await writeHolding(address, value);
+			await writeHolding(address, values);
 			this.writeError = null;
 			this.poller.refresh();
 		} catch {

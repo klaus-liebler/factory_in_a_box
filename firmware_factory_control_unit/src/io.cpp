@@ -19,6 +19,7 @@
 #include "system.hpp"
 #include "terminal.hpp"
 #include "web.hpp"
+#include "ws2812.hpp"
 #include "ws_protocol.hh"
 
 namespace fcu::io {
@@ -478,44 +479,47 @@ void stepper_lab(std::uint32_t) noexcept {
     while (const auto r = lab_requests.try_receive()) lab_handle(*r);
 }
 
-// ---- WS2812: CH1 strip of 8 LEDs (patterns), CH2 one LED (palette) --------------------------------
-constexpr std::size_t strip_leds = 8;
-RTOS_DMA_BUFFER std::array<std::uint16_t, dev::ws2812_slots(strip_leds)> strip_slots;
+// ---- WS2812: CH1 strip of 8 LEDs, CH2 one LED (ws2812.hpp: patterns and single LEDs) ---------------
+RTOS_DMA_BUFFER std::array<std::uint16_t, dev::ws2812_slots(ws2812::strip_leds)> strip_slots;
 RTOS_DMA_BUFFER std::array<std::uint16_t, dev::ws2812_slots(1)> single_slots;
-std::uint16_t last_pattern[2] = {0xFFFF, 0xFFFF};
-constexpr std::array<std::uint32_t, 8> palette{0x000000, 0xFF0000, 0x00FF00, 0x0000FF,
-                                               0xFFFFFF, 0xFFFF00, 0x00FFFF, 0xFF00FF};
+ws2812::Strip<Kernel::Lock> strip;
+ws2812::Single<Kernel::Lock> single;
 
-std::array<std::uint32_t, strip_leds> strip_pattern(std::uint16_t p) noexcept {
-    std::array<std::uint32_t, strip_leds> c{};
-    switch (p % 5) {
-        case 1: c.fill(0xFF0000); break;  // red
-        case 2: c.fill(0xFFFF00); break;  // yellow
-        case 3: c.fill(0x00FF00); break;  // green
-        case 4:
-            for (std::size_t i = 0; i < c.size(); ++i) c[i] = i % 2 == 0 ? 0x0000FF : 0xFFFFFF;  // blue/white
-            break;
-        default: break;  // off
+void set_pixel_ready(std::uint16_t pixel_reg) noexcept {
+    constexpr std::array<std::uint16_t, 2> ready{ws2812::pixel_ready >> 16, ws2812::pixel_ready & 0xFFFF};
+    registers.set_holdings(pixel_reg, ready);
+}
+
+/// A write that covers both words of a pixel register (one write: never half a value - a write of one
+/// word alone is no command).
+template <class Channel>
+void pixel_written(Channel& channel, std::uint16_t pattern_reg, std::uint16_t pixel_reg, std::uint16_t start,
+                   std::uint16_t count) noexcept {
+    if (start > pixel_reg || start + count < pixel_reg + 2) return;
+    const std::uint32_t value = (std::uint32_t{registers.holding(pixel_reg)} << 16) | registers.holding(pixel_reg + 1);
+    if (channel.pixel(registers.holding(pattern_reg), value)) {
+        registers.set_holding(pattern_reg, ws2812::individual);
+    } else {
+        RTOS_LOG_WARN("ws2812: LED %u does not exist (register %u) - ignored", ws2812::pixel_index(value), pixel_reg);
     }
-    return c;
+    set_pixel_ready(pixel_reg);
+}
+
+/// Starts the DMA for a changed frame (when the previous transfer is done; else the next cycle).
+template <class Dma, class Channel, std::size_t Slots>
+void show(Channel& channel, std::uint16_t pattern, std::array<std::uint16_t, Slots>& slots, std::uint32_t target) noexcept {
+    channel.sync(pattern);
+    if (Dma::busy()) return;
+    const auto frame = channel.take();
+    if (!frame) return;
+    dev::ws2812_encode(*frame, slots, hw::ws2812);
+    Dma::stop();
+    (void)Dma::start(target, slots.data(), slots.size());
 }
 
 void leds() noexcept {
-    const std::uint16_t p1 = rm::ws2812_ch1_pattern(registers), p2 = rm::ws2812_ch2_pattern(registers);
-    if (p1 != last_pattern[0] && !hw::LedStripDma::busy()) {
-        last_pattern[0] = p1;
-        const auto colours = strip_pattern(p1);
-        dev::ws2812_encode(colours, strip_slots, hw::ws2812);
-        hw::LedStripDma::stop();
-        (void)hw::LedStripDma::start(hw::LedTimer::compare_address<1>(), strip_slots.data(), strip_slots.size());
-    }
-    if (p2 != last_pattern[1] && !hw::LedSingleDma::busy()) {
-        last_pattern[1] = p2;
-        const std::array<std::uint32_t, 1> colour{palette[p2 % palette.size()]};
-        dev::ws2812_encode(colour, single_slots, hw::ws2812);
-        hw::LedSingleDma::stop();
-        (void)hw::LedSingleDma::start(hw::LedTimer::dmar_address(), single_slots.data(), single_slots.size());
-    }
+    show<hw::LedStripDma>(strip, rm::ws2812_ch1_pattern(registers), strip_slots, hw::LedTimer::compare_address<1>());
+    show<hw::LedSingleDma>(single, rm::ws2812_ch2_pattern(registers), single_slots, hw::LedTimer::dmar_address());
 }
 
 // ---- health, diagnostics ---------------------------------------------------------------------------
@@ -681,6 +685,8 @@ void setup(bool supply_up) noexcept {
     hw::LedTimer::enable_update_dma();
     hw::configure_led_burst<hw::LedTimer>();  // DMAR -> CCR2 at each update
     hw::LedTimer::start();
+    set_pixel_ready(rm::holding::ws2812_ch1_pixel);  // before the network starts: no write seen yet
+    set_pixel_ready(rm::holding::ws2812_ch2_pixel);
     hw::LedStripDma::init();
     hw::LedSingleDma::init();
 
@@ -690,6 +696,11 @@ void setup(bool supply_up) noexcept {
 }
 
 void set_event_thread(Kernel::Thread& thread) noexcept { event_thread = &thread; }
+
+void holding_written(void*, std::uint16_t start, std::uint16_t count) noexcept {
+    pixel_written(strip, rm::holding::ws2812_ch1_pattern, rm::holding::ws2812_ch1_pixel, start, count);
+    pixel_written(single, rm::holding::ws2812_ch2_pattern, rm::holding::ws2812_ch2_pixel, start, count);
+}
 
 std::uint32_t homing_poll_ms() noexcept { return homing_active[0] || homing_active[1] ? homing_poll_period_ms : 0; }
 

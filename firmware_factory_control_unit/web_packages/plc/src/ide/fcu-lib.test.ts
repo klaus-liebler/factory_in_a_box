@@ -11,7 +11,7 @@ import { COMMAND_VARS, ioBindings, ioMapHash } from "./io-list.ts";
 import { deviceSources } from "./project.ts";
 import { readValue, writeValue, type Value } from "./values.ts";
 
-const HOMING1 = 69, MISSION = 110, MALIBOTTI = 111;
+const HOMING1 = 69, MISSION = 110, MALIBOTTI = 111, PIXEL1 = 102, PIXEL2 = 104;
 
 const PROGRAM = `PROGRAM PLC_PRG
 VAR
@@ -29,11 +29,17 @@ VAR
     bot : FCU_MalibottiRunMission;
     goBot : BOOL;
     botMission : INT := 1;
+    led : FCU_Ws2812SetLed;
+    goLed : BOOL;
+    ledChannel : UINT := 1;
+    ledIndex : UINT;
+    ledColor : UINT;
 END_VAR
 home(Axis := axis, Execute := goHome);
 mission(Index := index, Execute := goMission);
 bot(Mission := botMission, Execute := goBot);
 move(Axis := moveAxis, Execute := goMove, Position := goal, Velocity := speed);
+led(Channel := ledChannel, Index := ledIndex, Color := ledColor, Execute := goLed);
 END_PROGRAM
 `;
 
@@ -115,10 +121,10 @@ class Device {
 describe("FCU library: command registers", () => {
 	it("binds the schema's command registers (kind command), and they are no I/O variables", () => {
 		expect(COMMAND_VARS.map((c) => [c.name, c.register, c.type])).toEqual([
-			["__Stepper1StartHoming", 69, "UINT"], ["__Stepper2StartHoming", 70, "UINT"], ["__RoArmMissionControl", 110, "INT"],
-			["__MalibottiMissionControl", 111, "INT"]]);
+			["__Stepper1StartHoming", 69, "UINT"], ["__Stepper2StartHoming", 70, "UINT"], ["__Ws2812Ch1Pixel", 102, "UDINT"],
+			["__Ws2812Ch2Pixel", 104, "UDINT"], ["__RoArmMissionControl", 110, "INT"], ["__MalibottiMissionControl", 111, "INT"]]);
 		const commands = ioBindings().filter((b) => b.kind === "command");
-		expect(commands.map((b) => b.register)).toEqual([69, 70, 110, 111]);
+		expect(commands.map((b) => b.register)).toEqual([69, 70, 102, 104, 110, 111]);
 	});
 
 	it("FCU_StepperHome: the start reaches the register once, the answer 0 is Done", () => {
@@ -289,5 +295,64 @@ describe("FCU library: FCU_StepperMoveAbsolute", () => {
 		d.set("Stepper2Target", 900);  // the program (or another block) sets a new target
 		d.cycle();
 		expect(out(d)).toMatchObject({ busy: false, done: false, aborted: true });
+	});
+});
+
+describe("FCU library: FCU_Ws2812SetLed", () => {
+	const READY = 0xffffffff | 0;
+	/** The firmware's write hook (src/io.cpp pixel_written): applies the pixel, answers "ready". */
+	function firmware(d: Device, reg: number): number | null {
+		const v = d.reg32(reg);
+		if (v === READY) return null;
+		d.holding.set(reg, 0xffff);
+		d.holding.set(reg + 1, 0xffff);
+		return v >>> 0;
+	}
+	function device(): Device {
+		const d = new Device();
+		for (const r of [PIXEL1, PIXEL2]) { d.holding.set(r, 0xffff); d.holding.set(r + 1, 0xffff); }
+		return d;
+	}
+
+	it("writes index and colour in one register, Done at once", () => {
+		const d = device();
+		d.set("PLC_PRG.ledIndex", 5);
+		d.set("PLC_PRG.ledColor", 0xf800);
+		d.set("PLC_PRG.goLed", true);
+		d.cycle();
+		expect(firmware(d, PIXEL1)).toBe(0x0005f800);
+		expect({ done: d.get("PLC_PRG.led.Done"), error: d.get("PLC_PRG.led.Error") }).toEqual({ done: true, error: false });
+	});
+
+	// The command is written only when the program changed it: the firmware's "ready" answer makes the
+	// same LED and colour a change again (after a pattern overwrote it, it must arrive once more).
+	it("the same LED and colour twice reaches the firmware twice", () => {
+		const d = device();
+		d.set("PLC_PRG.ledIndex", 2);
+		d.set("PLC_PRG.ledColor", 0x07e0);
+		for (let i = 0; i < 2; i++) {
+			d.set("PLC_PRG.goLed", true);
+			d.cycle();
+			expect(firmware(d, PIXEL1)).toBe(0x000207e0);
+			d.set("PLC_PRG.goLed", false);
+			d.cycle();
+			expect(firmware(d, PIXEL1)).toBeNull();
+		}
+	});
+
+	it("the single LED on channel 2; a LED that does not exist is ErrorID 16#100, nothing written", () => {
+		const d = device();
+		d.set("PLC_PRG.ledChannel", 2);
+		d.set("PLC_PRG.ledColor", 0x001f);
+		d.set("PLC_PRG.goLed", true);
+		d.cycle();
+		expect(firmware(d, PIXEL2)).toBe(0x001f);
+		d.set("PLC_PRG.goLed", false);
+		d.cycle();
+		d.set("PLC_PRG.ledIndex", 1);
+		d.set("PLC_PRG.goLed", true);
+		d.cycle();
+		expect(firmware(d, PIXEL2)).toBeNull();
+		expect({ error: d.get("PLC_PRG.led.Error"), id: d.get("PLC_PRG.led.ErrorID") }).toEqual({ error: true, id: 0x100 });
 	});
 });

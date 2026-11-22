@@ -161,6 +161,9 @@ export class SystemInfoApp extends LitElement implements WorkspaceApp {
 						${this.row("SDO (CoE)", `${e.sdoUploads} gelesen, ${e.sdoDownloads} geschrieben, ${e.sdoAborts} abgebrochen, ${e.sdoInfoRequests} Info-Anfragen`)}
 						${e.sdoAborts > 0 ? this.row("Letzter SDO-Abbruch", `${this.hex(e.lastAbortIndex, 4)}:${e.lastAbortSubindex} - ${sdoAbortText(e.lastAbortCode)}`) : null}
 						${this.row("Prozessdaten (PDO-Zuordnung)", `${e.outputsBytes} Byte Ausgänge (SM2), ${e.inputsBytes} Byte Eingänge (SM3)`)}
+						${this.row("Ausgänge (RxPDO)", `${e.outputsReceived} Abbilder empfangen, ${e.outputWrites} Werte geschrieben (nur Änderungen, nur OP), ${e.outputRefused} abgelehnt (SPS)`)}
+						${this.row("Eingänge (TxPDO)", `${e.inputsWritten} Abbilder geschrieben`)}
+						${this.row("Sicherer Zustand", `${e.safeStates}× (OP verlassen), davon Watchdog ${e.watchdogExpired}×`)}
 						${e.alRefused > 0 ? this.row("Zuletzt abgelehnt", `${stateName(e.lastRefusedFrom)} → ${stateName(e.lastRefusedTo)}: ${alCodeText(e.lastRefusedCode)}`) : null}
 						${this.row("Fehlerzähler Verarbeitung / PDI", `${e.processingUnitErrors} / ${e.pdiErrors}`)}
 						${this.row("Watchdog Prozessdaten", `Zeit ${e.watchdogTimeProcessData} (Teiler ${e.watchdogDivider}), abgelaufen ${e.watchdogCounterProcessData}×; PDI ${e.watchdogCounterPdi}×`)}

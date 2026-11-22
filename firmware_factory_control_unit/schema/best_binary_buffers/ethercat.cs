@@ -102,6 +102,12 @@ public class StatusResponse
 	public byte lastAbortSubindex;
 	public ushort outputsBytes;     // RxPDO bytes of the assignment (SM2)
 	public ushort inputsBytes;      // TxPDO bytes (SM3)
+	public uint outputsReceived;    // SM2 images read (SAFE-OP and OP)
+	public uint outputWrites;       // RxPDO entries written into the register map (OP, changed values)
+	public uint outputRefused;      // ... refused by it (the PLC owns the outputs)
+	public uint inputsWritten;      // SM3 images written
+	public uint watchdogExpired;    // SyncManager watchdog in OP: outputs to 0, SAFE-OP + 0x001B
+	public uint safeStates;         // OP left (request or watchdog): outputs to 0
 	[BinaryMaxItemCount(2)] public EcatPort[] ports;
 	[BinaryMaxItemCount(4)] public EcatSyncManager[] syncManagers;
 	[BinaryMaxItemCount(3)] public EcatFmmu[] fmmus;

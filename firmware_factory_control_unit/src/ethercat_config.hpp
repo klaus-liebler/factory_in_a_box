@@ -25,7 +25,8 @@ namespace fcu::ethercat {
 namespace ec = rtos::ethercat;
 namespace rme = register_map::ethercat;
 
-inline constexpr std::uint8_t pdi_spi_direct_mapped = 0x82;
+inline constexpr std::uint8_t pdi_spi_direct_mapped = rme::pdi_control;
+static_assert(pdi_spi_direct_mapped == 0x82, "the only PDI the driver runs: SPI EtherCAT Direct Mapped");
 inline constexpr ec::SlaveLayout layout = rme::layout;
 inline constexpr std::size_t sii_words = 256;  ///< 4 Kbit
 

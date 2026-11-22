@@ -178,7 +178,9 @@ void ethercat_status(Responder& reply, const ws::ethercat::StatusRequest::Payloa
                    .mailboxRepeats = c.mailbox_repeats, .sdoUploads = s.coe.uploads, .sdoDownloads = s.coe.downloads,
                    .sdoAborts = s.coe.aborts, .sdoInfoRequests = s.coe.info_requests, .lastAbortCode = s.coe.last_abort,
                    .lastAbortIndex = s.coe.last_abort_index, .lastAbortSubindex = s.coe.last_abort_subindex,
-                   .outputsBytes = s.outputs_bytes, .inputsBytes = s.inputs_bytes,
+                   .outputsBytes = s.outputs_bytes, .inputsBytes = s.inputs_bytes, .outputsReceived = c.outputs_received,
+                   .outputWrites = s.coe.output_writes, .outputRefused = s.coe.output_refused, .inputsWritten = c.inputs_written,
+                   .watchdogExpired = c.watchdog_expired, .safeStates = c.safe_states,
                    .portsData = ports.data(), .portsCount = d.ports.size(), .syncManagersData = sms.data(),
                    .syncManagersCount = d.sm.size(), .fmmusData = fmmus.data(), .fmmusCount = d.fmmu.size()});
 }

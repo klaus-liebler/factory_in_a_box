@@ -17,6 +17,9 @@ step - so a problem shows where it is:
   5. CoE over the mailbox: SDO upload/download (the register map's object dictionary: inputs 6000h +
      Modbus address of the region, outputs 7000h + ..., docs/generated/modbus-registers.md), SDO
      information (the object list with names)
+  6. process data in OP: FMMUs, cyclic LWR/LRD; an output (WS2812 pattern) through the RxPDO, read
+     back over SDO; then no more cycles: the SyncManager watchdog must put the outputs to 0 (SAFE-OP,
+     error 0x001B)
 
 Transport: raw Ethernet frames (EtherType 0x88A4) through Npcap and scapy. Connect a PC network
 port directly to the FCU's EtherCAT port A (port 0, "IN"); a straight cable is fine (the firmware sets
@@ -43,7 +46,8 @@ from dataclasses import dataclass
 ETHERTYPE = 0x88A4
 
 # datagram commands (ETG.1000.4)
-APRD, APWR, FPRD, FPWR, BRD, BWR = 1, 2, 4, 5, 7, 8
+APRD, APWR, FPRD, FPWR, BRD, BWR, LRD, LWR = 1, 2, 4, 5, 7, 8, 10, 11
+LOGICAL_OUTPUTS, LOGICAL_INPUTS = 0x0001_0000, 0x0002_0000  # where this master maps the process data
 
 # ESC registers (ETG.1000.4 / LAN9253 DS00003421 11.16)
 REG = {
@@ -541,6 +545,35 @@ class Master:
         body = self.sdo_info(3, struct.pack("<H", index))
         return body[6:].decode("ascii", "replace"), body[4]
 
+    def mapping(self, assign: int) -> list[tuple[int, int, int, int]]:
+        """(index, subindex, bits, byte offset) of every entry of the assigned PDOs, in image order."""
+        out, offset = [], 0
+        for k in range(1, self.sdo_read(assign, 0)[0] + 1):
+            pdo = struct.unpack("<H", self.sdo_read(assign, k))[0]
+            for e in range(1, self.sdo_read(pdo, 0)[0] + 1):
+                v = struct.unpack("<I", self.sdo_read(pdo, e))[0]
+                out.append((v >> 16, (v >> 8) & 0xFF, v & 0xFF, offset))
+                offset += (v & 0xFF) // 8
+        return out
+
+    # 9. process data: FMMUs onto SM2/SM3, cyclic logical reads/writes
+    def configure_fmmus(self, out_bytes: int, in_bytes: int) -> None:
+        for n, (logical, length, physical, kind) in enumerate([(LOGICAL_OUTPUTS, out_bytes, self.sms[2][0], 2),
+                                                               (LOGICAL_INPUTS, in_bytes, self.sms[3][0], 1)]):
+            self.write(0x0600 + 16 * n, struct.pack("<IHBBHBBB3x", logical, length, 0, 7, physical, 0, kind, 1 if length else 0))
+
+    def exchange(self, outputs: bytes, in_bytes: int) -> bytes:
+        if outputs:
+            d = self._do(LWR, LOGICAL_OUTPUTS & 0xFFFF, LOGICAL_OUTPUTS >> 16, outputs)
+            if d.wkc != 1:
+                raise MasterError(f"LWR outputs: working counter {d.wkc} (FMMU 0 / SM2?)")
+        if not in_bytes:
+            return b""
+        d = self._do(LRD, LOGICAL_INPUTS & 0xFFFF, LOGICAL_INPUTS >> 16, bytes(in_bytes))
+        if d.wkc != 1:
+            raise MasterError(f"LRD inputs: working counter {d.wkc} (FMMU 1 / SM3?)")
+        return d.data
+
     def assigned_bytes(self) -> tuple[int, int]:
         """RxPDO and TxPDO bytes of the assignment (1C12h/1C13h) and the mappings."""
         sizes = []
@@ -555,6 +588,50 @@ class Master:
 
 
 # ---- commands ---------------------------------------------------------------------------------------
+def process_data_test(m: Master, out_bytes: int, in_bytes: int) -> bool:
+    """SAFE-OP -> OP with cyclic process data; an output through the RxPDO; the watchdog."""
+    ok = True
+    rx = m.mapping(0x1C12)
+    pattern = next((e for e in rx if e[0] == WS2812_OUTPUTS and e[1] == 1), None)
+    m.configure_fmmus(out_bytes, in_bytes)
+    outputs = bytearray(out_bytes)
+    if not m.request_state("safeop"):
+        return False
+    m.exchange(bytes(outputs), in_bytes)  # valid outputs before OP
+    m.write_al_control(STATES["op"])
+    deadline, state = time.monotonic() + 2.0, 0
+    while time.monotonic() < deadline and state & 0x1F != 8:
+        m.exchange(bytes(outputs), in_bytes)  # keep the watchdog fed while the slave takes OP
+        state = m.r16(REG["al_status"])
+        time.sleep(0.01)
+    print(f"  -> OP: {'ok' if state & 0x1F == 8 else 'FAILED, AL status %#06x' % state}")
+    if state & 0x1F != 8:
+        return False
+    inputs = b""
+    if pattern is not None:
+        struct.pack_into("<H", outputs, pattern[3], 3)  # strip pattern 3: green
+    for _ in range(30):  # 300 ms of cycles
+        inputs = m.exchange(bytes(outputs), in_bytes)
+        time.sleep(0.01)
+    print(f"  process data: {out_bytes} bytes out, {len(inputs)} bytes in, inputs {inputs[:16].hex()}...")
+    if pattern is not None:
+        got = struct.unpack("<H", m.sdo_read(WS2812_OUTPUTS, 1))[0]
+        print(f"  WS2812 pattern through the RxPDO: {got} (expected 3){'' if got == 3 else ' - FAIL'}")
+        ok = ok and got == 3
+    print("  no more cycles: the watchdog must stop the outputs")
+    time.sleep(0.5)  # default watchdog 100 ms
+    al, code = m.r16(REG["al_status"]), m.r16(REG["al_status_code"])
+    wd_ok = al == (4 | 0x10) and code == 0x001B
+    print(f"  -> AL status {al:#06x}, code {code:#06x}{'' if wd_ok else ' - FAIL: expected SAFE-OP + error, 0x001B'}")
+    if pattern is not None:
+        got = struct.unpack("<H", m.sdo_read(WS2812_OUTPUTS, 1))[0]
+        print(f"  WS2812 pattern after the watchdog: {got} (expected 0){'' if got == 0 else ' - FAIL'}")
+        wd_ok = wd_ok and got == 0
+    m.write_al_control(4 | 0x10)  # acknowledge
+    time.sleep(0.05)
+    return ok and wd_ok
+
+
 def expect_refused(m: Master, state: str, code: int) -> bool:
     """A request that the slave must refuse with `code` (then acknowledged)."""
     m.write_al_control(STATES[state])
@@ -679,8 +756,8 @@ def run(args) -> int:
             m.configure_sm(3, in_bytes)
             ok = expect_refused(m, "safeop", 0x001D) and ok
             m.configure_sm(2, out_bytes)
-            for state in ("safeop", "op", "init"):
-                ok = m.request_state(state) and ok
+            ok = process_data_test(m, out_bytes, in_bytes) and ok
+            ok = m.request_state("init") and ok
         refused = not m.request_state("boot")
         print(f"  BOOT {'refused as expected' if refused else 'accepted - the firmware should refuse it'}")
         ok = ok and refused
@@ -719,7 +796,7 @@ def main() -> int:
     bl.add_argument("--cycles", type=int, default=0, help="on/off cycles, 0 = until Ctrl+C")
     bl.add_argument("--pattern", type=int, default=1, help="strip pattern when on (1 red, 2 yellow, 3 green, 4 blue/white)")
     bl.add_argument("--colour", type=int, default=1, help="single LED palette index when on (1 red, 2 green, 3 blue, ...)")
-    sub.add_parser("test", help="end to end: scan, SII, AL states with the slave's checks, CoE identity/info/PDO assignment, BOOT refused")
+    sub.add_parser("test", help="end to end: scan, SII, AL states with the slave's checks, CoE identity/info/PDO assignment, process data in OP, watchdog, BOOT refused")
     args = ap.parse_args()
     if args.list:
         list_ifaces()

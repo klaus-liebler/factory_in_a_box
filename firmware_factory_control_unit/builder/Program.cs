@@ -63,7 +63,8 @@ namespace Builder
 				EtherCat: new UniversalRegisterAccess.Generators.EtherCatOptions(VendorId: 0x0000_0000,
 					ProductCode: 0x0046_4355 /* "FCU" */, Revision: 1, Name: "Factory Control Unit", Group: "FactoryInABox",
 					MailboxOutStart: 0x1000, MailboxOutSize: 128, MailboxInStart: 0x1080, MailboxInSize: 128,
-					OutputsStart: 0x1100, InputsStart: 0x1800)));
+					OutputsStart: 0x1100, InputsStart: 0x1800,
+					PdiControl: 0x82 /* SPI EtherCAT Direct Mapped: the LAN9253 straps (EE_EMUL 100) */, TypeName: "FactoryControlUnit")));
 
 		[BuildStep]
 		public static void GenerateBestBinaryBufferFiles(IBuildContextStm32 ctx) =>

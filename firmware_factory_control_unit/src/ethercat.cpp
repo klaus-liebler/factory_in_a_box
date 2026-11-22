@@ -78,6 +78,13 @@ struct App {
                       ec::state_name(from).data(), static_cast<int>(ec::state_name(to).size()), ec::state_name(to).data(), code,
                       static_cast<int>(text.size()), text.data());
     }
+    void al_error(std::uint8_t from, std::uint8_t to, std::uint16_t code) noexcept {
+        ec::write8(esc, ec::reg::run_led_override, run_led_off);
+        const auto text = ec::al_code::text(code);
+        RTOS_LOG_ERROR("ethercat: %.*s -> %.*s by the slave: 0x%04x %.*s - EtherCAT outputs to 0", static_cast<int>(ec::state_name(from).size()),
+                       ec::state_name(from).data(), static_cast<int>(ec::state_name(to).size()), ec::state_name(to).data(), code,
+                       static_cast<int>(text.size()), text.data());
+    }
     void eeprom_command(unsigned cmd, std::uint32_t word) noexcept {
         if (cmd == ec::eeprom::cmd_read && eeprom_logged >= 8) return;  // a master reads the SII in bursts
         ++eeprom_logged;
@@ -166,6 +173,8 @@ void on_ready() noexcept {
 // ---- the thread ------------------------------------------------------------------------------------------
 constexpr std::size_t notify_slot = 0;
 Kernel::Thread ecat_tcb;
+// deepest path (objdump, sub sp; rev 1): ecat_main 292 B -> Slave/CoeServer about 420 B -> the
+// register bank's write hook (WS2812 pixel) -> log 184 B -> vsnprintf about 1 KB: about 2.2 KB
 alignas(8) std::array<std::byte, 4 * 1024> ecat_stack;
 
 /// Polling period without the IRQ line, and the fallback with it (a level the edge did not show).
@@ -209,6 +218,11 @@ void ecat_main(void*) {
         if (static_cast<std::int32_t>(now - next_status) >= 0) {
             next_status = now + 1000;
             take_status(ready);
+        }
+        if constexpr (hw::has_ethercat_irq) {
+            // the IRQ is a level, EXTI sees edges: an event that came while the line was still low
+            // gave no new edge - poll again at once while the line stays low
+            if (ready && !read(pins::ethercat->irq)) continue;
         }
         (void)kernel.notify_wait(notify_slot, !ready ? not_ready_ms : hw::has_ethercat_irq ? irq_fallback_ms : poll_ms);
     }

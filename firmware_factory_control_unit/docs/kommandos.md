@@ -202,6 +202,7 @@ python tools/test-plc-renode.py --revision 1     # SPS, Watch, Forcen, Haltepunk
 python tools/test-plc-renode.py --revision 3     # dasselbe auf dem H743 (ohne Fahrten: Renode fehlt dort das Timer-DMA)
 python tools/test-missions-sd-renode.py          # RoArm-Missionen auf der SD-Karte (Revision 3)
 python tools/test-usb-renode.py                  # USB (Revision 3)
+python tools/pentest-renode.py                   # Black-Box-Pentest: Ports, TLS, HTTP, WebSocket, Modbus, OPC UA, mDNS, ICMP (--revision 1|3)
 ```
 
 | Parameter | Bedeutung |

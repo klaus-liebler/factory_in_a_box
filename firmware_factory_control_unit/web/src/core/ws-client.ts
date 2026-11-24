@@ -17,6 +17,7 @@
 // sendBinary().
 
 import { decodeError, FLAG_ERROR, type FrameHeader, HEADER_SIZE, readHeader } from "../../generated/ws-protocol.ts";
+import { refusalText } from "./auth.ts";
 
 // Reconnect backoff deliberately simple and fixed (no exponential backoff): in normal operation the board is
 // permanently reachable in the same network; a short fixed interval restores the connection quickly after a
@@ -49,7 +50,8 @@ export class WsErrorReply extends Error {
 		readonly code: number,
 		readonly deviceMessage: string,
 	) {
-		super(`Gerät meldet Fehler ${code}: ${deviceMessage}`);
+		// a request the role or the missing presence does not allow: say that, not the code
+		super(refusalText(code) ?? `Gerät meldet Fehler ${code}: ${deviceMessage}`);
 	}
 }
 
@@ -183,7 +185,22 @@ function abandon(ws: WebSocket): void {
 	setTimeout(connect, RECONNECT_DELAY_MS);
 }
 
+/** Checked before every (re)connect: false waits for the next attempt (app.ts: a login must exist, the device
+ *  refuses the upgrade without one, and the browser does not tell why). */
+let connectGuard: (() => Promise<boolean>) | null = null;
+export function setConnectGuard(guard: () => Promise<boolean>): void {
+	connectGuard = guard;
+}
+
 function connect(): void {
+	if (connectGuard === null) return open();  // no guard: at once
+	void connectGuard().then(
+		(ok) => (ok ? open() : setTimeout(connect, RECONNECT_DELAY_MS)),
+		() => setTimeout(connect, RECONNECT_DELAY_MS),
+	);
+}
+
+function open(): void {
 	const ws = new WebSocket(wsUrl());
 	ws.binaryType = "arraybuffer";
 	socket = ws;

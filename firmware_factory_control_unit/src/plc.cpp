@@ -679,19 +679,25 @@ const char* debug_continue(vm::StepKind kind) noexcept {
 }
 
 void plc_main(void*) {
+    flash_lock.take();  // the slots' flash: one writer at a time (system.hpp)
     store.mount();
     const vm::SlotConfig c = store.config();
     autostart = c.autostart != 0;
     registers.set_write_filter({nullptr, &permit});
     set_source(c.control_source != 0);
     load_from_flash();
+    flash_lock.give();
     RTOS_LOG_INFO("plc: %s, control source %s, autostart %s", image_bytes ? "program loaded" : "no program",
                   iec.load() ? "IEC 61131" : "fieldbus", autostart ? "on" : "off");
     if (autostart && state.load() == ws::PlcState::Stop) enter(ws::PlcState::Run);
     for (;;) {
         const auto bits = kernel.notify_wait(notify_slot);
         if (!bits) continue;
-        while (const auto r = requests.try_receive()) handle(*r);
+        if (requests.size() != 0) {
+            flash_lock.take();  // a request may write the slots (system.hpp)
+            while (const auto r = requests.try_receive()) handle(*r);
+            flash_lock.give();
+        }
         if ((*bits & bit_cycle) != 0) {
             if (state.load() == ws::PlcState::Run) run_cycle();
             watch_publish();

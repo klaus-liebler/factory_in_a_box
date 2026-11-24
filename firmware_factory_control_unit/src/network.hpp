@@ -5,7 +5,8 @@
 //             leasing 192.168.173.2) and CDC-ACM (Modbus RTU, unit 1); connected while
 //             USB_VSENSE sees VBUS
 //   HTTPS     https://<hostname>.local/ web app (every path: the single-page app),
-//             wss://<hostname>.local/ws binary protocol (ws_protocol.hh, see web.cpp)
+//             /api/ login, logout, accounts (auth.hpp), wss://<hostname>.local/ws binary protocol
+//             (ws_protocol.hh, see web.cpp) for logged-in users only
 //   Modbus    TCP port 502, RTU over CDC-ACM: the register map (register_map.hpp)
 //   OPC UA    opc.tcp://<hostname>.local:4840, Objects/FactoryControlUnit (register_map_opcua.hpp)
 //
@@ -37,6 +38,10 @@ inline constexpr std::size_t max_ws_message = 1280;
 using Server = rtos::net::HttpsServer<Stack, max_https_sessions, max_ws_message>;
 /// WebSocket messages from the I/O thread (broadcasts).
 using Outbox = rtos::net::WebSocketOutbox<Server, 4096, Kernel::Lock>;
+
+/// The interfaces: Ethernet first, USB CDC-NCM second (a session over USB proves physical presence).
+inline constexpr rtos::net::InterfaceId ethernet_interface = 0;
+inline constexpr rtos::net::InterfaceId usb_interface = 1;
 
 extern Server server;
 extern Outbox outbox;

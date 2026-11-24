@@ -2,9 +2,11 @@
 #include "web.hpp"
 
 #include <array>
+#include <cstdio>
 #include <cstring>
 #include <ranges>
 
+#include "auth.hpp"
 #include "boot.hpp"
 #include "ethercat.hpp"
 #include "io.hpp"
@@ -15,6 +17,7 @@
 #include "rtos/time.hpp"
 #include "task_monitor.hpp"
 #include "terminal.hpp"
+#include "ws_permissions.hpp"
 #include "ws_protocol.hh"
 
 namespace fcu::web {
@@ -251,6 +254,7 @@ LogMirror& log_mirror() noexcept { return mirror; }
 
 void on_opened(void*, SessionId id) noexcept { RTOS_LOG_INFO("ws: client %u connected", static_cast<unsigned>(id)); }
 void on_closed(void*, SessionId id) noexcept {
+    auth::websocket_closed(id);
     plc::session_closed(id);  // its debug lease ends
     // a session the server reset because its TLS failed (e.g. MEMORY_E from the static pool) says so
     static std::uint32_t tls_failures = 0;
@@ -269,6 +273,25 @@ void on_message(void*, SessionId id, std::span<const std::byte> message, bool bi
         return;
     }
     Responder reply(header, answer.data(), answer.size(), send_direct, as_context(id));
+    // the role table (ws_permissions.hpp), on the device: the UI only hides what a role cannot do
+    std::array<char, 24> what{};
+    std::snprintf(what.data(), what.size(), "ws %u/%u", static_cast<unsigned>(header.namespaceId),
+                  static_cast<unsigned>(header.messageTypeId));
+    switch (auth::authorize(id, auth::ws_permission(header.namespaceId, header.messageTypeId), what.data())) {
+        case auth::Decision::Allowed: break;
+        case auth::Decision::NotAuthenticated:
+            reply.Error(static_cast<ws::ErrorCode>(auth::error_not_authenticated), "not logged in");
+            return;
+        case auth::Decision::RoleTooLow:
+            reply.Error(static_cast<ws::ErrorCode>(auth::error_role), "your role may not do this");
+            return;
+        case auth::Decision::PresenceRequired:
+            reply.Error(static_cast<ws::ErrorCode>(auth::error_presence), "physical presence required (USB connection)");
+            return;
+        case auth::Decision::PasswordChangeRequired:
+            reply.Error(static_cast<ws::ErrorCode>(auth::error_password_change), "change the password first");
+            return;
+    }
     const auto dispatch = [&](auto decode, auto handler) { ws::Dispatch(reply, frame.data(), frame.size(), decode, handler); };
     const std::uint16_t type = header.messageTypeId;
     switch (header.namespaceId) {

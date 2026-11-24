@@ -98,6 +98,9 @@ dotnet run --project builder -- PrepareContextWithCommandLineArguments -- --boar
 dotnet run --project builder -- GenerateCertificatesLazy                       # Zertifikat wiederverwenden/bei Bedarf erzeugen
 dotnet run --project builder -- GenerateCertificatesForced                     # Zertifikat immer neu erzeugen
 dotnet run --project builder -- GenerateDeviceArtifacts                        # device_ids.hh + device-ids.json (generated/) + Kopie von board_info.json aus dem Board-Archiv
+dotnet run --project builder -- GenerateWebCredentials                         # Web-Einmalpasswort (board_info.json im Board-Archiv, wiederverwendet) -> generated/device_credentials.hh, neues Passwort: Etikett
+dotnet run --project builder -- GenerateWebCredentials -- --force-recreate-one-time-web-ui-password   # neues Einmalpasswort erzwingen (danach Etikett drucken)
+dotnet run --project builder -- PrintLabel                                     # Etikett build/labels/<hostname>.zpl/.png/.pdf, an LabelPrinter:Host:Port falls konfiguriert (docs/security.md)
 dotnet run --project builder -- GenerateRegisterAccessFiles          # schema/register_map/*.cs -> Code (Modbus + OPC UA + Web)
 dotnet run --project builder -- GenerateBestBinaryBufferFiles                  # schema/best_binary_buffers/*.cs -> Code
 dotnet run --project builder -- GenerateTerminalFiles                          # schema/terminal/*.cs -> Code

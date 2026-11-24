@@ -25,5 +25,19 @@
   },
   "BoardDefaults": {
     "DefaultBoardTypeName": "FactoryControlUnit"
+  },
+  "WebAuth": {
+    "ForceRecreateOneTimeWebUiPassword": false,
+    "Pbkdf2Iterations": 6000,
+    "PasswordLength": 16,
+    "AdminUser": "admin"
+  },
+  "LabelPrinter": {
+    "Host": null,
+    "WindowsPrinter": null,
+    "Port": 9100,
+    "WidthMm": 51,
+    "HeightMm": 25,
+    "Dpi": 300
   }
 }

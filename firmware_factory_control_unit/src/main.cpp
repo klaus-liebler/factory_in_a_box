@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 
+#include "auth.hpp"
 #include "board/chip.hpp"
 #include "board/fcu.hpp"
 #include "boot.hpp"
@@ -20,6 +21,7 @@ fcu::Kernel kernel;
 RTOS_BOARD_BIND_KERNEL(kernel)
 fcu::Registers registers{rtos::modbus::WriteHook{nullptr, &fcu::io::holding_written}};
 fcu::Journal journal;
+rtos::Semaphore<fcu::Kernel> flash_lock{kernel, 1, 1};
 
 namespace {
 
@@ -27,7 +29,8 @@ using fcu::Kernel;
 
 // ---- console: the journal to USART3 ------------------------------------------------------------
 Kernel::Thread log_tcb;
-alignas(8) std::array<std::byte, 2048> log_stack;
+// + the web accounts' save: CredentialStore builds two flash records (2 x 0.6 KB) on the stack
+alignas(8) std::array<std::byte, 3584> log_stack;
 
 void log_main(void*) {
     rtos::log::Cursor cursor = journal.oldest();
@@ -43,6 +46,7 @@ void log_main(void*) {
             const std::size_t n = rtos::log::format_line(record, line, false);
             board::print({line.data(), n});
         }
+        fcu::auth::store_pending_changes();  // between two log passes: may block for a flash erase
         kernel.sleep(20);
     }
 }

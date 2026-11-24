@@ -7,7 +7,8 @@
 //   io   10   boot sequence (supply voltage, USB-PD, power consumers), then the I/O cycle
 //             every 50 ms: sensors, actuators, steppers, RoArm, heartbeat
 //   plc  11   the IEC 61131-3 program (plc.hpp): one cycle after each I/O cycle
-//   log  14   console: writes the log journal to USART3
+//   log  14   console: writes the log journal to USART3; writes changed web accounts to the flash
+//             (auth.hpp: a flash erase may block, the network thread must not)
 //
 // The chip comes from the board package (board/chip.hpp): STM32H563 (Cortex-M33) on revisions
 // 1/2, STM32H743 (Cortex-M7) on revision 3.
@@ -21,6 +22,7 @@
 #include "rtos/log/log.hpp"
 #include "rtos/modbus/register_bank.hpp"
 #include "rtos/rtos.hpp"
+#include "rtos/sync/semaphore.hpp"
 
 namespace fcu {
 
@@ -63,3 +65,6 @@ inline void enable_irq(unsigned irq, std::uint8_t priority) noexcept {
 extern fcu::Kernel kernel;
 extern fcu::Registers registers;
 extern fcu::Journal journal;
+/// The flash interface (erase, program) has one user at a time: the PLC's program slots (PLC thread)
+/// and the web accounts (log thread) take this before they write.
+extern rtos::Semaphore<fcu::Kernel> flash_lock;

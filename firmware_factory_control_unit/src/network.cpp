@@ -8,6 +8,7 @@
 #include <optional>
 #include <string_view>
 
+#include "auth.hpp"
 #include "board/chip.hpp"
 #include "board/fcu.hpp"
 #include "device_ids.hh"
@@ -79,7 +80,7 @@ static_assert(Pool::capacity() >= eth_rx_descriptors + StackConfig::rx_reserve +
 RTOS_DMA_BUFFER Pool packet_pool;
 RTOS_DMA_BUFFER Ethernet ethernet{packet_pool, mac(DEVICE_ETH_MAC), board::phy_address};
 Stack stack{packet_pool};
-constexpr rn::InterfaceId eth_if = 0;  // first attach(): unconfigured until DHCP
+constexpr rn::InterfaceId eth_if = ethernet_interface;  // first attach(): unconfigured until DHCP
 
 // ---- USB: CDC-NCM (interfaces 0, 1) + CDC-ACM for Modbus RTU (interfaces 2, 3) -----------------
 namespace usb = rtos::usb;
@@ -276,7 +277,7 @@ void net_main(void*) {
     [[maybe_unused]] const rn::InterfaceId e = stack.attach(ethernet);
     contract_assert(e == eth_if);
     [[maybe_unused]] const rn::InterfaceId u = stack.attach(ncm, usb_address);
-    contract_assert(u == 1);
+    contract_assert(u == usb_interface);
     stack.set_random([](void*) noexcept { return board::Rng::next(); }, nullptr);
 
     enable_irq(Ethernet::irq_number, irq_priority_net);
@@ -301,6 +302,8 @@ void net_main(void*) {
         return;
     }
     ua::registers::Bind(registers);
+    auth::init();
+    server.set_api(auth::api_handler());
 
     mdns.start(rn::InterfaceSet::all(), &on_mdns_renamed);
     dhcp.start();
@@ -324,6 +327,7 @@ void net_main(void*) {
     runtime.add(mdns, "mdns");
     runtime.add(sntp, "sntp");
     runtime.add(server, "https");
+    runtime.add(auth::service(), "auth");
     runtime.add(outbox, "ws-outbox");
     runtime.add(web::log_mirror(), "log-mirror");
     runtime.add(modbus_tcp, "modbus");

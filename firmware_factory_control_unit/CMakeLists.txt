@@ -33,6 +33,9 @@ add_subdirectory(rtoos)  # rtos_kernel, rtos_tls, rtos_opcua, rtos_filex, rtos_l
 
 set(FCU_ASSETS ${CMAKE_SOURCE_DIR}/build/assets)
 set(FCU_GENERATED ${CMAKE_SOURCE_DIR}/generated)
+if(NOT EXISTS ${FCU_GENERATED}/device_credentials.hh)
+    message(FATAL_ERROR "generated/device_credentials.hh missing: run the builder (dotnet run --project builder -- GenerateWebCredentials)")
+endif()
 foreach(f device_https_certificate.der device_https_key.der device_certificate.der device_key.der root_ca.der
           index.html.br)
     if(NOT EXISTS ${FCU_ASSETS}/${f})
@@ -48,10 +51,11 @@ list(APPEND FCU_SOURCES ${FCU_HAL_SOURCES})
 message(STATUS "FCU board revision ${FCU_HAL}: ${RTOS_CHIP}, rtoos board revision ${RTOS_FCU_REVISION}")
 
 # The last 256 KB of the flash (0x081C0000, both chips) hold the PLC's program slots
-# (src/plc.cpp, docs/plc-iec61131.md 4.5) and stay outside the image.
+# (src/plc.cpp, docs/plc-iec61131.md 4.5), the two sectors below them the web accounts (src/auth.cpp:
+# 2 x 8 KB on the STM32H563, 2 x 128 KB on the STM32H743); all of it stays outside the image.
 rtos_add_firmware(firmware_factory_control_unit
     SOURCES ${FCU_SOURCES}
     LIBRARIES rtos_board_fcu rtos_tls rtos_opcua rtos_filex rtos_plc
-    FLASH_DATA_START 0x081C0000)
+    FLASH_DATA_START 0x08180000)
 target_include_directories(firmware_factory_control_unit PRIVATE src src/features src/hal/${FCU_HAL} ${FCU_GENERATED})
 target_compile_options(firmware_factory_control_unit PRIVATE -Wall -Wextra -Werror --embed-dir=${FCU_ASSETS})

@@ -48,6 +48,33 @@ namespace Builder
 		public static void GenerateDeviceArtifacts(IBuildContextStm32 ctx) =>
 			Stm32BoardProvisioningService.GenerateDeviceArtifacts(ctx);
 
+		// Web UI login: the board's one-time password from the board archive (created once, reused
+		// afterwards; --force-recreate-one-time-web-ui-password makes a new one), its PBKDF2 record for
+		// the firmware (generated/device_credentials.hh) and, for a new password, the label.
+		[BuildStep]
+		public static void GenerateWebCredentials(IBuildContextStm32 ctx)
+		{
+			var hadPassword = !string.IsNullOrEmpty(ctx.WebAdminPassword);
+			var device = WebCredentials.Generate(ctx);
+			if ((!hadPassword || Cli.HasFlag(ctx.Args, WebCredentials.ForceFlag) ||
+			     BuilderSettings.Current.WebAuth.ForceRecreateOneTimeWebUiPassword) && OperatingSystem.IsWindows())
+			{
+				DeviceLabel.Write(ctx.RootDir, device);
+			}
+		}
+
+		// The label again (ZPL, PNG, PDF; printed if LabelPrinter:Host is set), with the stored password.
+		[BuildStep]
+		public static void PrintLabel(IBuildContextStm32 ctx)
+		{
+			var device = WebCredentials.Generate(ctx);
+			if (!OperatingSystem.IsWindows())
+			{
+				throw new PlatformNotSupportedException("the label preview needs System.Drawing (Windows)");
+			}
+			DeviceLabel.Write(ctx.RootDir, device);
+		}
+
 		[BuildStep]
 		public static void GenerateRegisterAccessFiles(IBuildContextStm32 ctx) =>
 			UniversalRegisterAccessBuildService.Run(new UniversalRegisterAccessBuildRequest(
@@ -162,6 +189,7 @@ namespace Builder
 			Console.WriteLine($"Board {ctx.BoardUid} ({ctx.BoardTypeName} {ctx.BoardTypeVersion}), Preset {ctx.Preset}");
 			BuildStepRunner.Invoke(ctx, generateCertificates);
 			BuildStepRunner.Invoke(ctx, GenerateDeviceArtifacts);
+			BuildStepRunner.Invoke(ctx, GenerateWebCredentials);
 			BuildStepRunner.Invoke(ctx, GenerateRegisterAccessFiles);
 			BuildStepRunner.Invoke(ctx, GenerateBestBinaryBufferFiles);
 			BuildStepRunner.Invoke(ctx, GenerateTerminalFiles);

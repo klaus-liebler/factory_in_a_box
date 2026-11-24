@@ -60,14 +60,14 @@ namespace Builder
 			if ((!hadPassword || Cli.HasFlag(ctx.Args, WebCredentials.ForceFlag) ||
 			     BuilderSettings.Current.WebAuth.ForceRecreateOneTimeWebUiPassword) && OperatingSystem.IsWindows())
 			{
-				DeviceLabel.Write(ctx.RootDir, device, Cli.HasFlag(ctx.Args, "--dry-run"));
+				DeviceLabel.Write(ctx.BoardsDir, device, Cli.HasFlag(ctx.Args, "--dry-run"));
 			}
 		}
 
 		// The label again with the stored password, read only from the board archive (never creates a
 		// password): the current board (build/.last-board-id), --board <id or prefix> (repeatable) or
 		// --all; printed as LabelPrinter configures it (docs/labels.md), --dry-run writes the print job
-		// to build/labels/ only.
+		// to <BoardsDir>/<board id>/labels/ only.
 		[BuildStep]
 		public static void PrintLabel(IBuildContextStm32 ctx)
 		{
@@ -78,12 +78,12 @@ namespace Builder
 			var dryRun = Cli.HasFlag(ctx.Args, "--dry-run");
 			foreach (var device in SelectLabelBoards(ctx))
 			{
-				DeviceLabel.Write(ctx.RootDir, device, dryRun);
+				DeviceLabel.Write(BuilderSettings.Current.BoardStorage.BoardsDir, device, dryRun);
 			}
 		}
 
 		// The labels of several boards on A4 at true scale with cut marks, for any laser printer:
-		// build/labels/labels_A4.pdf (--out <file>). Boards as PrintLabel (current, --board ..., --all),
+		// <BoardsDir>/labels_A4.pdf (--out <file>). Boards as PrintLabel (current, --board ..., --all),
 		// --copies <n> per board.
 		[BuildStep]
 		public static void PrintLabelSheet(IBuildContextStm32 ctx)
@@ -95,7 +95,7 @@ namespace Builder
 			var devices = SelectLabelBoards(ctx);
 			var o = BuilderSettings.Current.LabelPrinter;
 			var copies = int.Parse(Cli.GetOptionalArgValue(ctx.Args, "--copies") ?? "1", System.Globalization.CultureInfo.InvariantCulture);
-			var path = Cli.GetOptionalArgValue(ctx.Args, "--out") ?? Path.Combine(ctx.RootDir, "build", "labels", "labels_A4.pdf");
+			var path = Cli.GetOptionalArgValue(ctx.Args, "--out") ?? Labels.BoardArchiveLabels.SheetPath(BuilderSettings.Current.BoardStorage.BoardsDir);
 			var pages = Labels.LabelSheet.Write(path, devices, o.SheetCellWidthMm, o.SheetCellHeightMm, copies);
 			Console.WriteLine($"A4-Bogen: {path} ({devices.Count} Board(s) x {copies}, {pages} Seite(n), " +
 			                  $"Zelle {o.SheetCellWidthMm} x {o.SheetCellHeightMm} mm) -- mit 100 % drucken.");

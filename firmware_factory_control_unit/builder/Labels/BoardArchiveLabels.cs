@@ -8,6 +8,13 @@ namespace Builder.Labels;
 // password: a board without one is skipped (GenerateWebCredentials creates it).
 public static class BoardArchiveLabels
 {
+    /// Where the label files of one board go: <BoardsDir>/<board id>/labels/ (next to its
+    /// board_info.json, like generated/; they carry the password, so never into the repository).
+    public static string LabelsDir(string boardsDir, string boardId) => Path.Combine(boardsDir, boardId, "labels");
+
+    /// Default file of PrintLabelSheet: <BoardsDir>/labels_A4.pdf (next to provisioning.csv).
+    public static string SheetPath(string boardsDir) => Path.Combine(boardsDir, "labels_A4.pdf");
+
     public static IReadOnlyList<string> AllBoardIds(string boardsDir) =>
         Directory.Exists(boardsDir)
             ? Directory.GetDirectories(boardsDir)

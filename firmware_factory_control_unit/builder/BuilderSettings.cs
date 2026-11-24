@@ -31,12 +31,13 @@ public sealed class WebAuthOptions
 //   Zebra (or empty): ZPL (51 x 25 mm default) raw to Host:Port, or the PNG through WindowsPrinter
 //   BrotherQL:        Brother QL raster (QL-700, 62 mm endless etc., see BrotherQlOptions)
 //   None:             files only
-// DryRun (or --dry-run) writes every print job to build/labels/ and sends nothing.
+// Files go to the board archive, <BoardsDir>/<board id>/labels/ (PrintLabelSheet: <BoardsDir>/labels_A4.pdf).
+// DryRun (or --dry-run) only writes the print job there and sends nothing.
 public sealed class LabelPrinterOptions
 {
     public string? Type { get; set; }
     public bool DryRun { get; set; }
-    /// Every printed label additionally as an A4 sheet at true scale (build/labels/<hostname>.A4.pdf).
+    /// Every printed label additionally as an A4 sheet at true scale (<BoardsDir>/<board id>/labels/<hostname>.A4.pdf).
     public bool A4Sheet { get; set; }
     /// Cell of the A4 sheet (PrintLabelSheet): 62 mm wide like the QL tape.
     public double SheetCellWidthMm { get; set; } = 62;

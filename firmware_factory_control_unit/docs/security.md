@@ -19,7 +19,7 @@ policy of the Factory Control Unit (`src/auth.hpp`, `src/auth.cpp`, `src/ws_perm
   no default password (ETSI EN 303 645 provision 5.1, CRA Annex I).
 - Every creation is recorded in `<BoardsDir>/provisioning.csv` (board ID, chip UID, hostname, MAC,
   revision, date, event - never the password).
-- The label (`build/labels/<hostname>.zpl/.png/.pdf`, gitignored) shows hostname, board ID (chip UID), MAC,
+- The label (`<BoardsDir>/<board id>/labels/<hostname>.zpl/.png/.pdf` in the board archive, never in the repository) shows hostname, board ID (chip UID), MAC,
   hardware revision, provisioning date, the password and a QR code with `https://<hostname>.local/` (the URL
   only). ZPL for a Zebra-type printer, 51 x 25 mm at 300 dpi by default (`LabelPrinter:WidthMm/HeightMm/Dpi`);
   with `LabelPrinter:Host` (and `Port`, 9100) the builder sends it raw to the printer, otherwise it only

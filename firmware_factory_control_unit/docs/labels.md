@@ -3,15 +3,18 @@
 Every provisioned board gets a label with hostname, board ID (chip UID), MAC, hardware revision,
 provisioning date, the one-time web UI password and a QR code with `https://<hostname>.local/` (the URL
 only, never the password); see [security.md](security.md) for the password itself. The builder writes all
-label files to `build/labels/` (gitignored: they carry the password) and prints them as `LabelPrinter` in
+label files to the board archive, `<BoardsDir>/<board id>/labels/` (`BoardStorage:BoardsDir`, next to the
+board's `board_info.json`; never into the repository: they carry the password) and prints them as `LabelPrinter` in
 `builder/appsettings.json` says. The password is read from the board archive (`board_info.json`,
 `webAdminPassword`) and never created by the label steps.
+Older builder versions wrote to `build/labels/` in the repository; move such files into the board's
+`labels/` folder in the archive (`build/labels/` is no longer used).
 
 | Step | What |
 |---|---|
 | `GenerateWebCredentials` (every pipeline) | prints the label when it creates a new password |
 | `PrintLabel` | the label again: current board, `--board <id or prefix>` (repeatable) or `--all` |
-| `PrintLabelSheet` | `build/labels/labels_A4.pdf`: labels on A4 at true scale with cut marks (same board selection, `--copies <n>`, `--out <file>`) |
+| `PrintLabelSheet` | `<BoardsDir>/labels_A4.pdf`: labels on A4 at true scale with cut marks (same board selection, `--copies <n>`, `--out <file>`) |
 
 Options for one run, without touching `appsettings.json`: `--dry-run` (write the print job, send
 nothing), `--label-type Zebra|BrotherQL|None`, `--ql-label 62|29x90|17x54`,
@@ -31,7 +34,7 @@ dotnet run --project builder -- PrintLabelSheet                                 
 ```json
 "LabelPrinter": {
   "Type": "BrotherQL",            // Zebra (default) | BrotherQL | None
-  "DryRun": false,                // true: never send, only write build/labels/
+  "DryRun": false,                // true: never send, only write <BoardsDir>/<board id>/labels/
   "A4Sheet": false,               // true: every printed label also as <hostname>.A4.pdf
   "SheetCellWidthMm": 62,         // A4 sheet cells (3 x 6 per page at 62 x 40 mm)
   "SheetCellHeightMm": 40,
@@ -55,9 +58,9 @@ renders the label at exactly the printable dots of the tape and encodes the rast
 (`builder/Labels/BrotherQl.cs`), byte for byte as the python package `brother_ql` does
 (`tests/builder` checks that). Per label it writes
 
-- `build/labels/<hostname>.QL-700-62.png`: the label, black/white, 696 dots wide (62 mm tape: 696
+- `<BoardsDir>/<board id>/labels/<hostname>.QL-700-62.png`: the label, black/white, 696 dots wide (62 mm tape: 696
   printable dots, 12 dots right margin), length as the content needs (about 35 mm), cut after the label;
-- `build/labels/<hostname>.QL-700-62.bin`: the raster job that goes to the printer.
+- `<BoardsDir>/<board id>/labels/<hostname>.QL-700-62.bin`: the raster job that goes to the printer.
 
 `29x90` (DK-11201, 991 x 306 dots) and `17x54` (DK-11204, 566 x 165 dots) are die-cut and use a compact
 layout: QR code left, hostname/ID and password right (17x54: ID and password only).
@@ -74,7 +77,7 @@ layout: QR code left, hostname/ID and password right (17x54: ID and password onl
   server in front of a USB QL-700 (lab server, see below).
 - **BrotherQlCli**: the PNG through `brother_ql` (`pip install brother_ql-inventree`):
   `brother_ql -b pyusb -m QL-700 -p usb://0x04f9:0x2042 print -l 62 <png>`.
-- **File**: the raster job written to `Target` (and always to `build/labels/`).
+- **File**: the raster job written to `Target` (and always to `<BoardsDir>/<board id>/labels/`).
 
 ### Setting up the QL-700 on Windows
 
@@ -103,7 +106,7 @@ device including its driver, replug). That is why WindowsRaw is the default on W
 ### Lab server (Linux)
 
 A QL-700 on a Linux server: `brother_ql -b linux_kernel -m QL-700 -p file:///dev/usb/lp0 print -l 62 <png>`
-(the PNG from `build/labels/`), or a raw print server on port 9100 (e.g. `p910nd` on `/dev/usb/lp0`) and
+(the PNG from `<BoardsDir>/<board id>/labels/`), or a raw print server on port 9100 (e.g. `p910nd` on `/dev/usb/lp0`) and
 `"Backend": "Tcp", "Target": "<server>:9100"` in the builder. Network QLs take the job on 9100 directly.
 
 ## A4 sheet for any printer

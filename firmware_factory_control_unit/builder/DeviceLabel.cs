@@ -22,23 +22,24 @@ namespace Builder;
 //
 // LabelPrinter:Type BrotherQL instead (docs/labels.md): <hostname>.<model>-<label>.png/.bin, the
 // layout of Labels/LabelArt.cs at the label's exact printable dots and its Brother QL raster job.
-// LabelPrinter:A4Sheet: also <hostname>.A4.pdf; PrintLabelSheet: build/labels/labels_A4.pdf.
+// LabelPrinter:A4Sheet: also <hostname>.A4.pdf; PrintLabelSheet: <BoardsDir>/labels_A4.pdf.
 //
-// The files go to build/labels/ (gitignored: they carry the password).
+// The files go to the board archive, <BoardsDir>/<board id>/labels/ (they carry the password, so
+// never into the repository).
 [SupportedOSPlatform("windows")]
 public static class DeviceLabel
 {
     private sealed record Line(string Text, int Height, bool Bold, int Y);
 
     /// The label of one board with the settings of appsettings.json (LabelPrinter); dryRun (or
-    /// LabelPrinter:DryRun) writes the print job to build/labels/ and sends nothing.
-    public static string Write(string rootDir, WebCredentials.Device d, bool dryRun = false) =>
-        Write(rootDir, d, BuilderSettings.Current.LabelPrinter, dryRun);
+    /// LabelPrinter:DryRun) writes the print job to <BoardsDir>/<board id>/labels/ and sends nothing.
+    public static string Write(string boardsDir, WebCredentials.Device d, bool dryRun = false) =>
+        Write(boardsDir, d, BuilderSettings.Current.LabelPrinter, dryRun);
 
-    public static string Write(string rootDir, WebCredentials.Device d, LabelPrinterOptions o, bool dryRun)
+    public static string Write(string boardsDir, WebCredentials.Device d, LabelPrinterOptions o, bool dryRun)
     {
         dryRun |= o.DryRun;
-        var dir = Path.Combine(rootDir, "build", "labels");
+        var dir = BoardArchiveLabels.LabelsDir(boardsDir, d.BoardId);
         Directory.CreateDirectory(dir);
         var basePath = Path.Combine(dir, d.Hostname);
         var type = string.IsNullOrWhiteSpace(o.Type) ? "Zebra" : o.Type.Trim();

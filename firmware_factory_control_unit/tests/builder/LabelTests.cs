@@ -89,13 +89,16 @@ public sealed class LabelTests : IDisposable
     }
 
     [Fact]
-    public void Dry_run_writes_png_and_raster_job_to_build_labels()
+    public void Dry_run_writes_png_and_raster_job_to_the_board_archive()
     {
+        var boards = Path.Combine(_dir, "boards");
         var o = new LabelPrinterOptions { Type = "BrotherQL", BrotherQL = { Backend = "WindowsRaw", Target = "no such printer" } };
-        var basePath = DeviceLabel.Write(_dir, Board, o, dryRun: true);  // would throw if it tried to print
+        var basePath = DeviceLabel.Write(boards, Board, o, dryRun: true);  // would throw if it tried to print
         var png = basePath + ".QL-700-62.png";
         var bin = basePath + ".QL-700-62.bin";
-        Assert.StartsWith(Path.Combine(_dir, "build", "labels"), basePath);
+        Assert.Equal(Path.Combine(boards, Board.BoardId, "labels", Board.Hostname), basePath);
+        Assert.Equal(Path.Combine(boards, Board.BoardId, "labels"), BoardArchiveLabels.LabelsDir(boards, Board.BoardId));
+        Assert.Equal(Path.Combine(boards, "labels_A4.pdf"), BoardArchiveLabels.SheetPath(boards));
         using (var bmp = new Bitmap(png))
         {
             Assert.Equal(696, bmp.Width);
@@ -108,7 +111,7 @@ public sealed class LabelTests : IDisposable
     {
         var target = Path.Combine(_dir, "job.bin");
         var o = new LabelPrinterOptions { Type = "BrotherQL", BrotherQL = { Backend = "File", Target = target, Label = "29x90" } };
-        var basePath = DeviceLabel.Write(_dir, Board, o, dryRun: false);
+        var basePath = DeviceLabel.Write(Path.Combine(_dir, "boards"), Board, o, dryRun: false);
         Assert.Equal(File.ReadAllBytes(basePath + ".QL-700-29x90.bin"), File.ReadAllBytes(target));
     }
 
@@ -149,6 +152,9 @@ public sealed class LabelTests : IDisposable
         Directory.CreateDirectory(b);
         var noPassword = """{"firstConnectedAtEpoch":1785513294,"chipUid":"004500173434510434363836"}""";
         File.WriteAllText(Path.Combine(b, "board_info.json"), noPassword);
+        // label files live in the archive too and must not look like boards
+        Directory.CreateDirectory(Path.Combine(a, "labels"));
+        File.WriteAllText(BoardArchiveLabels.SheetPath(boards), "%PDF-1.4");
 
         Assert.Equal(2, BoardArchiveLabels.AllBoardIds(boards).Count);
         Assert.Equal("303537_003400343035510834303537", BoardArchiveLabels.Resolve(boards, "303537"));

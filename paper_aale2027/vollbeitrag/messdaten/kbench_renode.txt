@@ -1,0 +1,23 @@
+﻿
+rtoos kbench - kernel service latencies (STM32H563 / Factory Control Unit)
+KBENCH unit: DWT_CYCCNT (cycles on hardware, instructions in emulators)
+KBENCH sysclk_hz: 250000000
+KBENCH overhead (two CYCCNT reads): min 0 avg 0.0 max 0 n 1000
+KBENCH notify -> waiting thread running: min 301 avg 301.2 max 404 n 1000
+KBENCH notify ping-pong round trip (2 switches): min 766 avg 926.3 max 1029 n 1000
+KBENCH semaphore give -> waiting thread running: min 339 avg 339.0 max 347 n 1000
+KBENCH semaphore give + take (no waiter): min 76 avg 76.1 max 179 n 1000
+KBENCH queue round trip via thread (2 switches): min 729 avg 729.3 max 832 n 1000
+KBENCH queue send + receive (same thread): min 106 avg 106.0 max 114 n 1000
+KBENCH ISR pend -> handler entry (kernel-aware prio): min 5 avg 5.1 max 108 n 1000
+KBENCH ISR pend -> notified thread running (kernel-aware prio): min 334 avg 334.1 max 437 n 1000
+KBENCH ISR pend -> handler entry (zero-latency prio): min 6 avg 6.0 max 23 n 1000
+KBENCH ISR pend -> notified thread running (zero-latency prio): min 335 avg 335.0 max 352 n 1000
+KBENCH pool allocate (64 B block): min 37 avg 37.1 max 144 n 1000
+KBENCH pool free (64 B block): min 82 avg 82.1 max 185 n 1000
+KBENCH pool allocate + free: min 118 avg 118.0 max 121 n 1000
+KBENCH Modbus PDU read 10 holding registers: min 403 avg 403.3 max 506 n 1000
+KBENCH Modbus PDU read 125 holding registers: min 1736 avg 1736.7 max 1839 n 1000
+KBENCH Modbus PDU write 10 holding registers: min 408 avg 408.2 max 511 n 1000
+KBENCH RESULT: PASS
+=> renode: PASS

@@ -1,0 +1,114 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  body{margin:0;background:#fff;font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#111}
+  #c{width:880px;padding:14px;box-sizing:border-box}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:stretch}
+  .layer{border:1.5px solid #333;border-radius:6px;padding:6px 8px 8px;flex:1;background:#fff}
+  .lt{font-weight:700;font-size:13px;margin-bottom:5px;display:flex;justify-content:space-between}
+  .lt span{font-weight:400;font-size:11px;color:#444}
+  .boxes{display:flex;flex-wrap:wrap;gap:5px}
+  .b{border:1px solid #555;border-radius:4px;padding:4px 6px;font-size:11.5px;line-height:1.25;flex:1 1 auto;text-align:center;background:#fff}
+  .b small{display:block;font-size:10px;color:#333}
+  .ai{background:#dbe8f6}
+  .ext{background:#f3d9a8;border:1.5px dashed #8a5a00}
+  .gen{background:#d9efd9}
+  .hw{background:#eee}
+  .main{flex:1}
+  .side{width:160px;display:flex;flex-direction:column;gap:8px}
+  .side .layer{flex:0 0 auto}
+  .hub{background:#d9efd9;border:2px solid #2d6a2d;border-radius:6px;padding:6px;text-align:center;font-size:12.5px;font-weight:700;margin-bottom:8px}
+  .hub small{font-weight:400;font-size:10.5px;display:block}
+  .arrow{text-align:center;font-size:11px;color:#333;margin:-4px 0 4px}
+  .legend{display:flex;gap:14px;font-size:11px;margin-top:4px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:14px;height:11px;border:1px solid #555;margin-right:4px;vertical-align:-1px}
+  .tst .b{text-align:left}
+</style></head><body><div id="c">
+<div class="row">
+ <div class="main">
+  <div class="row">
+   <div class="layer" style="flex:2.2"><div class="lt">Browser (Single-Page-App aus dem Flash der FCU) <span>TypeScript, Lit</span></div>
+    <div class="boxes">
+     <div class="b ai">App-Shell<small>Arbeitsbereiche, Statusleiste, Dialoge</small></div>
+     <div class="b ai">IEC-61131-3-IDE<small>ST · FBD · SFC, Compiler, Debugger</small></div>
+     <div class="b ai">TS-VM<small>Simulation</small></div>
+     <div class="b ai">HMI-Editor/-Laufzeit<small>Visualisierung</small></div>
+     <div class="b ai">3D-Missionsplanung<small>RoArm-M3</small></div>
+    </div></div>
+   <div class="layer"><div class="lt">Externe Clients</div>
+    <div class="boxes">
+     <div class="b hw">Soft-SPS / SCADA<small>OPC UA, Modbus</small></div>
+     <div class="b hw">EtherCAT-Master</div>
+     <div class="b hw">SSH-Client</div>
+    </div></div>
+  </div>
+  <div class="arrow">▲▼ HTTPS + binärer WebSocket (TLS 1.3) · opc.tcp · Modbus TCP/RTU · EtherCAT · SSH — über Ethernet oder USB (CDC-NCM / CDC-ACM)</div>
+  <div class="layer" style="margin-bottom:8px"><div class="lt">FCU-Anwendung <span>C++26</span></div>
+   <div class="boxes">
+    <div class="b ai">E/A-Zyklus 50 ms<small>Sensoren, Aktoren, Schrittmotoren</small></div>
+    <div class="b ai">SPS-Laufzeit<small>Bytecode-VM, Verifier, Debug</small></div>
+    <div class="b ai">Roboter-Missionen</div>
+    <div class="b ai">Task-Monitor, Terminal</div>
+   </div></div>
+  <div class="hub">Gemeinsames Prozess- und Registermodell<small>einmalig als C#-Schema beschrieben → generiert für Modbus, OPC-UA-Adressraum, EtherCAT-Objektverzeichnis, Web-UI</small></div>
+  <div class="layer" style="margin-bottom:8px"><div class="lt">rtoos-Dienste <span>ein Netzwerk-Thread, begrenzte Hintergrundschritte</span></div>
+   <div class="boxes">
+    <div class="b ai">HTTPS + WebSocket</div>
+    <div class="b ai">OPC UA Server<small>Basic256Sha256 Sign / SignAndEncrypt, Subscriptions</small></div>
+    <div class="b ai">Modbus TCP</div>
+    <div class="b ai">Modbus RTU<small>über virt. COM-Port</small></div>
+    <div class="b ai">EtherCAT-Slave<small>CoE, PDO, LAN9253</small></div>
+    <div class="b ai">DHCP · DNS · mDNS · SNTP</div>
+    <div class="b ai">SSH-Logterminal</div>
+   </div></div>
+  <div class="layer" style="margin-bottom:8px"><div class="lt">Kommunikationskern</div>
+   <div class="boxes">
+    <div class="b ai">IP-Stack<small>IPv4, ARP (gehärtet), ICMP, UDP, TCP; Zero-Copy</small></div>
+    <div class="b ext">wolfSSL / wolfSSH<small>TLS 1.3, Krypto (statischer Pool)</small></div>
+    <div class="b ai">USB-Device-Stack<small>CDC-ACM, CDC-NCM</small></div>
+    <div class="b ai">USB-PD-Sink</div>
+   </div></div>
+  <div class="layer" style="margin-bottom:8px"><div class="lt">Kernel und Basisdienste <span>header-only, ohne Heap, Exceptions, RTTI</span></div>
+   <div class="boxes">
+    <div class="b ai">Scheduler<small>O(1), Preemption-Threshold</small></div>
+    <div class="b ai">Task-Notifications, Semaphoren, Queues</div>
+    <div class="b ai">Object-/Block-Pools, Timer-Wheel</div>
+    <div class="b ai">Log-Journal<small>nicht blockierend</small></div>
+    <div class="b ai">Motion<small>Rampen zur Compilezeit</small></div>
+    <div class="b ext">littlefs · FileX</div>
+   </div></div>
+  <div class="layer" style="margin-bottom:8px"><div class="lt">Ports <span>Hardwarezugriff nur über C++-Concepts, Konfiguration per static_assert geprüft</span></div>
+   <div class="boxes">
+    <div class="b ai">CPU-Ports<small>Cortex-M33 · M7 · M4 · M3</small></div>
+    <div class="b ai">STM32-Treiber<small>errata-geprüft: H563 · H743 · G431 · F103</small></div>
+    <div class="b ai">Board-Paket FCU<small>Rev. 1/2 (H563), Rev. 3 (H743)</small></div>
+    <div class="b ai">Bausteintreiber<small>INA226, HX711, TMC2209, VL53L0X, TCS34725, WS2812</small></div>
+   </div></div>
+  <div class="layer"><div class="lt">Hardware der FCU</div>
+   <div class="boxes">
+    <div class="b hw">STM32H563 / STM32H743</div><div class="b hw">Ethernet-PHY</div><div class="b hw">USB-C</div>
+    <div class="b hw">LAN9253</div><div class="b hw">Sensoren, Aktoren</div>
+   </div></div>
+ </div>
+ <div class="side">
+  <div class="layer tst"><div class="lt">Dreistufige Testkette</div>
+   <div class="boxes" style="flex-direction:column">
+    <div class="b">1 · Host<small>GoogleTest auf Mock-CPU, simulierte Netze und USB-Hosts; portierte Testfälle; Mutations-Fuzzer; ASan/UBSan; AFL++</small></div>
+    <div class="b">2 · QEMU<small>Kernel auf emuliertem Cortex-M: Kontextwechsel, FPU, Interrupt-Prioritäten, Stack-Limit</small></div>
+    <div class="b">3 · Renode<small>reale Firmware mit Peripheriemodellen, Netz über TAP: Ende-zu-Ende-Test, Penetrationstest, Browser</small></div>
+   </div></div>
+  <div class="layer tst"><div class="lt">Quellen der Anforderungen</div>
+   <div class="boxes" style="flex-direction:column">
+    <div class="b">Best-in-Class-Analyse<small>ThreadX, FreeRTOS, lwIP, NetX Duo, open62541, TinyUSB, USBX</small></div>
+    <div class="b">Errata-Sheets<small>ES0565, ES0392, ES0431, ES096</small></div>
+    <div class="b">Normen, RFCs, Spezifikationen</div>
+   </div></div>
+ </div>
+</div>
+<div class="legend">
+ <span><i class="ai" style="background:#dbe8f6"></i>vollständig KI-generiert</span>
+ <span><i style="background:#f3d9a8;border-style:dashed"></i>bewusst übernommene Fremdkomponente</span>
+ <span><i style="background:#d9efd9"></i>Code aus Schema generiert</span>
+ <span><i style="background:#eee"></i>Hardware / externe Systeme</span>
+</div>
+</div></body></html>

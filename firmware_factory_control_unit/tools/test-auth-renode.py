@@ -17,6 +17,11 @@ Renode on the TAP adapter "rtoos-tap" (rtoos/emulation/renode/setup-tap.ps1), li
 
   cmake --build --preset rev3 && python tools/test-auth-renode.py [--revision 1]
 
+--open-ethernet: the firmware was built with WebAuth:Modes:Ethernet = Open (docs/security.md "Login mode
+per interface"). Then: /api/session without a cookie is an open programmer session, the WebSocket opens
+without login, registers are read and written, a PLC download still needs presence (0x103), user
+management still needs a login (401), the label password still logs in, and the console audits it.
+
 Run it unsandboxed (TAP). Exit code 0 = pass.
 """
 import argparse
@@ -37,6 +42,7 @@ ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDe
 ap.add_argument("--revision", type=int, choices=[1, 3], default=3)
 ap.add_argument("--elf", type=Path)
 ap.add_argument("--renode", default="C:/opt/renode/renode.exe")
+ap.add_argument("--open-ethernet", action="store_true", help="firmware built with WebAuth:Modes:Ethernet = Open")
 args = ap.parse_args()
 rtoos = ROOT / "rtoos"
 sys.path.insert(0, str(rtoos / "emulation"))
@@ -237,11 +243,40 @@ def scenario() -> None:
         check(f"console: {text!r}", any(text in line for line in log))
 
 
+def open_scenario() -> None:
+    """WebAuth:Modes:Ethernet = Open: programmer without login, presence and accounts unchanged."""
+    print("-- open Ethernet")
+    s = fa.request(DEV, "GET", "/api/session")
+    j = s.json() if s.status == 200 else {}
+    check("GET /api/session without cookie: open programmer session",
+          s.status == 200 and j.get("open") is True and j.get("role") == "programmer" and j.get("mustChangePassword") is False,
+          f"{s.status} {s.body[:120]!r}")
+    check("WebSocket without cookie: 101", upgrade_status(None) == 101)
+    check("cross-origin upgrade still refused: 403", upgrade_status(None, "https://evil.example") == 403)
+    ws = fa.ws_open(DEV, None)
+    a = fa.ws_request(ws, MODBUS, GET_REGISTERS, 1)
+    check("reads registers without login", fa.ws_error_code(a) is None)
+    a = fa.ws_request(ws, MODBUS, WRITE_HOLDING, 2, struct.pack("<HH", 0, 0))
+    check("writes registers without login", fa.ws_error_code(a) is None)
+    a = fa.ws_request(ws, PLC, UPLOAD, 3, struct.pack("<IIH", 0, 0, 0))
+    check("PLC download over the open LAN still needs presence (0x103)", fa.ws_error_code(a) == E_PRESENCE, str(fa.ws_error_code(a)))
+    ws.close()
+    check("user management without login: 401", fa.request(DEV, "GET", "/api/users").status == 401)
+    check("password recovery over the LAN still refused (403)", fa.request(DEV, "POST", "/api/recover", {}).status == 403)
+    r = fa.login(DEV, "admin", fa.label_password())
+    check("the label password still logs in (admin)", r.status == 200 and r.json().get("mustChangePassword") is True,
+          f"{r.status} {r.body[:80]!r}")
+    print("-- audit")
+    time.sleep(1)
+    for text in ("auth: Ethernet is OPEN", "without login: open interface", "refused: physical presence required"):
+        check(f"console: {text!r}", any(text in line for line in log))
+
+
 try:
     check("boot: DHCP lease", wait_log("dhcp: bound", 120))
     check("boot: accounts", wait_log("auth: ", 10), next((l for l in log if "auth: " in l), ""))
     try:
-        scenario()
+        open_scenario() if args.open_ethernet else scenario()
     except Exception as e:  # noqa: BLE001 - a scenario that could not run is a failure, report it
         check("scenario ran", False, f"{type(e).__name__}: {e}")
     bad = [line for line in log if re.search(r"fault|contract|assert|panic|stack overflow", line, re.I)]

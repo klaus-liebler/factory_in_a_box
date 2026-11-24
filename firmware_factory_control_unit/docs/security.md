@@ -26,6 +26,32 @@ policy of the Factory Control Unit (`src/auth.hpp`, `src/auth.cpp`, `src/ws_perm
   writes the files. `PrintLabel` prints it again. Brother QL-700 (62 mm tape) and an A4 sheet with cut
   marks for any printer (`PrintLabelSheet`): [labels.md](labels.md).
 
+## Login mode per interface
+
+`WebAuth:Modes` in `builder/appsettings.json` sets, per network interface, whether the web UI needs a login:
+
+```json
+"WebAuth": {
+  "Modes": { "Ethernet": "OneTimePassword", "UsbNcm": "Open" }
+}
+```
+
+- `OneTimePassword` (the default for every interface, also for a missing key): login as below - the label's
+  one-time password, then the accounts.
+- `Open`: whoever reaches the device over that interface works **without login as Programmierer**: values,
+  actuators, PLC programming and debugging (`src/auth_mode.hpp`, `rtos::auth::effective_subject`). Account
+  management (`/api/users`) and the terminal stay admin-only and need a login; an admin can still log in on
+  an open interface (a usable login counts as itself). `/api/session` answers `{"open":true,"role":"programmer",...}`
+  without a cookie, and the web UI then starts without the login screen; its user button leads to the login.
+- Open replaces the login, never the presence rule: USB-NCM still counts as physical presence, Ethernet does not.
+  An open Ethernet can therefore not download the PLC program or force without USB (or the button).
+- The builder writes the modes into `generated/device_credentials.hh` (`DEVICE_WEB_ETHERNET_OPEN`,
+  `DEVICE_WEB_USB_NCM_OPEN`) and warns at every build for an open interface; an unknown interface or mode is an
+  error. The firmware logs `auth: Ethernet is OPEN ...` at boot, and every WebSocket admitted without login and
+  every programmer-level request of it as `auth: ... (open)`.
+- `Open` on Ethernet gives everyone in the network the programmer role: only for an isolated lab network. It
+  conflicts with "no default password" (ETSI EN 303 645 5.1) for a device in the field.
+
 ## On the device
 
 - Accounts: up to 8, in two flash sectors right below the PLC's program slots (A/B, `CredentialStore`;
@@ -84,6 +110,8 @@ interface (console, the Terminal page).
 
 - rtoos host tests: `auth_test.cpp`, `Http.*Body*`, `HttpsApi.*` (see rtoos docs/security.md).
 - `tests/host/ws_permissions_test.cpp`: the role table.
+- `tests/host/auth_mode_test.cpp`: open Ethernet/USB-NCM with the role table (rtoos: `Access.OpenPath...`);
+  `tests/builder/WebAuthModeTests.cs`: `WebAuth:Modes` parsing.
 - `web/src/core/auth.test.ts`: the UI's session mirror.
 - `tools/test-auth-renode.py`: end to end in Renode (label password, forced change, cookie flags, roles,
   presence, forged/old tokens, fixation, cross-origin, throttling, audit lines).

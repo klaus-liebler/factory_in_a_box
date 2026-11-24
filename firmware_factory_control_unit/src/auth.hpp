@@ -12,6 +12,8 @@
 //              Inactivity 30 min, lifetime 12 h, POST /api/logout. The WebSocket upgrade needs a
 //              valid session (and the Origin check of the server); every WebSocket message is
 //              checked against the role table (ws_permissions.hpp) on the device.
+//   Open       per interface (WebAuth:Modes, auth_mode.hpp): an open Ethernet or USB-NCM admits requests
+//              without login as Programmer; accounts and terminal still need an admin login.
 //   Throttle   per client address and globally (rtos/auth/throttle.hpp): answered with 429 at once.
 //   Presence   PLC download, forcing, firmware/certificate changes and password resets need physical
 //              presence: the session came in over the USB interface (a cable at the device), or a

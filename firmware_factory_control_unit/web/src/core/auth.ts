@@ -27,6 +27,8 @@ export interface Session {
 	present: boolean;
 	via: "usb" | "lan";
 	idleTimeoutS: number;
+	/** no login: the interface is open (WebAuth:Modes), the device grants its role (programmer); an admin may still log in */
+	open?: boolean;
 }
 
 export class ApiError extends Error {

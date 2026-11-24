@@ -1,5 +1,6 @@
 // Web UI authentication of the FCU (see auth.hpp).
 #include "auth.hpp"
+#include "auth_mode.hpp"
 
 #include <algorithm>
 #include <array>
@@ -35,6 +36,11 @@ constexpr std::size_t max_logins = 6;  // sessions (browsers, tabs share one)
 constexpr std::uint32_t iterations_per_step = 32;
 constexpr std::string_view cookie_name = "fcu_session";
 constexpr std::uint32_t check_period_ms = 1000;
+/// Login mode per interface (WebAuth:Modes of the builder, auth_mode.hpp): open = Programmer without login.
+constexpr InterfaceModes modes{.ethernet = DEVICE_WEB_ETHERNET_OPEN ? LoginMode::Open : LoginMode::Login,
+                               .usb = DEVICE_WEB_USB_NCM_OPEN ? LoginMode::Open : LoginMode::Login};
+/// Name of the open interface's (login-less) subject in the audit and in /api/session.
+constexpr std::string_view open_user = "(open)";
 
 // ---- accounts and their flash -------------------------------------------------------------------------
 // Two sectors right below the PLC's program slots (0x081C0000, plc.cpp); FLASH_DATA_START in
@@ -101,10 +107,11 @@ bool present(bool local) noexcept {
     return button.present(local, now_ms());
 }
 
-/// A WebSocket's login: bound at the upgrade.
+/// A WebSocket's login: bound at the upgrade. open: no (usable) login, admitted by an open interface.
 struct Binding {
     ra::SessionHandle login{};
     bool local = false;
+    bool open = false;
 };
 std::array<Binding, net::max_https_sessions> bindings{};
 
@@ -168,11 +175,21 @@ void json_error(ApiResponse& out, std::string_view status, std::string_view mess
 void json_session(ApiResponse& out, const ra::SessionInfo& s, bool local) noexcept {
     std::array<char, 200> j{};
     const int k = std::snprintf(j.data(), j.size(),
-                                R"({"user":"%.*s","role":"%.*s","mustChangePassword":%s,"present":%s,"via":"%s","idleTimeoutS":%lu})",
+                                R"({"user":"%.*s","role":"%.*s","mustChangePassword":%s,"present":%s,"via":"%s","idleTimeoutS":%lu,"open":false})",
                                 static_cast<int>(users.users[s.user].user_name().size()), users.users[s.user].user_name().data(),
                                 static_cast<int>(ra::role_name(s.role).size()), ra::role_name(s.role).data(),
                                 s.must_change_password ? "true" : "false", present(local) ? "true" : "false", via(local),
                                 static_cast<unsigned long>(sessions.policy().idle_ms / 1000));
+    out.write({j.data(), static_cast<std::size_t>(std::max(k, 0))});
+}
+
+/// The login-less "session" of an open interface: its role, nothing to change, never expires.
+void json_open_session(ApiResponse& out, bool local) noexcept {
+    std::array<char, 176> j{};
+    const int k = std::snprintf(j.data(), j.size(),
+                                R"({"user":"%.*s","role":"%.*s","mustChangePassword":false,"present":%s,"via":"%s","idleTimeoutS":0,"open":true})",
+                                static_cast<int>(open_user.size()), open_user.data(), static_cast<int>(ra::role_name(open_role).size()),
+                                ra::role_name(open_role).data(), present(local) ? "true" : "false", via(local));
     out.write({j.data(), static_cast<std::size_t>(std::max(k, 0))});
 }
 
@@ -384,6 +401,11 @@ ApiResult logout(const ApiRequest& r, ApiResponse& out) noexcept {
 
 ApiResult session_info(const ApiRequest& r, ApiResponse& out) noexcept {
     const auto h = login_of(r);
+    const bool usable = h && !sessions.info(*h)->must_change_password;
+    if (!usable && modes.open(is_local(r))) {
+        json_open_session(out, is_local(r));
+        return ApiResult::Done;
+    }
     if (!h) {
         json_error(out, "401 Unauthorized", "not logged in");
         return ApiResult::Done;
@@ -439,6 +461,7 @@ ApiResult change_password(const ApiRequest& r, ApiResponse& out) noexcept {
 ApiResult manage_users(const ApiRequest& r, ApiResponse& out) noexcept {
     const auto h = login_of(r);
     const bool local = is_local(r);
+    // an open interface's role (Programmer) is below admin: account management always needs a login
     const ra::Subject who = h ? subject(*h, local) : ra::Subject{};
     const std::string_view action_text = [&] {
         static Name a{};
@@ -585,16 +608,23 @@ ApiResult begin(void*, const ApiRequest& r, ApiResponse& out) noexcept {
     return ApiResult::Done;
 }
 
-/// The WebSocket upgrade: a valid login that need not change its password first.
+/// The WebSocket upgrade: a valid login that need not change its password first, or an open interface.
 bool authorize_upgrade(void*, const ApiRequest& r) noexcept {
     const auto h = login_of(r);
     const ra::SessionInfo* s = h ? sessions.info(*h) : nullptr;
+    const bool local = is_local(r);
     if (s == nullptr || s->must_change_password) {
-        RTOS_LOG_WARN("auth: WebSocket from %s (%s) refused: %s", ip_text(r.peer).text, via(is_local(r)),
+        if (modes.open(local)) {
+            bindings[r.id] = {.login = {}, .local = local, .open = true};
+            RTOS_LOG_INFO("auth: WebSocket from %s (%s) without login: open interface, %.*s", ip_text(r.peer).text, via(local),
+                          static_cast<int>(ra::role_name(open_role).size()), ra::role_name(open_role).data());
+            return true;
+        }
+        RTOS_LOG_WARN("auth: WebSocket from %s (%s) refused: %s", ip_text(r.peer).text, via(local),
                       s == nullptr ? "not logged in" : "password change required");
         return false;
     }
-    bindings[r.id] = {.login = *h, .local = is_local(r)};
+    bindings[r.id] = {.login = *h, .local = local};
     return true;
 }
 
@@ -619,17 +649,20 @@ void init() noexcept {
         RTOS_LOG_INFO("auth: provisioning account %s with the label password (%s)", DEVICE_WEB_ADMIN_USER,
                       epoch != provisioning_epoch && epoch != 0 ? "new provisioning" : "first start");
     }
+    if (modes.open(false)) RTOS_LOG_WARN("auth: Ethernet is OPEN - programmer without login (WebAuth:Modes)");
+    if (modes.open(true)) RTOS_LOG_WARN("auth: USB-NCM is OPEN - programmer without login (WebAuth:Modes)");
 }
 
 const Server::ApiHandler& api_handler() noexcept { return handler; }
 
 Decision authorize(SessionId id, Permission need, const char* what) noexcept {
     Binding& b = bindings[id];
-    ra::Subject who{};
-    if (sessions.touch(b.login, now_ms())) who = subject(b.login, b.local);
+    std::optional<ra::Subject> login;
+    if (!b.open && sessions.touch(b.login, now_ms())) login = subject(b.login, b.local);
+    const ra::Subject who = ra::effective_subject(login, b.open ? LoginMode::Open : LoginMode::Login, open_role, b.open && present(b.local));
     const Decision d = ra::decide(who, need);
-    const ra::SessionInfo* s = sessions.info(b.login);
-    const std::string_view name = s != nullptr ? users.users[s->user].user_name() : std::string_view("-");
+    const ra::SessionInfo* s = b.open ? nullptr : sessions.info(b.login);
+    const std::string_view name = b.open ? open_user : s != nullptr ? users.users[s->user].user_name() : std::string_view("-");
     if (d != Decision::Allowed) {
         RTOS_LOG_WARN("auth: %s by %.*s refused: %.*s", what, static_cast<int>(name.size()), name.data(),
                       static_cast<int>(ra::decision_name(d).size()), ra::decision_name(d).data());
@@ -643,6 +676,7 @@ Decision authorize(SessionId id, Permission need, const char* what) noexcept {
 void websocket_closed(SessionId id) noexcept { bindings[id] = {}; }
 
 Role role_of(SessionId id) noexcept {
+    if (bindings[id].open) return open_role;
     const ra::SessionInfo* s = sessions.info(bindings[id].login);
     return s != nullptr ? s->role : Role::None;
 }

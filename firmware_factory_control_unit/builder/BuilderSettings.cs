@@ -25,6 +25,33 @@ public sealed class WebAuthOptions
     public int Pbkdf2Iterations { get; set; } = 6000;
     public int PasswordLength { get; set; } = 16;
     public string AdminUser { get; set; } = "admin";
+    /// Login mode per network interface (docs/security.md "Login mode per interface"): "Ethernet" and
+    /// "UsbNcm", each "OneTimePassword" (login needed: the label's one-time password, then the
+    /// accounts; the default) or "Open" (Programmer without login; accounts and terminal still need
+    /// an admin login; USB-NCM still counts as physical presence). Missing keys stay OneTimePassword.
+    public Dictionary<string, string> Modes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public static readonly string[] Interfaces = ["Ethernet", "UsbNcm"];
+
+    /// The interface is open (validated: unknown interfaces or modes throw).
+    public bool IsOpen(string iface)
+    {
+        foreach (var key in Modes.Keys)
+        {
+            if (!Interfaces.Contains(key, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException($"WebAuth:Modes: unbekanntes Interface \"{key}\" (bekannt: {string.Join(", ", Interfaces)}).");
+            }
+        }
+        var mode = Modes.FirstOrDefault(kv => string.Equals(kv.Key, iface, StringComparison.OrdinalIgnoreCase)).Value?.Trim();
+        return mode switch
+        {
+            null or "" => false,
+            _ when string.Equals(mode, "OneTimePassword", StringComparison.OrdinalIgnoreCase) => false,
+            _ when string.Equals(mode, "Open", StringComparison.OrdinalIgnoreCase) => true,
+            _ => throw new ArgumentException($"WebAuth:Modes:{iface}: \"{mode}\" unbekannt (OneTimePassword, Open)."),
+        };
+    }
 }
 
 // The label of each provisioned board (docs/labels.md). Type selects the printer:

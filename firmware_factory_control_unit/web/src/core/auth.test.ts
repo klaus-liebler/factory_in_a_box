@@ -41,6 +41,16 @@ describe("auth", () => {
 		await expect(refreshSession()).rejects.toBeInstanceOf(ApiError);
 	});
 
+	it("an open interface reports a session without login: programmer, not admin", async () => {
+		vi.stubGlobal("fetch", () =>
+			reply(200, { user: "(open)", role: "programmer", mustChangePassword: false, present: true, via: "usb", idleTimeoutS: 0, open: true }));
+		const s = await refreshSession();
+		expect(s?.open).toBe(true);
+		expect(s?.mustChangePassword).toBe(false);
+		expect(hasRole("programmer")).toBe(true);
+		expect(hasRole("admin")).toBe(false);
+	});
+
 	it("throttled logins carry Retry-After", async () => {
 		vi.stubGlobal("fetch", () => reply(429, { error: "too many failed logins", retryAfter: 8 }, { "Retry-After": "8" }));
 		const e = await login("admin", "x").catch((x: unknown) => x);

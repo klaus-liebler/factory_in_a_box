@@ -30,7 +30,11 @@
     "ForceRecreateOneTimeWebUiPassword": false,
     "Pbkdf2Iterations": 6000,
     "PasswordLength": 16,
-    "AdminUser": "admin"
+    "AdminUser": "admin",
+    "Modes": {
+      "Ethernet": "OneTimePassword",
+      "UsbNcm": "OneTimePassword"
+    }
   },
   "LabelPrinter": {
     "Type": null,

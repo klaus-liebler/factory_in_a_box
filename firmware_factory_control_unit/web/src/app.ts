@@ -71,10 +71,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 			path: "/terminal",
 			title: (n) => (n ? `${n} neue Warnungen/Fehler im Firmware-Log` : "Firmware-Log"),
 		},
-		user: {
-			name: `${s.user} · ${ROLE_LABEL[s.role]}${s.present ? " · USB" : ""}`,
-			logout: () => void logout().finally(() => location.reload()),
-		},
+		// open interface (WebAuth:Modes): no login needed; the button leads to the login (e.g. admin for accounts/terminal)
+		user: s.open
+			? { name: `ohne Anmeldung · ${ROLE_LABEL[s.role]}${s.present ? " · USB" : ""}`, logout: () => void showLogin().then(() => location.reload()) }
+			: { name: `${s.user} · ${ROLE_LABEL[s.role]}${s.present ? " · USB" : ""}`, logout: () => void logout().finally(() => location.reload()) },
 	});
 	// a reconnect needs a login: one that expired or was ended elsewhere shows the login again
 	setConnectGuard(async () => {

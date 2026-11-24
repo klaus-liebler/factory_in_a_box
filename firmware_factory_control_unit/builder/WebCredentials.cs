@@ -90,6 +90,17 @@ public static class WebCredentials
         var salt = Salt(chipUid, password);
         var hash = Hash(password, salt, settings.Pbkdf2Iterations);
         static string Bytes(byte[] b) => string.Join(", ", b.Select(x => $"0x{x:X2}"));
+        var ethernetOpen = settings.IsOpen("Ethernet");
+        var usbOpen = settings.IsOpen("UsbNcm");
+        if (ethernetOpen)
+        {
+            WarnOpen("Ethernet", "jeder im Netz kann ohne Anmeldung Werte schreiben, Aktoren bewegen und die SPS programmieren");
+        }
+        if (usbOpen)
+        {
+            WarnOpen("UsbNcm", "wer ein Kabel am Geraet hat, arbeitet ohne Anmeldung als Programmierer");
+        }
+        static string Cpp(bool b) => b ? "true" : "false";
         var text = $$"""
             #pragma once
             // Generiert von builder/WebCredentials.cs -- nicht von Hand editieren, nicht einchecken.
@@ -100,6 +111,9 @@ public static class WebCredentials
             inline constexpr std::uint32_t DEVICE_WEB_PBKDF2_ITERATIONS = {{settings.Pbkdf2Iterations.ToString(CultureInfo.InvariantCulture)}};
             inline constexpr std::uint8_t DEVICE_WEB_PASSWORD_SALT[16] = {{{Bytes(salt)}}};
             inline constexpr std::uint8_t DEVICE_WEB_PASSWORD_HASH[32] = {{{Bytes(hash)}}};
+            // WebAuth:Modes: true = Open (Programmer without login, src/auth_mode.hpp), false = OneTimePassword
+            inline constexpr bool DEVICE_WEB_ETHERNET_OPEN = {{Cpp(ethernetOpen)}};
+            inline constexpr bool DEVICE_WEB_USB_NCM_OPEN = {{Cpp(usbOpen)}};
 
             """;
         var file = Path.Combine(ctx.FirmwareGeneratedDir, "device_credentials.hh");
@@ -107,6 +121,15 @@ public static class WebCredentials
         {
             File.WriteAllText(file, text);  // unchanged: keep the time stamp (no rebuild)
         }
+    }
+
+    private static void WarnOpen(string iface, string consequence)
+    {
+        var color = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"WARNUNG: WebAuth:Modes:{iface} = Open -- {consequence}. " +
+                          "Konten und Terminal brauchen weiter eine Admin-Anmeldung (docs/security.md).");
+        Console.ForegroundColor = color;
     }
 
     private static void AppendProvisioningRecord(IBuildContextStm32 ctx, Device d, string evt)

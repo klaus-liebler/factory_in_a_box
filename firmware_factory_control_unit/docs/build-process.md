@@ -100,7 +100,8 @@ dotnet run --project builder -- GenerateCertificatesForced                     #
 dotnet run --project builder -- GenerateDeviceArtifacts                        # device_ids.hh + device-ids.json (generated/) + Kopie von board_info.json aus dem Board-Archiv
 dotnet run --project builder -- GenerateWebCredentials                         # Web-Einmalpasswort (board_info.json im Board-Archiv, wiederverwendet) -> generated/device_credentials.hh, neues Passwort: Etikett
 dotnet run --project builder -- GenerateWebCredentials -- --force-recreate-one-time-web-ui-password   # neues Einmalpasswort erzwingen (danach Etikett drucken)
-dotnet run --project builder -- PrintLabel                                     # Etikett build/labels/<hostname>.zpl/.png/.pdf, an LabelPrinter:Host:Port falls konfiguriert (docs/security.md)
+dotnet run --project builder -- PrintLabel                                     # Etikett aus dem Board-Archiv nach build/labels/, Druck laut LabelPrinter (Zebra/Brother QL, docs/labels.md); -- --board <id> | --all | --dry-run
+dotnet run --project builder -- PrintLabelSheet -- --all                       # A4-Bogen build/labels/labels_A4.pdf mit Schnittmarken, 1:1 (docs/labels.md)
 dotnet run --project builder -- GenerateRegisterAccessFiles          # schema/register_map/*.cs -> Code (Modbus + OPC UA + Web)
 dotnet run --project builder -- GenerateBestBinaryBufferFiles                  # schema/best_binary_buffers/*.cs -> Code
 dotnet run --project builder -- GenerateTerminalFiles                          # schema/terminal/*.cs -> Code
@@ -199,6 +200,8 @@ builder/
 ├── appsettings.json                  # gitignored: persönliche Maschinenpfade (STM32CubeProgrammer, OneDrive-Ordner, CA, Default-Board-Type)
 ├── appsettings.json.template         # getrackte Vorlage; wird von einem MSBuild-Target (EnsureAppSettings) automatisch angelegt
 ├── BuilderSettings.cs                # appsettings.json gebunden an getrennte typsichere Konfigurationsklassen
+├── WebCredentials.cs, DeviceLabel.cs # Web-Einmalpasswort und Etikett (docs/security.md, docs/labels.md)
+├── Labels/                          # Etikett-Layout, Brother-QL-Raster, A4-Bogen-PDF, Druckwege (Tests: tests/builder)
 └── GlobalUsings.cs                   # globale Imports auf FirmwareBuilder.Common
 
 web/build-tools/

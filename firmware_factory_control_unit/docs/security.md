@@ -23,7 +23,8 @@ policy of the Factory Control Unit (`src/auth.hpp`, `src/auth.cpp`, `src/ws_perm
   hardware revision, provisioning date, the password and a QR code with `https://<hostname>.local/` (the URL
   only). ZPL for a Zebra-type printer, 51 x 25 mm at 300 dpi by default (`LabelPrinter:WidthMm/HeightMm/Dpi`);
   with `LabelPrinter:Host` (and `Port`, 9100) the builder sends it raw to the printer, otherwise it only
-  writes the files. `PrintLabel` prints it again.
+  writes the files. `PrintLabel` prints it again. Brother QL-700 (62 mm tape) and an A4 sheet with cut
+  marks for any printer (`PrintLabelSheet`): [labels.md](labels.md).
 
 ## On the device
 

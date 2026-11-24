@@ -3,10 +3,9 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using System.Globalization;
-using System.IO.Compression;
-using System.Net.Sockets;
 using System.Runtime.Versioning;
 using System.Text;
+using Builder.Labels;
 using QRCoder;
 
 namespace Builder;
@@ -21,15 +20,107 @@ namespace Builder;
 //   <hostname>.png   preview of the same layout (QR code from QRCoder, the printer draws its own)
 //   <hostname>.pdf   the preview as a one-page PDF of the label's size
 //
+// LabelPrinter:Type BrotherQL instead (docs/labels.md): <hostname>.<model>-<label>.png/.bin, the
+// layout of Labels/LabelArt.cs at the label's exact printable dots and its Brother QL raster job.
+// LabelPrinter:A4Sheet: also <hostname>.A4.pdf; PrintLabelSheet: build/labels/labels_A4.pdf.
+//
 // The files go to build/labels/ (gitignored: they carry the password).
 [SupportedOSPlatform("windows")]
 public static class DeviceLabel
 {
     private sealed record Line(string Text, int Height, bool Bold, int Y);
 
-    public static string Write(string rootDir, WebCredentials.Device d)
+    /// The label of one board with the settings of appsettings.json (LabelPrinter); dryRun (or
+    /// LabelPrinter:DryRun) writes the print job to build/labels/ and sends nothing.
+    public static string Write(string rootDir, WebCredentials.Device d, bool dryRun = false) =>
+        Write(rootDir, d, BuilderSettings.Current.LabelPrinter, dryRun);
+
+    public static string Write(string rootDir, WebCredentials.Device d, LabelPrinterOptions o, bool dryRun)
     {
-        var o = BuilderSettings.Current.LabelPrinter;
+        dryRun |= o.DryRun;
+        var dir = Path.Combine(rootDir, "build", "labels");
+        Directory.CreateDirectory(dir);
+        var basePath = Path.Combine(dir, d.Hostname);
+        var type = string.IsNullOrWhiteSpace(o.Type) ? "Zebra" : o.Type.Trim();
+        switch (type.ToLowerInvariant())
+        {
+            case "zebra":
+            case "none":
+                WriteZebra(basePath, d, o, send: !dryRun && type.ToLowerInvariant() == "zebra");
+                break;
+            case "brotherql":
+                WriteBrotherQl(basePath, d, o.BrotherQL, send: !dryRun);
+                break;
+            default:
+                throw new ArgumentException($"LabelPrinter:Type \"{o.Type}\" unbekannt (Zebra, BrotherQL, None).");
+        }
+        if (o.A4Sheet)
+        {
+            var pdf = basePath + ".A4.pdf";
+            LabelSheet.Write(pdf, [d], o.SheetCellWidthMm, o.SheetCellHeightMm);
+            Console.WriteLine($"A4-Bogen: {pdf}");
+        }
+        if (dryRun)
+        {
+            Console.WriteLine("Trockenlauf (--dry-run / LabelPrinter:DryRun): nichts an einen Drucker gesendet.");
+        }
+        return basePath;
+    }
+
+    /// Brother QL: <hostname>.<model>-<label>.png (exactly the printable dots, black/white) and .bin
+    /// (the raster job), then sent by the configured backend.
+    public static (string Png, string Bin) WriteBrotherQl(string basePath, WebCredentials.Device d, BrotherQlOptions q, bool send)
+    {
+        var model = BrotherQl.FindModel(q.Model);
+        var media = BrotherQl.FindMedia(q.Label);
+        var (w, h) = BrotherQl.ImageSize(media);
+        using var bmp = LabelArt.Render(d, w, h, monochrome: true);
+        var stem = $"{basePath}.{model.Name}-{media.Name}";
+        bmp.Save(stem + ".png", ImageFormat.Png);
+        var job = BrotherQl.Encode(LabelArt.Gray(bmp), bmp.Width, bmp.Height, model, media);
+        File.WriteAllBytes(stem + ".bin", job);
+        var lengthMm = media.DieCut ? media.LengthMm : bmp.Height * 25.4 / 300;
+        Console.WriteLine($"Etikett {model.Name}, {media.Dk}: {stem}.png ({bmp.Width} x {bmp.Height} Punkte, " +
+                          $"{media.WidthMm} x {lengthMm:0} mm) / .bin ({job.Length} Bytes Rasterauftrag)");
+        if (!send)
+        {
+            return (stem + ".png", stem + ".bin");
+        }
+        var target = string.IsNullOrWhiteSpace(q.Target) ? null : q.Target.Trim();
+        switch (q.Backend.Trim().ToLowerInvariant())
+        {
+            case "windowsraw":
+                LabelTransport.WindowsRaw(job, target ?? $"Brother {model.Name}", $"FCU label {d.Hostname}");
+                break;
+            case "windowsdriver":
+                LabelTransport.WindowsDriver(bmp, target ?? $"Brother {model.Name}",
+                                             media.DieCut ? media.LengthMm : media.WidthMm,
+                                             media.DieCut ? media.WidthMm : lengthMm);
+                break;
+            case "tcp":
+                var (host, port) = LabelTransport.HostPort(target ?? throw new ArgumentException("LabelPrinter:BrotherQL:Target (host[:port]) fehlt."));
+                LabelTransport.Tcp(job, host, port);
+                break;
+            case "brotherqlcli":
+                LabelTransport.BrotherQlCli(q.BrotherQlCommand, q.BrotherQlBackend, model.Name,
+                                            target ?? "usb://0x04f9:0x2042", media.Name, stem + ".png");
+                break;
+            case "file":
+                if (target is not null)
+                {
+                    File.WriteAllBytes(target, job);
+                    Console.WriteLine($"Rasterauftrag nach {target} geschrieben.");
+                }
+                break;
+            default:
+                throw new ArgumentException($"LabelPrinter:BrotherQL:Backend \"{q.Backend}\" unbekannt " +
+                                            "(WindowsRaw, WindowsDriver, Tcp, BrotherQlCli, File).");
+        }
+        return (stem + ".png", stem + ".bin");
+    }
+
+    private static void WriteZebra(string basePath, WebCredentials.Device d, LabelPrinterOptions o, bool send)
+    {
         var width = Dots(o.WidthMm, o.Dpi);
         var height = Dots(o.HeightMm, o.Dpi);
         var s = o.Dpi / 300.0;  // the layout is drawn for 300 dpi
@@ -43,31 +134,27 @@ public static class DeviceLabel
         var qrX = width - qrSize - (int)(14 * s);
         var qrY = (int)(16 * s);
 
-        var dir = Path.Combine(rootDir, "build", "labels");
-        Directory.CreateDirectory(dir);
-        var basePath = Path.Combine(dir, d.Hostname);
         var zpl = Zpl(lines, width, height, s, url, qrX, qrY, magnification);
         File.WriteAllText(basePath + ".zpl", zpl);
         using (var bitmap = Preview(lines, width, height, qr, qrX, qrY, magnification))
         {
             bitmap.Save(basePath + ".png", ImageFormat.Png);
-            WritePdf(basePath + ".pdf", bitmap, o.WidthMm, o.HeightMm);
+            LabelSheet.WriteSingle(basePath + ".pdf", bitmap, o.WidthMm, o.HeightMm);
             Console.WriteLine($"Etikett: {basePath}.zpl / .png / .pdf ({o.WidthMm} x {o.HeightMm} mm, {o.Dpi} dpi)");
-            if (!string.IsNullOrWhiteSpace(o.WindowsPrinter))
+            if (send && !string.IsNullOrWhiteSpace(o.WindowsPrinter))
             {
-                PrintImage(bitmap, o.WindowsPrinter, o.WidthMm, o.HeightMm);  // printers without ZPL (driver)
-                return basePath;
+                LabelTransport.WindowsDriver(bitmap, o.WindowsPrinter, o.WidthMm, o.HeightMm);  // printers without ZPL (driver)
+                return;
             }
         }
-        if (!string.IsNullOrWhiteSpace(o.Host))
+        if (send && !string.IsNullOrWhiteSpace(o.Host))
         {
-            Print(zpl, o.Host, o.Port);
+            LabelTransport.Tcp(Encoding.UTF8.GetBytes(zpl), o.Host, o.Port);
         }
-        else
+        else if (send)
         {
-            Console.WriteLine("Kein Etikettendrucker konfiguriert (LabelPrinter:Host): nur Dateien geschrieben.");
+            Console.WriteLine("Kein Etikettendrucker konfiguriert (LabelPrinter:Host/WindowsPrinter/Type): nur Dateien geschrieben.");
         }
-        return basePath;
     }
 
     private static int Dots(double mm, int dpi) => (int)Math.Round(mm / 25.4 * dpi);
@@ -139,101 +226,4 @@ public static class DeviceLabel
         return bmp;
     }
 
-    /// One page of the label's size with the preview as an RGB image (Flate).
-    private static void WritePdf(string path, Bitmap bmp, double widthMm, double heightMm)
-    {
-        var raw = new byte[bmp.Width * bmp.Height * 3];
-        var data = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-        try
-        {
-            var row = new byte[data.Stride];
-            for (var y = 0; y < bmp.Height; ++y)
-            {
-                System.Runtime.InteropServices.Marshal.Copy(data.Scan0 + y * data.Stride, row, 0, data.Stride);
-                for (var xx = 0; xx < bmp.Width; ++xx)
-                {
-                    raw[(y * bmp.Width + xx) * 3 + 0] = row[xx * 3 + 2];  // BGR -> RGB
-                    raw[(y * bmp.Width + xx) * 3 + 1] = row[xx * 3 + 1];
-                    raw[(y * bmp.Width + xx) * 3 + 2] = row[xx * 3 + 0];
-                }
-            }
-        }
-        finally
-        {
-            bmp.UnlockBits(data);
-        }
-        byte[] image;
-        using (var ms = new MemoryStream())
-        {
-            using (var z = new ZLibStream(ms, CompressionLevel.Optimal, leaveOpen: true)) z.Write(raw);
-            image = ms.ToArray();
-        }
-        var wPt = (widthMm / 25.4 * 72).ToString("0.##", CultureInfo.InvariantCulture);
-        var hPt = (heightMm / 25.4 * 72).ToString("0.##", CultureInfo.InvariantCulture);
-        var content = Encoding.ASCII.GetBytes($"q {wPt} 0 0 {hPt} 0 0 cm /Im0 Do Q\n");
-        using var f = new FileStream(path, FileMode.Create);
-        var offsets = new List<long>();
-        void W(string s) { var b = Encoding.ASCII.GetBytes(s); f.Write(b); }
-        void Obj(string head, byte[]? stream = null)
-        {
-            offsets.Add(f.Position);
-            W($"{offsets.Count} 0 obj\n{head}\n");
-            if (stream is not null)
-            {
-                W("stream\n");
-                f.Write(stream);
-                W("\nendstream\n");
-            }
-            W("endobj\n");
-        }
-        W("%PDF-1.4\n");
-        Obj("<< /Type /Catalog /Pages 2 0 R >>");
-        Obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
-        Obj($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {wPt} {hPt}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>");
-        Obj($"<< /Type /XObject /Subtype /Image /Width {bmp.Width} /Height {bmp.Height} /ColorSpace /DeviceRGB /BitsPerComponent 8 " +
-            $"/Filter /FlateDecode /Length {image.Length} >>", image);
-        Obj($"<< /Length {content.Length} >>", content);
-        var xref = f.Position;
-        W($"xref\n0 {offsets.Count + 1}\n0000000000 65535 f \n");
-        foreach (var off in offsets) W($"{off:D10} 00000 n \n");
-        W($"trailer\n<< /Size {offsets.Count + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
-    }
-
-    /// The preview as a raster image through a Windows printer driver, at the label's size: for label
-    /// printers that speak no ZPL (e.g. NIIMBOT, Brother QL) but have a Windows driver.
-    private static void PrintImage(Bitmap bmp, string printer, double widthMm, double heightMm)
-    {
-        using var doc = new System.Drawing.Printing.PrintDocument();
-        doc.PrinterSettings.PrinterName = printer;
-        if (!doc.PrinterSettings.IsValid)
-        {
-            throw new InvalidOperationException($"Windows-Drucker \"{printer}\" nicht gefunden (LabelPrinter:WindowsPrinter).");
-        }
-        // hundredths of an inch
-        var w = (int)Math.Round(widthMm / 25.4 * 100);
-        var h = (int)Math.Round(heightMm / 25.4 * 100);
-        doc.DefaultPageSettings.PaperSize = new System.Drawing.Printing.PaperSize("FCU label", w, h);
-        doc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
-        doc.OriginAtMargins = true;
-        doc.PrintPage += (_, e) =>
-        {
-            e.Graphics!.InterpolationMode = InterpolationMode.NearestNeighbor;
-            e.Graphics.DrawImage(bmp, new Rectangle(0, 0, w, h));
-            e.HasMorePages = false;
-        };
-        doc.Print();
-        Console.WriteLine($"Etikett an den Windows-Drucker \"{printer}\" gesendet.");
-    }
-
-    private static void Print(string zpl, string host, int port)
-    {
-        using var client = new TcpClient();
-        if (!client.ConnectAsync(host, port).Wait(TimeSpan.FromSeconds(5)))
-        {
-            throw new InvalidOperationException($"Etikettendrucker {host}:{port} antwortet nicht.");
-        }
-        using var stream = client.GetStream();
-        stream.Write(Encoding.UTF8.GetBytes(zpl));
-        Console.WriteLine($"Etikett an {host}:{port} gesendet.");
-    }
 }

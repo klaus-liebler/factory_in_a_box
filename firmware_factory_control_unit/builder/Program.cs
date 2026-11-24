@@ -54,25 +54,95 @@ namespace Builder
 		[BuildStep]
 		public static void GenerateWebCredentials(IBuildContextStm32 ctx)
 		{
+			ApplyLabelOverrides(ctx);
 			var hadPassword = !string.IsNullOrEmpty(ctx.WebAdminPassword);
 			var device = WebCredentials.Generate(ctx);
 			if ((!hadPassword || Cli.HasFlag(ctx.Args, WebCredentials.ForceFlag) ||
 			     BuilderSettings.Current.WebAuth.ForceRecreateOneTimeWebUiPassword) && OperatingSystem.IsWindows())
 			{
-				DeviceLabel.Write(ctx.RootDir, device);
+				DeviceLabel.Write(ctx.RootDir, device, Cli.HasFlag(ctx.Args, "--dry-run"));
 			}
 		}
 
-		// The label again (ZPL, PNG, PDF; printed if LabelPrinter:Host is set), with the stored password.
+		// The label again with the stored password, read only from the board archive (never creates a
+		// password): the current board (build/.last-board-id), --board <id or prefix> (repeatable) or
+		// --all; printed as LabelPrinter configures it (docs/labels.md), --dry-run writes the print job
+		// to build/labels/ only.
 		[BuildStep]
 		public static void PrintLabel(IBuildContextStm32 ctx)
 		{
-			var device = WebCredentials.Generate(ctx);
 			if (!OperatingSystem.IsWindows())
 			{
-				throw new PlatformNotSupportedException("the label preview needs System.Drawing (Windows)");
+				throw new PlatformNotSupportedException("the label needs System.Drawing (Windows)");
 			}
-			DeviceLabel.Write(ctx.RootDir, device);
+			var dryRun = Cli.HasFlag(ctx.Args, "--dry-run");
+			foreach (var device in SelectLabelBoards(ctx))
+			{
+				DeviceLabel.Write(ctx.RootDir, device, dryRun);
+			}
+		}
+
+		// The labels of several boards on A4 at true scale with cut marks, for any laser printer:
+		// build/labels/labels_A4.pdf (--out <file>). Boards as PrintLabel (current, --board ..., --all),
+		// --copies <n> per board.
+		[BuildStep]
+		public static void PrintLabelSheet(IBuildContextStm32 ctx)
+		{
+			if (!OperatingSystem.IsWindows())
+			{
+				throw new PlatformNotSupportedException("the label needs System.Drawing (Windows)");
+			}
+			var devices = SelectLabelBoards(ctx);
+			var o = BuilderSettings.Current.LabelPrinter;
+			var copies = int.Parse(Cli.GetOptionalArgValue(ctx.Args, "--copies") ?? "1", System.Globalization.CultureInfo.InvariantCulture);
+			var path = Cli.GetOptionalArgValue(ctx.Args, "--out") ?? Path.Combine(ctx.RootDir, "build", "labels", "labels_A4.pdf");
+			var pages = Labels.LabelSheet.Write(path, devices, o.SheetCellWidthMm, o.SheetCellHeightMm, copies);
+			Console.WriteLine($"A4-Bogen: {path} ({devices.Count} Board(s) x {copies}, {pages} Seite(n), " +
+			                  $"Zelle {o.SheetCellWidthMm} x {o.SheetCellHeightMm} mm) -- mit 100 % drucken.");
+		}
+
+		// One-off overrides of LabelPrinter from the command line (try a label or printer without
+		// editing appsettings.json): --label-type Zebra|BrotherQL|None, --ql-label 62|29x90|17x54,
+		// --ql-backend WindowsRaw|WindowsDriver|Tcp|BrotherQlCli|File, --ql-target <queue|host:port|id>.
+		private static void ApplyLabelOverrides(IBuildContextStm32 ctx)
+		{
+			var o = BuilderSettings.Current.LabelPrinter;
+			o.Type = Cli.GetOptionalArgValue(ctx.Args, "--label-type") ?? o.Type;
+			o.BrotherQL.Label = Cli.GetOptionalArgValue(ctx.Args, "--ql-label") ?? o.BrotherQL.Label;
+			o.BrotherQL.Backend = Cli.GetOptionalArgValue(ctx.Args, "--ql-backend") ?? o.BrotherQL.Backend;
+			o.BrotherQL.Target = Cli.GetOptionalArgValue(ctx.Args, "--ql-target") ?? o.BrotherQL.Target;
+		}
+
+		private static List<WebCredentials.Device> SelectLabelBoards(IBuildContextStm32 ctx)
+		{
+			ApplyLabelOverrides(ctx);
+			var storage = BuilderSettings.Current.BoardStorage;
+			var defaults = BuilderSettings.Current.BoardDefaults;
+			var all = Cli.HasFlag(ctx.Args, "--all");
+			var requested = Cli.GetAllArgValues(ctx.Args, "--board");
+			var ids = all ? Labels.BoardArchiveLabels.AllBoardIds(storage.BoardsDir)
+				: requested.Count > 0 ? requested.Select(b => Labels.BoardArchiveLabels.Resolve(storage.BoardsDir, b)).Distinct().ToList()
+				: [ctx.BoardUid];
+			var devices = new List<WebCredentials.Device>();
+			foreach (var id in ids)
+			{
+				var d = Labels.BoardArchiveLabels.TryLoad(storage.BoardsDir, id, defaults.DefaultBoardTypeName, defaults.DefaultBoardTypeVersion, out var whyNot);
+				if (d is null)
+				{
+					if (!all)
+					{
+						throw new InvalidOperationException($"Board {id}: {whyNot}.");
+					}
+					Console.WriteLine($"Board {id} uebersprungen: {whyNot}.");
+					continue;
+				}
+				devices.Add(d);
+			}
+			if (devices.Count == 0)
+			{
+				throw new InvalidOperationException("Kein Board mit Web-Passwort gefunden.");
+			}
+			return devices;
 		}
 
 		[BuildStep]

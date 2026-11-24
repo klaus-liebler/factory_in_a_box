@@ -33,6 +33,19 @@
     "AdminUser": "admin"
   },
   "LabelPrinter": {
+    "Type": null,
+    "DryRun": false,
+    "A4Sheet": false,
+    "SheetCellWidthMm": 62,
+    "SheetCellHeightMm": 40,
+    "BrotherQL": {
+      "Model": "QL-700",
+      "Label": "62",
+      "Backend": "WindowsRaw",
+      "Target": "Brother QL-700",
+      "BrotherQlCommand": "brother_ql",
+      "BrotherQlBackend": null
+    },
     "Host": null,
     "WindowsPrinter": null,
     "Port": 9100,

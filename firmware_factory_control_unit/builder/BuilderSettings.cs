@@ -27,10 +27,21 @@ public sealed class WebAuthOptions
     public string AdminUser { get; set; } = "admin";
 }
 
-// The label of each provisioned board (ZPL for a Zebra-type printer, PNG/PDF preview). Without Host
-// only the files are written; with Host the ZPL goes raw to Host:Port.
+// The label of each provisioned board (docs/labels.md). Type selects the printer:
+//   Zebra (or empty): ZPL (51 x 25 mm default) raw to Host:Port, or the PNG through WindowsPrinter
+//   BrotherQL:        Brother QL raster (QL-700, 62 mm endless etc., see BrotherQlOptions)
+//   None:             files only
+// DryRun (or --dry-run) writes every print job to build/labels/ and sends nothing.
 public sealed class LabelPrinterOptions
 {
+    public string? Type { get; set; }
+    public bool DryRun { get; set; }
+    /// Every printed label additionally as an A4 sheet at true scale (build/labels/<hostname>.A4.pdf).
+    public bool A4Sheet { get; set; }
+    /// Cell of the A4 sheet (PrintLabelSheet): 62 mm wide like the QL tape.
+    public double SheetCellWidthMm { get; set; } = 62;
+    public double SheetCellHeightMm { get; set; } = 40;
+    public BrotherQlOptions BrotherQL { get; set; } = new();
     public string? Host { get; set; }
     /// Instead of ZPL over the network: the PNG through this Windows printer driver (printers without ZPL).
     public string? WindowsPrinter { get; set; }
@@ -38,6 +49,27 @@ public sealed class LabelPrinterOptions
     public double WidthMm { get; set; } = 51;
     public double HeightMm { get; set; } = 25;
     public int Dpi { get; set; } = 300;
+}
+
+// Brother QL label printer (LabelPrinter:Type = BrotherQL), docs/labels.md.
+public sealed class BrotherQlOptions
+{
+    /// QL-700 (USB, no compression, no mode switch); QL-710W/720NW/800/810W/820NWB work too.
+    public string Model { get; set; } = "QL-700";
+    /// "62" = DK-22205 62 mm endless (auto length, cut), "29x90" = DK-11201, "17x54" = DK-11204.
+    public string Label { get; set; } = "62";
+    /// WindowsRaw:    the raster job through the Windows queue of the Brother driver, datatype RAW (no Zadig)
+    /// WindowsDriver: the PNG through the Brother driver (System.Drawing), driver does the raster
+    /// Tcp:           raster job raw to Target "host[:port]" (network QL or a print server, port 9100)
+    /// BrotherQlCli:  the PNG via the python brother_ql CLI, Target = its printer identifier
+    ///                (usb://0x04f9:0x2042, tcp://host:9100, file:///dev/usb/lp0)
+    /// File:          only write the raster job (to Target, if set)
+    public string Backend { get; set; } = "WindowsRaw";
+    /// Queue name (WindowsRaw/WindowsDriver, default "Brother QL-700"), host[:port] or identifier.
+    public string? Target { get; set; }
+    public string BrotherQlCommand { get; set; } = "brother_ql";
+    /// pyusb | network | linux_kernel (passed as -b to brother_ql; empty: guessed from Target)
+    public string? BrotherQlBackend { get; set; }
 }
 
 public sealed class BuilderSettings : IBuilderAppSettingsStm32

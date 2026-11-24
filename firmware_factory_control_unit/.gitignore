@@ -16,5 +16,7 @@ node_modules/
 /builder/appsettings.json
 /builder/bin/
 /builder/obj/
+/tests/builder/bin/
+/tests/builder/obj/
 __pycache__/
 /tools/.opcua-test-client/

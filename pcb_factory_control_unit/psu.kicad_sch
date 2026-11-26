@@ -9572,7 +9572,7 @@
 				)
 			)
 		)
-		(property "Value" "CH224A"
+		(property "Value" "CH224Q"
 			(at 59.69 52.07 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9615,7 +9615,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C42459160"
+		(property "LCSC" "C46061833"
 			(at 59.69 52.07 0)
 			(hide yes)
 			(show_name no)

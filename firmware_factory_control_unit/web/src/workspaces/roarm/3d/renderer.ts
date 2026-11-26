@@ -61,14 +61,18 @@ export class Renderer {
   }
 }
 
-export function makeGrid(size: number, divisions: number): { a: Vec3; b: Vec3 }[] {
+/* Square floor grid in the z=0 plane, centred on (centerX, centerY). The centre is snapped to the grid step,
+   so the lines still run through the robot origin (whole multiples of the step away from it). */
+export function makeGrid(size: number, divisions: number, centerX = 0, centerY = 0): { a: Vec3; b: Vec3 }[] {
   const lines: { a: Vec3; b: Vec3 }[] = []
   const half = size / 2
   const step = size / divisions
+  const cx = Math.round(centerX / step) * step
+  const cy = Math.round(centerY / step) * step
   for (let i = 0; i <= divisions; i++) {
     const p = -half + i * step
-    lines.push({ a: [p, -half, 0], b: [p, half, 0] })
-    lines.push({ a: [-half, p, 0], b: [half, p, 0] })
+    lines.push({ a: [cx + p, cy - half, 0], b: [cx + p, cy + half, 0] })
+    lines.push({ a: [cx - half, cy + p, 0], b: [cx + half, cy + p, 0] })
   }
   return lines
 }

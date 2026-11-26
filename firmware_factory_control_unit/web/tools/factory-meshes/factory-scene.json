@@ -1,0 +1,98 @@
+{
+  "_comment": [
+    "Szene der 'Factory in a box' fuer die 3D-Teaching-Ansicht. Eingabe fuer extract-factory-data.mjs,",
+    "das daraus src/workspaces/roarm/3d/factory-data.ts erzeugt. Alle Meshes sind STL-Exporte aus Fusion 360",
+    "in Baugruppen-Koordinaten (mm, Z oben).",
+    "robotBase.posMm: Auflageflaeche des untersten Servos (Fusion-Messung). yawDeg: Drehung der Roboter-Basis um",
+    "Fusion-Z; 0 = Basis 0 Grad zeigt in Fusion +X (Richtung Separator, durch dessen Lage bestaetigt).",
+    "Nur Vielfache von 90 Grad sind erlaubt, weil die Gestell-Quader achsparallel bleiben muessen.",
+    "Teile: mode 'mesh' = dezimiertes Mesh mit triangleBudget; mode 'profiles' = Item-Profile als Quader",
+    "(Kollisionsmodell-tauglich). enabled=false laesst ein Teil komplett weg."
+  ],
+  "robotBase": {
+    "posMm": [284.874, 80.942, 29.7],
+    "yawDeg": 0
+  },
+  "parts": [
+    {
+      "name": "itemGestell",
+      "file": "ItemGestell.stl",
+      "mode": "profiles",
+      "color": [192, 195, 200],
+      "material": { "metallic": 0.55, "roughness": 0.42 },
+      "enabled": true
+    },
+    {
+      "name": "sortierMechanismus",
+      "file": "SortierMechanismus.stl",
+      "mode": "mesh",
+      "triangleBudget": 3500,
+      "color": [112, 128, 150],
+      "material": { "metallic": 0.1, "roughness": 0.6 },
+      "enabled": true
+    },
+    {
+      "name": "universalBridge",
+      "file": "UniversalBridge2.stl",
+      "mode": "mesh",
+      "triangleBudget": 2000,
+      "color": [150, 140, 118],
+      "material": { "metallic": 0.05, "roughness": 0.65 },
+      "enabled": true
+    },
+    {
+      "name": "fahrstuhl",
+      "file": "Fahrstuhl.stl",
+      "mode": "mesh",
+      "triangleBudget": 3500,
+      "color": [118, 140, 120],
+      "material": { "metallic": 0.1, "roughness": 0.6 },
+      "enabled": true
+    },
+    {
+      "name": "conveyor",
+      "file": "ChineseConveyor552mm.stl",
+      "mode": "mesh",
+      "triangleBudget": 500,
+      "color": [96, 102, 108],
+      "material": { "metallic": 0.05, "roughness": 0.75 },
+      "enabled": true
+    },
+    {
+      "name": "doppelzylinder",
+      "file": "Doppelzylinder 10x60.stl",
+      "mode": "mesh",
+      "triangleBudget": 2000,
+      "color": [168, 170, 176],
+      "material": { "metallic": 0.6, "roughness": 0.35 },
+      "enabled": true
+    },
+    {
+      "name": "separator",
+      "file": "Separator_long.stl",
+      "mode": "mesh",
+      "triangleBudget": 1500,
+      "color": [165, 125, 95],
+      "material": { "metallic": 0, "roughness": 0.7 },
+      "enabled": true
+    },
+    {
+      "name": "ventilhalter",
+      "file": "RegelungsVentilhalter.stl",
+      "mode": "mesh",
+      "triangleBudget": 400,
+      "color": [150, 112, 112],
+      "material": { "metallic": 0, "roughness": 0.7 },
+      "enabled": true
+    },
+    {
+      "name": "roarmPlatte",
+      "file": "VerbindungsplatteROArm.stl",
+      "mode": "mesh",
+      "triangleBudget": 600,
+      "color": [176, 180, 186],
+      "material": { "metallic": 0.5, "roughness": 0.45 },
+      "enabled": true
+    }
+  ]
+}

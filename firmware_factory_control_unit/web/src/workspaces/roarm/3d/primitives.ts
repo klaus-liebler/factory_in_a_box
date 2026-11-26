@@ -66,6 +66,22 @@ export function makeBox(sx: number, sy: number, sz: number): Mesh {
   return { positions: new Float32Array(positions), indices: new Uint16Array(indices) }
 }
 
+/**
+ * Several axis-aligned boxes (given by center and size) merged into ONE mesh - one draw call for a whole
+ * frame of Item profiles (see FACTORY_BOX_PARTS in factory-data.ts) instead of one part per profile.
+ */
+export function makeBoxes(boxes: readonly { center: readonly number[]; size: readonly number[] }[]): Mesh {
+  const positions = new Float32Array(boxes.length * 24 * 3)
+  const indices = new Uint16Array(boxes.length * 36)
+  boxes.forEach((b, i) => {
+    const box = makeBox(b.size[0], b.size[1], b.size[2])
+    for (let v = 0; v < 24; v++)
+      for (let j = 0; j < 3; j++) positions[(i * 24 + v) * 3 + j] = box.positions[v * 3 + j] + b.center[j]
+    for (let k = 0; k < 36; k++) indices[i * 36 + k] = box.indices[k] + i * 24
+  })
+  return { positions, indices }
+}
+
 // Placeholder dimensions (meters) -- exact vacuum cup size TBD, adjust here once known. Single
 // source of truth for both the mesh geometry below AND the gizmo/IK tool-tip offset in
 // roarm-3d-view.ts (VACUUM_CUP_TIP_OFFSET_M there imports STEM_LEN_M+CUP_LEN_M from here), so the
